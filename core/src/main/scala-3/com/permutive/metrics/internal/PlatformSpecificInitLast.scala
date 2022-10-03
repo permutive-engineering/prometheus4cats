@@ -1,7 +1,11 @@
 package com.permutive.metrics.internal
 
 trait PlatformSpecificInitLast extends LowPriorityInitLast {
+  type NonEmptyAppend[X <: Tuple, Y] <: NonEmptyTuple = X match {
+      case EmptyTuple => Y *: EmptyTuple
+      case x *: xs => x *: NonEmptyAppend[xs, Y]
+    }
 
-
-  inline given default[C <: NonEmptyTuple, A <: Tuple.Init[C], B <: Tuple.Last[C]]: InitLast.Aux[Tuple.Init[C], Tuple.Last[C], C] = InitLast.make(_.init, _.last)
+  implicit def default[A <: NonEmptyTuple, B, Out <: NonEmptyAppend[A, B]]: InitLast.Aux[A, B, Out] =
+    InitLast.make(_.init.asInstanceOf[A], _.last.asInstanceOf[B])
 }
