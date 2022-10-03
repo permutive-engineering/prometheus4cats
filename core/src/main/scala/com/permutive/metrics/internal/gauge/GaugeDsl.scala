@@ -28,8 +28,9 @@ final class GaugeDsl[F[_]] private[metrics] (
         metric,
         help,
         commonLabels,
-        Sized(name)
-      )(a => Sized(toString(a)))
+        Sized(name),
+        a => Sized(toString(a))
+      )
 
   def unsafeLabels(
       labelNames: IndexedSeq[Label.Name]

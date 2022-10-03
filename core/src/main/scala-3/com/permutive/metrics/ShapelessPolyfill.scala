@@ -27,8 +27,6 @@ trait ShapelessPolyfill {
       s.productIterator.toIndexedSeq.asInstanceOf[IndexedSeq[A]]
     def :+(a: A): TupleSized[R, A, N + 1] =
       (s :* a).asInstanceOf[TupleSized[R, A, N + 1]]
-    def ap1(a: A): TupleSized[R, A, N + 1] =
-      (s :* a).asInstanceOf[TupleSized[R, A, N + 1]]
   }
 
   type Sized[Repr, L <: Nat] = TupleSized[Repr, Represented[Repr], L]

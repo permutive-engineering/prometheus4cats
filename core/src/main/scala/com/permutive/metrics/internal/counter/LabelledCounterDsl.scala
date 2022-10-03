@@ -10,9 +10,9 @@ final class LabelledCounterDsl[F[_], T, N <: Nat] private[counter] (
     metric: Counter.Name,
     help: Metric.Help,
     commonLabels: Metric.CommonLabels,
-    labelNames: Sized[IndexedSeq[Label.Name], N]
-)(f: T => Sized[IndexedSeq[String], N])
-    extends BuildStep[F, Counter.Labelled[F, T]](
+    labelNames: Sized[IndexedSeq[Label.Name], N],
+    f: T => Sized[IndexedSeq[String], N]
+) extends BuildStep[F, Counter.Labelled[F, T]](
       registry.createAndRegisterLabelledCounter(
         prefix,
         suffix,
@@ -42,9 +42,8 @@ final class LabelledCounterDsl[F[_], T, N <: Nat] private[counter] (
         metric,
         help,
         commonLabels,
-        labelNames :+ name
-      )(c =>
-        f(InitLast[T, B, C].init(c)) :+ toString(InitLast[T, B, C].last(c))
+        labelNames :+ name,
+        c => f(InitLast[T, B, C].init(c)) :+ toString(InitLast[T, B, C].last(c))
       )
 
     }

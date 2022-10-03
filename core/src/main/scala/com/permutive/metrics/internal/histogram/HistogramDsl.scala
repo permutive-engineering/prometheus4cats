@@ -38,8 +38,9 @@ final class HistogramDsl[F[_]] private[metrics] (
         help,
         commonLabels,
         Sized(name),
-        buckets
-      )(a => Sized(toString(a)))
+        buckets,
+        a => Sized(toString(a))
+      )
 
   override def unsafeLabels(
       labelNames: IndexedSeq[Label.Name]

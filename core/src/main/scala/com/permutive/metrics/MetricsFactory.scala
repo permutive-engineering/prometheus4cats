@@ -40,29 +40,29 @@ object MetricsFactory {
   def noop[F[_]: Applicative]: MetricsFactory[F] =
     new MetricsFactory[F](MetricsRegistry.noop, None, None, Map.empty) {}
 
-  class Builder[F[_]] private[metrics] (
+  class Builder private[metrics] (
       prefix: Option[Metric.Prefix] = None,
       suffix: Option[Metric.Suffix] = None,
       commonLabels: CommonLabels = Map.empty
   ) {
-    def withPrefix(prefix: Metric.Prefix): Builder[F] =
-      new Builder[F](Some(prefix), suffix, commonLabels)
+    def withPrefix(prefix: Metric.Prefix): Builder =
+      new Builder(Some(prefix), suffix, commonLabels)
 
-    def withSuffix(suffix: Metric.Suffix): Builder[F] =
-      new Builder[F](prefix, Some(suffix), commonLabels)
+    def withSuffix(suffix: Metric.Suffix): Builder =
+      new Builder(prefix, Some(suffix), commonLabels)
 
-    def addCommonLabel(name: Label.Name, value: String): Builder[F] =
-      new Builder[F](prefix, suffix, commonLabels.updated(name, value))
+    def addCommonLabel(name: Label.Name, value: String): Builder =
+      new Builder(prefix, suffix, commonLabels.updated(name, value))
 
-    def withCommonLabels(labels: Map[Label.Name, String]): Builder[F] =
-      new Builder[F](prefix, suffix, labels)
+    def withCommonLabels(labels: Map[Label.Name, String]): Builder =
+      new Builder(prefix, suffix, labels)
 
-    def build(registry: MetricsRegistry[F]): MetricsFactory[F] =
+    def build[F[_]](registry: MetricsRegistry[F]): MetricsFactory[F] =
       new MetricsFactory[F](registry, prefix, suffix, commonLabels) {}
 
-    def noop(implicit F: Applicative[F]): MetricsFactory[F] =
+    def noop[F[_]: Applicative]: MetricsFactory[F] =
       MetricsFactory.noop[F]
   }
 
-  def builder[F[_]] = new Builder[F]()
+  def builder = new Builder()
 }

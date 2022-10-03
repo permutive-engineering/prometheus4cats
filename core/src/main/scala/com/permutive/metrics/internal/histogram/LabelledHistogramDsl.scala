@@ -12,9 +12,9 @@ final class LabelledHistogramDsl[F[_], T, N <: Nat] private[histogram] (
     help: Metric.Help,
     commonLabels: Metric.CommonLabels,
     labelNames: Sized[IndexedSeq[Label.Name], N],
-    buckets: NonEmptySeq[Double]
-)(f: T => Sized[IndexedSeq[String], N])
-    extends BuildStep[F, Histogram.Labelled[F, T]](
+    buckets: NonEmptySeq[Double],
+    f: T => Sized[IndexedSeq[String], N]
+) extends BuildStep[F, Histogram.Labelled[F, T]](
       registry.createAndRegisterLabelledHistogram(
         prefix,
         suffix,
@@ -46,9 +46,8 @@ final class LabelledHistogramDsl[F[_], T, N <: Nat] private[histogram] (
         help,
         commonLabels,
         labelNames :+ name,
-        buckets
-      )(c =>
-        f(InitLast[T, B, C].init(c)) :+ toString(InitLast[T, B, C].last(c))
+        buckets,
+        c => f(InitLast[T, B, C].init(c)) :+ toString(InitLast[T, B, C].last(c))
       )
 
     }

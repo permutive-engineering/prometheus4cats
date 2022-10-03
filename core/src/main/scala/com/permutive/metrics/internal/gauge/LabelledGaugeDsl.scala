@@ -10,9 +10,9 @@ final class LabelledGaugeDsl[F[_], T, N <: Nat] private[gauge] (
     metric: Gauge.Name,
     help: Metric.Help,
     commonLabels: Metric.CommonLabels,
-    labelNames: Sized[IndexedSeq[Label.Name], N]
-)(f: T => Sized[IndexedSeq[String], N])
-    extends BuildStep[F, Gauge.Labelled[F, T]](
+    labelNames: Sized[IndexedSeq[Label.Name], N],
+    f: T => Sized[IndexedSeq[String], N]
+) extends BuildStep[F, Gauge.Labelled[F, T]](
       registry.createAndRegisterLabelledGauge(
         prefix,
         suffix,
@@ -42,9 +42,8 @@ final class LabelledGaugeDsl[F[_], T, N <: Nat] private[gauge] (
         metric,
         help,
         commonLabels,
-        labelNames :+ name
-      )(c =>
-        f(InitLast[T, B, C].init(c)) :+ toString(InitLast[T, B, C].last(c))
+        labelNames :+ name,
+        c => f(InitLast[T, B, C].init(c)) :+ toString(InitLast[T, B, C].last(c))
       )
 
     }
