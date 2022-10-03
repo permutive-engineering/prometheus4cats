@@ -16,14 +16,14 @@ ThisBuild / tlSonatypeUseLegacyHost := false
 // publish website from this branch
 ThisBuild / tlSitePublishBranch := Some("main")
 
-val Scala213 = "3.2.0"
-ThisBuild / crossScalaVersions := Seq(Scala213, "2.13.8")
-ThisBuild / scalaVersion := Scala213 // the default Scala
+val Scala213 = "2.13.8"
+
+ThisBuild / crossScalaVersions := Seq("2.12.15", "3.2.0", Scala213)
+ThisBuild / scalaVersion := crossScalaVersions.value.last
 
 lazy val root = tlCrossRootProject.aggregate(core)
 
-lazy val core = crossProject(JVMPlatform, JSPlatform)
-  .crossType(CrossType.Pure)
+lazy val core = project
   .in(file("core"))
   .settings(
     name := "permutive-metrics",
@@ -32,7 +32,20 @@ lazy val core = crossProject(JVMPlatform, JSPlatform)
       "org.typelevel" %%% "cats-effect" % "3.3.14",
       "org.scalameta" %%% "munit" % "0.7.29" % Test,
       "org.typelevel" %%% "munit-cats-effect-3" % "1.0.7" % Test
-    )
+    ),
+    libraryDependencies ++= PartialFunction
+      .condOpt(CrossVersion.partialVersion(scalaVersion.value)) {
+        case Some((2, _)) =>
+          Seq(
+            "org.scala-lang" % "scala-reflect" % scalaVersion.value,
+            "com.chuusai" %% "shapeless" % "2.3.9"
+          )
+      }
+      .toList
+      .flatten,
+    scalacOptions := {
+      if (tlIsScala3.value) Seq("-Ykind-projector") else scalacOptions.value
+    }
   )
 
 lazy val docs = project.in(file("site")).enablePlugins(TypelevelSitePlugin)
