@@ -4,6 +4,8 @@ import cats.{Eq, Hash, Order, Show}
 
 object Metric {
 
+  type CommonLabels = Map[Label.Name, String]
+
   final class Help private (val value: String) extends AnyVal {
 
     override def toString: String = value
@@ -25,4 +27,33 @@ object Metric {
 
   }
 
+  final class Prefix private (val value: String) extends AnyVal
+
+  object Prefix {
+    final private val regex = "^[a-zA-Z_:][a-zA-Z0-9_:]*$".r
+
+    def from(string: String): Either[String, Prefix] =
+      Either.cond(
+        regex.matches(string),
+        new Prefix(string),
+        s"$string must match `$regex`"
+      )
+
+    // TODO cats instances
+  }
+
+  final class Suffix private (val value: String) extends AnyVal
+
+  object Suffix {
+    final private val regex = "^[a-zA-Z_:][a-zA-Z0-9_:]*$".r
+
+    def from(string: String): Either[String, Suffix] =
+      Either.cond(
+        regex.matches(string),
+        new Suffix(string),
+        s"$string must match `$regex`"
+      )
+
+    // TODO cats instances
+  }
 }

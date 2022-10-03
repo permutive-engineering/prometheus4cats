@@ -26,13 +26,16 @@ object Main extends IOApp.Simple {
 
 //  InitLast.default[(String, String, Int), (String, String), Int]
 
-  def run: IO[Unit] =
-    gauge[IO]("dsfsdf")
-      .help("dsfsdf")
-      .label[String]("sfsd")
-      .label[String]("sdf32rw")
-      .label[Int]("sdfsdfs")
-      .build
-      .flatMap(x => x.inc(0.1, ("sdfsdf", "d23r232", 1)))
+  val metrics: MetricsFactory[IO] = ???
+
+  def run: IO[Unit] = ???
+//    metrics
+//      .gauge("dsfsdf")
+//      .help("dsfsdf")
+//      .label[String]("sfsd")
+//      .label[String]("sdf32rw")
+//      .label[Int]("sdfsdfs")
+//      .build
+//      .flatMap(x => x.inc(0.1, ("sdfsdf", "d23r232", 1)))
 
 }

@@ -24,6 +24,12 @@ private[internal] trait FirstLabelStep[F[_], S[_[_], _, _ <: Nat]] {
 
 }
 
+private[internal] trait UnsafeLabelsStep[F[_], S[_[_], _]] {
+  def unsafeLabels(
+      labelNames: IndexedSeq[Label.Name]
+  ): BuildStep[F, S[F, Map[Label.Name, String]]]
+}
+
 abstract class FirstLabelApply[F[_], S[_[_], _, _ <: Nat], A] {
 
   def apply(name: Label.Name)(implicit show: Show[A]): S[F, A, Nat._1] =

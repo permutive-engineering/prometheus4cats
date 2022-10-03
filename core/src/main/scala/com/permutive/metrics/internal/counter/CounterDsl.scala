@@ -1,27 +1,27 @@
-package com.permutive.metrics.internal.gauge
+package com.permutive.metrics.internal.counter
 
 import com.permutive.metrics._
 import com.permutive.metrics.internal._
 
-final class GaugeDsl[F[_]] private[metrics] (
+final class CounterDsl[F[_]] private[metrics] (
     registry: MetricsRegistry[F],
     prefix: Option[Metric.Prefix],
     suffix: Option[Metric.Suffix],
-    metric: Gauge.Name,
+    metric: Counter.Name,
     help: Metric.Help,
     commonLabels: Metric.CommonLabels
-) extends BuildStep[F, Gauge[F]](
+) extends BuildStep[F, Counter[F]](
       registry
-        .createAndRegisterGauge(prefix, suffix, metric, help, commonLabels)
+        .createAndRegisterCounter(prefix, suffix, metric, help, commonLabels)
     )
-    with FirstLabelStep[F, LabelledGaugeDsl]
-    with UnsafeLabelsStep[F, Gauge.Labelled] {
+    with FirstLabelStep[F, LabelledCounterDsl]
+    with UnsafeLabelsStep[F, Counter.Labelled] {
 
   /** @inheritdoc
     */
-  override def label[A]: FirstLabelApply[F, LabelledGaugeDsl, A] =
+  override def label[A]: FirstLabelApply[F, LabelledCounterDsl, A] =
     (name, toString) =>
-      new LabelledGaugeDsl(
+      new LabelledCounterDsl(
         registry,
         prefix,
         suffix,
@@ -31,11 +31,11 @@ final class GaugeDsl[F[_]] private[metrics] (
         Sized(name)
       )(a => Sized(toString(a)))
 
-  def unsafeLabels(
+  override def unsafeLabels(
       labelNames: IndexedSeq[Label.Name]
-  ): BuildStep[F, Gauge.Labelled[F, Map[Label.Name, String]]] =
-    new BuildStep[F, Gauge.Labelled[F, Map[Label.Name, String]]](
-      registry.createAndRegisterLabelledGauge(
+  ): BuildStep[F, Counter.Labelled[F, Map[Label.Name, String]]] =
+    new BuildStep[F, Counter.Labelled[F, Map[Label.Name, String]]](
+      registry.createAndRegisterLabelledCounter(
         prefix,
         suffix,
         metric,
@@ -44,5 +44,4 @@ final class GaugeDsl[F[_]] private[metrics] (
         labelNames
       )(labels => labelNames.flatMap(labels.get))
     )
-
 }
