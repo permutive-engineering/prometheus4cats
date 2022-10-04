@@ -13,9 +13,6 @@ ThisBuild / developers := List(
 // publish to s01.oss.sonatype.org (set to true to publish to oss.sonatype.org instead)
 ThisBuild / tlSonatypeUseLegacyHost := false
 
-// publish website from this branch
-ThisBuild / tlSitePublishBranch := Some("main")
-
 val Scala213 = "2.13.8"
 
 ThisBuild / crossScalaVersions := Seq("2.12.15", "3.2.0", Scala213)
@@ -49,4 +46,4 @@ lazy val core = project
     }
   )
 
-lazy val docs = project.in(file("site")).enablePlugins(TypelevelSitePlugin)
+lazy val docs = project.in(file("site"))
