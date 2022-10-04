@@ -60,7 +60,7 @@ object Metric {
       *   a parsed [[Help]] or failure message, represented by an [[scala.Either]]
       */
     def from(string: String): Either[String, Help] =
-      Either.cond(!string.isBlank, new Help(string), s"must not be empty blank")
+      Either.cond(string.nonEmpty, new Help(string), s"must not be empty blank")
 
     implicit val MetricHelpHash: Hash[Help] = Hash.by(_.value)
 
