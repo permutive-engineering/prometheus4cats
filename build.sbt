@@ -31,12 +31,11 @@ lazy val core = project
       "org.typelevel" %%% "munit-cats-effect-3" % "1.0.7" % Test
     ),
     libraryDependencies ++= PartialFunction
-      .condOpt(CrossVersion.partialVersion(scalaVersion.value)) {
-        case Some((2, _)) =>
-          Seq(
-            "org.scala-lang" % "scala-reflect" % scalaVersion.value,
-            "com.chuusai" %% "shapeless" % "2.3.9"
-          )
+      .condOpt(CrossVersion.partialVersion(scalaVersion.value)) { case Some((2, _)) =>
+        Seq(
+          "org.scala-lang" % "scala-reflect" % scalaVersion.value,
+          "com.chuusai" %% "shapeless" % "2.3.9"
+        )
       }
       .toList
       .flatten,

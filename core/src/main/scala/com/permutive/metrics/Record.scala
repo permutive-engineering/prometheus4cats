@@ -1,3 +1,19 @@
+/*
+ * Copyright 2022 Permutive
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.permutive.metrics
 
 import cats.effect.kernel.Clock
@@ -9,8 +25,7 @@ import cats.{Applicative, FlatMap, MonadThrow}
 
 import scala.concurrent.duration._
 
-/** Interface that represents the ability to record the duration taken to run an
-  * effect
+/** Interface that represents the ability to record the duration taken to run an effect
   */
 trait Record[F[_]] {
   def record[A](fa: F[A])(observeDuration: (FiniteDuration, A) => F[Unit]): F[A]
@@ -29,8 +44,7 @@ object Record {
   }
 }
 
-private[metrics] class ClockRecord[F[_]: FlatMap](clock: Clock[F])
-    extends Record[F] {
+private[metrics] class ClockRecord[F[_]: FlatMap](clock: Clock[F]) extends Record[F] {
   override def record[A](
       fa: F[A]
   )(observeDuration: (FiniteDuration, A) => F[Unit]): F[A] =
@@ -39,8 +53,7 @@ private[metrics] class ClockRecord[F[_]: FlatMap](clock: Clock[F])
     }
 }
 
-/** Interface that represents the ability to record the duration taken to run an
-  * effect with error handling
+/** Interface that represents the ability to record the duration taken to run an effect with error handling
   */
 trait RecordAttempt[F[_]] extends Record[F] {
   def recordAttemptFold[A, B](
@@ -61,8 +74,7 @@ trait RecordAttempt[F[_]] extends Record[F] {
 object RecordAttempt {
   def apply[F[_]](implicit M: RecordAttempt[F]): RecordAttempt[F] = M
 
-  implicit def recordAttemptForClockMonadThrow[F[_]: Clock: MonadThrow]
-      : ClockRecordAttempt[F] =
+  implicit def recordAttemptForClockMonadThrow[F[_]: Clock: MonadThrow]: ClockRecordAttempt[F] =
     new ClockRecordAttempt[F](Clock[F])
 
   def noOpRecordAttempt[F[_]]: RecordAttempt[F] = new RecordAttempt[F] {

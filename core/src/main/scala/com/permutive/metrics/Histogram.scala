@@ -1,3 +1,19 @@
+/*
+ * Copyright 2022 Permutive
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.permutive.metrics
 
 import cats.{Applicative, Eq, Hash, Order, Show, ~>}
@@ -32,8 +48,7 @@ abstract private[metrics] class Histogram_[F[_]: Record] extends Histogram[F]
 object Histogram {
 
   val DefaultHttpBuckets: NonEmptySeq[Double] =
-    NonEmptySeq.of(0.005, .01, .025, .05, .075, .1, .25, .5, .75, 1, 2.5, 5,
-      7.5, 10)
+    NonEmptySeq.of(0.005, .01, .025, .05, .075, .1, .25, .5, .75, 1, 2.5, 5, 7.5, 10)
 
   final class Name private (val value: String) extends AnyVal {
     override def toString: String = value
@@ -121,11 +136,9 @@ object Histogram {
 
   }
 
-  /** Escape hatch for writing testing implementations in `metrics-testing`
-    * module
+  /** Escape hatch for writing testing implementations in `metrics-testing` module
     */
-  abstract private[metrics] class Labelled_[F[_]: RecordAttempt, A]
-      extends Labelled[F, A]
+  abstract private[metrics] class Labelled_[F[_]: RecordAttempt, A] extends Labelled[F, A]
 
   object Labelled {
     def make[F[_]: RecordAttempt, A](
