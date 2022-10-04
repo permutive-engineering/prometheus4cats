@@ -50,6 +50,16 @@ sealed abstract class MetricsFactory[F[_]](
     new HelpStep[BucketDsl[F]](
       new BucketDsl[F](registry, prefix, suffix, name, _, commonLabels)
     )
+
+  def dropPrefix: MetricsFactory[F] = new MetricsFactory[F](registry, None, suffix, commonLabels) {}
+
+  def withPrefix(prefix: Metric.Prefix): MetricsFactory[F] =
+    new MetricsFactory[F](registry, Some(prefix), suffix, commonLabels) {}
+
+  def dropSuffix: MetricsFactory[F] = new MetricsFactory[F](registry, prefix, None, commonLabels) {}
+
+  def withSuffix(suffix: Metric.Suffix): MetricsFactory[F] =
+    new MetricsFactory[F](registry, prefix, Some(suffix), commonLabels) {}
 }
 
 object MetricsFactory {
