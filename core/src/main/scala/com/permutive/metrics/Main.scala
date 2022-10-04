@@ -17,7 +17,6 @@
 package com.permutive.metrics
 
 import cats.effect.{IO, IOApp}
-import com.permutive.metrics.Metric.CommonLabels
 import com.permutive.metrics.internal.InitLast
 import com.permutive.metrics.internal.InitLast.default
 
@@ -29,7 +28,7 @@ object Main extends IOApp.Simple {
 
   val c = "sdfsdf"
 
-  val l = CommonLabels.from(Label.Name("sdfsdf") -> "sdfsdf")
+//  val l = CommonLabels.from(Label.Name("sdfsdf") -> "sdfsdf")
 
   val metrics: MetricsFactory[IO] =
     MetricsFactory.builder
