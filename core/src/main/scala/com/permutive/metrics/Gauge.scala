@@ -44,6 +44,8 @@ abstract private[metrics] class Gauge_[F[_]] extends Gauge[F]
 
 object Gauge {
 
+  /** Refined value class for a gauge name that has been parsed from a string
+    */
   final class Name private (val value: String) extends AnyVal {
     override def toString: String = value
   }
@@ -52,6 +54,12 @@ object Gauge {
 
     final private val regex = "^[a-zA-Z_:][a-zA-Z0-9_:]*$".r
 
+    /** Parse a [[Name]] from the given string
+      * @param string
+      *   value from which to parse a gauge name
+      * @return
+      *   a parsed [[Name]] or failure message, represented by an [[scala.Either]]
+      */
     def from(string: String): Either[String, Name] =
       Either.cond(
         regex.matches(string),
@@ -84,7 +92,7 @@ object Gauge {
     override def setToCurrentTime(): F[Unit] = _setToCurrentTime
   }
 
-  def noop[F[_]: Applicative] = new Gauge[F] {
+  def noop[F[_]: Applicative]: Gauge[F] = new Gauge[F] {
     override def inc(n: Double): F[Unit] = Applicative[F].unit
 
     override def dec(n: Double): F[Unit] = Applicative[F].unit

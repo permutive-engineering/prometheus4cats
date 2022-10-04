@@ -23,6 +23,8 @@ import cats.Show
 
 object Label {
 
+  /** Refined value class for a label name that has been parsed from a string
+    */
   final class Name private (val value: String) extends AnyVal {
 
     override def toString: String = value
@@ -33,6 +35,13 @@ object Label {
 
     final private val regex = "^[a-zA-Z_:][a-zA-Z0-9_:]*$".r
 
+    /** Parse a [[Name]] from the given string
+      *
+      * @param string
+      *   value from which to parse a label name
+      * @return
+      *   a parsed [[Name]] or failure message, represented by an [[scala.Either]]
+      */
     def from(string: String): Either[String, Name] =
       Either.cond(
         regex.matches(string),

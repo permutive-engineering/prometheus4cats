@@ -37,32 +37,83 @@ sealed abstract class MetricsFactory[F[_]](
       commonLabels
     ) {}
 
+  /** Starts creating a "gauge" metric.
+    *
+    * @example
+    *   {{{ metrics.gauge("my_gauge") .help("my gauge help") .label[Int]("first_label") .label[String]("second_label")
+    *   .label[Boolean]("third_label") .build }}}
+    *
+    * @param name
+    *   [[Gauge.Name]] value
+    *
+    * @return
+    *   Gauge builder using [[com.permutive.metrics.internal.HelpStep]] and
+    *   [[com.permutive.metrics.internal.gauge.GaugeDsl]]
+    */
   def gauge(name: Gauge.Name): HelpStep[GaugeDsl[F]] = new HelpStep(
     new GaugeDsl[F](registry, prefix, suffix, name, _, commonLabels)
   )
 
+  /** Starts creating a "counter" metric.
+    *
+    * @example
+    *   {{{ metrics.counter("my_counter") .help("my counter help") .label[Int]("first_label")
+    *   .label[String]("second_label") .label[Boolean]("third_label") .build }}}
+    *
+    * @param name
+    *   [[Counter.Name]] value
+    *
+    * @return
+    *   Counter builder using [[com.permutive.metrics.internal.HelpStep]] and
+    *   [[com.permutive.metrics.internal.counter.CounterDsl]]
+    */
   def counter(name: Counter.Name): HelpStep[CounterDsl[F]] =
     new HelpStep[CounterDsl[F]](
       new CounterDsl[F](registry, prefix, suffix, name, _, commonLabels)
     )
 
+  /** Starts creating a "histogram" metric.
+    *
+    * @example
+    *   {{{ metrics.histogram("my_histogram") .help("my counter help") .buckets(1.0, 2.0) .label[Int]("first_label")
+    *   .label[String]("second_label") .label[Boolean]("third_label") .build }}}
+    *
+    * @param name
+    *   [[Histogram.Name]] value
+    *
+    * @return
+    *   Counter builder using [[com.permutive.metrics.internal.HelpStep]],
+    *   [[com.permutive.metrics.internal.histogram.BucketDsl]] and
+    *   [[com.permutive.metrics.internal.histogram.HistogramDsl]]
+    */
   def histogram(name: Histogram.Name): HelpStep[BucketDsl[F]] =
     new HelpStep[BucketDsl[F]](
       new BucketDsl[F](registry, prefix, suffix, name, _, commonLabels)
     )
 
+  /** Creates a new instance of [[MetricsFactory]] without a [[Metric.Prefix]] set
+    */
   def dropPrefix: MetricsFactory[F] = new MetricsFactory[F](registry, None, suffix, commonLabels) {}
 
+  /** Creates a new instance of [[MetricsFactory]] with the given [[Metric.Prefix]] set
+    */
   def withPrefix(prefix: Metric.Prefix): MetricsFactory[F] =
     new MetricsFactory[F](registry, Some(prefix), suffix, commonLabels) {}
 
+  /** Creates a new instance of [[MetricsFactory]] without a [[Metric.Suffix]] set
+    */
   def dropSuffix: MetricsFactory[F] = new MetricsFactory[F](registry, prefix, None, commonLabels) {}
 
+  /** Creates a new instance of [[MetricsFactory]] with the given [[Metric.Suffix]] set
+    */
   def withSuffix(suffix: Metric.Suffix): MetricsFactory[F] =
     new MetricsFactory[F](registry, prefix, Some(suffix), commonLabels) {}
 }
 
 object MetricsFactory {
+
+  /** Create an instance of [[MetricsFactory]] that performs no operations
+    */
   def noop[F[_]: Applicative]: MetricsFactory[F] =
     new MetricsFactory[F](
       MetricsRegistry.noop,
@@ -71,26 +122,57 @@ object MetricsFactory {
       CommonLabels.empty
     ) {}
 
+  /** Builder for [[MetricsFactory]]
+    */
   class Builder private[metrics] (
       prefix: Option[Metric.Prefix] = None,
       suffix: Option[Metric.Suffix] = None,
       commonLabels: CommonLabels = CommonLabels.empty
   ) {
+
+    /** Add a prefix to all metrics created by the [[MetricsFactory]]
+      * @param prefix
+      *   [[Metric.Prefix]]
+      */
     def withPrefix(prefix: Metric.Prefix): Builder =
       new Builder(Some(prefix), suffix, commonLabels)
 
+    /** Add a suffix to all metrics created by the [[MetricsFactory]]
+      *
+      * @param suffix
+      *   [[Metric.Suffix]]
+      */
     def withSuffix(suffix: Metric.Suffix): Builder =
       new Builder(prefix, Some(suffix), commonLabels)
 
+    /** Add the given labels to all metrics created by the [[MetricsFactory]]
+      *
+      * @param labels
+      *   [[Metric.CommonLabels]]
+      */
     def withCommonLabels(labels: CommonLabels): Builder =
       new Builder(prefix, suffix, labels)
 
+    /** Build a [[MetricsFactory]] from a [[MetricsRegistry]]
+      *
+      * @param registry
+      *   [[MetricsRegistry]] with which to register new metrics created by the built [[MetricsFactory]]
+      * @return
+      *   a new [[MetricsFactory]] instance
+      */
     def build[F[_]](registry: MetricsRegistry[F]): MetricsFactory[F] =
       new MetricsFactory[F](registry, prefix, suffix, commonLabels) {}
 
+    /** Build a [[MetricsFactory]] the performs no operations
+      *
+      * @return
+      *   a new [[MetricsFactory]] instance that performs no operations
+      */
     def noop[F[_]: Applicative]: MetricsFactory[F] =
       MetricsFactory.noop[F]
   }
 
+  /** Construct a [[MetricsFactory]] using [[MetricsFactory.Builder]]
+    */
   def builder = new Builder()
 }

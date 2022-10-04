@@ -50,6 +50,8 @@ object Histogram {
   val DefaultHttpBuckets: NonEmptySeq[Double] =
     NonEmptySeq.of(0.005, .01, .025, .05, .075, .1, .25, .5, .75, 1, 2.5, 5, 7.5, 10)
 
+  /** Refined value class for a histogram name that has been parsed from a string
+    */
   final class Name private (val value: String) extends AnyVal {
     override def toString: String = value
   }
@@ -58,6 +60,13 @@ object Histogram {
 
     final private val regex = "^[a-zA-Z_:][a-zA-Z0-9_:]*$".r
 
+    /** Parse a [[Name]] from the given string
+      *
+      * @param string
+      *   value from which to parse a histogram name
+      * @return
+      *   a parsed [[Name]] or failure message, represented by an [[scala.Either]]
+      */
     def from(string: String): Either[String, Name] =
       Either.cond(
         regex.matches(string),

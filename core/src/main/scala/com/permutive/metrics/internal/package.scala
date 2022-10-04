@@ -41,6 +41,16 @@ private[internal] trait FirstLabelStep[F[_], S[_[_], _, _ <: Nat]] {
 }
 
 private[internal] trait UnsafeLabelsStep[F[_], S[_[_], _]] {
+
+  /** Creates a metric whose labels aren't checked at compile time. Provides a builder for a labelled metric that takes
+    * a map of label names to their values.
+    *
+    * This should be used when the labels are not known at compile time and potentially come from some source at
+    * runtime.
+    *
+    * @param labelNames
+    *   names of the labels
+    */
   def unsafeLabels(
       labelNames: IndexedSeq[Label.Name]
   ): BuildStep[F, S[F, Map[Label.Name, String]]]
@@ -57,7 +67,10 @@ abstract class FirstLabelApply[F[_], S[_[_], _, _ <: Nat], A] {
 
 class HelpStep[A] private[metrics] (f: Metric.Help => A) {
 
-  /** Sets the help string for the metric */
+  /** Sets the help string for the metric
+    * @param help
+    *   help message [[Metric.Help]]
+    */
   def help(help: Metric.Help): A = f(help)
 
 }
