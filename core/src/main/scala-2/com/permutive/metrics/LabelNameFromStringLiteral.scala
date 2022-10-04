@@ -4,6 +4,9 @@ import scala.reflect.macros.blackbox
 
 trait LabelNameFromStringLiteral {
 
+  def apply(t: String): Label.Name =
+    macro LabelNameMacros.fromStringLiteral
+
   implicit def fromStringLiteral(t: String): Label.Name =
     macro LabelNameMacros.fromStringLiteral
 

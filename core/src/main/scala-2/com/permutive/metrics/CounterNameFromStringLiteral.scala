@@ -4,6 +4,9 @@ import scala.reflect.macros.blackbox
 
 trait CounterNameFromStringLiteral {
 
+  def apply(t: String): Counter.Name =
+    macro CounterNameMacros.fromStringLiteral
+
   implicit def fromStringLiteral(t: String): Counter.Name =
     macro CounterNameMacros.fromStringLiteral
 

@@ -4,6 +4,10 @@ import scala.quoted.*
 
 trait CounterNameFromStringLiteral {
 
+  inline def apply(inline t: String): Counter.Name = ${
+    CounterNameFromStringLiteral.nameLiteral('t)
+  }
+
   implicit inline def fromStringLiteral(inline t: String): Counter.Name = ${
     CounterNameFromStringLiteral.nameLiteral('t)
   }

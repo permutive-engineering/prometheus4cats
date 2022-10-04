@@ -4,7 +4,11 @@ import scala.quoted.*
 
 trait LabelNameFromStringLiteral {
 
-  implicit inline def fromStringLiteral(inline t: String): Label.Name = ${
+  inline def apply(inline t: String): Label.Name = ${
+    LabelNameFromStringLiteral.nameLiteral('t)
+  }
+
+  inline implicit def fromStringLiteral(inline t: String): Label.Name = ${
     LabelNameFromStringLiteral.nameLiteral('t)
   }
 

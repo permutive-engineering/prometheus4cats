@@ -4,6 +4,10 @@ import scala.quoted.*
 
 trait GaugeNameFromStringLiteral {
 
+  inline def apply(inline t: String): Gauge.Name = ${
+    GaugeNameFromStringLiteral.nameLiteral('t)
+  }
+
   implicit inline def fromStringLiteral(inline t: String): Gauge.Name = ${
     GaugeNameFromStringLiteral.nameLiteral('t)
   }

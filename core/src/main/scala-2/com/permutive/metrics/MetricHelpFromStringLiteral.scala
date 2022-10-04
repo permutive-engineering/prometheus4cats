@@ -4,6 +4,9 @@ import scala.reflect.macros.blackbox
 
 trait MetricHelpFromStringLiteral {
 
+  def apply(t: String): Metric.Help =
+    macro MetricHelpMacros.fromStringLiteral
+
   implicit def fromStringLiteral(t: String): Metric.Help =
     macro MetricHelpMacros.fromStringLiteral
 

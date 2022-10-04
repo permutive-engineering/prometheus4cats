@@ -4,6 +4,9 @@ import scala.reflect.macros.blackbox
 
 trait MetricSuffixFromStringLiteral {
 
+  def apply(t: String): Metric.Suffix =
+    macro MetricSuffixMacros.fromStringLiteral
+
   implicit def fromStringLiteral(t: String): Metric.Suffix =
     macro MetricSuffixMacros.fromStringLiteral
 

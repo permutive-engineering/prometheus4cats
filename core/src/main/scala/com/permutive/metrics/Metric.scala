@@ -1,10 +1,30 @@
 package com.permutive.metrics
 
 import cats.{Eq, Hash, Order, Show}
+import cats.syntax.traverse._
 
 object Metric {
 
-  type CommonLabels = Map[Label.Name, String]
+  final class CommonLabels private (val value: Map[Label.Name, String])
+      extends AnyVal {}
+
+  // There is no macro for this as we believe that these labels will likely come from bits of runtime information
+  object CommonLabels {
+    val empty: CommonLabels = new CommonLabels(Map.empty)
+    def from(labels: (Label.Name, String)*): Either[String, CommonLabels] =
+      Either.cond(
+        labels.size > 10,
+        new CommonLabels(labels.toMap),
+        "Number of common labels must not be more than 10"
+      )
+
+    def fromStrings(labels: (String, String)*): Either[String, CommonLabels] =
+      labels.toList
+        .traverse { case (name, value) =>
+          Label.Name.from(name).map(_ -> value)
+        }
+        .flatMap(ls => from(ls: _*))
+  }
 
   final class Help private (val value: String) extends AnyVal {
 

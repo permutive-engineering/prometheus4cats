@@ -4,6 +4,9 @@ import scala.reflect.macros.blackbox
 
 trait MetricPrefixFromStringLiteral {
 
+  def apply(t: String): Metric.Prefix =
+    macro MetricPrefixMacros.fromStringLiteral
+
   implicit def fromStringLiteral(t: String): Metric.Prefix =
     macro MetricPrefixMacros.fromStringLiteral
 

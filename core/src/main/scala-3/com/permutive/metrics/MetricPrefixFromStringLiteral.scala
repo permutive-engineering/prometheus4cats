@@ -4,6 +4,10 @@ import scala.quoted.*
 
 trait MetricPrefixFromStringLiteral {
 
+  inline def apply(inline t: String): Metric.Prefix = ${
+    MetricPrefixFromStringLiteral.nameLiteral('t)
+  }
+
   implicit inline def fromStringLiteral(inline t: String): Metric.Prefix = ${
     MetricPrefixFromStringLiteral.nameLiteral('t)
   }

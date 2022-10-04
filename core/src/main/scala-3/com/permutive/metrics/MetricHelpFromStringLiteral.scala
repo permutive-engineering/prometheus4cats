@@ -4,31 +4,33 @@ import scala.quoted.*
 
 trait MetricHelpFromStringLiteral {
 
+  inline def apply(inline t: String): Metric.Help = ${
+    MetricHelpFromStringLiteral.nameLiteral('t)
+  }
+
   implicit inline def fromStringLiteral(inline t: String): Metric.Help = ${
     MetricHelpFromStringLiteral.nameLiteral('t)
   }
 
 }
 
-object MetricHelpFromStringLiteral {
+object MetricHelpFromStringLiteral extends MacroUtils {
   def nameLiteral(s: Expr[String])(using q: Quotes): Expr[Metric.Help] =
     s.value match {
       case Some(string) =>
         Metric.Help
           .from(string)
           .fold(
-            e => throw new RuntimeException(e),
+            error,
             _ =>
-              '{
-                Metric.Help
-                  .from(${ Expr(string) })
-                  .fold(e => throw new RuntimeException(e), identity)
-              }
+            '{
+              Metric.Help.from(${
+                Expr(string)
+              }).toOption.get
+            }
           )
       case None =>
-        q.reflect.report.error(
-          "This method uses a macro to verify that a Name literal is valid. Use Gauge.Name.from if you have a dynamic value you want to parse as a name."
-        )
-        '{ ??? }
+        abort("Metric.Help.from")
+        '{???}
     }
 }

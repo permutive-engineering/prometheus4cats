@@ -4,6 +4,9 @@ import scala.reflect.macros.blackbox
 
 trait HistogramNameFromStringLiteral {
 
+  def apply(t: String): Histogram.Name =
+    macro HistogramNameMacros.fromStringLiteral
+
   implicit def fromStringLiteral(t: String): Histogram.Name =
     macro HistogramNameMacros.fromStringLiteral
 

@@ -17,6 +17,7 @@
 package com.permutive.metrics
 
 import cats.effect.{IO, IOApp}
+import com.permutive.metrics.Metric.CommonLabels
 import com.permutive.metrics.internal.InitLast
 import com.permutive.metrics.internal.InitLast.default
 
@@ -28,21 +29,22 @@ object Main extends IOApp.Simple {
 
   val c = "sdfsdf"
 
+  val l = CommonLabels.from(Label.Name("sdfsdf") -> "sdfsdf")
+
   val metrics: MetricsFactory[IO] =
     MetricsFactory.builder
-      .withPrefix("dsfsdf")
-      .withSuffix("sdfsdfs")
-      .addCommonLabel("sdfsdf", "sdfsdf")
+//      .withPrefix("dsfsdf")
+//      .withSuffix("sdfsdfs")
       .noop
 
-  def run: IO[Unit] =
-    metrics
-      .gauge("sdf3r32")
-      .help("dsfsdf")
-      .label[String]("sfsd")
-      .label[String]("sdf32rw")
-      .label[Int]("sdfsdfs")
-      .build
-      .flatMap(x => x.inc(0.1, ("sdfsdf", "d23r232", 1)))
+  def run: IO[Unit] = ???
+//    metrics
+//      .gauge("sdf3r32")
+//      .help("dsfsdf")
+//      .label[String]("sfsd")
+//      .label[String]("sdf32rw")
+//      .label[Int]("sdfsdfs")
+//      .build
+//      .flatMap(x => x.inc(0.1, ("sdfsdf", "d23r232", 1)))
 
 }

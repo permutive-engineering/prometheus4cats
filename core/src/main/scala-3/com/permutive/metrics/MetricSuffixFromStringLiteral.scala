@@ -4,6 +4,10 @@ import scala.quoted.*
 
 trait MetricSuffixFromStringLiteral {
 
+  inline def apply(inline t: String): Metric.Suffix = ${
+    MetricSuffixFromStringLiteral.nameLiteral('t)
+  }
+
   implicit inline def fromStringLiteral(inline t: String): Metric.Suffix = ${
     MetricSuffixFromStringLiteral.nameLiteral('t)
   }

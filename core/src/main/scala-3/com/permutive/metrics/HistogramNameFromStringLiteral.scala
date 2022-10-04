@@ -4,6 +4,10 @@ import scala.quoted.*
 
 trait HistogramNameFromStringLiteral {
 
+  inline def apply(inline t: String): Histogram.Name = ${
+    HistogramNameFromStringLiteral.nameLiteral('t)
+  }
+
   implicit inline def fromStringLiteral(inline t: String): Histogram.Name = ${
     HistogramNameFromStringLiteral.nameLiteral('t)
   }

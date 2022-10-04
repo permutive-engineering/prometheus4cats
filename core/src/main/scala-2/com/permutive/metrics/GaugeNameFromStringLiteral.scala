@@ -4,6 +4,9 @@ import scala.reflect.macros.blackbox
 
 trait GaugeNameFromStringLiteral {
 
+  def apply(t: String): Gauge.Name =
+    macro GaugeNameMacros.fromStringLiteral
+
   implicit def fromStringLiteral(t: String): Gauge.Name =
     macro GaugeNameMacros.fromStringLiteral
 

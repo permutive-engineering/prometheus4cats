@@ -38,12 +38,17 @@ sealed abstract class MetricsFactory[F[_]](
 
 object MetricsFactory {
   def noop[F[_]: Applicative]: MetricsFactory[F] =
-    new MetricsFactory[F](MetricsRegistry.noop, None, None, Map.empty) {}
+    new MetricsFactory[F](
+      MetricsRegistry.noop,
+      None,
+      None,
+      CommonLabels.empty
+    ) {}
 
   class Builder private[metrics] (
       prefix: Option[Metric.Prefix] = None,
       suffix: Option[Metric.Suffix] = None,
-      commonLabels: CommonLabels = Map.empty
+      commonLabels: CommonLabels = CommonLabels.empty
   ) {
     def withPrefix(prefix: Metric.Prefix): Builder =
       new Builder(Some(prefix), suffix, commonLabels)
@@ -51,10 +56,7 @@ object MetricsFactory {
     def withSuffix(suffix: Metric.Suffix): Builder =
       new Builder(prefix, Some(suffix), commonLabels)
 
-    def addCommonLabel(name: Label.Name, value: String): Builder =
-      new Builder(prefix, suffix, commonLabels.updated(name, value))
-
-    def withCommonLabels(labels: Map[Label.Name, String]): Builder =
+    def withCommonLabels(labels: CommonLabels): Builder =
       new Builder(prefix, suffix, labels)
 
     def build[F[_]](registry: MetricsRegistry[F]): MetricsFactory[F] =
