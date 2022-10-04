@@ -17,14 +17,13 @@
 package com.permutive.metrics
 
 import cats.data.NonEmptySeq
+import cats.syntax.functor._
 import cats.{Applicative, Monad, ~>}
 import com.permutive.metrics.Metric.CommonLabels
-import cats.syntax.functor._
 
 trait MetricsRegistry[F[_]] {
   def createAndRegisterCounter(
       prefix: Option[Metric.Prefix],
-      suffix: Option[Metric.Suffix],
       name: Counter.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels
@@ -32,7 +31,6 @@ trait MetricsRegistry[F[_]] {
 
   def createAndRegisterLabelledCounter[A](
       prefix: Option[Metric.Prefix],
-      suffix: Option[Metric.Suffix],
       name: Counter.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
@@ -41,7 +39,6 @@ trait MetricsRegistry[F[_]] {
 
   def createAndRegisterGauge(
       prefix: Option[Metric.Prefix],
-      suffix: Option[Metric.Suffix],
       name: Gauge.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels
@@ -49,7 +46,6 @@ trait MetricsRegistry[F[_]] {
 
   def createAndRegisterLabelledGauge[A](
       prefix: Option[Metric.Prefix],
-      suffix: Option[Metric.Suffix],
       name: Gauge.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
@@ -58,7 +54,6 @@ trait MetricsRegistry[F[_]] {
 
   def createAndRegisterHistogram(
       prefix: Option[Metric.Prefix],
-      suffix: Option[Metric.Suffix],
       name: Histogram.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
@@ -67,7 +62,6 @@ trait MetricsRegistry[F[_]] {
 
   def createAndRegisterLabelledHistogram[A](
       prefix: Option[Metric.Prefix],
-      suffix: Option[Metric.Suffix],
       name: Histogram.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
@@ -81,7 +75,6 @@ object MetricsRegistry {
     new MetricsRegistry[F] {
       override def createAndRegisterCounter(
           prefix: Option[Metric.Prefix],
-          suffix: Option[Metric.Suffix],
           name: Counter.Name,
           help: Metric.Help,
           commonLabels: CommonLabels
@@ -89,7 +82,6 @@ object MetricsRegistry {
 
       override def createAndRegisterLabelledCounter[A](
           prefix: Option[Metric.Prefix],
-          suffix: Option[Metric.Suffix],
           name: Counter.Name,
           help: Metric.Help,
           commonLabels: CommonLabels,
@@ -99,7 +91,6 @@ object MetricsRegistry {
 
       override def createAndRegisterGauge(
           prefix: Option[Metric.Prefix],
-          suffix: Option[Metric.Suffix],
           name: Gauge.Name,
           help: Metric.Help,
           commonLabels: CommonLabels
@@ -108,7 +99,6 @@ object MetricsRegistry {
 
       override def createAndRegisterLabelledGauge[A](
           prefix: Option[Metric.Prefix],
-          suffix: Option[Metric.Suffix],
           name: Gauge.Name,
           help: Metric.Help,
           commonLabels: CommonLabels,
@@ -118,7 +108,6 @@ object MetricsRegistry {
 
       override def createAndRegisterHistogram(
           prefix: Option[Metric.Prefix],
-          suffix: Option[Metric.Suffix],
           name: Histogram.Name,
           help: Metric.Help,
           commonLabels: CommonLabels,
@@ -127,7 +116,6 @@ object MetricsRegistry {
 
       override def createAndRegisterLabelledHistogram[A](
           prefix: Option[Metric.Prefix],
-          suffix: Option[Metric.Suffix],
           name: Histogram.Name,
           help: Metric.Help,
           commonLabels: CommonLabels,
@@ -144,17 +132,15 @@ object MetricsRegistry {
     new MetricsRegistry[G] {
       override def createAndRegisterCounter(
           prefix: Option[Metric.Prefix],
-          suffix: Option[Metric.Suffix],
           name: Counter.Name,
           help: Metric.Help,
           commonLabels: CommonLabels
       ): G[Counter[G]] = fk(
-        self.createAndRegisterCounter(prefix, suffix, name, help, commonLabels)
+        self.createAndRegisterCounter(prefix, name, help, commonLabels)
       ).map(_.mapK(fk))
 
       override def createAndRegisterLabelledCounter[A](
           prefix: Option[Metric.Prefix],
-          suffix: Option[Metric.Suffix],
           name: Counter.Name,
           help: Metric.Help,
           commonLabels: CommonLabels,
@@ -162,7 +148,6 @@ object MetricsRegistry {
       )(f: A => IndexedSeq[String]): G[Counter.Labelled[G, A]] = fk(
         self.createAndRegisterLabelledCounter(
           prefix,
-          suffix,
           name,
           help,
           commonLabels,
@@ -172,17 +157,15 @@ object MetricsRegistry {
 
       override def createAndRegisterGauge(
           prefix: Option[Metric.Prefix],
-          suffix: Option[Metric.Suffix],
           name: Gauge.Name,
           help: Metric.Help,
           commonLabels: CommonLabels
       ): G[Gauge[G]] = fk(
-        self.createAndRegisterGauge(prefix, suffix, name, help, commonLabels)
+        self.createAndRegisterGauge(prefix, name, help, commonLabels)
       ).map(_.mapK(fk))
 
       override def createAndRegisterLabelledGauge[A](
           prefix: Option[Metric.Prefix],
-          suffix: Option[Metric.Suffix],
           name: Gauge.Name,
           help: Metric.Help,
           commonLabels: CommonLabels,
@@ -190,7 +173,6 @@ object MetricsRegistry {
       )(f: A => IndexedSeq[String]): G[Gauge.Labelled[G, A]] = fk(
         self.createAndRegisterLabelledGauge(
           prefix,
-          suffix,
           name,
           help,
           commonLabels,
@@ -200,7 +182,6 @@ object MetricsRegistry {
 
       override def createAndRegisterHistogram(
           prefix: Option[Metric.Prefix],
-          suffix: Option[Metric.Suffix],
           name: Histogram.Name,
           help: Metric.Help,
           commonLabels: CommonLabels,
@@ -208,7 +189,6 @@ object MetricsRegistry {
       ): G[Histogram[G]] = fk(
         self.createAndRegisterHistogram(
           prefix,
-          suffix,
           name,
           help,
           commonLabels,
@@ -218,7 +198,6 @@ object MetricsRegistry {
 
       override def createAndRegisterLabelledHistogram[A](
           prefix: Option[Metric.Prefix],
-          suffix: Option[Metric.Suffix],
           name: Histogram.Name,
           help: Metric.Help,
           commonLabels: CommonLabels,
@@ -227,7 +206,6 @@ object MetricsRegistry {
       )(f: A => IndexedSeq[String]): G[Histogram.Labelled[G, A]] = fk(
         self.createAndRegisterLabelledHistogram(
           prefix,
-          suffix,
           name,
           help,
           commonLabels,

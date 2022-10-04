@@ -22,13 +22,12 @@ import com.permutive.metrics.internal._
 final class CounterDsl[F[_]] private[metrics] (
     registry: MetricsRegistry[F],
     prefix: Option[Metric.Prefix],
-    suffix: Option[Metric.Suffix],
     metric: Counter.Name,
     help: Metric.Help,
     commonLabels: Metric.CommonLabels
 ) extends BuildStep[F, Counter[F]](
       registry
-        .createAndRegisterCounter(prefix, suffix, metric, help, commonLabels)
+        .createAndRegisterCounter(prefix, metric, help, commonLabels)
     )
     with FirstLabelStep[F, LabelledCounterDsl]
     with UnsafeLabelsStep[F, Counter.Labelled] {
@@ -40,7 +39,6 @@ final class CounterDsl[F[_]] private[metrics] (
       new LabelledCounterDsl(
         registry,
         prefix,
-        suffix,
         metric,
         help,
         commonLabels,
@@ -54,7 +52,6 @@ final class CounterDsl[F[_]] private[metrics] (
     new BuildStep[F, Counter.Labelled[F, Map[Label.Name, String]]](
       registry.createAndRegisterLabelledCounter(
         prefix,
-        suffix,
         metric,
         help,
         commonLabels,

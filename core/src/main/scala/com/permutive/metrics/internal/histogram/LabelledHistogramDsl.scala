@@ -23,7 +23,6 @@ import com.permutive.metrics.internal._
 final class LabelledHistogramDsl[F[_], T, N <: Nat] private[histogram] (
     registry: MetricsRegistry[F],
     prefix: Option[Metric.Prefix],
-    suffix: Option[Metric.Suffix],
     metric: Histogram.Name,
     help: Metric.Help,
     commonLabels: Metric.CommonLabels,
@@ -33,7 +32,6 @@ final class LabelledHistogramDsl[F[_], T, N <: Nat] private[histogram] (
 ) extends BuildStep[F, Histogram.Labelled[F, T]](
       registry.createAndRegisterLabelledHistogram(
         prefix,
-        suffix,
         metric,
         help,
         commonLabels,
@@ -57,7 +55,6 @@ final class LabelledHistogramDsl[F[_], T, N <: Nat] private[histogram] (
       ): LabelledHistogramDsl[F, C, Succ[N]] = new LabelledHistogramDsl(
         registry,
         prefix,
-        suffix,
         metric,
         help,
         commonLabels,

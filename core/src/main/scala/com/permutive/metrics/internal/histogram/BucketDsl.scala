@@ -22,7 +22,6 @@ import cats.data.NonEmptySeq
 final class BucketDsl[F[_]] private[metrics] (
     registry: MetricsRegistry[F],
     prefix: Option[Metric.Prefix],
-    suffix: Option[Metric.Suffix],
     metric: Histogram.Name,
     help: Metric.Help,
     commonLabels: Metric.CommonLabels
@@ -40,7 +39,7 @@ final class BucketDsl[F[_]] private[metrics] (
   /** Provides the list of buckets for the histogram as a non-empty sequence.
     */
   def buckets(list: NonEmptySeq[Double]): HistogramDsl[F] =
-    new HistogramDsl(registry, prefix, suffix, metric, help, commonLabels, list)
+    new HistogramDsl(registry, prefix, metric, help, commonLabels, list)
 
   /** Provides the list of buckets for the histogram as parameters.
     */

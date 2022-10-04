@@ -22,13 +22,12 @@ import com.permutive.metrics.internal._
 final class GaugeDsl[F[_]] private[metrics] (
     registry: MetricsRegistry[F],
     prefix: Option[Metric.Prefix],
-    suffix: Option[Metric.Suffix],
     metric: Gauge.Name,
     help: Metric.Help,
     commonLabels: Metric.CommonLabels
 ) extends BuildStep[F, Gauge[F]](
       registry
-        .createAndRegisterGauge(prefix, suffix, metric, help, commonLabels)
+        .createAndRegisterGauge(prefix, metric, help, commonLabels)
     )
     with FirstLabelStep[F, LabelledGaugeDsl]
     with UnsafeLabelsStep[F, Gauge.Labelled] {
@@ -40,7 +39,6 @@ final class GaugeDsl[F[_]] private[metrics] (
       new LabelledGaugeDsl(
         registry,
         prefix,
-        suffix,
         metric,
         help,
         commonLabels,
@@ -54,7 +52,6 @@ final class GaugeDsl[F[_]] private[metrics] (
     new BuildStep[F, Gauge.Labelled[F, Map[Label.Name, String]]](
       registry.createAndRegisterLabelledGauge(
         prefix,
-        suffix,
         metric,
         help,
         commonLabels,

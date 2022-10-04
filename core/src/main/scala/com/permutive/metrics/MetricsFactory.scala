@@ -26,14 +26,12 @@ import com.permutive.metrics.internal.histogram.BucketDsl
 sealed abstract class MetricsFactory[F[_]](
     registry: MetricsRegistry[F],
     prefix: Option[Metric.Prefix],
-    suffix: Option[Metric.Suffix],
     commonLabels: CommonLabels
 ) {
   def mapK[G[_]: Monad: RecordAttempt](fk: F ~> G): MetricsFactory[G] =
     new MetricsFactory[G](
       MetricsRegistry.mapK(registry, fk),
       prefix,
-      suffix,
       commonLabels
     ) {}
 
@@ -51,7 +49,7 @@ sealed abstract class MetricsFactory[F[_]](
     *   [[com.permutive.metrics.internal.gauge.GaugeDsl]]
     */
   def gauge(name: Gauge.Name): HelpStep[GaugeDsl[F]] = new HelpStep(
-    new GaugeDsl[F](registry, prefix, suffix, name, _, commonLabels)
+    new GaugeDsl[F](registry, prefix, name, _, commonLabels)
   )
 
   /** Starts creating a "counter" metric.
@@ -69,7 +67,7 @@ sealed abstract class MetricsFactory[F[_]](
     */
   def counter(name: Counter.Name): HelpStep[CounterDsl[F]] =
     new HelpStep[CounterDsl[F]](
-      new CounterDsl[F](registry, prefix, suffix, name, _, commonLabels)
+      new CounterDsl[F](registry, prefix, name, _, commonLabels)
     )
 
   /** Starts creating a "histogram" metric.
@@ -88,26 +86,17 @@ sealed abstract class MetricsFactory[F[_]](
     */
   def histogram(name: Histogram.Name): HelpStep[BucketDsl[F]] =
     new HelpStep[BucketDsl[F]](
-      new BucketDsl[F](registry, prefix, suffix, name, _, commonLabels)
+      new BucketDsl[F](registry, prefix, name, _, commonLabels)
     )
 
   /** Creates a new instance of [[MetricsFactory]] without a [[Metric.Prefix]] set
     */
-  def dropPrefix: MetricsFactory[F] = new MetricsFactory[F](registry, None, suffix, commonLabels) {}
+  def dropPrefix: MetricsFactory[F] = new MetricsFactory[F](registry, None, commonLabels) {}
 
   /** Creates a new instance of [[MetricsFactory]] with the given [[Metric.Prefix]] set
     */
   def withPrefix(prefix: Metric.Prefix): MetricsFactory[F] =
-    new MetricsFactory[F](registry, Some(prefix), suffix, commonLabels) {}
-
-  /** Creates a new instance of [[MetricsFactory]] without a [[Metric.Suffix]] set
-    */
-  def dropSuffix: MetricsFactory[F] = new MetricsFactory[F](registry, prefix, None, commonLabels) {}
-
-  /** Creates a new instance of [[MetricsFactory]] with the given [[Metric.Suffix]] set
-    */
-  def withSuffix(suffix: Metric.Suffix): MetricsFactory[F] =
-    new MetricsFactory[F](registry, prefix, Some(suffix), commonLabels) {}
+    new MetricsFactory[F](registry, Some(prefix), commonLabels) {}
 }
 
 object MetricsFactory {
@@ -118,7 +107,6 @@ object MetricsFactory {
     new MetricsFactory[F](
       MetricsRegistry.noop,
       None,
-      None,
       CommonLabels.empty
     ) {}
 
@@ -126,7 +114,6 @@ object MetricsFactory {
     */
   class Builder private[metrics] (
       prefix: Option[Metric.Prefix] = None,
-      suffix: Option[Metric.Suffix] = None,
       commonLabels: CommonLabels = CommonLabels.empty
   ) {
 
@@ -135,15 +122,7 @@ object MetricsFactory {
       *   [[Metric.Prefix]]
       */
     def withPrefix(prefix: Metric.Prefix): Builder =
-      new Builder(Some(prefix), suffix, commonLabels)
-
-    /** Add a suffix to all metrics created by the [[MetricsFactory]]
-      *
-      * @param suffix
-      *   [[Metric.Suffix]]
-      */
-    def withSuffix(suffix: Metric.Suffix): Builder =
-      new Builder(prefix, Some(suffix), commonLabels)
+      new Builder(Some(prefix), commonLabels)
 
     /** Add the given labels to all metrics created by the [[MetricsFactory]]
       *
@@ -151,7 +130,7 @@ object MetricsFactory {
       *   [[Metric.CommonLabels]]
       */
     def withCommonLabels(labels: CommonLabels): Builder =
-      new Builder(prefix, suffix, labels)
+      new Builder(prefix, labels)
 
     /** Build a [[MetricsFactory]] from a [[MetricsRegistry]]
       *
@@ -161,7 +140,7 @@ object MetricsFactory {
       *   a new [[MetricsFactory]] instance
       */
     def build[F[_]](registry: MetricsRegistry[F]): MetricsFactory[F] =
-      new MetricsFactory[F](registry, prefix, suffix, commonLabels) {}
+      new MetricsFactory[F](registry, prefix, commonLabels) {}
 
     /** Build a [[MetricsFactory]] the performs no operations
       *

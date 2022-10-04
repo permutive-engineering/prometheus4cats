@@ -22,7 +22,6 @@ import com.permutive.metrics.internal._
 final class LabelledCounterDsl[F[_], T, N <: Nat] private[counter] (
     registry: MetricsRegistry[F],
     prefix: Option[Metric.Prefix],
-    suffix: Option[Metric.Suffix],
     metric: Counter.Name,
     help: Metric.Help,
     commonLabels: Metric.CommonLabels,
@@ -31,7 +30,6 @@ final class LabelledCounterDsl[F[_], T, N <: Nat] private[counter] (
 ) extends BuildStep[F, Counter.Labelled[F, T]](
       registry.createAndRegisterLabelledCounter(
         prefix,
-        suffix,
         metric,
         help,
         commonLabels,
@@ -54,7 +52,6 @@ final class LabelledCounterDsl[F[_], T, N <: Nat] private[counter] (
       ): LabelledCounterDsl[F, C, Succ[N]] = new LabelledCounterDsl(
         registry,
         prefix,
-        suffix,
         metric,
         help,
         commonLabels,

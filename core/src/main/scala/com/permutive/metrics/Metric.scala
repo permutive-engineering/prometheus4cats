@@ -102,28 +102,4 @@ object Metric {
 
     implicit val MetricPrefixOrder: Order[Prefix] = Order.by(_.value)
   }
-
-  /** Refined value class that can be used with [[MetricsFactory]] to suffix every metric name with a certain string
-    * value
-    */
-  final class Suffix private (val value: String) extends AnyVal
-
-  object Suffix extends MetricSuffixFromStringLiteral {
-    final private val regex = "^[a-zA-Z_:][a-zA-Z0-9_:]*$".r
-
-    def from(string: String): Either[String, Suffix] =
-      Either.cond(
-        regex.matches(string),
-        new Suffix(string),
-        s"$string must match `$regex`"
-      )
-
-    implicit val MetricSuffixHash: Hash[Suffix] = Hash.by(_.value)
-
-    implicit val MetricSuffixEq: Eq[Suffix] = Eq.by(_.value)
-
-    implicit val MetricSuffixShow: Show[Suffix] = Show.show(_.value)
-
-    implicit val MetricSuffixOrder: Order[Suffix] = Order.by(_.value)
-  }
 }
