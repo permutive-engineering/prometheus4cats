@@ -43,8 +43,6 @@ object InitLast extends PlatformSpecificInitLast {
 
   type Aux[A, B, Out] = InitLast[A, B] { type C = Out }
 
-//  object Aux extends PlatformSpecificInitLast
-
   private[internal] def make[A, B, Out <: Product](
       _init: Out => A,
       _last: Out => B
@@ -54,10 +52,4 @@ object InitLast extends PlatformSpecificInitLast {
       override def init(c: C): A = _init(c)
       override def last(c: C): B = _last(c)
     }
-
-//  implicit def default1[C0 <: Product, A <: Product, B](implicit
-//      @nowarn prepend: Prepend.Aux[A, Tuple1[B], C0],
-//      initEv: Init.Aux[C0, A],
-//      lastEv: Last.Aux[C0, B]
-//  ): InitLast.Aux[A, B, C0] = InitLast.make(initEv.apply, lastEv.apply)
 }
