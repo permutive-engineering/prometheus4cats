@@ -44,6 +44,7 @@ lazy val core = project
       .toList
       .flatten,
     scalacOptions := {
+      // Scala 3 macros won't compile with the default Typelevel settings
       if (tlIsScala3.value) Seq("-Ykind-projector") else scalacOptions.value
     }
   )
