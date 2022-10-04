@@ -26,15 +26,23 @@ object Main extends IOApp.Simple {
 
 //  InitLast.default[(String, String, Int), (String, String), Int]
 
-  val metrics: MetricsFactory[IO] = MetricsFactory.builder.noop
+  val c = "sdfsdf"
 
-  def run: IO[Unit] = metrics
-    .gauge("dsfsdf")
-    .help("dsfsdf")
-    .label[String]("sfsd")
-    .label[String]("sdf32rw")
-    .label[Int]("sdfsdfs")
-    .build
-    .flatMap(x => x.inc(0.1, ("sdfsdf", "d23r232", 1)))
+  val metrics: MetricsFactory[IO] =
+    MetricsFactory.builder
+      .withPrefix("dsfsdf")
+      .withSuffix("sdfsdfs")
+      .addCommonLabel("sdfsdf", "sdfsdf")
+      .noop
+
+  def run: IO[Unit] =
+    metrics
+      .gauge("sdf3r32")
+      .help("dsfsdf")
+      .label[String]("sfsd")
+      .label[String]("sdf32rw")
+      .label[Int]("sdfsdfs")
+      .build
+      .flatMap(x => x.inc(0.1, ("sdfsdf", "d23r232", 1)))
 
 }

@@ -20,7 +20,7 @@ object Counter {
     override def toString: String = value
   }
 
-  object Name {
+  object Name extends CounterNameFromStringLiteral {
 
     final private val regex = "^[a-zA-Z_:][a-zA-Z0-9_:]*_total$".r
 

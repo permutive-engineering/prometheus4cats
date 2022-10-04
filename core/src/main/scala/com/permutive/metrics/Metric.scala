@@ -29,7 +29,7 @@ object Metric {
 
   final class Prefix private (val value: String) extends AnyVal
 
-  object Prefix {
+  object Prefix extends MetricPrefixFromStringLiteral {
     final private val regex = "^[a-zA-Z_:][a-zA-Z0-9_:]*$".r
 
     def from(string: String): Either[String, Prefix] =
@@ -39,12 +39,18 @@ object Metric {
         s"$string must match `$regex`"
       )
 
-    // TODO cats instances
+    implicit val MetricPrefixHash: Hash[Prefix] = Hash.by(_.value)
+
+    implicit val MetricPrefixEq: Eq[Prefix] = Eq.by(_.value)
+
+    implicit val MetricPrefixShow: Show[Prefix] = Show.show(_.value)
+
+    implicit val MetricPrefixOrder: Order[Prefix] = Order.by(_.value)
   }
 
   final class Suffix private (val value: String) extends AnyVal
 
-  object Suffix {
+  object Suffix extends MetricSuffixFromStringLiteral {
     final private val regex = "^[a-zA-Z_:][a-zA-Z0-9_:]*$".r
 
     def from(string: String): Either[String, Suffix] =
@@ -54,6 +60,12 @@ object Metric {
         s"$string must match `$regex`"
       )
 
-    // TODO cats instances
+    implicit val MetricSuffixHash: Hash[Suffix] = Hash.by(_.value)
+
+    implicit val MetricSuffixEq: Eq[Suffix] = Eq.by(_.value)
+
+    implicit val MetricSuffixShow: Show[Suffix] = Show.show(_.value)
+
+    implicit val MetricSuffixOrder: Order[Suffix] = Order.by(_.value)
   }
 }

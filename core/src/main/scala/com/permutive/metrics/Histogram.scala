@@ -39,7 +39,7 @@ object Histogram {
     override def toString: String = value
   }
 
-  object Name {
+  object Name extends HistogramNameFromStringLiteral {
 
     final private val regex = "^[a-zA-Z_:][a-zA-Z0-9_:]*$".r
 

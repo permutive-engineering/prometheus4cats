@@ -10,25 +10,28 @@ trait LabelNameFromStringLiteral {
 
 }
 
-object LabelNameFromStringLiteral {
+object LabelNameFromStringLiteral extends MacroUtils {
   def nameLiteral(s: Expr[String])(using q: Quotes): Expr[Label.Name] =
     s.value match {
       case Some(string) =>
         Label.Name
           .from(string)
           .fold(
-            e => throw new RuntimeException(e),
+            error,
             _ =>
               '{
                 Label.Name
-                  .from(${ Expr(string) })
-                  .fold(e => throw new RuntimeException(e), identity)
+                  .from(${
+                    Expr(string)
+                  })
+                  .toOption
+                  .get
               }
           )
       case None =>
-        q.reflect.report.error(
-          "This method uses a macro to verify that a Name literal is valid. Use Label.Name.from if you have a dynamic value you want to parse as a name."
-        )
-        '{ ??? }
+        abort("Label.Name.from")
+        '{
+          ???
+        }
     }
 }

@@ -10,25 +10,21 @@ trait GaugeNameFromStringLiteral {
 
 }
 
-object GaugeNameFromStringLiteral {
+object GaugeNameFromStringLiteral extends MacroUtils {
   def nameLiteral(s: Expr[String])(using q: Quotes): Expr[Gauge.Name] =
     s.value match {
       case Some(string) =>
         Gauge.Name
           .from(string)
           .fold(
-            e => throw new RuntimeException(e),
+            error,
             _ =>
               '{
-                Gauge.Name
-                  .from(${ Expr(string) })
-                  .fold(e => throw new RuntimeException(e), identity)
+                Gauge.Name.from(${ Expr(string) }).toOption.get
               }
           )
       case None =>
-        q.reflect.report.error(
-          "This method uses a macro to verify that a Name literal is valid. Use Gauge.Name.from if you have a dynamic value you want to parse as a name."
-        )
+        abort("Gauge.Name.from")
         '{ ??? }
     }
 }
