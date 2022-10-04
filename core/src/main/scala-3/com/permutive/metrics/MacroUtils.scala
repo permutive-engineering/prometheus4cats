@@ -19,9 +19,7 @@ package com.permutive.metrics
 import scala.quoted.*
 import scala.util.control.NoStackTrace
 
-case class RefinementError(msg: String)
-    extends RuntimeException(msg)
-    with NoStackTrace
+case class RefinementError(msg: String) extends RuntimeException(msg) with NoStackTrace
 
 trait MacroUtils {
   def error(msg: String): Nothing = throw RefinementError(msg)

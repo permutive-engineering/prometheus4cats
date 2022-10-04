@@ -24,7 +24,7 @@ trait LabelNameFromStringLiteral {
     LabelNameFromStringLiteral.nameLiteral('t)
   }
 
-  inline implicit def fromStringLiteral(inline t: String): Label.Name = ${
+  implicit inline def fromStringLiteral(inline t: String): Label.Name = ${
     LabelNameFromStringLiteral.nameLiteral('t)
   }
 

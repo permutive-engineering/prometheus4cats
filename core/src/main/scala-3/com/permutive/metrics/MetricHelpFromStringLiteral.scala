@@ -39,14 +39,17 @@ object MetricHelpFromStringLiteral extends MacroUtils {
           .fold(
             error,
             _ =>
-            '{
-              Metric.Help.from(${
-                Expr(string)
-              }).toOption.get
-            }
+              '{
+                Metric.Help
+                  .from(${
+                    Expr(string)
+                  })
+                  .toOption
+                  .get
+              }
           )
       case None =>
         abort("Metric.Help.from")
-        '{???}
+        '{ ??? }
     }
 }

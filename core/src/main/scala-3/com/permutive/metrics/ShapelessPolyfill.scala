@@ -34,7 +34,7 @@ trait ShapelessPolyfill {
   type Succ[N <: Nat] = N + 1
 
   type TupleSized[R, A, N <: Int] <: Tuple = N match {
-    case 0    => EmptyTuple
+    case 0 => EmptyTuple
     case S[n] => A *: TupleSized[R, A, n]
   }
 
