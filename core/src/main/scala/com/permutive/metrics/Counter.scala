@@ -35,7 +35,7 @@ object Counter {
   /** Refined value class for a counter name that has been parsed from a string
     */
   final class Name private (val value: String) extends AnyVal {
-    override def toString: String = value
+    override def toString: String = s"""Counter.Name("$value")"""
   }
 
   object Name extends CounterNameFromStringLiteral {

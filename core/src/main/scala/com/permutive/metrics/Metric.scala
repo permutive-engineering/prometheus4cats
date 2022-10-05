@@ -21,7 +21,11 @@ import cats.syntax.traverse._
 
 object Metric {
 
-  final class CommonLabels private (val value: Map[Label.Name, String]) extends AnyVal {}
+  final class CommonLabels private (val value: Map[Label.Name, String]) extends AnyVal {
+    override def toString: String = s"Metric.CommonLabels([${value.map { case (name, value) =>
+        s"""$name -> "$value""""
+      }.mkString(",")}])"
+  }
 
   // There is no macro for this as we believe that these labels will likely come from bits of runtime information
   object CommonLabels {
@@ -52,7 +56,7 @@ object Metric {
     */
   final class Help private (val value: String) extends AnyVal {
 
-    override def toString: String = value
+    override def toString: String = s"""Metric.Help("$value")"""
 
   }
 
@@ -81,7 +85,9 @@ object Metric {
   /** Refined value class that can be used with [[MetricsFactory]] to prefix every metric name with a certain string
     * value
     */
-  final class Prefix private (val value: String) extends AnyVal
+  final class Prefix private (val value: String) extends AnyVal {
+    override def toString: String = s"""Metric.Prefix("$value")"""
+  }
 
   object Prefix extends MetricPrefixFromStringLiteral {
     final private val regex = "^[a-zA-Z_:][a-zA-Z0-9_:]*$".r.pattern

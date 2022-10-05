@@ -47,7 +47,7 @@ object Gauge {
   /** Refined value class for a gauge name that has been parsed from a string
     */
   final class Name private (val value: String) extends AnyVal {
-    override def toString: String = value
+    override def toString: String = s"""Gauge.Name("$value")"""
   }
 
   object Name extends GaugeNameFromStringLiteral {

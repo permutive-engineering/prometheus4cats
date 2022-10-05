@@ -27,7 +27,7 @@ object Label {
     */
   final class Name private (val value: String) extends AnyVal {
 
-    override def toString: String = value
+    override def toString: String = s"""Label.Name("$value")"""
 
   }
 

@@ -53,7 +53,7 @@ object Histogram {
   /** Refined value class for a histogram name that has been parsed from a string
     */
   final class Name private (val value: String) extends AnyVal {
-    override def toString: String = value
+    override def toString: String = s"""Histogram.Name("$value")"""
   }
 
   object Name extends HistogramNameFromStringLiteral {
