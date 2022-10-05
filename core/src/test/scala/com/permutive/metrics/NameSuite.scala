@@ -36,10 +36,10 @@ trait NameSuite[A] { self: ScalaCheckSuite =>
   property("names must start with an alpha char") {
     implicit val charArb: Arbitrary[Char] = Arbitrary(Gen.oneOf(alphaChars))
 
-    forAll { (s: String, c: Char, i: Int) =>
-      assert(make(s"$i$s$suffix").isLeft)
+    forAll { (s: String, c1: Char, c2: Char, i1: Int, i2: Char) =>
+      assert(make(s"$i1$i2$s$suffix").isLeft)
 
-      val v = s"$c$s$suffix"
+      val v = s"$c1$c2$s$suffix"
       assertEquals(make(v).map(stringValue), Right(v))
     }
   }

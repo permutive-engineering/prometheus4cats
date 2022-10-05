@@ -24,9 +24,10 @@ import org.scalacheck.Prop._
 
 class CommonLabelsSuite extends ScalaCheckSuite {
   implicit val labelNameArb: Arbitrary[Label.Name] = Arbitrary(for {
-    c <- Gen.alphaChar
+    c1 <- Gen.alphaChar
+    c2 <- Gen.alphaChar
     s <- Gen.alphaNumStr
-    l <- Gen.oneOf(Label.Name.from(s"$c$s").toOption)
+    l <- Gen.oneOf(Label.Name.from(s"$c1$c2$s").toOption)
   } yield l)
 
   test("labels can be empty") {
