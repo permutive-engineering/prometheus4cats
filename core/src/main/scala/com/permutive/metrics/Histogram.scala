@@ -58,7 +58,7 @@ object Histogram {
 
   object Name extends HistogramNameFromStringLiteral {
 
-    final private val regex = "^[a-zA-Z_:][a-zA-Z0-9_:]*$".r
+    final private val regex = "^[a-zA-Z_:][a-zA-Z0-9_:]*$".r.pattern
 
     /** Parse a [[Name]] from the given string
       *
@@ -69,7 +69,7 @@ object Histogram {
       */
     def from(string: String): Either[String, Name] =
       Either.cond(
-        regex.matches(string),
+        regex.matcher(string).matches(),
         new Name(string),
         s"$string must match `$regex`"
       )

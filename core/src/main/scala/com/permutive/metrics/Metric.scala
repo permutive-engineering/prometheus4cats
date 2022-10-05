@@ -78,7 +78,7 @@ object Metric {
   final class Prefix private (val value: String) extends AnyVal
 
   object Prefix extends MetricPrefixFromStringLiteral {
-    final private val regex = "^[a-zA-Z_:][a-zA-Z0-9_:]*$".r
+    final private val regex = "^[a-zA-Z_:][a-zA-Z0-9_:]*$".r.pattern
 
     /** Parse a [[Prefix]] from the given string
       *
@@ -89,7 +89,7 @@ object Metric {
       */
     def from(string: String): Either[String, Prefix] =
       Either.cond(
-        regex.matches(string),
+        regex.matcher(string).matches(),
         new Prefix(string),
         s"$string must match `$regex`"
       )
