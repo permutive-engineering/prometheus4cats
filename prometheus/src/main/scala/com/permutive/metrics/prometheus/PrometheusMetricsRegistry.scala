@@ -55,7 +55,7 @@ class PrometheusMetricsRegistry[F[_]: Sync: Logger] private (
   ): F[C] = {
     lazy val metricId: MetricID = (labels, metricType)
     lazy val fullName: StateKey = (metricPrefix, name.show)
-    lazy val renderedFullName = metricPrefix.fold[String](name.show)(p => show"${p}_$name")
+    lazy val renderedFullName = NameUtils.makeName(metricPrefix, name)
 
     // the semaphore is needed here because `update` can't be used on the Ref, due to creation of the collector
     // possibly throwing and therefore needing to be wrapped in a `Sync.delay`. This would be fine, but the actual
@@ -105,7 +105,7 @@ class PrometheusMetricsRegistry[F[_]: Sync: Logger] private (
       PCounter.build(),
       MetricType.Counter,
       prefix,
-      name,
+      name.value.replace("_total", ""),
       help,
       commonLabels.value.keys.toIndexedSeq
     ).map { counter =>
@@ -130,7 +130,7 @@ class PrometheusMetricsRegistry[F[_]: Sync: Logger] private (
       PCounter.build(),
       MetricType.Counter,
       prefix,
-      name,
+      name.value.replace("_total", ""),
       help,
       labelNames ++ commonLabels.value.keys.toIndexedSeq
     ).map { counter =>
@@ -230,7 +230,7 @@ class PrometheusMetricsRegistry[F[_]: Sync: Logger] private (
     val commonLabelValues = commonLabels.value.values.toIndexedSeq
 
     configureBuilderOrRetrieve(
-      PHistogram.build(),
+      PHistogram.build().buckets(buckets.toSeq: _*),
       MetricType.Histogram,
       prefix,
       name,
@@ -261,7 +261,7 @@ class PrometheusMetricsRegistry[F[_]: Sync: Logger] private (
     val commonLabelValues = commonLabels.value.values.toIndexedSeq
 
     configureBuilderOrRetrieve(
-      PHistogram.build(),
+      PHistogram.build().buckets(buckets.toSeq: _*),
       MetricType.Histogram,
       prefix,
       name,
