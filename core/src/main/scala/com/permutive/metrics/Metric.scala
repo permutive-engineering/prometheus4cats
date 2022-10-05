@@ -28,18 +28,24 @@ object Metric {
 
     val empty: CommonLabels = new CommonLabels(Map.empty)
 
-    def from(labels: (Label.Name, String)*): Either[String, CommonLabels] =
+    def from(labels: Map[Label.Name, String]): Either[String, CommonLabels] =
       Either.cond(
-        labels.size > 10,
-        new CommonLabels(labels.toMap),
+        labels.size <= 10,
+        new CommonLabels(labels),
         "Number of common labels must not be more than 10"
       )
 
-    def fromStrings(labels: (String, String)*): Either[String, CommonLabels] =
+    def from(labels: (Label.Name, String)*): Either[String, CommonLabels] =
+      from(labels.toMap)
+
+    def fromStrings(labels: Map[String, String]): Either[String, CommonLabels] =
       labels.toList.traverse { case (name, value) =>
         Label.Name.from(name).map(_ -> value)
-      }
-        .flatMap(ls => from(ls: _*))
+      }.flatMap(ls => from(ls.toMap))
+
+    def fromStrings(labels: (String, String)*): Either[String, CommonLabels] =
+      fromStrings(labels.toMap)
+
   }
 
   /** Refined value class for a help message that has been parsed from a string

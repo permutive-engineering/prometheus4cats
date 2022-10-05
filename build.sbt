@@ -30,7 +30,8 @@ lazy val core = project
       "org.typelevel" %%% "cats-effect-kernel" % CatsEffect,
       "org.typelevel" %%% "cats-effect" % CatsEffect % Test,
       "org.scalameta" %%% "munit" % "0.7.29" % Test,
-      "org.typelevel" %%% "munit-cats-effect-3" % "1.0.7" % Test
+      "org.typelevel" %%% "munit-cats-effect-3" % "1.0.7" % Test,
+      "org.scalameta" %% "munit-scalacheck" % "0.7.29" % Test
     ),
     libraryDependencies ++= PartialFunction
       .condOpt(CrossVersion.partialVersion(scalaVersion.value)) { case Some((2, _)) =>
