@@ -14,6 +14,7 @@ ThisBuild / developers := List(
 ThisBuild / tlSonatypeUseLegacyHost := false
 
 val Scala213 = "2.13.8"
+val CatsEffect = "3.3.14"
 
 ThisBuild / crossScalaVersions := Seq("2.12.15", "3.2.0", Scala213)
 ThisBuild / scalaVersion := crossScalaVersions.value.last
@@ -26,7 +27,8 @@ lazy val core = project
     name := "permutive-metrics",
     libraryDependencies ++= Seq(
       "org.typelevel" %%% "cats-core" % "2.8.0",
-      "org.typelevel" %%% "cats-effect" % "3.3.14",
+      "org.typelevel" %%% "cats-effect-kernel" % CatsEffect,
+      "org.typelevel" %%% "cats-effect" % CatsEffect % Test,
       "org.scalameta" %%% "munit" % "0.7.29" % Test,
       "org.typelevel" %%% "munit-cats-effect-3" % "1.0.7" % Test
     ),
