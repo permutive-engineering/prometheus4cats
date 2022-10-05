@@ -76,8 +76,7 @@ lazy val prometheus =
         "org.typelevel" %% "cats-effect-std" % CatsEffect,
         "org.typelevel" %% "log4cats-core" % Log4Cats,
         "io.prometheus" % "simpleclient" % "0.16.0",
-        "org.typelevel" %% "log4cats-noop" % Log4Cats % Test,
-        "io.prometheus" % "simpleclient_common" % "0.16.0" % Test
+        "org.typelevel" %% "log4cats-noop" % Log4Cats % Test
       )
     )
     .dependsOn(core, testkit % "test->compile")
