@@ -281,7 +281,7 @@ trait MetricsRegistrySuite[State] extends TestInstances { self: ScalaCheckSuite 
       ) =>
         exec(stateResource.use { state =>
           registryResource(state).use { reg =>
-            val buckets = NonEmptySeq.of(0, value).sorted
+            val buckets = NonEmptySeq.of[Double](0, value).sorted
 
             val expected =
               if (value > 0) Map("0.0" -> 0.0, value.toString -> 1.0, "+Inf" -> 1.0)
@@ -315,7 +315,7 @@ trait MetricsRegistrySuite[State] extends TestInstances { self: ScalaCheckSuite 
       ) =>
         exec(stateResource.use { state =>
           registryResource(state).use { reg =>
-            val buckets = NonEmptySeq.of(0, value).sorted
+            val buckets = NonEmptySeq.of[Double](0, value).sorted
 
             val expected =
               if (value > 0) Map("0.0" -> 0.0, value.toString -> 1.0, "+Inf" -> 1.0)

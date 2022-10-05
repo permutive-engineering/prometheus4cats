@@ -62,7 +62,7 @@ class PrometheusMetricsRegistry[F[_]: Sync: Logger] private (
     // state must be pure and the collector is needed for that.
     sem.permit.surround(
       ref.get
-        .flatMap[(State, C)] { metrics: State =>
+        .flatMap[(State, C)] { (metrics: State) =>
           metrics.get(fullName) match {
             case Some((expected, collector)) =>
               if (metricId == expected) Applicative[F].pure(metrics -> collector.asInstanceOf[C])

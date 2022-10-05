@@ -181,7 +181,7 @@ class PrometheusMetricsRegistrySuite extends ScalaCheckSuite with MetricsRegistr
         assertEquals(
           res.leftMap(_.getMessage),
           Left(
-            s"A metric with the same name as '${NameUtils.makeName(prefix, name)}' is already registered with different labels and/or type"
+            s"A metric with the same name as '${NameUtils.makeName(prefix, name.value.replace("_total", ""))}' is already registered with different labels and/or type"
           )
         )
     }
