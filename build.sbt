@@ -19,18 +19,18 @@ val CatsEffect = "3.3.14"
 ThisBuild / crossScalaVersions := Seq("2.12.15", "3.2.0", Scala213)
 ThisBuild / scalaVersion := crossScalaVersions.value.last
 
-lazy val root = tlCrossRootProject.aggregate(core)
+lazy val root = tlCrossRootProject.aggregate(core, prometheus)
 
 lazy val core = project
   .in(file("core"))
   .settings(
     name := "permutive-metrics",
     libraryDependencies ++= Seq(
-      "org.typelevel" %%% "cats-core" % "2.8.0",
-      "org.typelevel" %%% "cats-effect-kernel" % CatsEffect,
-      "org.typelevel" %%% "cats-effect" % CatsEffect % Test,
-      "org.scalameta" %%% "munit" % "0.7.29" % Test,
-      "org.typelevel" %%% "munit-cats-effect-3" % "1.0.7" % Test,
+      "org.typelevel" %% "cats-core" % "2.8.0",
+      "org.typelevel" %% "cats-effect-kernel" % CatsEffect,
+      "org.typelevel" %% "cats-effect" % CatsEffect % Test,
+      "org.scalameta" %% "munit" % "0.7.29" % Test,
+      "org.typelevel" %% "munit-cats-effect-3" % "1.0.7" % Test,
       "org.scalameta" %% "munit-scalacheck" % "0.7.29" % Test
     ),
     libraryDependencies ++= PartialFunction
@@ -47,5 +47,18 @@ lazy val core = project
       if (tlIsScala3.value) Seq("-Ykind-projector") else scalacOptions.value
     }
   )
+
+lazy val prometheus =
+  project
+    .in(file("prometheus"))
+    .settings(
+      name := "permutive-metrics-prometheus",
+      libraryDependencies ++= Seq(
+        "org.typelevel" %% "cats-effect-std" % CatsEffect,
+        "org.typelevel" %% "log4cats-core" % "2.5.0",
+        "io.prometheus" % "simpleclient" % "0.16.0"
+      )
+    )
+    .dependsOn(core)
 
 lazy val docs = project.in(file("site"))
