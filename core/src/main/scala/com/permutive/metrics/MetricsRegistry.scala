@@ -21,7 +21,24 @@ import cats.syntax.functor._
 import cats.{Applicative, Monad, ~>}
 import com.permutive.metrics.Metric.CommonLabels
 
+/** Trait for registering metrics against different backends. May be implemented by anyone for use with
+  * [[MetricsFactory]]
+  */
 trait MetricsRegistry[F[_]] {
+
+  /** Create and register a counter against a metrics registry
+    *
+    * @param prefix
+    *   optional [[Metric.Prefix]] to be prepended to the metric name
+    * @param name
+    *   [[Counter.Name]] metric name
+    * @param help
+    *   [[Metric.Help]] string to describe the metric
+    * @param commonLabels
+    *   [[Metric.CommonLabels]] map of common labels to be added to the metric
+    * @return
+    *   a [[Counter]] wrapped in whatever side effect that was performed in registering it
+    */
   def createAndRegisterCounter(
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
@@ -29,6 +46,24 @@ trait MetricsRegistry[F[_]] {
       commonLabels: Metric.CommonLabels
   ): F[Counter[F]]
 
+  /** Create and register a labelled counter against a metrics registry
+    *
+    * @param prefix
+    *   optional [[Metric.Prefix]] to be prepended to the metric name
+    * @param name
+    *   [[Counter.Name]] metric name
+    * @param help
+    *   [[Metric.Help]] string to describe the metric
+    * @param commonLabels
+    *   [[Metric.CommonLabels]] map of common labels to be added to the metric
+    * @param labelNames
+    *   an [[scala.IndexedSeq]] of [[Label.Name]]s to annotate the metric with
+    * @param f
+    *   a function from `A` to an [[scala.IndexedSeq]] of [[java.lang.String]] that provides label values, which must be
+    *   paired with their corresponding name in the [[scala.IndexedSeq]] of [[Label.Name]]s
+    * @return
+    *   a [[Counter.Labelled]] wrapped in whatever side effect that was performed in registering it
+    */
   def createAndRegisterLabelledCounter[A](
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
@@ -37,6 +72,19 @@ trait MetricsRegistry[F[_]] {
       labelNames: IndexedSeq[Label.Name]
   )(f: A => IndexedSeq[String]): F[Counter.Labelled[F, A]]
 
+  /** Create and register a gauge against a metrics registry
+    *
+    * @param prefix
+    *   optional [[Metric.Prefix]] to be prepended to the metric name
+    * @param name
+    *   [[Gauge.Name]] metric name
+    * @param help
+    *   [[Metric.Help]] string to describe the metric
+    * @param commonLabels
+    *   [[Metric.CommonLabels]] map of common labels to be added to the metric
+    * @return
+    *   a [[Gauge]] wrapped in whatever side effect that was performed in registering it
+    */
   def createAndRegisterGauge(
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
@@ -44,6 +92,24 @@ trait MetricsRegistry[F[_]] {
       commonLabels: Metric.CommonLabels
   ): F[Gauge[F]]
 
+  /** Create and register a labelled gauge against a metrics registry
+    *
+    * @param prefix
+    *   optional [[Metric.Prefix]] to be prepended to the metric name
+    * @param name
+    *   [[Gauge.Name]] metric name
+    * @param help
+    *   [[Metric.Help]] string to describe the metric
+    * @param commonLabels
+    *   [[Metric.CommonLabels]] map of common labels to be added to the metric
+    * @param labelNames
+    *   an [[scala.IndexedSeq]] of [[Label.Name]]s to annotate the metric with
+    * @param f
+    *   a function from `A` to an [[scala.IndexedSeq]] of [[java.lang.String]] that provides label values, which must be
+    *   paired with their corresponding name in the [[scala.IndexedSeq]] of [[Label.Name]]s
+    * @return
+    *   a [[Gauge.Labelled]] wrapped in whatever side effect that was performed in registering it
+    */
   def createAndRegisterLabelledGauge[A](
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
@@ -52,6 +118,21 @@ trait MetricsRegistry[F[_]] {
       labelNames: IndexedSeq[Label.Name]
   )(f: A => IndexedSeq[String]): F[Gauge.Labelled[F, A]]
 
+  /** Create and register a histogram against a metrics registry
+    *
+    * @param prefix
+    *   optional [[Metric.Prefix]] to be prepended to the metric name
+    * @param name
+    *   [[Histogram.Name]] metric name
+    * @param help
+    *   [[Metric.Help]] string to describe the metric
+    * @param commonLabels
+    *   [[Metric.CommonLabels]] map of common labels to be added to the metric
+    * @param buckets
+    *   a [[cats.data.NonEmptySeq]] of [[scala.Double]]s representing bucket values for the histogram
+    * @return
+    *   a [[Gauge]] wrapped in whatever side effect that was performed in registering it
+    */
   def createAndRegisterHistogram(
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
@@ -60,6 +141,26 @@ trait MetricsRegistry[F[_]] {
       buckets: NonEmptySeq[Double]
   ): F[Histogram[F]]
 
+  /** Create and register a labelled histogram against a metrics registry
+    *
+    * @param prefix
+    *   optional [[Metric.Prefix]] to be prepended to the metric name
+    * @param name
+    *   [[Histogram.Name]] metric name
+    * @param help
+    *   [[Metric.Help]] string to describe the metric
+    * @param commonLabels
+    *   [[Metric.CommonLabels]] map of common labels to be added to the metric
+    * @param labelNames
+    *   an [[scala.IndexedSeq]] of [[Label.Name]]s to annotate the metric with
+    * @param buckets
+    *   a [[cats.data.NonEmptySeq]] of [[scala.Double]]s representing bucket values for the histogram
+    * @param f
+    *   a function from `A` to an [[scala.IndexedSeq]] of [[java.lang.String]] that provides label values, which must be
+    *   paired with their corresponding name in the [[scala.IndexedSeq]] of [[Label.Name]]s
+    * @return
+    *   a [[Histogram.Labelled]] wrapped in whatever side effect that was performed in registering it
+    */
   def createAndRegisterLabelledHistogram[A](
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
