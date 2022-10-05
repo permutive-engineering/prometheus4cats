@@ -50,6 +50,9 @@ object Metric {
     def fromStrings(labels: (String, String)*): Either[String, CommonLabels] =
       fromStrings(labels.toMap)
 
+    implicit val MetricHelpHash: Hash[CommonLabels] = Hash.by(_.value)
+
+    implicit val MetricHelpEq: Eq[CommonLabels] = Eq.by(_.value)
   }
 
   /** Refined value class for a help message that has been parsed from a string
