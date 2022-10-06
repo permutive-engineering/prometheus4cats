@@ -78,7 +78,12 @@ lazy val prometheus =
         "org.typelevel" %% "log4cats-core" % Log4Cats,
         "io.prometheus" % "simpleclient" % "0.16.0",
         "org.typelevel" %% "log4cats-noop" % Log4Cats % Test
-      )
+      ),
+      libraryDependencies ++= PartialFunction
+        .condOpt(CrossVersion.partialVersion(scalaVersion.value)) { case Some((2, 12)) =>
+          "org.scala-lang.modules" %% "scala-collection-compat" % "2.8.1"
+        }
+        .toList
     )
     .dependsOn(core, testkit % "test->compile")
 

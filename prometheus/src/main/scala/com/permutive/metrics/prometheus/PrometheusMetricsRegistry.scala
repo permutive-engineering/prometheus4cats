@@ -268,7 +268,7 @@ class PrometheusMetricsRegistry[F[_]: Sync: Logger] private (
       help,
       labelNames ++ commonLabels.value.keys.toIndexedSeq
     ).map { histogram =>
-      Histogram.Labelled.make[F, A](_observe = { case (d, labels) =>
+      Histogram.Labelled.make[F, A](_observe = { (d: Double, labels: A) =>
         Utils.modifyMetric[F, Histogram.Name, PHistogram.Child](
           histogram,
           name,
