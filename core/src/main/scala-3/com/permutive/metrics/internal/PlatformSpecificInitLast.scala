@@ -22,6 +22,6 @@ trait PlatformSpecificInitLast extends LowPriorityInitLast {
     case x *: xs => x *: NonEmptyAppend[xs, Y]
   }
 
-  implicit def default[A <: NonEmptyTuple, B, Out <: NonEmptyAppend[A, B]]: InitLast.Aux[A, B, Out] =
+  implicit def default[A <: NonEmptyTuple, B]: InitLast.Aux[A, B, NonEmptyAppend[A, B]] =
     InitLast.make(_.init.asInstanceOf[A], _.last.asInstanceOf[B])
 }
