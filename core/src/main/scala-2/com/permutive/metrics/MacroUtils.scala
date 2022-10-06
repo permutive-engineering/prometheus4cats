@@ -16,13 +16,19 @@
 
 package com.permutive.metrics
 
-import munit.CatsEffectSuite
+import scala.reflect.macros.blackbox
 
-class MainSuite extends CatsEffectSuite {
+private[metrics] trait MacroUtils {
 
-  test("Main should exit succesfully") {
-    val main = Main.run.attempt
-    assertIO(main, Right(()))
+  val c: blackbox.Context
+
+  import c.universe._
+
+  def abort(msg: String) = c.abort(c.enclosingPosition, msg)
+
+  def literal(t: c.Expr[String], or: String): String = t.tree match {
+    case Literal(Constant(value)) => value.asInstanceOf[String]
+    case _ => abort(s"compile-time refinement only works with literals, use $or instead")
   }
 
 }

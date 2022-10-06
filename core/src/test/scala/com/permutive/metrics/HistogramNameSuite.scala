@@ -16,10 +16,10 @@
 
 package com.permutive.metrics
 
-import cats.effect.{IO, IOApp}
+import munit.ScalaCheckSuite
 
-object Main extends IOApp.Simple {
+class HistogramNameSuite extends ScalaCheckSuite with NameSuite[Histogram.Name] {
+  override def make(str: String): Either[String, Histogram.Name] = Histogram.Name.from(str)
 
-  def run: IO[Unit] =
-    IO.println("Hello sbt-typelevel!")
+  override def stringValue(result: Histogram.Name): String = result.value
 }
