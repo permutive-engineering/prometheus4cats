@@ -14,12 +14,19 @@ ThisBuild / developers := List(
 ThisBuild / tlSonatypeUseLegacyHost := false
 
 val Scala213 = "2.13.8"
+
 val CatsEffect = "3.3.14"
+
+val Log4Cats = "2.5.0"
+
+val Munit = "0.7.29"
+
+val MunitCe3 = "1.0.7"
 
 ThisBuild / crossScalaVersions := Seq("2.12.15", "3.2.0", Scala213)
 ThisBuild / scalaVersion := crossScalaVersions.value.last
 
-lazy val root = tlCrossRootProject.aggregate(core)
+lazy val root = tlCrossRootProject.aggregate(core, testkit, prometheus)
 
 lazy val core = project
   .in(file("core"))
@@ -31,7 +38,6 @@ lazy val core = project
       "org.typelevel" %%% "cats-effect" % CatsEffect % Test,
       "org.typelevel" %% "cats-effect-testkit" % CatsEffect % Test,
       "org.scalameta" %%% "munit" % "0.7.29" % Test,
-      "org.typelevel" %%% "munit-cats-effect-3" % "1.0.7" % Test,
       "org.scalameta" %% "munit-scalacheck" % "0.7.29" % Test
     ),
     libraryDependencies ++= PartialFunction
@@ -48,5 +54,37 @@ lazy val core = project
       if (tlIsScala3.value) Seq("-Ykind-projector") else scalacOptions.value
     }
   )
+
+lazy val testkit = project
+  .in(file("testkit"))
+  .settings(
+    name := "permutive-metrics-testkit",
+    libraryDependencies ++= Seq(
+      "org.typelevel" %% "cats-effect-testkit" % CatsEffect,
+      "org.scalameta" %% "munit" % Munit,
+      "org.typelevel" %% "munit-cats-effect-3" % MunitCe3,
+      "org.scalameta" %% "munit-scalacheck" % Munit
+    )
+  )
+  .dependsOn(core)
+
+lazy val prometheus =
+  project
+    .in(file("prometheus"))
+    .settings(
+      name := "permutive-metrics-prometheus",
+      libraryDependencies ++= Seq(
+        "org.typelevel" %% "cats-effect-std" % CatsEffect,
+        "org.typelevel" %% "log4cats-core" % Log4Cats,
+        "io.prometheus" % "simpleclient" % "0.16.0",
+        "org.typelevel" %% "log4cats-noop" % Log4Cats % Test
+      ),
+      libraryDependencies ++= PartialFunction
+        .condOpt(CrossVersion.partialVersion(scalaVersion.value)) { case Some((2, 12)) =>
+          "org.scala-lang.modules" %% "scala-collection-compat" % "2.8.1"
+        }
+        .toList
+    )
+    .dependsOn(core, testkit % "test->compile")
 
 lazy val docs = project.in(file("site"))
