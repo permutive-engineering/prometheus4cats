@@ -31,7 +31,7 @@ lazy val root = tlCrossRootProject.aggregate(core, testkit, prometheus)
 lazy val core = project
   .in(file("core"))
   .settings(
-    name := "permutive-metrics",
+    name := "openmetrics4s",
     libraryDependencies ++= Seq(
       "org.typelevel" %%% "cats-core" % "2.8.0",
       "org.typelevel" %%% "cats-effect-kernel" % CatsEffect,
@@ -58,7 +58,7 @@ lazy val core = project
 lazy val testkit = project
   .in(file("testkit"))
   .settings(
-    name := "permutive-metrics-testkit",
+    name := "openmetrics4s-testkit",
     libraryDependencies ++= Seq(
       "org.typelevel" %% "cats-effect-testkit" % CatsEffect,
       "org.scalameta" %% "munit" % Munit,
@@ -72,7 +72,7 @@ lazy val prometheus =
   project
     .in(file("prometheus"))
     .settings(
-      name := "permutive-metrics-prometheus",
+      name := "openmetrics4s-prometheus",
       libraryDependencies ++= Seq(
         "org.typelevel" %% "cats-effect-std" % CatsEffect,
         "org.typelevel" %% "log4cats-core" % Log4Cats,
