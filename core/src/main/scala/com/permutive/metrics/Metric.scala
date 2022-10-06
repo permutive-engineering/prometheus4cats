@@ -50,9 +50,7 @@ object Metric {
     def fromStrings(labels: (String, String)*): Either[String, CommonLabels] =
       fromStrings(labels.toMap)
 
-    implicit val MetricHelpHash: Hash[CommonLabels] = Hash.by(_.value)
-
-    implicit val MetricHelpEq: Eq[CommonLabels] = Eq.by(_.value)
+    implicit val catsInstances: Hash[CommonLabels] = Hash.by(_.value)
   }
 
   /** Refined value class for a help message that has been parsed from a string
@@ -75,13 +73,17 @@ object Metric {
     def from(string: String): Either[String, Help] =
       Either.cond(string.nonEmpty, new Help(string), s"must not be empty blank")
 
-    implicit val MetricHelpHash: Hash[Help] = Hash.by(_.value)
+    implicit val catsInstances: Hash[Help] with Order[Help] with Show[Help] = new Hash[Help]
+      with Order[Help]
+      with Show[Help] {
+      override def hash(x: Help): Int = Hash[String].hash(x.value)
 
-    implicit val MetricHelpEq: Eq[Help] = Eq.by(_.value)
+      override def compare(x: Help, y: Help): Int = Order[String].compare(x.value, y.value)
 
-    implicit val MetricHelpShow: Show[Help] = Show.show(_.value)
+      override def show(t: Help): String = t.value
 
-    implicit val MetricHelpOrder: Order[Help] = Order.by(_.value)
+      override def eqv(x: Help, y: Help): Boolean = Eq[String].eqv(x.value, y.value)
+    }
 
   }
 
@@ -109,12 +111,16 @@ object Metric {
         s"$string must match `$regex`"
       )
 
-    implicit val MetricPrefixHash: Hash[Prefix] = Hash.by(_.value)
+    implicit val catsInstances: Hash[Prefix] with Order[Prefix] with Show[Prefix] = new Hash[Prefix]
+      with Order[Prefix]
+      with Show[Prefix] {
+      override def hash(x: Prefix): Int = Hash[String].hash(x.value)
 
-    implicit val MetricPrefixEq: Eq[Prefix] = Eq.by(_.value)
+      override def compare(x: Prefix, y: Prefix): Int = Order[String].compare(x.value, y.value)
 
-    implicit val MetricPrefixShow: Show[Prefix] = Show.show(_.value)
+      override def show(t: Prefix): String = t.value
 
-    implicit val MetricPrefixOrder: Order[Prefix] = Order.by(_.value)
+      override def eqv(x: Prefix, y: Prefix): Boolean = Eq[String].eqv(x.value, y.value)
+    }
   }
 }

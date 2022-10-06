@@ -74,13 +74,17 @@ object Histogram {
         s"$string must match `$regex`"
       )
 
-    implicit val HistogramNameHash: Hash[Name] = Hash.by(_.value)
+    implicit val catsInstances: Hash[Name] with Order[Name] with Show[Name] = new Hash[Name]
+      with Order[Name]
+      with Show[Name] {
+      override def hash(x: Name): Int = Hash[String].hash(x.value)
 
-    implicit val HistogramNameEq: Eq[Name] = Eq.by(_.value)
+      override def compare(x: Name, y: Name): Int = Order[String].compare(x.value, y.value)
 
-    implicit val HistogramNameShow: Show[Name] = Show.show(_.value)
+      override def show(t: Name): String = t.value
 
-    implicit val HistogramNameOrder: Order[Name] = Order.by(_.value)
+      override def eqv(x: Name, y: Name): Boolean = Eq[String].eqv(x.value, y.value)
+    }
 
   }
 
