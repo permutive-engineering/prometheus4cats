@@ -33,11 +33,12 @@ lazy val core = project
   .settings(
     name := "permutive-metrics",
     libraryDependencies ++= Seq(
-      "org.typelevel" %% "cats-core" % "2.8.0",
-      "org.typelevel" %% "cats-effect-kernel" % CatsEffect,
-      "org.typelevel" %% "cats-effect" % CatsEffect % Test,
-      "org.scalameta" %% "munit" % Munit % Test,
-      "org.scalameta" %% "munit-scalacheck" % Munit % Test
+      "org.typelevel" %%% "cats-core" % "2.8.0",
+      "org.typelevel" %%% "cats-effect-kernel" % CatsEffect,
+      "org.typelevel" %%% "cats-effect" % CatsEffect % Test,
+      "org.typelevel" %% "cats-effect-testkit" % CatsEffect % Test,
+      "org.scalameta" %%% "munit" % "0.7.29" % Test,
+      "org.scalameta" %% "munit-scalacheck" % "0.7.29" % Test
     ),
     libraryDependencies ++= PartialFunction
       .condOpt(CrossVersion.partialVersion(scalaVersion.value)) { case Some((2, _)) =>
