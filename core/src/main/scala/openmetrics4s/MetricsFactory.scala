@@ -43,7 +43,7 @@ sealed abstract class MetricsFactory[F[_]](
     * @param name
     *   [[Gauge.Name]] value
     * @return
-    *   Gauge builder using [[HelpStep]] and [[openmetrics4s.internal.gauge.GaugeDsl]]
+    *   Gauge builder using [[openmetrics4s.internal.HelpStep]] and [[openmetrics4s.internal.gauge.GaugeDsl]]
     */
   def gauge(name: Gauge.Name): HelpStep[GaugeDsl[F]] = new HelpStep(
     new GaugeDsl[F](registry, prefix, name, _, commonLabels)
@@ -57,7 +57,7 @@ sealed abstract class MetricsFactory[F[_]](
     * @param name
     *   [[Counter.Name]] value
     * @return
-    *   Counter builder using [[HelpStep]] and [[openmetrics4s.internal.counter.CounterDsl]]
+    *   Counter builder using [[openmetrics4s.internal.HelpStep]] and [[openmetrics4s.internal.counter.CounterDsl]]
     */
   def counter(name: Counter.Name): HelpStep[CounterDsl[F]] =
     new HelpStep[CounterDsl[F]](
@@ -72,7 +72,7 @@ sealed abstract class MetricsFactory[F[_]](
     * @param name
     *   [[Histogram.Name]] value
     * @return
-    *   Counter builder using [[HelpStep]], [[openmetrics4s.internal.histogram.BucketDsl]] and
+    *   Counter builder using [[openmetrics4s.internal.HelpStep]], [[openmetrics4s.internal.histogram.BucketDsl]] and
     *   [[openmetrics4s.internal.histogram.HistogramDsl]]
     */
   def histogram(name: Histogram.Name): HelpStep[BucketDsl[F]] =
