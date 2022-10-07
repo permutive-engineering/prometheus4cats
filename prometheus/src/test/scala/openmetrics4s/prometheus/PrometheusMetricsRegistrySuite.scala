@@ -126,7 +126,7 @@ class PrometheusMetricsRegistrySuite extends ScalaCheckSuite with MetricsRegistr
       ) =>
         exec(stateResource.flatMap(registryResource).use { reg =>
           val metric = reg
-            .createAndRegisterLabelledCounter[Map[Label.Name, String]](
+            .createAndRegisterLabelledDoubleCounter[Map[Label.Name, String]](
               prefix,
               name,
               help,
@@ -158,7 +158,7 @@ class PrometheusMetricsRegistrySuite extends ScalaCheckSuite with MetricsRegistr
             .use { reg =>
               for {
                 _ <- reg
-                  .createAndRegisterLabelledCounter[Map[Label.Name, String]](
+                  .createAndRegisterLabelledDoubleCounter[Map[Label.Name, String]](
                     prefix,
                     name,
                     help,
@@ -166,7 +166,7 @@ class PrometheusMetricsRegistrySuite extends ScalaCheckSuite with MetricsRegistr
                     labels.toIndexedSeq
                   )(_.values.toIndexedSeq)
                 _ <- reg
-                  .createAndRegisterLabelledCounter[Map[Label.Name, String]](
+                  .createAndRegisterLabelledDoubleCounter[Map[Label.Name, String]](
                     prefix,
                     name,
                     help,
@@ -205,7 +205,7 @@ class PrometheusMetricsRegistrySuite extends ScalaCheckSuite with MetricsRegistr
             .use { reg =>
               for {
                 _ <- reg
-                  .createAndRegisterLabelledCounter[Map[Label.Name, String]](
+                  .createAndRegisterLabelledDoubleCounter[Map[Label.Name, String]](
                     prefix,
                     counterName,
                     help,
@@ -213,7 +213,7 @@ class PrometheusMetricsRegistrySuite extends ScalaCheckSuite with MetricsRegistr
                     labels.toIndexedSeq
                   )(_.values.toIndexedSeq)
                 _ <- reg
-                  .createAndRegisterLabelledGauge[Map[Label.Name, String]](
+                  .createAndRegisterLabelledDoubleGauge[Map[Label.Name, String]](
                     prefix,
                     gaugeName,
                     help,

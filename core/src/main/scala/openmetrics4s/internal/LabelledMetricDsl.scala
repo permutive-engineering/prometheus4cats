@@ -14,52 +14,33 @@
  * limitations under the License.
  */
 
-package openmetrics4s.internal.histogram
+package openmetrics4s.internal
 
-import cats.data.NonEmptySeq
 import openmetrics4s._
-import openmetrics4s.internal.{BuildStep, InitLast, LabelApply, NextLabelsStep}
 
-final class LabelledHistogramDsl[F[_], T, N <: Nat] private[histogram] (
-    registry: MetricsRegistry[F],
-    prefix: Option[Metric.Prefix],
-    metric: Histogram.Name,
-    help: Metric.Help,
-    commonLabels: Metric.CommonLabels,
+final class LabelledMetricDsl[F[_], A, T, N <: Nat, L[_[_], _, _]] private[internal] (
+    makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L],
     labelNames: Sized[IndexedSeq[Label.Name], N],
-    buckets: NonEmptySeq[Double],
     f: T => Sized[IndexedSeq[String], N]
-) extends BuildStep[F, Histogram.Labelled[F, T]](
-      registry.createAndRegisterLabelledHistogram(
-        prefix,
-        metric,
-        help,
-        commonLabels,
-        labelNames.unsized,
-        buckets
-      )(
+) extends BuildStep[F, L[F, A, T]](
+      makeLabelledMetric(labelNames.unsized)(
         // avoid using andThen because it can be slow and this gets called repeatedly during runtime
         t => f(t).unsized
       )
     )
-    with NextLabelsStep[F, T, N, LabelledHistogramDsl] {
+    with NextLabelsStep[F, A, T, N, L] {
 
   /** @inheritdoc
     */
-  override def label[B]: LabelApply[F, T, N, LabelledHistogramDsl, B] =
-    new LabelApply[F, T, N, LabelledHistogramDsl, B] {
+  override def label[B]: LabelApply[F, A, T, N, B, L] =
+    new LabelApply[F, A, T, N, B, L] {
 
       override def apply[C: InitLast.Aux[T, B, *]](
           name: Label.Name,
           toString: B => String
-      ): LabelledHistogramDsl[F, C, Succ[N]] = new LabelledHistogramDsl(
-        registry,
-        prefix,
-        metric,
-        help,
-        commonLabels,
+      ): LabelledMetricDsl[F, A, C, Succ[N], L] = new LabelledMetricDsl(
+        makeLabelledMetric,
         labelNames :+ name,
-        buckets,
         c => f(InitLast[T, B, C].init(c)) :+ toString(InitLast[T, B, C].last(c))
       )
 

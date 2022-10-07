@@ -17,33 +17,34 @@
 package openmetrics4s.internal.histogram
 
 import cats.data.NonEmptySeq
-import openmetrics4s.{Histogram, Metric, MetricsRegistry}
+import openmetrics4s.Histogram
 
-final class BucketDsl[F[_]] private[openmetrics4s] (
-    registry: MetricsRegistry[F],
-    prefix: Option[Metric.Prefix],
-    metric: Histogram.Name,
-    help: Metric.Help,
-    commonLabels: Metric.CommonLabels
+final class BucketDsl[A, N] private[openmetrics4s] (
+    f: NonEmptySeq[N] => A
 ) {
-
-  /** Initialise this histogram with the default HTTP buckets list.
-    *
-    * @see
-    *   [[Histogram.DefaultHttpBuckets]]
-    */
-  def defaultHttpBuckets: HistogramDsl[F] = buckets(
-    Histogram.DefaultHttpBuckets
-  )
 
   /** Provides the list of buckets for the histogram as a non-empty sequence.
     */
-  def buckets(list: NonEmptySeq[Double]): HistogramDsl[F] =
-    new HistogramDsl(registry, prefix, metric, help, commonLabels, list)
+  def buckets(list: NonEmptySeq[N]): A =
+    f(list)
 
   /** Provides the list of buckets for the histogram as parameters.
     */
-  def buckets(head: Double, rest: Double*): HistogramDsl[F] = buckets(
+  def buckets(head: N, rest: N*): A = buckets(
     NonEmptySeq.of(head, rest: _*)
   )
+}
+
+object BucketDsl {
+  implicit class DoubleSyntax[A](dsl: BucketDsl[A, Double]) {
+
+    /** Initialise this histogram with the default HTTP buckets list.
+      *
+      * @see
+      *   [[Histogram.DefaultHttpBuckets]]
+      */
+    def defaultHttpBuckets: A = dsl.buckets(
+      Histogram.DefaultHttpBuckets
+    )
+  }
 }

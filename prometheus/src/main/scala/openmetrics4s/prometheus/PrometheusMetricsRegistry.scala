@@ -92,12 +92,12 @@ class PrometheusMetricsRegistry[F[_]: Sync: Logger] private (
     )
   }
 
-  override def createAndRegisterCounter(
+  override def createAndRegisterDoubleCounter(
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels
-  ): F[Counter[F]] = {
+  ): F[Counter[F, Double]] = {
     lazy val commonLabelNames = commonLabels.value.keys.toIndexedSeq
     lazy val commonLabelValues = commonLabels.value.values.toIndexedSeq
 
@@ -109,20 +109,22 @@ class PrometheusMetricsRegistry[F[_]: Sync: Logger] private (
       help,
       commonLabels.value.keys.toIndexedSeq
     ).map { counter =>
-      Counter.make(d =>
-        Utils
-          .modifyMetric[F, Counter.Name, PCounter.Child](counter, name, commonLabelNames, commonLabelValues, _.inc(d))
+      Counter.make(
+        1.0,
+        d =>
+          Utils
+            .modifyMetric[F, Counter.Name, PCounter.Child](counter, name, commonLabelNames, commonLabelValues, _.inc(d))
       )
     }
   }
 
-  override def createAndRegisterLabelledCounter[A](
+  override def createAndRegisterLabelledDoubleCounter[A](
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name]
-  )(f: A => IndexedSeq[String]): F[Counter.Labelled[F, A]] = {
+  )(f: A => IndexedSeq[String]): F[Counter.Labelled[F, Double, A]] = {
     val commonLabelNames = commonLabels.value.keys.toIndexedSeq
     val commonLabelValues = commonLabels.value.values.toIndexedSeq
 
@@ -134,24 +136,26 @@ class PrometheusMetricsRegistry[F[_]: Sync: Logger] private (
       help,
       labelNames ++ commonLabels.value.keys.toIndexedSeq
     ).map { counter =>
-      Counter.Labelled.make((d, labels) =>
-        Utils.modifyMetric[F, Counter.Name, PCounter.Child](
-          counter,
-          name,
-          labelNames ++ commonLabelNames,
-          f(labels) ++ commonLabelValues,
-          _.inc(d)
-        )
+      Counter.Labelled.make(
+        1.0,
+        (d, labels) =>
+          Utils.modifyMetric[F, Counter.Name, PCounter.Child](
+            counter,
+            name,
+            labelNames ++ commonLabelNames,
+            f(labels) ++ commonLabelValues,
+            _.inc(d)
+          )
       )
     }
   }
 
-  override def createAndRegisterGauge(
+  override def createAndRegisterDoubleGauge(
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels
-  ): F[Gauge[F]] = {
+  ): F[Gauge[F, Double]] = {
     val commonLabelNames = commonLabels.value.keys.toIndexedSeq
     val commonLabelValues = commonLabels.value.values.toIndexedSeq
     configureBuilderOrRetrieve(
@@ -180,17 +184,24 @@ class PrometheusMetricsRegistry[F[_]: Sync: Logger] private (
           modify(_.set(d.toSeconds.toDouble))
         }
 
-      Gauge.make(inc, dec, set, setToCurrentTime())
+      Gauge.make(1.0, inc, dec, set, setToCurrentTime())
     }
   }
 
-  override def createAndRegisterLabelledGauge[A](
+  override def createAndRegisterLongGauge(
+      prefix: Option[Metric.Prefix],
+      name: Gauge.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels
+  ): F[Gauge[F, Long]] = createAndRegisterDoubleGauge(prefix, name, help, commonLabels).map(_.contramap(_.toDouble))
+
+  override def createAndRegisterLabelledDoubleGauge[A](
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name]
-  )(f: A => IndexedSeq[String]): F[Gauge.Labelled[F, A]] = {
+  )(f: A => IndexedSeq[String]): F[Gauge.Labelled[F, Double, A]] = {
     val commonLabelNames = commonLabels.value.keys.toIndexedSeq
     val commonLabelValues = commonLabels.value.values.toIndexedSeq
 
@@ -215,17 +226,26 @@ class PrometheusMetricsRegistry[F[_]: Sync: Logger] private (
       def setToCurrentTime(labels: A): F[Unit] =
         Clock[F].realTime.flatMap(d => modify(_.set(d.toSeconds.toDouble), labels))
 
-      Gauge.Labelled.make(inc, dec, set, setToCurrentTime)
+      Gauge.Labelled.make(1.0, inc, dec, set, setToCurrentTime)
     }
   }
 
-  override def createAndRegisterHistogram(
+  override def createAndRegisterLabelledLongGauge[A](
+      prefix: Option[Metric.Prefix],
+      name: Gauge.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name]
+  )(f: A => IndexedSeq[String]): F[Gauge.Labelled[F, Long, A]] =
+    createAndRegisterLabelledDoubleGauge(prefix, name, help, commonLabels, labelNames)(f).map(_.contramap(_.toDouble))
+
+  override def createAndRegisterDoubleHistogram(
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       buckets: NonEmptySeq[Double]
-  ): F[Histogram[F]] = {
+  ): F[Histogram[F, Double]] = {
     val commonLabelNames = commonLabels.value.keys.toIndexedSeq
     val commonLabelValues = commonLabels.value.values.toIndexedSeq
 
@@ -249,14 +269,14 @@ class PrometheusMetricsRegistry[F[_]: Sync: Logger] private (
     }
   }
 
-  override def createAndRegisterLabelledHistogram[A](
+  override def createAndRegisterLabelledDoubleHistogram[A](
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
       buckets: NonEmptySeq[Double]
-  )(f: A => IndexedSeq[String]): F[Histogram.Labelled[F, A]] = {
+  )(f: A => IndexedSeq[String]): F[Histogram.Labelled[F, Double, A]] = {
     val commonLabelNames = commonLabels.value.keys.toIndexedSeq
     val commonLabelValues = commonLabels.value.values.toIndexedSeq
 
@@ -268,7 +288,7 @@ class PrometheusMetricsRegistry[F[_]: Sync: Logger] private (
       help,
       labelNames ++ commonLabels.value.keys.toIndexedSeq
     ).map { histogram =>
-      Histogram.Labelled.make[F, A](_observe = { (d: Double, labels: A) =>
+      Histogram.Labelled.make[F, Double, A](_observe = { (d: Double, labels: A) =>
         Utils.modifyMetric[F, Histogram.Name, PHistogram.Child](
           histogram,
           name,
@@ -280,6 +300,41 @@ class PrometheusMetricsRegistry[F[_]: Sync: Logger] private (
     }
   }
 
+  override def createAndRegisterLongCounter(
+      prefix: Option[Metric.Prefix],
+      name: Counter.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels
+  ): F[Counter[F, Long]] = createAndRegisterDoubleCounter(prefix, name, help, commonLabels).map(_.contramap(_.toDouble))
+
+  override def createAndRegisterLabelledLongCounter[A](
+      prefix: Option[Metric.Prefix],
+      name: Counter.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name]
+  )(f: A => IndexedSeq[String]): F[Counter.Labelled[F, Long, A]] =
+    createAndRegisterLabelledDoubleCounter(prefix, name, help, commonLabels, labelNames)(f).map(_.contramap(_.toDouble))
+
+  override def createAndRegisterLongHistogram(
+      prefix: Option[Metric.Prefix],
+      name: Histogram.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      buckets: NonEmptySeq[Long]
+  ): F[Histogram[F, Long]] = createAndRegisterDoubleHistogram(prefix, name, help, commonLabels, buckets.map(_.toDouble))
+    .map(_.contramap(_.toDouble))
+
+  override def createAndRegisterLabelledLongHistogram[A](
+      prefix: Option[Metric.Prefix],
+      name: Histogram.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name],
+      buckets: NonEmptySeq[Long]
+  )(f: A => IndexedSeq[String]): F[Histogram.Labelled[F, Long, A]] =
+    createAndRegisterLabelledDoubleHistogram(prefix, name, help, commonLabels, labelNames, buckets.map(_.toDouble))(f)
+      .map(_.contramap(_.toDouble))
 }
 
 object PrometheusMetricsRegistry {

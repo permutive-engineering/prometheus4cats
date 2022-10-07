@@ -16,34 +16,21 @@
 
 package openmetrics4s
 
-import java.util.concurrent.TimeUnit
-
 import cats.data.NonEmptySeq
-import cats.{Applicative, Eq, Hash, Order, Show, ~>}
+import cats.{Applicative, Contravariant, Eq, Hash, Order, Show, ~>}
 
-import scala.concurrent.duration.FiniteDuration
+sealed abstract class Histogram[F[_], A] { self =>
 
-sealed abstract class Histogram[F[_]: Record] { self =>
-  final def time[A](fa: F[A]): F[A] =
-    Record[F].record(fa)((t, _) => observeDuration(t))
+  def observe(n: A): F[Unit]
 
-  protected def durationToDouble(duration: FiniteDuration): Double =
-    duration.toUnit(TimeUnit.SECONDS)
+  def contramap[B](f: B => A): Histogram[F, B] = new Histogram[F, B] {
+    override def observe(n: B): F[Unit] = self.observe(f(n))
+  }
 
-  def observe(n: Double): F[Unit]
-
-  final def observeDuration(duration: FiniteDuration): F[Unit] = observe(
-    durationToDouble(duration)
-  )
-
-  final def mapK[G[_]: Record](fk: F ~> G): Histogram[G] = new Histogram[G] {
-    override def observe(n: Double): G[Unit] = fk(self.observe(n))
+  final def mapK[G[_]](fk: F ~> G): Histogram[G, A] = new Histogram[G, A] {
+    override def observe(n: A): G[Unit] = fk(self.observe(n))
   }
 }
-
-/** Escape hatch for writing testing implementations in `metrics-testing` module
-  */
-abstract private[openmetrics4s] class Histogram_[F[_]: Record] extends Histogram[F]
 
 object Histogram {
 
@@ -88,101 +75,56 @@ object Histogram {
 
   }
 
-  def make[F[_]: Record](_observe: Double => F[Unit]): Histogram[F] =
-    new Histogram[F] {
-      override def observe(n: Double): F[Unit] = _observe(n)
-    }
-
-  def make[F[_]: Record](
-      _observe: Double => F[Unit],
-      durationUnits: TimeUnit
-  ): Histogram[F] =
-    new Histogram[F] {
-      override def observe(n: Double): F[Unit] = _observe(n)
-      override protected def durationToDouble(
-          duration: FiniteDuration
-      ): Double = duration.toUnit(durationUnits)
-    }
-
-  def noop[F[_]: Applicative]: Histogram[F] = {
-    implicit val record: Record[F] = Record.noOpRecord[F]
-
-    new Histogram[F] {
-      override def observe(n: Double): F[Unit] = Applicative[F].unit
-    }
+  implicit def catsInstances[F[_]]: Contravariant[Histogram[F, *]] = new Contravariant[Histogram[F, *]] {
+    override def contramap[A, B](fa: Histogram[F, A])(f: B => A): Histogram[F, B] = fa.contramap(f)
   }
 
-  sealed abstract class Labelled[F[_]: RecordAttempt, A] {
+  def make[F[_], A](_observe: A => F[Unit]): Histogram[F, A] =
+    new Histogram[F, A] {
+      override def observe(n: A): F[Unit] = _observe(n)
+    }
+
+  def noop[F[_]: Applicative, A]: Histogram[F, A] =
+    new Histogram[F, A] {
+      override def observe(n: A): F[Unit] = Applicative[F].unit
+    }
+
+  sealed abstract class Labelled[F[_], A, B] {
     self =>
-    protected def durationToDouble(duration: FiniteDuration): Double =
-      duration.toUnit(TimeUnit.SECONDS)
 
-    def observe(n: Double, labels: A): F[Unit]
+    def observe(n: A, labels: B): F[Unit]
 
-    final def observeDuration(duration: FiniteDuration, labels: A): F[Unit] =
-      observe(durationToDouble(duration), labels)
+    def contramap[C](f: C => A): Labelled[F, C, B] = new Labelled[F, C, B] {
+      override def observe(n: C, labels: B): F[Unit] = self.observe(f(n), labels)
+    }
 
-    final def time[B](fb: F[B], labels: A): F[B] =
-      timeWithComputedLabels(fb, _ => labels)
-
-    final def timeWithComputedLabels[B](fb: F[B], labels: B => A): F[B] =
-      RecordAttempt[F].record(fb)((t, b) => observeDuration(t, labels(b)))
-
-    final def timeAttempt[B](
-        fb: F[B],
-        labelsSuccess: B => A,
-        labelsError: PartialFunction[Throwable, A]
-    ): F[B] =
-      RecordAttempt[F].recordAttemptFold[B, A](
-        fb,
-        observeDuration,
-        transformSuccess = labelsSuccess,
-        transformError = labelsError
-      )
-
-    final def mapK[G[_]: RecordAttempt](fk: F ~> G): Labelled[G, A] =
-      new Labelled[G, A] {
-        override def observe(n: Double, labels: A): G[Unit] = fk(
+    final def mapK[G[_]](fk: F ~> G): Labelled[G, A, B] =
+      new Labelled[G, A, B] {
+        override def observe(n: A, labels: B): G[Unit] = fk(
           self.observe(n, labels)
         )
       }
 
   }
 
-  /** Escape hatch for writing testing implementations in `metrics-testing` module
-    */
-  abstract private[openmetrics4s] class Labelled_[F[_]: RecordAttempt, A] extends Labelled[F, A]
-
   object Labelled {
-    def make[F[_]: RecordAttempt, A](
-        _observe: (Double, A) => F[Unit]
-    ): Labelled[F, A] =
-      new Labelled[F, A] {
-        override def observe(n: Double, labels: A): F[Unit] =
+    implicit def catsInstances[F[_], C]: Contravariant[Labelled[F, *, C]] =
+      new Contravariant[Histogram.Labelled[F, *, C]] {
+        override def contramap[A, B](fa: Labelled[F, A, C])(f: B => A): Labelled[F, B, C] = fa.contramap(f)
+      }
+
+    def make[F[_], A, B](
+        _observe: (A, B) => F[Unit]
+    ): Labelled[F, A, B] =
+      new Labelled[F, A, B] {
+        override def observe(n: A, labels: B): F[Unit] =
           _observe(n, labels)
       }
 
-    def make[F[_]: RecordAttempt, A](
-        _observe: (Double, A) => F[Unit],
-        durationUnit: TimeUnit
-    ): Labelled[F, A] =
-      new Labelled[F, A] {
-        override def observe(n: Double, labels: A): F[Unit] =
-          _observe(n, labels)
-
-        override protected def durationToDouble(
-            duration: FiniteDuration
-        ): Double = duration.toUnit(durationUnit)
-      }
-
-    def noop[F[_]: Applicative, A]: Labelled[F, A] = {
-      implicit val recordAttempt: RecordAttempt[F] =
-        RecordAttempt.noOpRecordAttempt[F]
-
-      new Labelled[F, A] {
-        override def observe(n: Double, labels: A): F[Unit] =
+    def noop[F[_]: Applicative, A, B]: Labelled[F, A, B] =
+      new Labelled[F, A, B] {
+        override def observe(n: A, labels: B): F[Unit] =
           Applicative[F].unit
       }
-    }
   }
 }

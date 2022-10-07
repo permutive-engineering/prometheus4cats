@@ -16,31 +16,48 @@
 
 package openmetrics4s
 
-import cats.{Applicative, Eq, Hash, Order, Show, ~>}
+import cats.{Applicative, Contravariant, Eq, Hash, Order, Show, ~>}
 
-sealed abstract class Gauge[F[_]] { self =>
+sealed abstract class Gauge[F[_], A] { self =>
 
-  def inc(n: Double = 1.0): F[Unit]
-  def dec(n: Double = 1.0): F[Unit]
-  def set(n: Double): F[Unit]
+  def inc: F[Unit]
+  def inc(n: A): F[Unit]
+  def dec: F[Unit]
+  def dec(n: A): F[Unit]
+  def set(n: A): F[Unit]
 
   def setToCurrentTime(): F[Unit]
 
-  final def mapK[G[_]](fk: F ~> G): Gauge[G] = new Gauge[G] {
-    override def inc(n: Double): G[Unit] = fk(self.inc(n))
+  def contramap[B](f: B => A): Gauge[F, B] = new Gauge[F, B] {
+    override def inc: F[Unit] = self.inc
 
-    override def dec(n: Double): G[Unit] = fk(self.dec(n))
+    override def inc(n: B): F[Unit] = self.inc(f(n))
 
-    override def set(n: Double): G[Unit] = fk(self.set(n))
+    override def dec: F[Unit] = self.dec
+
+    override def dec(n: B): F[Unit] = self.dec(f(n))
+
+    override def set(n: B): F[Unit] = self.set(f(n))
+
+    override def setToCurrentTime(): F[Unit] = self.setToCurrentTime()
+
+  }
+
+  final def mapK[G[_]](fk: F ~> G): Gauge[G, A] = new Gauge[G, A] {
+    override def inc: G[Unit] = fk(self.inc)
+
+    override def inc(n: A): G[Unit] = fk(self.inc(n))
+
+    override def dec: G[Unit] = fk(self.dec)
+
+    override def dec(n: A): G[Unit] = fk(self.dec(n))
+
+    override def set(n: A): G[Unit] = fk(self.set(n))
 
     override def setToCurrentTime(): G[Unit] = fk(self.setToCurrentTime())
   }
 
 }
-
-/** Escape hatch for writing testing implementations in `metrics-testing` module
-  */
-abstract private[openmetrics4s] class Gauge_[F[_]] extends Gauge[F]
 
 object Gauge {
 
@@ -81,93 +98,139 @@ object Gauge {
 
   }
 
-  def make[F[_]](
-      _inc: Double => F[Unit],
-      _dec: Double => F[Unit],
-      _set: Double => F[Unit],
+  implicit def catsInstances[F[_]]: Contravariant[Gauge[F, *]] = new Contravariant[Gauge[F, *]] {
+    override def contramap[A, B](fa: Gauge[F, A])(f: B => A): Gauge[F, B] = fa.contramap(f)
+  }
+
+  def make[F[_], A](
+      default: A,
+      _inc: A => F[Unit],
+      _dec: A => F[Unit],
+      _set: A => F[Unit],
       _setToCurrentTime: F[Unit]
-  ): Gauge[F] = new Gauge[F] {
-    override def inc(n: Double): F[Unit] = _inc(n)
+  ): Gauge[F, A] = new Gauge[F, A] {
+    override def inc: F[Unit] = inc(default)
 
-    override def dec(n: Double): F[Unit] = _dec(n)
+    override def inc(n: A): F[Unit] = _inc(n)
 
-    override def set(n: Double): F[Unit] = _set(n)
+    override def dec: F[Unit] = dec(default)
+
+    override def dec(n: A): F[Unit] = _dec(n)
+
+    override def set(n: A): F[Unit] = _set(n)
 
     override def setToCurrentTime(): F[Unit] = _setToCurrentTime
   }
 
-  def noop[F[_]: Applicative]: Gauge[F] = new Gauge[F] {
-    override def inc(n: Double): F[Unit] = Applicative[F].unit
+  def noop[F[_]: Applicative, A]: Gauge[F, A] = new Gauge[F, A] {
+    override def inc: F[Unit] = Applicative[F].unit
 
-    override def dec(n: Double): F[Unit] = Applicative[F].unit
+    override def inc(n: A): F[Unit] = Applicative[F].unit
 
-    override def set(n: Double): F[Unit] = Applicative[F].unit
+    override def dec: F[Unit] = Applicative[F].unit
+
+    override def dec(n: A): F[Unit] = Applicative[F].unit
+
+    override def set(n: A): F[Unit] = Applicative[F].unit
 
     override def setToCurrentTime(): F[Unit] = Applicative[F].unit
   }
 
-  abstract class Labelled[F[_], A] {
+  abstract class Labelled[F[_], A, B] {
     self =>
 
-    def inc(n: Double = 1.0, labels: A): F[Unit]
+    def inc(labels: B): F[Unit]
 
-    def dec(n: Double = 1.0, labels: A): F[Unit]
+    def inc(n: A, labels: B): F[Unit]
 
-    def set(n: Double, labels: A): F[Unit]
+    def dec(labels: B): F[Unit]
 
-    def setToCurrentTime(labels: A): F[Unit]
+    def dec(n: A, labels: B): F[Unit]
 
-    final def mapK[G[_]](fk: F ~> G): Labelled[G, A] =
-      new Labelled[G, A] {
-        override def inc(n: Double, labels: A): G[Unit] = fk(
+    def set(n: A, labels: B): F[Unit]
+
+    def setToCurrentTime(labels: B): F[Unit]
+
+    def contramap[C](f: C => A): Labelled[F, C, B] = new Labelled[F, C, B] {
+      override def inc(labels: B): F[Unit] = self.inc(labels)
+
+      override def inc(n: C, labels: B): F[Unit] = self.inc(f(n), labels)
+
+      override def dec(labels: B): F[Unit] = self.dec(labels)
+
+      override def dec(n: C, labels: B): F[Unit] = self.dec(f(n), labels)
+
+      override def set(n: C, labels: B): F[Unit] = self.set(f(n), labels)
+
+      override def setToCurrentTime(labels: B): F[Unit] = self.setToCurrentTime(labels)
+    }
+
+    final def mapK[G[_]](fk: F ~> G): Labelled[G, A, B] =
+      new Labelled[G, A, B] {
+
+        override def inc(labels: B): G[Unit] = fk(self.inc(labels))
+
+        override def inc(n: A, labels: B): G[Unit] = fk(
           self.inc(n, labels)
         )
 
-        override def dec(n: Double, labels: A): G[Unit] = fk(
+        override def dec(labels: B): G[Unit] = fk(self.dec(labels))
+
+        override def dec(n: A, labels: B): G[Unit] = fk(
           self.dec(n, labels)
         )
 
-        override def set(n: Double, labels: A): G[Unit] = fk(
+        override def set(n: A, labels: B): G[Unit] = fk(
           self.set(n, labels)
         )
 
-        override def setToCurrentTime(labels: A): G[Unit] = fk(
+        override def setToCurrentTime(labels: B): G[Unit] = fk(
           self.setToCurrentTime(labels)
         )
+
       }
 
   }
 
-  /** Escape hatch for writing testing implementations in `metrics-testing` module
-    */
-  abstract private[openmetrics4s] class Labelled_[F[_], A] extends Labelled[F, A]
-
   object Labelled {
-    def make[F[_], A](
-        _inc: (Double, A) => F[Unit],
-        _dec: (Double, A) => F[Unit],
-        _set: (Double, A) => F[Unit],
-        _setToCurrentTime: A => F[Unit]
-    ): Labelled[F, A] = new Labelled[F, A] {
-      override def inc(n: Double, labels: A): F[Unit] = _inc(n, labels)
+    implicit def catsInstances[F[_], C]: Contravariant[Labelled[F, *, C]] = new Contravariant[Gauge.Labelled[F, *, C]] {
+      override def contramap[A, B](fa: Labelled[F, A, C])(f: B => A): Labelled[F, B, C] = fa.contramap(f)
+    }
 
-      override def dec(n: Double, labels: A): F[Unit] = _dec(n, labels)
+    def make[F[_], A, B](
+        default: A,
+        _inc: (A, B) => F[Unit],
+        _dec: (A, B) => F[Unit],
+        _set: (A, B) => F[Unit],
+        _setToCurrentTime: B => F[Unit]
+    ): Labelled[F, A, B] = new Labelled[F, A, B] {
+      override def inc(labels: B): F[Unit] = inc(default, labels)
 
-      override def set(n: Double, labels: A): F[Unit] = _set(n, labels)
+      override def inc(n: A, labels: B): F[Unit] = _inc(n, labels)
 
-      override def setToCurrentTime(labels: A): F[Unit] = _setToCurrentTime(
+      override def dec(labels: B): F[Unit] = dec(default, labels)
+
+      override def dec(n: A, labels: B): F[Unit] = _dec(n, labels)
+
+      override def set(n: A, labels: B): F[Unit] = _set(n, labels)
+
+      override def setToCurrentTime(labels: B): F[Unit] = _setToCurrentTime(
         labels
       )
     }
 
-    def noop[F[_]: Applicative, A]: Labelled[F, A] = new Labelled[F, A] {
-      override def inc(n: Double, labels: A): F[Unit] = Applicative[F].unit
+    def noop[F[_]: Applicative, A, B]: Labelled[F, A, B] = new Labelled[F, A, B] {
+      override def inc(labels: B): F[Unit] = Applicative[F].unit
 
-      override def dec(n: Double, labels: A): F[Unit] = Applicative[F].unit
+      override def inc(n: A, labels: B): F[Unit] = Applicative[F].unit
 
-      override def set(n: Double, labels: A): F[Unit] = Applicative[F].unit
+      override def dec(labels: B): F[Unit] = Applicative[F].unit
 
-      override def setToCurrentTime(labels: A): F[Unit] = Applicative[F].unit
+      override def dec(n: A, labels: B): F[Unit] = Applicative[F].unit
+
+      override def set(n: A, labels: B): F[Unit] = Applicative[F].unit
+
+      override def setToCurrentTime(labels: B): F[Unit] = Applicative[F].unit
     }
   }
 }

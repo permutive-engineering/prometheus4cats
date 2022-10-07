@@ -16,19 +16,24 @@
 
 package openmetrics4s
 
-import cats.{Applicative, Eq, Hash, Order, Show, ~>}
-sealed abstract class Counter[F[_]] { self =>
+import cats.{Applicative, Contravariant, Eq, Hash, Order, Show, ~>}
 
-  def inc(n: Double = 1.0): F[Unit]
+sealed abstract class Counter[F[_], A] { self =>
 
-  final def mapK[G[_]](fk: F ~> G): Counter[G] = new Counter[G] {
-    override def inc(n: Double): G[Unit] = fk(self.inc(n))
+  def inc: F[Unit]
+  def inc(n: A): F[Unit]
+
+  def contramap[B](f: B => A): Counter[F, B] = new Counter[F, B] {
+    override def inc: F[Unit] = self.inc
+
+    override def inc(n: B): F[Unit] = self.inc(f(n))
+  }
+
+  final def mapK[G[_]](fk: F ~> G): Counter[G, A] = new Counter[G, A] {
+    override def inc: G[Unit] = fk(self.inc)
+    override def inc(n: A): G[Unit] = fk(self.inc(n))
   }
 }
-
-/** Escape hatch for writing testing implementations in `metrics-testing` module
-  */
-abstract private[openmetrics4s] class Counter_[F[_]] extends Counter[F]
 
 object Counter {
 
@@ -69,39 +74,60 @@ object Counter {
     }
   }
 
-  def make[F[_]](_inc: Double => F[Unit]): Counter[F] = new Counter[F] {
-    override def inc(n: Double): F[Unit] = _inc(n)
+  implicit def catsInstances[F[_]]: Contravariant[Counter[F, *]] = new Contravariant[Counter[F, *]] {
+    override def contramap[A, B](fa: Counter[F, A])(f: B => A): Counter[F, B] = fa.contramap(f)
   }
 
-  def noop[F[_]: Applicative]: Counter[F] = new Counter[F] {
-    override def inc(n: Double): F[Unit] = Applicative[F].unit
+  def make[F[_], A](default: A, _inc: A => F[Unit]): Counter[F, A] = new Counter[F, A] {
+    override def inc: F[Unit] = inc(default)
+
+    override def inc(n: A): F[Unit] = _inc(n)
   }
 
-  sealed abstract class Labelled[F[_], A] {
+  def noop[F[_]: Applicative, A]: Counter[F, A] = new Counter[F, A] {
+    override def inc: F[Unit] = Applicative[F].unit
+
+    override def inc(n: A): F[Unit] = Applicative[F].unit
+  }
+
+  sealed abstract class Labelled[F[_], A, B] {
     self =>
+    def inc(labels: B): F[Unit]
 
-    def inc(n: Double = 1.0, labels: A): F[Unit]
+    def inc(n: A, labels: B): F[Unit]
 
-    final def mapK[G[_]](fk: F ~> G): Counter.Labelled[G, A] =
-      new Labelled[G, A] {
-        override def inc(n: Double, labels: A): G[Unit] = fk(
+    def contramap[C](f: C => A): Labelled[F, C, B] = new Labelled[F, C, B] {
+      override def inc(labels: B): F[Unit] = self.inc(labels)
+
+      override def inc(n: C, labels: B): F[Unit] = self.inc(f(n), labels)
+    }
+
+    final def mapK[G[_]](fk: F ~> G): Counter.Labelled[G, A, B] =
+      new Labelled[G, A, B] {
+        override def inc(labels: B): G[Unit] = fk(self.inc(labels))
+
+        override def inc(n: A, labels: B): G[Unit] = fk(
           self.inc(n, labels)
         )
       }
   }
 
-  /** Escape hatch for writing testing implementations in `metrics-testing` module
-    */
-  abstract private[openmetrics4s] class Labelled_[F[_], A] extends Labelled[F, A]
-
   object Labelled {
-    def make[F[_], A](_inc: (Double, A) => F[Unit]): Labelled[F, A] =
-      new Labelled[F, A] {
-        override def inc(n: Double, labels: A): F[Unit] = _inc(n, labels)
+    implicit def catsInstances[F[_], C]: Contravariant[Labelled[F, *, C]] = new Contravariant[Labelled[F, *, C]] {
+      override def contramap[A, B](fa: Labelled[F, A, C])(f: B => A): Labelled[F, B, C] = fa.contramap(f)
+    }
+
+    def make[F[_], A, B](default: A, _inc: (A, B) => F[Unit]): Labelled[F, A, B] =
+      new Labelled[F, A, B] {
+        override def inc(labels: B): F[Unit] = inc(default, labels)
+
+        override def inc(n: A, labels: B): F[Unit] = _inc(n, labels)
       }
 
-    def noop[F[_]: Applicative, A]: Labelled[F, A] = new Labelled[F, A] {
-      override def inc(n: Double, labels: A): F[Unit] = Applicative[F].unit
+    def noop[F[_]: Applicative, A, B]: Labelled[F, A, B] = new Labelled[F, A, B] {
+      override def inc(labels: B): F[Unit] = Applicative[F].unit
+
+      override def inc(n: A, labels: B): F[Unit] = Applicative[F].unit
     }
   }
 

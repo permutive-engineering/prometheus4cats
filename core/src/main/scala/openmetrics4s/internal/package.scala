@@ -16,7 +16,7 @@
 
 package openmetrics4s.internal
 
-import cats.Show
+import cats.{Contravariant, Functor, Show}
 import cats.effect.kernel.Resource
 import cats.syntax.all._
 import openmetrics4s._
@@ -29,18 +29,56 @@ class BuildStep[F[_], A] private[openmetrics4s] (fa: F[A]) {
   /** Builds the metric, wrapping the effect in a `Resource` */
   def resource: Resource[F, A] = Resource.eval(build)
 
+  def map[B](f: A => B)(implicit F: Functor[F]): BuildStep[F, B] = new BuildStep[F, B](fa.map(f))
+
 }
 
-private[internal] trait FirstLabelStep[F[_], S[_[_], _, _ <: Nat]] {
+object BuildStep {
+  implicit class GaugeTimerSyntax[F[_]: Functor: Record](bs: BuildStep[F, Gauge[F, Double]]) {
+    def asTimer: BuildStep[F, Timer.Aux[F, Double, Gauge]] = bs.map(Timer.fromGauge[F])
+  }
+
+  implicit class HistogramTimerSyntax[F[_]: Functor: Record](bs: BuildStep[F, Histogram[F, Double]]) {
+    def asTimer: BuildStep[F, Timer.Aux[F, Double, Histogram]] = bs.map(Timer.fromHistogram[F])
+  }
+
+  implicit class LabelledGaugeTimerSyntax[F[_]: Functor: RecordAttempt, A](
+      bs: BuildStep[F, Gauge.Labelled[F, Double, A]]
+  ) {
+    def asTimer: BuildStep[F, Timer.Labelled.Aux[F, A, Double, Gauge.Labelled]] =
+      bs.map(Timer.Labelled.fromGauge[F, A])
+  }
+
+  implicit class LabelledHistogramTimerSyntax[F[_]: Functor: RecordAttempt, A](
+      bs: BuildStep[F, Histogram.Labelled[F, Double, A]]
+  ) {
+    def asTimer: BuildStep[F, Timer.Labelled.Aux[F, A, Double, Histogram.Labelled]] =
+      bs.map(Timer.Labelled.fromHistogram[F, A])
+  }
+
+  type Aux[F[_], M[_], A] = BuildStep[F, M[A]]
+
+  implicit def auxContravariant[F[_]: Functor, M[_]: Contravariant]: Contravariant[Aux[F, M, *]] =
+    new Contravariant[Aux[F, M, *]] {
+      override def contramap[A, B](fa: Aux[F, M, A])(f: B => A): Aux[F, M, B] =
+        fa.map(_.contramap(f))
+    }
+
+  implicit class ContravariantSyntax[F[_]: Functor, M[_]: Contravariant, A](bs: BuildStep[F, M[A]]) {
+    def contramap[B](f: B => A): F[M[B]] = bs.build.map(_.contramap(f))
+  }
+}
+
+private[internal] trait FirstLabelStep[F[_], A, L[_[_], _, _]] {
 
   /** Sets the first label of the metric. Requires either a `Show` instance for the label type, or a method converting
     * the label value to a `String`.
     */
-  def label[A]: FirstLabelApply[F, S, A]
+  def label[B]: FirstLabelApply[F, A, B, L]
 
 }
 
-private[internal] trait UnsafeLabelsStep[F[_], S[_[_], _]] {
+private[internal] trait UnsafeLabelsStep[F[_], A, L[_[_], _, _]] {
 
   /** Creates a metric whose labels aren't checked at compile time. Provides a builder for a labelled metric that takes
     * a map of label names to their values.
@@ -53,7 +91,7 @@ private[internal] trait UnsafeLabelsStep[F[_], S[_[_], _]] {
     */
   def unsafeLabels(
       labelNames: IndexedSeq[Label.Name]
-  ): BuildStep[F, S[F, Map[Label.Name, String]]]
+  ): BuildStep[F, L[F, A, Map[Label.Name, String]]]
 
   /** Creates a metric whose labels aren't checked at compile time. Provides a builder for a labelled metric that takes
     * a map of label names to their values.
@@ -66,15 +104,15 @@ private[internal] trait UnsafeLabelsStep[F[_], S[_[_], _]] {
     */
   def unsafeLabels(
       labelNames: Label.Name*
-  ): BuildStep[F, S[F, Map[Label.Name, String]]] = unsafeLabels(labelNames.toIndexedSeq)
+  ): BuildStep[F, L[F, A, Map[Label.Name, String]]] = unsafeLabels(labelNames.toIndexedSeq)
 }
 
-abstract class FirstLabelApply[F[_], S[_[_], _, _ <: Nat], A] {
+abstract class FirstLabelApply[F[_], A, B, L[_[_], _, _]] {
 
-  def apply(name: Label.Name)(implicit show: Show[A]): S[F, A, Nat._1] =
+  def apply(name: Label.Name)(implicit show: Show[B]): LabelledMetricDsl[F, A, B, Nat._1, L] =
     apply(name, _.show)
 
-  def apply(name: Label.Name, toString: A => String): S[F, A, Nat._1]
+  def apply(name: Label.Name, toString: B => String): LabelledMetricDsl[F, A, B, Nat._1, L]
 
 }
 
@@ -88,24 +126,33 @@ class HelpStep[A] private[openmetrics4s] (f: Metric.Help => A) {
 
 }
 
-abstract class LabelApply[F[_], T, N <: Nat, S[_[_], _, _ <: Nat], B] {
+class TypeStep[D[_]] private[openmetrics4s] (long: D[Long], double: D[Double]) {
+  def ofLong: D[Long] = long
+  def ofDouble: D[Double] = double
+}
+
+abstract class LabelApply[F[_], A, T, N <: Nat, B, L[_[_], _, _]] {
 
   def apply[C: InitLast.Aux[T, B, *]](name: Label.Name)(implicit
       show: Show[B]
-  ): S[F, C, Succ[N]] = apply(name, _.show)
+  ): LabelledMetricDsl[F, A, C, Succ[N], L] = apply(name, _.show)
 
   def apply[C: InitLast.Aux[T, B, *]](
       name: Label.Name,
       toString: B => String
-  ): S[F, C, Succ[N]]
+  ): LabelledMetricDsl[F, A, C, Succ[N], L]
 
 }
 
-private[openmetrics4s] trait NextLabelsStep[F[_], T, N <: Nat, S[_[_], _, _ <: Nat]] {
+private[openmetrics4s] trait NextLabelsStep[F[_], A, T, N <: Nat, L[_[_], _, _]] {
 
   /** Sets a new label for the metric, the label type will be joined together with previous types in a tuple. Requires
     * either a `Show` instance for the label type, or a method converting the label value to a `String`.
     */
-  def label[B]: LabelApply[F, T, N, S, B]
+  def label[B]: LabelApply[F, A, T, N, B, L]
 
+}
+
+private[openmetrics4s] trait LabelledMetricPartiallyApplied[F[_], A, L[_[_], _, _]] {
+  def apply[B](labels: IndexedSeq[Label.Name])(f: B => IndexedSeq[String]): F[L[F, A, B]]
 }

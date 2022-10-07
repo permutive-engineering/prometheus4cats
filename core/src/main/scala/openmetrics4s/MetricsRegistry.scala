@@ -18,7 +18,7 @@ package openmetrics4s
 
 import cats.data.NonEmptySeq
 import cats.syntax.functor._
-import cats.{Applicative, Monad, ~>}
+import cats.{Applicative, Functor, ~>}
 import openmetrics4s.Metric.CommonLabels
 
 /** Trait for registering metrics against different backends. May be implemented by anyone for use with
@@ -26,7 +26,7 @@ import openmetrics4s.Metric.CommonLabels
   */
 trait MetricsRegistry[F[_]] {
 
-  /** Create and register a counter against a metrics registry
+  /** Create and register a counter that records [[scala.Double]] values against a metrics registry
     *
     * @param prefix
     *   optional [[Metric.Prefix]] to be prepended to the metric name
@@ -39,14 +39,34 @@ trait MetricsRegistry[F[_]] {
     * @return
     *   a [[Counter]] wrapped in whatever side effect that was performed in registering it
     */
-  def createAndRegisterCounter(
+  def createAndRegisterDoubleCounter(
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels
-  ): F[Counter[F]]
+  ): F[Counter[F, Double]]
 
-  /** Create and register a labelled counter against a metrics registry
+  /** Create and register a counter that records [[scala.Long]] values against a metrics registry
+    *
+    * @param prefix
+    *   optional [[Metric.Prefix]] to be prepended to the metric name
+    * @param name
+    *   [[Counter.Name]] metric name
+    * @param help
+    *   [[Metric.Help]] string to describe the metric
+    * @param commonLabels
+    *   [[Metric.CommonLabels]] map of common labels to be added to the metric
+    * @return
+    *   a [[Counter]] wrapped in whatever side effect that was performed in registering it
+    */
+  def createAndRegisterLongCounter(
+      prefix: Option[Metric.Prefix],
+      name: Counter.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels
+  ): F[Counter[F, Long]]
+
+  /** Create and register a labelled counter that records [[scala.Double]] values against a metrics registry
     *
     * @param prefix
     *   optional [[Metric.Prefix]] to be prepended to the metric name
@@ -64,15 +84,41 @@ trait MetricsRegistry[F[_]] {
     * @return
     *   a [[Counter.Labelled]] wrapped in whatever side effect that was performed in registering it
     */
-  def createAndRegisterLabelledCounter[A](
+  def createAndRegisterLabelledDoubleCounter[A](
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name]
-  )(f: A => IndexedSeq[String]): F[Counter.Labelled[F, A]]
+  )(f: A => IndexedSeq[String]): F[Counter.Labelled[F, Double, A]]
 
-  /** Create and register a gauge against a metrics registry
+  /** Create and register a labelled counter that records [[scala.Long]] values against a metrics registry
+    *
+    * @param prefix
+    *   optional [[Metric.Prefix]] to be prepended to the metric name
+    * @param name
+    *   [[Counter.Name]] metric name
+    * @param help
+    *   [[Metric.Help]] string to describe the metric
+    * @param commonLabels
+    *   [[Metric.CommonLabels]] map of common labels to be added to the metric
+    * @param labelNames
+    *   an [[scala.IndexedSeq]] of [[Label.Name]]s to annotate the metric with
+    * @param f
+    *   a function from `A` to an [[scala.IndexedSeq]] of [[java.lang.String]] that provides label values, which must be
+    *   paired with their corresponding name in the [[scala.IndexedSeq]] of [[Label.Name]]s
+    * @return
+    *   a [[Counter.Labelled]] wrapped in whatever side effect that was performed in registering it
+    */
+  def createAndRegisterLabelledLongCounter[A](
+      prefix: Option[Metric.Prefix],
+      name: Counter.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name]
+  )(f: A => IndexedSeq[String]): F[Counter.Labelled[F, Long, A]]
+
+  /** Create and register a gauge that records [[scala.Double]] values against a metrics registry
     *
     * @param prefix
     *   optional [[Metric.Prefix]] to be prepended to the metric name
@@ -85,14 +131,34 @@ trait MetricsRegistry[F[_]] {
     * @return
     *   a [[Gauge]] wrapped in whatever side effect that was performed in registering it
     */
-  def createAndRegisterGauge(
+  def createAndRegisterDoubleGauge(
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels
-  ): F[Gauge[F]]
+  ): F[Gauge[F, Double]]
 
-  /** Create and register a labelled gauge against a metrics registry
+  /** Create and register a gauge that records [[scala.Long]] values against a metrics registry
+    *
+    * @param prefix
+    *   optional [[Metric.Prefix]] to be prepended to the metric name
+    * @param name
+    *   [[Gauge.Name]] metric name
+    * @param help
+    *   [[Metric.Help]] string to describe the metric
+    * @param commonLabels
+    *   [[Metric.CommonLabels]] map of common labels to be added to the metric
+    * @return
+    *   a [[Gauge]] wrapped in whatever side effect that was performed in registering it
+    */
+  def createAndRegisterLongGauge(
+      prefix: Option[Metric.Prefix],
+      name: Gauge.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels
+  ): F[Gauge[F, Long]]
+
+  /** Create and register a labelled gauge that records [[scala.Double]] values against a metrics registry
     *
     * @param prefix
     *   optional [[Metric.Prefix]] to be prepended to the metric name
@@ -110,15 +176,41 @@ trait MetricsRegistry[F[_]] {
     * @return
     *   a [[Gauge.Labelled]] wrapped in whatever side effect that was performed in registering it
     */
-  def createAndRegisterLabelledGauge[A](
+  def createAndRegisterLabelledDoubleGauge[A](
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name]
-  )(f: A => IndexedSeq[String]): F[Gauge.Labelled[F, A]]
+  )(f: A => IndexedSeq[String]): F[Gauge.Labelled[F, Double, A]]
 
-  /** Create and register a histogram against a metrics registry
+  /** Create and register a labelled gauge that records [[scala.Long]] values against a metrics registry
+    *
+    * @param prefix
+    *   optional [[Metric.Prefix]] to be prepended to the metric name
+    * @param name
+    *   [[Gauge.Name]] metric name
+    * @param help
+    *   [[Metric.Help]] string to describe the metric
+    * @param commonLabels
+    *   [[Metric.CommonLabels]] map of common labels to be added to the metric
+    * @param labelNames
+    *   an [[scala.IndexedSeq]] of [[Label.Name]]s to annotate the metric with
+    * @param f
+    *   a function from `A` to an [[scala.IndexedSeq]] of [[java.lang.String]] that provides label values, which must be
+    *   paired with their corresponding name in the [[scala.IndexedSeq]] of [[Label.Name]]s
+    * @return
+    *   a [[Gauge.Labelled]] wrapped in whatever side effect that was performed in registering it
+    */
+  def createAndRegisterLabelledLongGauge[A](
+      prefix: Option[Metric.Prefix],
+      name: Gauge.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name]
+  )(f: A => IndexedSeq[String]): F[Gauge.Labelled[F, Long, A]]
+
+  /** Create and register a histogram that records [[scala.Double]] values against a metrics registry
     *
     * @param prefix
     *   optional [[Metric.Prefix]] to be prepended to the metric name
@@ -133,13 +225,36 @@ trait MetricsRegistry[F[_]] {
     * @return
     *   a [[Gauge]] wrapped in whatever side effect that was performed in registering it
     */
-  def createAndRegisterHistogram(
+  def createAndRegisterDoubleHistogram(
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       buckets: NonEmptySeq[Double]
-  ): F[Histogram[F]]
+  ): F[Histogram[F, Double]]
+
+  /** Create and register a histogram that records [[scala.Long]] values against a metrics registry
+    *
+    * @param prefix
+    *   optional [[Metric.Prefix]] to be prepended to the metric name
+    * @param name
+    *   [[Histogram.Name]] metric name
+    * @param help
+    *   [[Metric.Help]] string to describe the metric
+    * @param commonLabels
+    *   [[Metric.CommonLabels]] map of common labels to be added to the metric
+    * @param buckets
+    *   a [[cats.data.NonEmptySeq]] of [[scala.Double]]s representing bucket values for the histogram
+    * @return
+    *   a [[Gauge]] wrapped in whatever side effect that was performed in registering it
+    */
+  def createAndRegisterLongHistogram(
+      prefix: Option[Metric.Prefix],
+      name: Histogram.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      buckets: NonEmptySeq[Long]
+  ): F[Histogram[F, Long]]
 
   /** Create and register a labelled histogram against a metrics registry
     *
@@ -161,93 +276,172 @@ trait MetricsRegistry[F[_]] {
     * @return
     *   a [[Histogram.Labelled]] wrapped in whatever side effect that was performed in registering it
     */
-  def createAndRegisterLabelledHistogram[A](
+  def createAndRegisterLabelledDoubleHistogram[A](
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
       buckets: NonEmptySeq[Double]
-  )(f: A => IndexedSeq[String]): F[Histogram.Labelled[F, A]]
+  )(f: A => IndexedSeq[String]): F[Histogram.Labelled[F, Double, A]]
+
+  /** Create and register a labelled histogram against a metrics registry
+    *
+    * @param prefix
+    *   optional [[Metric.Prefix]] to be prepended to the metric name
+    * @param name
+    *   [[Histogram.Name]] metric name
+    * @param help
+    *   [[Metric.Help]] string to describe the metric
+    * @param commonLabels
+    *   [[Metric.CommonLabels]] map of common labels to be added to the metric
+    * @param labelNames
+    *   an [[scala.IndexedSeq]] of [[Label.Name]]s to annotate the metric with
+    * @param buckets
+    *   a [[cats.data.NonEmptySeq]] of [[scala.Double]]s representing bucket values for the histogram
+    * @param f
+    *   a function from `A` to an [[scala.IndexedSeq]] of [[java.lang.String]] that provides label values, which must be
+    *   paired with their corresponding name in the [[scala.IndexedSeq]] of [[Label.Name]]s
+    * @return
+    *   a [[Histogram.Labelled]] wrapped in whatever side effect that was performed in registering it
+    */
+  def createAndRegisterLabelledLongHistogram[A](
+      prefix: Option[Metric.Prefix],
+      name: Histogram.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name],
+      buckets: NonEmptySeq[Long]
+  )(f: A => IndexedSeq[String]): F[Histogram.Labelled[F, Long, A]]
 }
 
 object MetricsRegistry {
   def noop[F[_]](implicit F: Applicative[F]): MetricsRegistry[F] =
     new MetricsRegistry[F] {
-      override def createAndRegisterCounter(
+      override def createAndRegisterDoubleCounter(
           prefix: Option[Metric.Prefix],
           name: Counter.Name,
           help: Metric.Help,
           commonLabels: CommonLabels
-      ): F[Counter[F]] = F.pure(Counter.noop)
+      ): F[Counter[F, Double]] = F.pure(Counter.noop)
 
-      override def createAndRegisterLabelledCounter[A](
+      override def createAndRegisterLabelledDoubleCounter[A](
           prefix: Option[Metric.Prefix],
           name: Counter.Name,
           help: Metric.Help,
           commonLabels: CommonLabels,
           labelNames: IndexedSeq[Label.Name]
-      )(f: A => IndexedSeq[String]): F[Counter.Labelled[F, A]] =
+      )(f: A => IndexedSeq[String]): F[Counter.Labelled[F, Double, A]] =
         F.pure(Counter.Labelled.noop)
 
-      override def createAndRegisterGauge(
+      override def createAndRegisterDoubleGauge(
           prefix: Option[Metric.Prefix],
           name: Gauge.Name,
           help: Metric.Help,
           commonLabels: CommonLabels
-      ): F[Gauge[F]] =
+      ): F[Gauge[F, Double]] =
         F.pure(Gauge.noop)
 
-      override def createAndRegisterLabelledGauge[A](
+      override def createAndRegisterLongGauge(
+          prefix: Option[Metric.Prefix],
+          name: Gauge.Name,
+          help: Metric.Help,
+          commonLabels: CommonLabels
+      ): F[Gauge[F, Long]] =
+        F.pure(Gauge.noop)
+
+      override def createAndRegisterLabelledDoubleGauge[A](
           prefix: Option[Metric.Prefix],
           name: Gauge.Name,
           help: Metric.Help,
           commonLabels: CommonLabels,
           labelNames: IndexedSeq[Label.Name]
-      )(f: A => IndexedSeq[String]): F[Gauge.Labelled[F, A]] =
+      )(f: A => IndexedSeq[String]): F[Gauge.Labelled[F, Double, A]] =
         F.pure(Gauge.Labelled.noop)
 
-      override def createAndRegisterHistogram(
+      override def createAndRegisterDoubleHistogram(
           prefix: Option[Metric.Prefix],
           name: Histogram.Name,
           help: Metric.Help,
           commonLabels: CommonLabels,
           buckets: NonEmptySeq[Double]
-      ): F[Histogram[F]] = F.pure(Histogram.noop)
+      ): F[Histogram[F, Double]] = F.pure(Histogram.noop)
 
-      override def createAndRegisterLabelledHistogram[A](
+      override def createAndRegisterLabelledDoubleHistogram[A](
           prefix: Option[Metric.Prefix],
           name: Histogram.Name,
           help: Metric.Help,
           commonLabels: CommonLabels,
           labelNames: IndexedSeq[Label.Name],
           buckets: NonEmptySeq[Double]
-      )(f: A => IndexedSeq[String]): F[Histogram.Labelled[F, A]] =
+      )(f: A => IndexedSeq[String]): F[Histogram.Labelled[F, Double, A]] =
         F.pure(Histogram.Labelled.noop)
+
+      override def createAndRegisterLongCounter(
+          prefix: Option[Metric.Prefix],
+          name: Counter.Name,
+          help: Metric.Help,
+          commonLabels: CommonLabels
+      ): F[Counter[F, Long]] = F.pure(Counter.noop)
+
+      override def createAndRegisterLabelledLongCounter[A](
+          prefix: Option[Metric.Prefix],
+          name: Counter.Name,
+          help: Metric.Help,
+          commonLabels: CommonLabels,
+          labelNames: IndexedSeq[Label.Name]
+      )(f: A => IndexedSeq[String]): F[Counter.Labelled[F, Long, A]] =
+        F.pure(Counter.Labelled.noop)
+
+      override def createAndRegisterLabelledLongGauge[A](
+          prefix: Option[Metric.Prefix],
+          name: Gauge.Name,
+          help: Metric.Help,
+          commonLabels: CommonLabels,
+          labelNames: IndexedSeq[Label.Name]
+      )(f: A => IndexedSeq[String]): F[Gauge.Labelled[F, Long, A]] =
+        F.pure(Gauge.Labelled.noop)
+
+      override def createAndRegisterLongHistogram(
+          prefix: Option[Metric.Prefix],
+          name: Histogram.Name,
+          help: Metric.Help,
+          commonLabels: CommonLabels,
+          buckets: NonEmptySeq[Long]
+      ): F[Histogram[F, Long]] = F.pure(Histogram.noop)
+
+      override def createAndRegisterLabelledLongHistogram[A](
+          prefix: Option[Metric.Prefix],
+          name: Histogram.Name,
+          help: Metric.Help,
+          commonLabels: CommonLabels,
+          labelNames: IndexedSeq[Label.Name],
+          buckets: NonEmptySeq[Long]
+      )(f: A => IndexedSeq[String]): F[Histogram.Labelled[F, Long, A]] = F.pure(Histogram.Labelled.noop)
     }
 
-  private[openmetrics4s] def mapK[F[_], G[_]: Monad: RecordAttempt](
+  private[openmetrics4s] def mapK[F[_], G[_]: Functor](
       self: MetricsRegistry[F],
       fk: F ~> G
   ): MetricsRegistry[G] =
     new MetricsRegistry[G] {
-      override def createAndRegisterCounter(
+      override def createAndRegisterDoubleCounter(
           prefix: Option[Metric.Prefix],
           name: Counter.Name,
           help: Metric.Help,
           commonLabels: CommonLabels
-      ): G[Counter[G]] = fk(
-        self.createAndRegisterCounter(prefix, name, help, commonLabels)
+      ): G[Counter[G, Double]] = fk(
+        self.createAndRegisterDoubleCounter(prefix, name, help, commonLabels)
       ).map(_.mapK(fk))
 
-      override def createAndRegisterLabelledCounter[A](
+      override def createAndRegisterLabelledDoubleCounter[A](
           prefix: Option[Metric.Prefix],
           name: Counter.Name,
           help: Metric.Help,
           commonLabels: CommonLabels,
           labelNames: IndexedSeq[Label.Name]
-      )(f: A => IndexedSeq[String]): G[Counter.Labelled[G, A]] = fk(
-        self.createAndRegisterLabelledCounter(
+      )(f: A => IndexedSeq[String]): G[Counter.Labelled[G, Double, A]] = fk(
+        self.createAndRegisterLabelledDoubleCounter(
           prefix,
           name,
           help,
@@ -256,23 +450,32 @@ object MetricsRegistry {
         )(f)
       ).map(_.mapK(fk))
 
-      override def createAndRegisterGauge(
+      override def createAndRegisterDoubleGauge(
           prefix: Option[Metric.Prefix],
           name: Gauge.Name,
           help: Metric.Help,
           commonLabels: CommonLabels
-      ): G[Gauge[G]] = fk(
-        self.createAndRegisterGauge(prefix, name, help, commonLabels)
+      ): G[Gauge[G, Double]] = fk(
+        self.createAndRegisterDoubleGauge(prefix, name, help, commonLabels)
       ).map(_.mapK(fk))
 
-      override def createAndRegisterLabelledGauge[A](
+      override def createAndRegisterLongGauge(
+          prefix: Option[Metric.Prefix],
+          name: Gauge.Name,
+          help: Metric.Help,
+          commonLabels: CommonLabels
+      ): G[Gauge[G, Long]] = fk(
+        self.createAndRegisterLongGauge(prefix, name, help, commonLabels)
+      ).map(_.mapK(fk))
+
+      override def createAndRegisterLabelledDoubleGauge[A](
           prefix: Option[Metric.Prefix],
           name: Gauge.Name,
           help: Metric.Help,
           commonLabels: CommonLabels,
           labelNames: IndexedSeq[Label.Name]
-      )(f: A => IndexedSeq[String]): G[Gauge.Labelled[G, A]] = fk(
-        self.createAndRegisterLabelledGauge(
+      )(f: A => IndexedSeq[String]): G[Gauge.Labelled[G, Double, A]] = fk(
+        self.createAndRegisterLabelledDoubleGauge(
           prefix,
           name,
           help,
@@ -281,14 +484,14 @@ object MetricsRegistry {
         )(f)
       ).map(_.mapK(fk))
 
-      override def createAndRegisterHistogram(
+      override def createAndRegisterDoubleHistogram(
           prefix: Option[Metric.Prefix],
           name: Histogram.Name,
           help: Metric.Help,
           commonLabels: CommonLabels,
           buckets: NonEmptySeq[Double]
-      ): G[Histogram[G]] = fk(
-        self.createAndRegisterHistogram(
+      ): G[Histogram[G, Double]] = fk(
+        self.createAndRegisterDoubleHistogram(
           prefix,
           name,
           help,
@@ -297,15 +500,15 @@ object MetricsRegistry {
         )
       ).map(_.mapK(fk))
 
-      override def createAndRegisterLabelledHistogram[A](
+      override def createAndRegisterLabelledDoubleHistogram[A](
           prefix: Option[Metric.Prefix],
           name: Histogram.Name,
           help: Metric.Help,
           commonLabels: CommonLabels,
           labelNames: IndexedSeq[Label.Name],
           buckets: NonEmptySeq[Double]
-      )(f: A => IndexedSeq[String]): G[Histogram.Labelled[G, A]] = fk(
-        self.createAndRegisterLabelledHistogram(
+      )(f: A => IndexedSeq[String]): G[Histogram.Labelled[G, Double, A]] = fk(
+        self.createAndRegisterLabelledDoubleHistogram(
           prefix,
           name,
           help,
@@ -314,5 +517,50 @@ object MetricsRegistry {
           buckets
         )(f)
       ).map(_.mapK(fk))
+
+      override def createAndRegisterLongCounter(
+          prefix: Option[Metric.Prefix],
+          name: Counter.Name,
+          help: Metric.Help,
+          commonLabels: CommonLabels
+      ): G[Counter[G, Long]] = fk(self.createAndRegisterLongCounter(prefix, name, help, commonLabels)).map(_.mapK(fk))
+
+      override def createAndRegisterLabelledLongCounter[A](
+          prefix: Option[Metric.Prefix],
+          name: Counter.Name,
+          help: Metric.Help,
+          commonLabels: CommonLabels,
+          labelNames: IndexedSeq[Label.Name]
+      )(f: A => IndexedSeq[String]): G[Counter.Labelled[G, Long, A]] =
+        fk(self.createAndRegisterLabelledLongCounter(prefix, name, help, commonLabels, labelNames)(f)).map(_.mapK(fk))
+
+      override def createAndRegisterLabelledLongGauge[A](
+          prefix: Option[Metric.Prefix],
+          name: Gauge.Name,
+          help: Metric.Help,
+          commonLabels: CommonLabels,
+          labelNames: IndexedSeq[Label.Name]
+      )(f: A => IndexedSeq[String]): G[Gauge.Labelled[G, Long, A]] =
+        fk(self.createAndRegisterLabelledLongGauge(prefix, name, help, commonLabels, labelNames)(f)).map(_.mapK(fk))
+
+      override def createAndRegisterLongHistogram(
+          prefix: Option[Metric.Prefix],
+          name: Histogram.Name,
+          help: Metric.Help,
+          commonLabels: CommonLabels,
+          buckets: NonEmptySeq[Long]
+      ): G[Histogram[G, Long]] =
+        fk(self.createAndRegisterLongHistogram(prefix, name, help, commonLabels, buckets)).map(_.mapK(fk))
+
+      override def createAndRegisterLabelledLongHistogram[A](
+          prefix: Option[Metric.Prefix],
+          name: Histogram.Name,
+          help: Metric.Help,
+          commonLabels: CommonLabels,
+          labelNames: IndexedSeq[Label.Name],
+          buckets: NonEmptySeq[Long]
+      )(f: A => IndexedSeq[String]): G[Histogram.Labelled[G, Long, A]] =
+        fk(self.createAndRegisterLabelledLongHistogram(prefix, name, help, commonLabels, labelNames, buckets)(f))
+          .map(_.mapK(fk))
     }
 }

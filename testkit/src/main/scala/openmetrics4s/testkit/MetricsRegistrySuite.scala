@@ -114,7 +114,9 @@ trait MetricsRegistrySuite[State] extends TestInstances { self: ScalaCheckSuite 
       ) =>
         exec(stateResource.use { state =>
           registryResource(state).use { reg =>
-            reg.createAndRegisterCounter(prefix, name, help, commonLabels).flatMap(_.inc(incBy)) >> getCounterValue(
+            reg
+              .createAndRegisterDoubleCounter(prefix, name, help, commonLabels)
+              .flatMap(_.inc(incBy)) >> getCounterValue(
               state,
               prefix,
               name,
@@ -140,7 +142,7 @@ trait MetricsRegistrySuite[State] extends TestInstances { self: ScalaCheckSuite 
         exec(stateResource.use { state =>
           registryResource(state).use { reg =>
             reg
-              .createAndRegisterLabelledCounter[Map[Label.Name, String]](
+              .createAndRegisterLabelledDoubleCounter[Map[Label.Name, String]](
                 prefix,
                 name,
                 help,
@@ -183,14 +185,14 @@ trait MetricsRegistrySuite[State] extends TestInstances { self: ScalaCheckSuite 
               )
 
               for {
-                gauge <- reg.createAndRegisterGauge(prefix, name, help, commonLabels)
+                gauge <- reg.createAndRegisterDoubleGauge(prefix, name, help, commonLabels)
                 _ <- gauge.set(set)
                 setValue <- get
-                _ <- gauge.inc()
+                _ <- gauge.inc
                 incOneValue <- get
                 _ <- gauge.inc(inc)
                 incValue <- get
-                _ <- gauge.dec()
+                _ <- gauge.dec
                 decOneValue <- get
                 _ <- gauge.dec(dec)
                 decValue <- get
@@ -236,7 +238,7 @@ trait MetricsRegistrySuite[State] extends TestInstances { self: ScalaCheckSuite 
               )
 
               for {
-                gauge <- reg.createAndRegisterLabelledGauge[Map[Label.Name, String]](
+                gauge <- reg.createAndRegisterLabelledDoubleGauge[Map[Label.Name, String]](
                   prefix,
                   name,
                   help,
@@ -288,7 +290,7 @@ trait MetricsRegistrySuite[State] extends TestInstances { self: ScalaCheckSuite 
               else Map(value.toString -> 1.0, "0.0" -> 1.0, "+Inf" -> 1.0)
 
             reg
-              .createAndRegisterHistogram(prefix, name, help, commonLabels, buckets)
+              .createAndRegisterDoubleHistogram(prefix, name, help, commonLabels, buckets)
               .flatMap(_.observe(value)) >> getHistogramValue(
               state,
               prefix,
@@ -322,7 +324,7 @@ trait MetricsRegistrySuite[State] extends TestInstances { self: ScalaCheckSuite 
               else Map(value.toString -> 1.0, "0.0" -> 1.0, "+Inf" -> 1.0)
 
             reg
-              .createAndRegisterLabelledHistogram[Map[Label.Name, String]](
+              .createAndRegisterLabelledDoubleHistogram[Map[Label.Name, String]](
                 prefix,
                 name,
                 help,

@@ -19,28 +19,56 @@ package openmetrics4s
 import java.math.BigInteger
 
 import cats.effect.IO
-import openmetrics4s.internal.counter.CounterDsl
-import openmetrics4s.internal.gauge.GaugeDsl
-import openmetrics4s.internal.histogram.HistogramDsl
 
 object MetricsFactoryDslTest {
   val factory: MetricsFactory[IO] = MetricsFactory.builder.withPrefix("prefix").noop
 
-  val gaugeBuilder: GaugeDsl[IO] = factory.gauge("test").help("help")
-  gaugeBuilder.build
-  gaugeBuilder.resource
-  gaugeBuilder.label[String]("label1").label[Int]("label2").label[BigInteger]("label3", _.toString).build
-  gaugeBuilder.unsafeLabels(Label.Name("label1"), Label.Name("label2")).build
+  val gaugeBuilder = factory.gauge("test")
 
-  val counterBuilder: CounterDsl[IO] = factory.counter("test_total").help("help")
-  counterBuilder.build
-  counterBuilder.resource
-  counterBuilder.label[String]("label1").label[Int]("label2").label[BigInteger]("label3", _.toString)
-  counterBuilder.unsafeLabels(Label.Name("label1"), Label.Name("label2"))
+  val doubleGaugeBuilder = gaugeBuilder.ofDouble.help("help")
+  doubleGaugeBuilder.build
+  doubleGaugeBuilder.resource
+  doubleGaugeBuilder.asTimer.build
+  doubleGaugeBuilder.label[String]("label1").label[Int]("label2").label[BigInteger]("label3", _.toString).asTimer.build
+  doubleGaugeBuilder.unsafeLabels(Label.Name("label1"), Label.Name("label2")).asTimer.build
 
-  val histogramBuilder: HistogramDsl[IO] = factory.histogram("test2").help("help").buckets(0.1, 1.0)
-  histogramBuilder.build
-  histogramBuilder.resource
-  histogramBuilder.label[String]("label1").label[Int]("label2").label[BigInteger]("label3", _.toString)
-  histogramBuilder.unsafeLabels(Label.Name("label1"), Label.Name("label2"))
+  val longGaugeBuilder = gaugeBuilder.ofLong.help("help")
+  longGaugeBuilder.build
+  longGaugeBuilder.resource
+  longGaugeBuilder.label[String]("label1").label[Int]("label2").label[BigInteger]("label3", _.toString).build
+  longGaugeBuilder.unsafeLabels(Label.Name("label1"), Label.Name("label2")).build
+
+  val counterBuilder = factory.counter("test_total")
+
+  val doubleCounterBuilder = counterBuilder.ofDouble.help("help")
+  doubleCounterBuilder.build
+  doubleCounterBuilder.resource
+  doubleCounterBuilder.label[String]("label1").label[Int]("label2").label[BigInteger]("label3", _.toString).build
+  doubleCounterBuilder.unsafeLabels(Label.Name("label1"), Label.Name("label2")).build
+
+  val longCounterBuilder = counterBuilder.ofLong.help("help")
+  longCounterBuilder.build
+  longCounterBuilder.resource
+  longCounterBuilder.label[String]("label1").label[Int]("label2").label[BigInteger]("label3", _.toString).build
+  longCounterBuilder.unsafeLabels(Label.Name("label1"), Label.Name("label2")).build
+
+  val histogramBuilder = factory.histogram("test2")
+
+  val doubleHistogramBuilder = histogramBuilder.ofDouble.help("help").defaultHttpBuckets
+  doubleHistogramBuilder.build
+  doubleHistogramBuilder.resource
+  doubleHistogramBuilder.asTimer.build
+  doubleHistogramBuilder
+    .label[String]("label1")
+    .label[Int]("label2")
+    .label[BigInteger]("label3", _.toString)
+    .asTimer
+    .build
+  doubleHistogramBuilder.unsafeLabels(Label.Name("label1"), Label.Name("label2")).asTimer.build
+
+  val longHistogramBuilder = histogramBuilder.ofLong.help("help").buckets(1, 2)
+  longHistogramBuilder.build
+  longHistogramBuilder.resource
+  longHistogramBuilder.label[String]("label1").label[Int]("label2").label[BigInteger]("label3", _.toString).build
+  longHistogramBuilder.unsafeLabels(Label.Name("label1"), Label.Name("label2")).build
 }

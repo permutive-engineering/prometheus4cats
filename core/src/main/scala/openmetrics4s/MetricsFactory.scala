@@ -16,68 +16,139 @@
 
 package openmetrics4s
 
-import cats.{Applicative, Monad, ~>}
+import cats.{Applicative, Functor, ~>}
 import openmetrics4s.Metric.CommonLabels
-import openmetrics4s.internal.HelpStep
-import openmetrics4s.internal.counter.CounterDsl
-import openmetrics4s.internal.gauge.GaugeDsl
 import openmetrics4s.internal.histogram.BucketDsl
+import openmetrics4s.internal.{HelpStep, LabelledMetricPartiallyApplied, MetricDsl, TypeStep}
 
 sealed abstract class MetricsFactory[F[_]](
     registry: MetricsRegistry[F],
     prefix: Option[Metric.Prefix],
     commonLabels: CommonLabels
 ) {
-  def mapK[G[_]: Monad: RecordAttempt](fk: F ~> G): MetricsFactory[G] =
+  def mapK[G[_]: Functor](fk: F ~> G): MetricsFactory[G] =
     new MetricsFactory[G](
       MetricsRegistry.mapK(registry, fk),
       prefix,
       commonLabels
     ) {}
 
+  type GaugeDsl[A] = HelpStep[MetricDsl[F, A, Gauge, Gauge.Labelled]]
+
   /** Starts creating a "gauge" metric.
     *
     * @example
-    *   {{{ metrics.gauge("my_gauge") .help("my gauge help") .label[Int]("first_label") .label[String]("second_label")
-    *   .label[Boolean]("third_label") .build }}}
+    *   {{{ metrics.gauge("my_gauge").ofDouble.help("my gauge help").label[Int]("first_label")
+    *   .label[String]("second_label").label[Boolean]("third_label") .build }}}
     * @param name
     *   [[Gauge.Name]] value
     * @return
-    *   Gauge builder using [[openmetrics4s.internal.HelpStep]] and [[openmetrics4s.internal.gauge.GaugeDsl]]
+    *   Gauge builder
     */
-  def gauge(name: Gauge.Name): HelpStep[GaugeDsl[F]] = new HelpStep(
-    new GaugeDsl[F](registry, prefix, name, _, commonLabels)
-  )
+  def gauge(name: Gauge.Name): TypeStep[GaugeDsl] =
+    new TypeStep[GaugeDsl](
+      new HelpStep(help =>
+        new MetricDsl(
+          registry.createAndRegisterLongGauge(prefix, name, help, commonLabels),
+          new LabelledMetricPartiallyApplied[F, Long, Gauge.Labelled] {
+            override def apply[B](
+                labels: IndexedSeq[Label.Name]
+            )(f: B => IndexedSeq[String]): F[Gauge.Labelled[F, Long, B]] =
+              registry.createAndRegisterLabelledLongGauge(prefix, name, help, commonLabels, labels)(f)
+          }
+        )
+      ),
+      new HelpStep(help =>
+        new MetricDsl(
+          registry.createAndRegisterDoubleGauge(prefix, name, help, commonLabels),
+          new LabelledMetricPartiallyApplied[F, Double, Gauge.Labelled] {
+            override def apply[B](
+                labels: IndexedSeq[Label.Name]
+            )(f: B => IndexedSeq[String]): F[Gauge.Labelled[F, Double, B]] =
+              registry.createAndRegisterLabelledDoubleGauge(prefix, name, help, commonLabels, labels)(f)
+          }
+        )
+      )
+    )
+
+  type CounterDsl[A] = HelpStep[MetricDsl[F, A, Counter, Counter.Labelled]]
 
   /** Starts creating a "counter" metric.
     *
     * @example
-    *   {{{ metrics.counter("my_counter") .help("my counter help") .label[Int]("first_label")
+    *   {{{ metrics.counter("my_counter").ofLong.help("my counter help") .label[Int]("first_label")
     *   .label[String]("second_label") .label[Boolean]("third_label") .build }}}
     * @param name
     *   [[Counter.Name]] value
     * @return
-    *   Counter builder using [[openmetrics4s.internal.HelpStep]] and [[openmetrics4s.internal.counter.CounterDsl]]
+    *   Counter builder
     */
-  def counter(name: Counter.Name): HelpStep[CounterDsl[F]] =
-    new HelpStep[CounterDsl[F]](
-      new CounterDsl[F](registry, prefix, name, _, commonLabels)
+  def counter(name: Counter.Name): TypeStep[CounterDsl] =
+    new TypeStep[CounterDsl](
+      new HelpStep(help =>
+        new MetricDsl(
+          registry.createAndRegisterLongCounter(prefix, name, help, commonLabels),
+          new LabelledMetricPartiallyApplied[F, Long, Counter.Labelled] {
+            override def apply[B](
+                labels: IndexedSeq[Label.Name]
+            )(f: B => IndexedSeq[String]): F[Counter.Labelled[F, Long, B]] =
+              registry.createAndRegisterLabelledLongCounter(prefix, name, help, commonLabels, labels)(f)
+          }
+        )
+      ),
+      new HelpStep(help =>
+        new MetricDsl(
+          registry.createAndRegisterDoubleCounter(prefix, name, help, commonLabels),
+          new LabelledMetricPartiallyApplied[F, Double, Counter.Labelled] {
+            override def apply[B](
+                labels: IndexedSeq[Label.Name]
+            )(f: B => IndexedSeq[String]): F[Counter.Labelled[F, Double, B]] =
+              registry.createAndRegisterLabelledDoubleCounter(prefix, name, help, commonLabels, labels)(f)
+          }
+        )
+      )
     )
+
+  type HistogramDsl[A] = HelpStep[BucketDsl[MetricDsl[F, A, Histogram, Histogram.Labelled], A]]
 
   /** Starts creating a "histogram" metric.
     *
     * @example
-    *   {{{ metrics.histogram("my_histogram") .help("my counter help") .buckets(1.0, 2.0) .label[Int]("first_label")
-    *   .label[String]("second_label") .label[Boolean]("third_label") .build }}}
+    *   {{{ metrics.histogram("my_histogram").ofDouble.help("my counter help").buckets(1.0, 2.0)
+    *   .label[Int]("first_label").label[String]("second_label").label[Boolean]("third_label") .build }}}
     * @param name
     *   [[Histogram.Name]] value
     * @return
-    *   Counter builder using [[openmetrics4s.internal.HelpStep]], [[openmetrics4s.internal.histogram.BucketDsl]] and
-    *   [[openmetrics4s.internal.histogram.HistogramDsl]]
+    *   Histogram builder
     */
-  def histogram(name: Histogram.Name): HelpStep[BucketDsl[F]] =
-    new HelpStep[BucketDsl[F]](
-      new BucketDsl[F](registry, prefix, name, _, commonLabels)
+  def histogram(name: Histogram.Name): TypeStep[HistogramDsl] =
+    new TypeStep[HistogramDsl](
+      new HelpStep(help =>
+        new BucketDsl[MetricDsl[F, Long, Histogram, Histogram.Labelled], Long](buckets =>
+          new MetricDsl(
+            registry.createAndRegisterLongHistogram(prefix, name, help, commonLabels, buckets),
+            new LabelledMetricPartiallyApplied[F, Long, Histogram.Labelled] {
+              override def apply[B](
+                  labels: IndexedSeq[Label.Name]
+              )(f: B => IndexedSeq[String]): F[Histogram.Labelled[F, Long, B]] =
+                registry.createAndRegisterLabelledLongHistogram(prefix, name, help, commonLabels, labels, buckets)(f)
+            }
+          )
+        )
+      ),
+      new HelpStep(help =>
+        new BucketDsl[MetricDsl[F, Double, Histogram, Histogram.Labelled], Double](buckets =>
+          new MetricDsl(
+            registry.createAndRegisterDoubleHistogram(prefix, name, help, commonLabels, buckets),
+            new LabelledMetricPartiallyApplied[F, Double, Histogram.Labelled] {
+              override def apply[B](
+                  labels: IndexedSeq[Label.Name]
+              )(f: B => IndexedSeq[String]): F[Histogram.Labelled[F, Double, B]] =
+                registry.createAndRegisterLabelledDoubleHistogram(prefix, name, help, commonLabels, labels, buckets)(f)
+            }
+          )
+        )
+      )
     )
 
   /** Creates a new instance of [[MetricsFactory]] without a [[Metric.Prefix]] set
