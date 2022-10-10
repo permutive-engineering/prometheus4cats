@@ -41,7 +41,9 @@ final class BucketDsl[A, N] private[openmetrics4s] (
 
     def f(i: Int) = N.plus(start, N.times(N.fromInt(i), width))
 
-    buckets(NonEmptySeq(f(0), 1.to(count).map(f)))
+    val seq = if (count > 0) NonEmptySeq(f(0), 1.to(count).map(f)) else NonEmptySeq.one(f(0))
+
+    buckets(seq)
   }
 }
 
@@ -64,7 +66,9 @@ object BucketDsl {
 
       def f(i: Int) = start * Math.pow(factor, i.toDouble)
 
-      dsl.buckets(NonEmptySeq(f(0), 1.to(count).map(f)))
+      val seq = if (count > 0) NonEmptySeq(f(0), 1.to(count).map(f)) else NonEmptySeq.one(f(0))
+
+      dsl.buckets(seq)
     }
   }
 }
