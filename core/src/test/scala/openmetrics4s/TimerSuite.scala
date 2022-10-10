@@ -126,8 +126,8 @@ class TimerSuite extends ScalaCheckSuite with TestInstances {
           .map(res => assertEquals(res, (dur :: durs).map { case (dur, l) => dur.toUnit(TimeUnit.SECONDS) -> l }))
 
       exec(
-        test(labelledHistogram.timeAttempt[String](_, identity, th => th.getMessage)) >> test(
-          labelledGauge.timeAttempt[String](_, identity, th => th.getMessage)
+        test(labelledHistogram.timeAttempt[String](_, identity, { case th => th.getMessage })) >> test(
+          labelledGauge.timeAttempt[String](_, identity, { case th => th.getMessage })
         )
       )
     }
@@ -148,12 +148,12 @@ class TimerSuite extends ScalaCheckSuite with TestInstances {
         } yield assertEquals(res, (dur :: durs).map { case (dur, l) => dur.toUnit(TimeUnit.SECONDS) -> l })
 
       def gaugeSet(ref: Ref[IO, List[(Double, String)]]): (Double, String) => IO[Unit] =
-        (d, s) => ref.update(_.appended(d -> s))
+        (d, s) => ref.update(_ :+ (d -> s))
 
       exec(
         test((ref, s) =>
           Timer.Labelled
-            .fromHistogram(Histogram.Labelled.make[IO, Double, String]((d, s) => ref.update(_.appended(d -> s))))
+            .fromHistogram(Histogram.Labelled.make[IO, Double, String]((d, s) => ref.update(_ :+ (d -> s))))
             .timeAttempt[String](s, identity, { case th => th.getMessage })
         ) >> test((ref, s) =>
           Timer.Labelled
