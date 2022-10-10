@@ -36,12 +36,12 @@ final class BucketDsl[A, N] private[openmetrics4s] (
     NonEmptySeq.of(head, rest: _*)
   )
 
-  def linearBuckets[NN <: Nat: ToInt](start: N, width: N)(implicit @nowarn gt: GT[NN, Nat._0]): NonEmptySeq[N] = {
+  def linearBuckets[NN <: Nat: ToInt](start: N, width: N)(implicit @nowarn gt: GT[NN, Nat._0]): A = {
     val count = Nat.toInt[NN] - 1
 
     def f(i: Int) = N.plus(start, N.times(N.fromInt(i), width))
 
-    NonEmptySeq(f(0), 1.to(count).map(f))
+    buckets(NonEmptySeq(f(0), 1.to(count).map(f)))
   }
 }
 
@@ -59,12 +59,12 @@ object BucketDsl {
 
     def exponentialBuckets[NN <: Nat: ToInt](start: Double, factor: Double)(implicit
         @nowarn gt: GT[NN, Nat._0]
-    ): NonEmptySeq[Double] = {
+    ): A = {
       val count = Nat.toInt[NN] - 1
 
       def f(i: Int) = start * Math.pow(factor, i.toDouble)
 
-      NonEmptySeq(f(0), 1.to(count).map(f))
+      dsl.buckets(NonEmptySeq(f(0), 1.to(count).map(f)))
     }
   }
 }
