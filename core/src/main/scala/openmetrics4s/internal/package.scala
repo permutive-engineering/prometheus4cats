@@ -78,6 +78,63 @@ private[internal] trait FirstLabelStep[F[_], A, L[_[_], _, _]] {
 
 }
 
+final class MetricDsl[F[_], A, M[_[_], _], L[_[_], _, _]] private[openmetrics4s] (
+    makeMetric: F[M[F, A]],
+    makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L]
+) extends BuildStep[F, M[F, A]](makeMetric)
+    with FirstLabelStep[F, A, L]
+    with UnsafeLabelsStep[F, A, L] {
+
+  /** @inheritdoc
+    */
+  override def label[B]: FirstLabelApply[F, A, B, L] =
+    (name, toString) =>
+      new LabelledMetricDsl(
+        makeLabelledMetric,
+        Sized(name),
+        a => Sized(toString(a))
+      )
+
+  override def unsafeLabels(
+      labelNames: IndexedSeq[Label.Name]
+  ): BuildStep[F, L[F, A, Map[Label.Name, String]]] =
+    new BuildStep[F, L[F, A, Map[Label.Name, String]]](
+      makeLabelledMetric(
+        labelNames
+      )(labels => labelNames.flatMap(labels.get))
+    )
+}
+
+final class LabelledMetricDsl[F[_], A, T, N <: Nat, L[_[_], _, _]] private[internal] (
+    makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L],
+    labelNames: Sized[IndexedSeq[Label.Name], N],
+    f: T => Sized[IndexedSeq[String], N]
+) extends BuildStep[F, L[F, A, T]](
+      makeLabelledMetric(labelNames.unsized)(
+        // avoid using andThen because it can be slow and this gets called repeatedly during runtime
+        t => f(t).unsized
+      )
+    )
+    with NextLabelsStep[F, A, T, N, L] {
+
+  /** @inheritdoc
+    */
+  override def label[B]: LabelApply[F, A, T, N, B, L] =
+    new LabelApply[F, A, T, N, B, L] {
+
+      override def apply[C: InitLast.Aux[T, B, *]](
+          name: Label.Name,
+          toString: B => String
+      ): LabelledMetricDsl[F, A, C, Succ[N], L] = new LabelledMetricDsl(
+        makeLabelledMetric,
+        labelNames :+ name,
+        c => f(InitLast[T, B, C].init(c)) :+ toString(InitLast[T, B, C].last(c))
+      )
+
+    }
+
+}
+
 private[internal] trait UnsafeLabelsStep[F[_], A, L[_[_], _, _]] {
 
   /** Creates a metric whose labels aren't checked at compile time. Provides a builder for a labelled metric that takes
