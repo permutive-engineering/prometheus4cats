@@ -66,6 +66,9 @@ object MetricsFactoryDslTest {
     .build
   doubleHistogramBuilder.unsafeLabels(Label.Name("label1"), Label.Name("label2")).asTimer.build
 
+  histogramBuilder.ofLong.help("me").linearBuckets[Nat._1](1, 10)
+  histogramBuilder.ofDouble.help("me").exponentialBuckets[Nat._1](1, 10)
+
   val longHistogramBuilder = histogramBuilder.ofLong.help("help").buckets(1, 2)
   longHistogramBuilder.build
   longHistogramBuilder.resource

@@ -28,10 +28,29 @@ trait ShapelessPolyfill {
   type Nat = Int
 
   object Nat {
+    type _0 = 0
     type _1 = 1
+
+    def toInt[N <: Nat](using toIntN: ToInt[N]) = toIntN.apply()
   }
 
   type Succ[N <: Nat] = N + 1
+
+  trait ToInt[N <: Nat] {
+    def apply(): Int
+  }
+
+  object ToInt {
+    given default[N <: Nat](using vo: ValueOf[N]): ToInt[N] = new ToInt[N] {
+      override def apply(): Int = vo.value
+    }
+  }
+
+  trait GT[A <: Nat, B <: Nat] extends Serializable
+  object GT {
+    given gt1[B <: Nat]: GT[Nat._1, Nat._0] = new GT[Nat._1, Nat._0] {}
+    given gt2[A <: Nat, B <: Nat](using GT[A, B]): GT[Succ[A], Succ[B]] = new GT[Succ[A], Succ[B]] {}
+  }
 
   type TupleSized[R, A, N <: Int] <: Tuple = N match {
     case 0 => EmptyTuple
