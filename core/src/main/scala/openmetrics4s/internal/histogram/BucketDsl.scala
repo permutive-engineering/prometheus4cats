@@ -36,8 +36,8 @@ final class BucketDsl[A, N] private[openmetrics4s] (
     NonEmptySeq.of(head, rest: _*)
   )
 
-  def linearBuckets[NN <: Nat: ToInt](start: N, width: N)(implicit @nowarn gt: GT[NN, Nat._0]): A = {
-    val count = Nat.toInt[NN] - 1
+  def linearBuckets[Count <: Nat: ToInt](start: N, width: N)(implicit @nowarn gt: GT[Count, Nat._0]): A = {
+    val count = Nat.toInt[Count] - 1
 
     def f(i: Int) = N.plus(start, N.times(N.fromInt(i), width))
 
@@ -59,10 +59,10 @@ object BucketDsl {
       Histogram.DefaultHttpBuckets
     )
 
-    def exponentialBuckets[NN <: Nat: ToInt](start: Double, factor: Double)(implicit
-        @nowarn gt: GT[NN, Nat._0]
+    def exponentialBuckets[Count <: Nat: ToInt](start: Double, factor: Double)(implicit
+        @nowarn gt: GT[Count, Nat._0]
     ): A = {
-      val count = Nat.toInt[NN] - 1
+      val count = Nat.toInt[Count] - 1
 
       def f(i: Int) = start * Math.pow(factor, i.toDouble)
 
