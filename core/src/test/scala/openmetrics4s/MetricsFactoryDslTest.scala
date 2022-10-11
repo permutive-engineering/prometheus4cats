@@ -43,8 +43,13 @@ object MetricsFactoryDslTest {
   val doubleCounterBuilder = counterBuilder.ofDouble.help("help")
   doubleCounterBuilder.build
   doubleCounterBuilder.resource
-  doubleCounterBuilder.label[String]("label1").label[Int]("label2").label[BigInteger]("label3", _.toString).build
+  doubleCounterBuilder.asOpCounter.build
   doubleCounterBuilder.unsafeLabels(Label.Name("label1"), Label.Name("label2")).build
+
+  val doubleLabelledCounterBuilder =
+    doubleCounterBuilder.label[String]("label1").label[Int]("label2").label[BigInteger]("label3", _.toString)
+  doubleLabelledCounterBuilder.build
+  doubleLabelledCounterBuilder.asOpCounter.build
 
   val longCounterBuilder = counterBuilder.ofLong.help("help")
   longCounterBuilder.build

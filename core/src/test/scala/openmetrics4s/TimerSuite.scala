@@ -19,14 +19,13 @@ package openmetrics4s
 import java.util.concurrent.TimeUnit
 
 import cats.data.{NonEmptyList, WriterT}
-import cats.effect.testkit.TestInstances
 import cats.effect.{Clock, IO, Ref}
 import munit.ScalaCheckSuite
 import org.scalacheck.Prop._
 
 import scala.concurrent.duration._
 
-class TimerSuite extends ScalaCheckSuite with TestInstances {
+class TimerSuite extends ScalaCheckSuite with TickerSuite {
   val write: Double => WriterT[IO, List[Double], Unit] = d => WriterT.tell[IO, List[Double]](List(d))
 
   val hist =
@@ -58,17 +57,6 @@ class TimerSuite extends ScalaCheckSuite with TestInstances {
         Clock[WriterT[IO, List[(Double, String)], *]].realTime.flatMap(dur => writeLabels(dur.toSeconds.toDouble, s))
     )
   )
-
-  val time: FiniteDuration = 0.nanos
-
-  def exec[A](fa: IO[A], tickBy: FiniteDuration = 1.second): A = {
-    implicit val ticker: Ticker = Ticker()
-
-    val res = fa.unsafeToFuture()
-    ticker.ctx.tickAll()
-    ticker.ctx.advanceAndTick(tickBy)
-    res.value.get.get
-  }
 
   property("observeDuration records times in seconds") {
     forAll { (dur: FiniteDuration, durs: List[FiniteDuration]) =>

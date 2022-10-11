@@ -16,9 +16,10 @@
 
 package openmetrics4s.internal
 
-import cats.{Contravariant, Functor, Show}
-import cats.effect.kernel.Resource
+import cats.effect.kernel.{MonadCancelThrow, Resource}
 import cats.syntax.all._
+import cats.{Contravariant, Functor, Show}
+import openmetrics4s.OpCounter.Status
 import openmetrics4s._
 
 class BuildStep[F[_], A] private[openmetrics4s] (fa: F[A]) {
@@ -80,7 +81,7 @@ private[internal] trait FirstLabelStep[F[_], A, L[_[_], _, _]] {
 
 final class MetricDsl[F[_], A, M[_[_], _], L[_[_], _, _]] private[openmetrics4s] (
     makeMetric: F[M[F, A]],
-    makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L]
+    private[internal] val makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L]
 ) extends BuildStep[F, M[F, A]](makeMetric)
     with FirstLabelStep[F, A, L]
     with UnsafeLabelsStep[F, A, L] {
@@ -105,10 +106,20 @@ final class MetricDsl[F[_], A, M[_[_], _], L[_[_], _, _]] private[openmetrics4s]
     )
 }
 
+object MetricDsl {
+  implicit class CounterSyntax[F[_]: MonadCancelThrow, A](dsl: MetricDsl[F, A, Counter, Counter.Labelled]) {
+    def asOpCounter: BuildStep[F, OpCounter[F]] = new BuildStep(
+      dsl
+        .makeLabelledMetric[OpCounter.Status](IndexedSeq(Label.Name.status))(status => IndexedSeq(status.show))
+        .map(OpCounter.fromCounter(_))
+    )
+  }
+}
+
 final class LabelledMetricDsl[F[_], A, T, N <: Nat, L[_[_], _, _]] private[internal] (
-    makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L],
-    labelNames: Sized[IndexedSeq[Label.Name], N],
-    f: T => Sized[IndexedSeq[String], N]
+    private[internal] val makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L],
+    private[internal] val labelNames: Sized[IndexedSeq[Label.Name], N],
+    private[internal] val f: T => Sized[IndexedSeq[String], N]
 ) extends BuildStep[F, L[F, A, T]](
       makeLabelledMetric(labelNames.unsized)(
         // avoid using andThen because it can be slow and this gets called repeatedly during runtime
@@ -133,6 +144,20 @@ final class LabelledMetricDsl[F[_], A, T, N <: Nat, L[_[_], _, _]] private[inter
 
     }
 
+}
+
+object LabelledMetricDsl {
+  implicit class CounterSyntax[F[_]: MonadCancelThrow, A, T, N <: Nat](
+      dsl: LabelledMetricDsl[F, A, T, N, Counter.Labelled]
+  ) {
+    def asOpCounter: BuildStep[F, OpCounter.Labelled[F, T]] = new BuildStep(
+      dsl
+        .makeLabelledMetric[(T, Status)](dsl.labelNames.unsized :+ Label.Name.status) { case (t, status) =>
+          dsl.f(t).unsized :+ status.show
+        }
+        .map(OpCounter.Labelled.fromCounter(_))
+    )
+  }
 }
 
 private[internal] trait UnsafeLabelsStep[F[_], A, L[_[_], _, _]] {

@@ -46,6 +46,9 @@ object Label {
         s"$string must match `$regex`"
       )
 
+    // prevents macro compilation problems with the status label
+    private[openmetrics4s] val status = new Name("status")
+
     implicit val catsInstances: Hash[Name] with Order[Name] with Show[Name] = new Hash[Name]
       with Order[Name]
       with Show[Name] {
