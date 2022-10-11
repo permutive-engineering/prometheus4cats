@@ -104,6 +104,12 @@ object Counter {
       override def inc(n: C, labels: B): F[Unit] = self.inc(f(n), labels)
     }
 
+    def contramapLabels[C](f: C => B): Labelled[F, A, C] = new Labelled[F, A, C] {
+      override def inc(labels: C): F[Unit] = self.inc(f(labels))
+
+      override def inc(n: A, labels: C): F[Unit] = self.inc(n, f(labels))
+    }
+
     final def mapK[G[_]](fk: F ~> G): Counter.Labelled[G, A, B] =
       new Labelled[G, A, B] {
         override def inc(labels: B): G[Unit] = fk(self.inc(labels))
@@ -115,9 +121,13 @@ object Counter {
   }
 
   object Labelled {
-    implicit def catsInstances[F[_], C]: Contravariant[Labelled[F, *, C]] = new Contravariant[Labelled[F, *, C]] {
-      override def contramap[A, B](fa: Labelled[F, A, C])(f: B => A): Labelled[F, B, C] = fa.contramap(f)
-    }
+    implicit def catsInstances[F[_], C, D]
+        : Contravariant[Labelled[F, *, C]] with LabelsContravariant[Labelled[F, D, *]] =
+      new Contravariant[Labelled[F, *, C]] with LabelsContravariant[Labelled[F, D, *]] {
+        override def contramap[A, B](fa: Labelled[F, A, C])(f: B => A): Labelled[F, B, C] = fa.contramap(f)
+
+        override def contramapLabels[A, B](fa: Labelled[F, D, A])(f: B => A): Labelled[F, D, B] = fa.contramapLabels(f)
+      }
 
     def make[F[_], A, B](default: A, _inc: (A, B) => F[Unit]): Labelled[F, A, B] =
       new Labelled[F, A, B] {

@@ -98,6 +98,10 @@ object Histogram {
       override def observe(n: C, labels: B): F[Unit] = self.observe(f(n), labels)
     }
 
+    def contramapLabels[C](f: C => B): Labelled[F, A, C] = new Labelled[F, A, C] {
+      override def observe(n: A, labels: C): F[Unit] = self.observe(n, f(labels))
+    }
+
     final def mapK[G[_]](fk: F ~> G): Labelled[G, A, B] =
       new Labelled[G, A, B] {
         override def observe(n: A, labels: B): G[Unit] = fk(
@@ -108,9 +112,12 @@ object Histogram {
   }
 
   object Labelled {
-    implicit def catsInstances[F[_], C]: Contravariant[Labelled[F, *, C]] =
-      new Contravariant[Histogram.Labelled[F, *, C]] {
+    implicit def catsInstances[F[_], C, D]
+        : Contravariant[Labelled[F, *, C]] with LabelsContravariant[Labelled[F, D, *]] =
+      new Contravariant[Labelled[F, *, C]] with LabelsContravariant[Labelled[F, D, *]] {
         override def contramap[A, B](fa: Labelled[F, A, C])(f: B => A): Labelled[F, B, C] = fa.contramap(f)
+
+        override def contramapLabels[A, B](fa: Labelled[F, D, A])(f: B => A): Labelled[F, D, B] = fa.contramapLabels(f)
       }
 
     def make[F[_], A, B](

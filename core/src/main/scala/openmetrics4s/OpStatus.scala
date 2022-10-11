@@ -104,7 +104,7 @@ object OpStatus {
   /** A derived metric type that records the outcome of an operation. See [[OpStatus.Labelled.fromCounter]] and
     * [[OpStatus.Labelled.fromGauge]] for more information.
     */
-  sealed abstract class Labelled[F[_]: MonadCancelThrow, A] {
+  sealed abstract class Labelled[F[_]: MonadCancelThrow, A] { self =>
     type Metric
 
     /** Surround an operation and evaluate its outcome using an instance of [[cats.effect.kernel.MonadCancel]].
@@ -153,6 +153,16 @@ object OpStatus {
     protected def onErrored(labels: A): F[Unit]
 
     protected def onSucceeded(labels: A): F[Unit]
+
+    def contramapLabels[B](f: B => A): Labelled[F, B] = new Labelled[F, B] {
+      override type Metric = self.Metric
+
+      override protected def onCanceled(labels: B): F[Unit] = self.onCanceled(f(labels))
+
+      override protected def onErrored(labels: B): F[Unit] = self.onErrored(f(labels))
+
+      override protected def onSucceeded(labels: B): F[Unit] = self.onSucceeded(f(labels))
+    }
   }
 
   object Labelled {

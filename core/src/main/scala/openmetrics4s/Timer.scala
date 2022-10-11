@@ -92,7 +92,7 @@ object Timer {
   /** A derived metric type that can time a given operation. See [[Timer.Labelled.fromHistogram]] and
     * [[Timer.Labelled.fromGauge]] for more information.
     */
-  sealed abstract class Labelled[F[_]: MonadThrow: Clock, A] {
+  sealed abstract class Labelled[F[_]: MonadThrow: Clock, A] { self =>
     type Metric
 
     def recordTime(duration: FiniteDuration, labels: A): F[Unit]
@@ -146,11 +146,21 @@ object Timer {
         )
         res <- x._2.liftTo[F]
       } yield res
+
+    def contramapLabels[B](f: B => A): Labelled[F, B] = new Labelled[F, B] {
+      override type Metric = self.Metric
+
+      override def recordTime(duration: FiniteDuration, labels: B): F[Unit] = self.recordTime(duration, f(labels))
+    }
   }
 
   object Labelled {
     type Aux[F[_], A, N, M[_[_], _, _]] = Timer.Labelled[F, A] {
       type Metric = M[F, N, A]
+    }
+
+    implicit def instances[F[_]]: LabelsContravariant[Labelled[F, *]] = new LabelsContravariant[Labelled[F, *]] {
+      override def contramapLabels[A, B](fa: Labelled[F, A])(f: B => A): Labelled[F, B] = fa.contramapLabels(f)
     }
 
     /** Create a [[Timer.Labelled]] from a [[Histogram.Labelled]] instance.

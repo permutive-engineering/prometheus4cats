@@ -186,6 +186,22 @@ object Gauge {
       override def reset(labels: B): F[Unit] = self.reset(labels)
     }
 
+    def contramapLabels[C](f: C => B): Labelled[F, A, C] = new Labelled[F, A, C] {
+      override def inc(labels: C): F[Unit] = self.inc(f(labels))
+
+      override def inc(n: A, labels: C): F[Unit] = self.inc(n, f(labels))
+
+      override def dec(labels: C): F[Unit] = self.dec(f(labels))
+
+      override def dec(n: A, labels: C): F[Unit] = self.dec(n, f(labels))
+
+      override def set(n: A, labels: C): F[Unit] = self.set(n, f(labels))
+
+      override def setToCurrentTime(labels: C): F[Unit] = self.setToCurrentTime(f(labels))
+
+      override def reset(labels: C): F[Unit] = self.reset(f(labels))
+    }
+
     final def mapK[G[_]](fk: F ~> G): Labelled[G, A, B] =
       new Labelled[G, A, B] {
 
@@ -215,9 +231,13 @@ object Gauge {
   }
 
   object Labelled {
-    implicit def catsInstances[F[_], C]: Contravariant[Labelled[F, *, C]] = new Contravariant[Gauge.Labelled[F, *, C]] {
-      override def contramap[A, B](fa: Labelled[F, A, C])(f: B => A): Labelled[F, B, C] = fa.contramap(f)
-    }
+    implicit def catsInstances[F[_], C, D]
+        : Contravariant[Labelled[F, *, C]] with LabelsContravariant[Labelled[F, D, *]] =
+      new Contravariant[Labelled[F, *, C]] with LabelsContravariant[Labelled[F, D, *]] {
+        override def contramap[A, B](fa: Labelled[F, A, C])(f: B => A): Labelled[F, B, C] = fa.contramap(f)
+
+        override def contramapLabels[A, B](fa: Labelled[F, D, A])(f: B => A): Labelled[F, D, B] = fa.contramapLabels(f)
+      }
 
     def make[F[_], A, B](
         default: A,
