@@ -67,11 +67,10 @@ object Timer {
     final def time[B](fb: F[B], labels: A): F[B] =
       timeWithComputedLabels(fb, _ => labels)
 
-    final def timeWithComputedLabels[B](fb: F[B], labels: B => A): F[B] =
+    final def timeWithComputedLabels[B](fb: F[B])(labels: B => A): F[B] =
       Clock[F].timed(fb).flatMap { case (t, a) => recordTime(t, labels(a)).as(a) }
 
-    final def timeAttempt[B](
-        fb: F[B],
+    final def timeAttempt[B](fb: F[B])(
         labelsSuccess: B => A,
         labelsError: PartialFunction[Throwable, A]
     ): F[B] =
