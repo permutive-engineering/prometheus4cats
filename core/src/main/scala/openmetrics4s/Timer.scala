@@ -23,14 +23,14 @@ import cats.syntax.applicativeError._
 import cats.syntax.either._
 import cats.syntax.flatMap._
 import cats.syntax.functor._
-import cats.{Applicative, FlatMap, MonadThrow}
+import cats.{Applicative, FlatMap, MonadThrow, ~>}
 
 import scala.concurrent.duration.FiniteDuration
 
 /** A derived metric type that can time a given operation. See [[Timer.fromHistogram]] and [[Timer.fromGauge]] for more
   * information.
   */
-sealed abstract class Timer[F[_]: FlatMap: Clock] {
+sealed abstract class Timer[F[_]: FlatMap: Clock] { self =>
   type Metric
 
   /** Time an operation using an instance of [[cats.effect.kernel.Clock]].
@@ -44,6 +44,12 @@ sealed abstract class Timer[F[_]: FlatMap: Clock] {
   final def time[B](fa: F[B]): F[B] = Clock[F].timed(fa).flatMap { case (t, a) => recordTime(t).as(a) }
 
   def recordTime(duration: FiniteDuration): F[Unit]
+
+  def mapK[G[_]: FlatMap: Clock](fk: F ~> G): Timer[G] = new Timer[G] {
+    override type Metric = self.Metric
+
+    override def recordTime(duration: FiniteDuration): G[Unit] = fk(self.recordTime(duration))
+  }
 }
 
 object Timer {
@@ -151,6 +157,12 @@ object Timer {
       override type Metric = self.Metric
 
       override def recordTime(duration: FiniteDuration, labels: B): F[Unit] = self.recordTime(duration, f(labels))
+    }
+
+    def mapK[G[_]: MonadThrow: Clock](fk: F ~> G): Labelled[G, A] = new Labelled[G, A] {
+      override type Metric = self.Metric
+
+      override def recordTime(duration: FiniteDuration, labels: A): G[Unit] = fk(self.recordTime(duration, labels))
     }
   }
 

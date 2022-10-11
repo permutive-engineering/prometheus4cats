@@ -19,11 +19,12 @@ package openmetrics4s
 import cats.effect.kernel.syntax.monadCancel._
 import cats.effect.kernel.{MonadCancelThrow, Outcome}
 import cats.syntax.flatMap._
+import cats.~>
 
 /** A derived metric type that records the outcome of an operation. See [[OpStatus.fromCounter]] and
   * [[OpStatus.fromGauge]] for more information.
   */
-sealed abstract class OpStatus[F[_]: MonadCancelThrow] {
+sealed abstract class OpStatus[F[_]: MonadCancelThrow] { self =>
   type Metric
 
   /** Surround an operation and evaluate its outcome using an instance of [[cats.effect.kernel.MonadCancel]].
@@ -45,6 +46,16 @@ sealed abstract class OpStatus[F[_]: MonadCancelThrow] {
   protected def onErrored: F[Unit]
 
   protected def onSucceeded: F[Unit]
+
+  def mapK[G[_]: MonadCancelThrow](fk: F ~> G): OpStatus[G] = new OpStatus[G] {
+    override type Metric = self.Metric
+
+    override protected def onCanceled: G[Unit] = fk(self.onCanceled)
+
+    override protected def onErrored: G[Unit] = fk(self.onErrored)
+
+    override protected def onSucceeded: G[Unit] = fk(self.onSucceeded)
+  }
 }
 
 object OpStatus {
@@ -162,6 +173,16 @@ object OpStatus {
       override protected def onErrored(labels: B): F[Unit] = self.onErrored(f(labels))
 
       override protected def onSucceeded(labels: B): F[Unit] = self.onSucceeded(f(labels))
+    }
+
+    def mapK[G[_]: MonadCancelThrow](fk: F ~> G): Labelled[G, A] = new Labelled[G, A] {
+      override type Metric = self.Metric
+
+      override protected def onCanceled(labels: A): G[Unit] = fk(self.onCanceled(labels))
+
+      override protected def onErrored(labels: A): G[Unit] = fk(self.onErrored(labels))
+
+      override protected def onSucceeded(labels: A): G[Unit] = fk(self.onSucceeded(labels))
     }
   }
 
