@@ -2,6 +2,7 @@ package openmetrics4s
 
 import cats.Show
 import cats.effect.kernel.syntax.monadCancel._
+import cats.syntax.flatMap._
 import cats.effect.kernel.{MonadCancelThrow, Outcome}
 
 sealed abstract class OpCounter[F[_]: MonadCancelThrow] {
@@ -47,6 +48,14 @@ object OpCounter {
       case Outcome.Succeeded(_) => onSucceeded(labels)
       case Outcome.Errored(_) => onErrored(labels)
       case Outcome.Canceled() => onCanceled(labels)
+    }
+
+    final def surroundWithComputedLabels[B](
+        fb: F[B]
+    )(labelsSuccess: B => A, labelsError: Throwable => A, labelsCanceled: A): F[B] = fb.guaranteeCase {
+      case Outcome.Succeeded(fb) => fb.flatMap(b => onSucceeded(labelsSuccess(b)))
+      case Outcome.Errored(th) => onErrored(labelsError(th))
+      case Outcome.Canceled() => onCanceled(labelsCanceled)
     }
 
     protected def onCanceled(labels: A): F[Unit]
