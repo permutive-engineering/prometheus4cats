@@ -59,7 +59,10 @@ class OpCounterSuite extends CatsEffectSuite with ScalaCheckSuite {
       val nonZero = Math.abs(i) + 1
 
       opCounter.flatMap { case (counter, res) =>
-        counter.surround(IO.sleep(10.minutes)).race(IO.unit).replicateA(nonZero) >> res
+        // the deferred in the race here gives time for the finalizers to be registered on the first IO
+        IO.deferred[Unit]
+          .flatMap(wait => counter.surround(wait.complete(()) >> IO.sleep(10.minutes)).race(wait.get))
+          .replicateA(nonZero) >> res
           .map(
             assertEquals(_, Map[Status, Int](Status.Canceled -> nonZero))
           )
@@ -96,7 +99,10 @@ class OpCounterSuite extends CatsEffectSuite with ScalaCheckSuite {
       val nonZero = Math.abs(i) + 1
 
       labelledOpCounter.flatMap { case (counter, res) =>
-        counter.surround(IO.sleep(10.minutes), s).race(IO.unit).replicateA(nonZero) >> res.map(
+        // the deferred in the race here gives time for the finalizers to be registered on the first IO
+        IO.deferred[Unit]
+          .flatMap(wait => counter.surround(wait.complete(()) >> IO.sleep(10.minutes), s).race(wait.get))
+          .replicateA(nonZero) >> res.map(
           assertEquals(_, Map[(String, Status), Int]((s, Status.Canceled) -> nonZero))
         )
       }.unsafeRunSync()
