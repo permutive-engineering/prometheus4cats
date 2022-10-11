@@ -28,7 +28,6 @@ import cats.{Applicative, FlatMap, MonadThrow}
 import scala.concurrent.duration.FiniteDuration
 
 sealed abstract class Timer[F[_]: FlatMap: Clock] {
-  type Number
   type Metric
 
   final def time[B](fa: F[B]): F[B] = Clock[F].timed(fa).flatMap { case (t, a) => recordTime(t).as(a) }
@@ -38,20 +37,17 @@ sealed abstract class Timer[F[_]: FlatMap: Clock] {
 
 object Timer {
   type Aux[F[_], N, M[_[_], _]] = Timer[F] {
-    type Number = N
     type Metric = M[F, N]
   }
 
   def fromHistogram[F[_]: FlatMap: Clock](histogram: Histogram[F, Double]): Timer.Aux[F, Double, Histogram] =
     new Timer[F] {
-      override type Number = Double
       override type Metric = Histogram[F, Double]
       override def recordTime(duration: FiniteDuration): F[Unit] = histogram.observe(duration.toUnit(TimeUnit.SECONDS))
     }
 
   def fromGauge[F[_]: FlatMap: Clock](gauge: Gauge[F, Double]): Timer.Aux[F, Double, Gauge] =
     new Timer[F] {
-      override type Number = Double
       override type Metric = Gauge[F, Double]
       override def recordTime(duration: FiniteDuration): F[Unit] = gauge.set(duration.toUnit(TimeUnit.SECONDS))
     }
@@ -59,7 +55,6 @@ object Timer {
   sealed abstract class Labelled[F[_]: MonadThrow: Clock, A] {
     self =>
 
-    type Number
     type Metric
 
     def recordTime(duration: FiniteDuration, labels: A): F[Unit]
@@ -85,24 +80,10 @@ object Timer {
         )
         res <- x._2.liftTo[F]
       } yield res
-
-//    final def timeAttempt[B](fb: F[B])(
-//        labelsSuccess: B => A,
-//        labelsError: Throwable => A
-//    ): F[B] =
-//      for {
-//        x <- Clock[F].timed(fb.attempt)
-//        _ <- x._2.fold(
-//          e => recordTime(x._1, labelsError(e)),
-//          a => recordTime(x._1, labelsSuccess(a))
-//        )
-//        res <- x._2.liftTo[F]
-//      } yield res
   }
 
   object Labelled {
     type Aux[F[_], A, N, M[_[_], _, _]] = Timer.Labelled[F, A] {
-      type Number = N
       type Metric = M[F, N, A]
     }
 
@@ -110,7 +91,6 @@ object Timer {
         histogram: Histogram.Labelled[F, Double, A]
     ): Labelled.Aux[F, A, Double, Histogram.Labelled] =
       new Labelled[F, A] {
-        override type Number = Double
         override type Metric = Histogram.Labelled[F, Double, A]
 
         override def recordTime(duration: FiniteDuration, labels: A): F[Unit] =
@@ -120,7 +100,6 @@ object Timer {
     def fromGauge[F[_]: MonadThrow: Clock, A](
         gauge: Gauge.Labelled[F, Double, A]
     ): Labelled.Aux[F, A, Double, Gauge.Labelled] = new Labelled[F, A] {
-      override type Number = Double
       override type Metric = Gauge.Labelled[F, Double, A]
 
       override def recordTime(duration: FiniteDuration, labels: A): F[Unit] =
