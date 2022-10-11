@@ -20,9 +20,20 @@ import cats.effect.kernel.syntax.monadCancel._
 import cats.effect.kernel.{MonadCancelThrow, Outcome}
 import cats.syntax.flatMap._
 
+/** A derived metric type that records the outcome of an operation. See [[OpStatus.fromCounter]] and
+  * [[OpStatus.fromGauge]] for more information.
+  */
 sealed abstract class OpStatus[F[_]: MonadCancelThrow] {
   type Metric
 
+  /** Surround an operation and evaluate its outcome using an instance of [[cats.effect.kernel.MonadCancel]].
+    *
+    * The resulting metrics depend on the underlying implementation. See [[OpStatus.fromCounter]] and
+    * [[OpStatus.fromGauge]] for more details.
+    *
+    * @param fa
+    *   operation to be evaluated
+    */
   final def surround[A](fa: F[A]): F[A] = fa.guaranteeCase {
     case Outcome.Succeeded(_) => onSucceeded
     case Outcome.Errored(_) => onErrored
@@ -42,6 +53,17 @@ object OpStatus {
     type Metric = M[F, A, Status]
   }
 
+  /** Create an [[OpStatus]] from a [[Counter.Labelled]] instance, where its only label type is [[Status]].
+    *
+    * This works by incrementing a counter with a label value that corresponds to the value [[Status]] on each
+    * invocation.
+    *
+    * The best way to construct a counter based [[OpStatus]] is to use the `.asOpStatus` on the counter DSL provided by
+    * [[MetricsFactory]].
+    *
+    * @return
+    *   an [[OpStatus.Aux]] that is annotated with the type of underlying metric, in this case [[Counter.Labelled]]
+    */
   def fromCounter[F[_]: MonadCancelThrow, A](
       counter: Counter.Labelled[F, A, Status]
   ): OpStatus.Aux[F, A, Counter.Labelled] = new OpStatus[F] {
@@ -54,6 +76,17 @@ object OpStatus {
     override protected val onSucceeded: F[Unit] = counter.inc(Status.Succeeded)
   }
 
+  /** Create an [[OpStatus]] from a [[Gauge.Labelled]] instance, where its only label type is [[Status]].
+    *
+    * This works by setting gauge with a label value that corresponds to the value of [[Status]] to `1` on each
+    * invocation, while the other statuses are set to `0`.
+    *
+    * The best way to construct a gauge based [[OpStatus]] is to use the `.asOpStatus` on the gauge DSL provided by
+    * [[MetricsFactory]].
+    *
+    * @return
+    *   an [[OpStatus.Aux]] that is annotated with the type of underlying metric, in this case [[Gauge.Labelled]]
+    */
   def fromGauge[F[_]: MonadCancelThrow, A](gauge: Gauge.Labelled[F, A, Status]): OpStatus.Aux[F, A, Gauge.Labelled] =
     new OpStatus[F] {
       override type Metric = Gauge.Labelled[F, A, Status]
@@ -68,15 +101,44 @@ object OpStatus {
         (gauge.reset(Status.Canceled) >> gauge.reset(Status.Errored) >> gauge.inc(Status.Succeeded)).uncancelable
     }
 
+  /** A derived metric type that records the outcome of an operation. See [[OpStatus.Labelled.fromCounter]] and
+    * [[OpStatus.Labelled.fromGauge]] for more information.
+    */
   sealed abstract class Labelled[F[_]: MonadCancelThrow, A] {
     type Metric
 
-    final def surround[B](fa: F[B], labels: A): F[B] = fa.guaranteeCase {
+    /** Surround an operation and evaluate its outcome using an instance of [[cats.effect.kernel.MonadCancel]].
+      *
+      * The resulting metrics depend on the underlying implementation. See [[OpStatus.Labelled.fromCounter]] and
+      * [[OpStatus.Labelled.fromGauge]] for more details.
+      *
+      * @param fb
+      *   operation to be evaluated
+      *
+      * @param labels
+      *   labels to add to the underlying metric
+      */
+    final def surround[B](fb: F[B], labels: A): F[B] = fb.guaranteeCase {
       case Outcome.Succeeded(_) => onSucceeded(labels)
       case Outcome.Errored(_) => onErrored(labels)
       case Outcome.Canceled() => onCanceled(labels)
     }
 
+    /** Surround an operation and evaluate its outcome using an instance of [[cats.effect.kernel.MonadCancel]],
+      * computing additional labels from the result.
+      *
+      * The resulting metrics depend on the underlying implementation. See [[OpStatus.Labelled.fromCounter]] and
+      * [[OpStatus.Labelled.fromGauge]] for more details.
+      *
+      * @param fb
+      *   operation to be evaluated
+      * @param labelsCanceled
+      *   labels to add when the operation is canceled
+      * @param labelsSuccess
+      *   function to compute labels from the result of `fb` when the operation is successful
+      * @param labelsError
+      *   function to compute labels from the exception that was raised if the operation is unsuccessful
+      */
     final def surroundWithComputedLabels[B](
         fb: F[B],
         labelsCanceled: A
@@ -98,6 +160,19 @@ object OpStatus {
       type Metric = M[F, A, (B, Status)]
     }
 
+    /** Create an [[OpStatus]] from a [[Counter.Labelled]] instance, where its labels type is a tuple of the original
+      * labels of the counter and [[Status]].
+      *
+      * This works by incrementing a counter with a label value that corresponds to the value [[Status]] on each
+      * invocation.
+      *
+      * The best way to construct a counter based [[OpStatus]] is to use the `.asOpStatus` on the counter DSL provided
+      * by [[MetricsFactory]].
+      *
+      * @return
+      *   an [[OpStatus.Labelled.Aux]] that is annotated with the type of underlying metric, in this case
+      *   [[Counter.Labelled]]
+      */
     def fromCounter[F[_]: MonadCancelThrow, A, B](
         counter: Counter.Labelled[F, A, (B, Status)]
     ): OpStatus.Labelled.Aux[F, A, B, Counter.Labelled] = new OpStatus.Labelled[F, B] {
@@ -110,6 +185,19 @@ object OpStatus {
       override protected def onSucceeded(labels: B): F[Unit] = counter.inc((labels, Status.Succeeded))
     }
 
+    /** Create an [[OpStatus]] from a [[Gauge.Labelled]] instance, where its only label type is a tuple of the original
+      * labels of the counter and [[Status]].
+      *
+      * This works by setting gauge with a label value that corresponds to the value of [[Status]] to `1` on each
+      * invocation, while the other statuses are set to `0`.
+      *
+      * The best way to construct a gauge based [[OpStatus]] is to use the `.asOpStatus` on the gauge DSL provided by
+      * [[MetricsFactory]].
+      *
+      * @return
+      *   an [[OpStatus.Labelled.Aux]] that is annotated with the type of underlying metric, in this case
+      *   [[Gauge.Labelled]]
+      */
     def fromGauge[F[_]: MonadCancelThrow, A, B](
         gauge: Gauge.Labelled[F, A, (B, Status)]
     ): OpStatus.Labelled.Aux[F, A, B, Gauge.Labelled] =

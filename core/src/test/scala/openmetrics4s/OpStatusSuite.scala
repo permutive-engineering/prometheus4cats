@@ -66,7 +66,7 @@ class OpStatusSuite extends CatsEffectSuite with ScalaCheckSuite {
   implicit val posInt: Arbitrary[Int] = Arbitrary(Gen.posNum[Int])
 
   property("op counter should record success") {
-    forAll { i: Int =>
+    forAll { (i: Int) =>
       val nonZero = Math.abs(i) + 1
 
       opCounter.flatMap { case (counter, res) =>
@@ -78,7 +78,7 @@ class OpStatusSuite extends CatsEffectSuite with ScalaCheckSuite {
   }
 
   property("op gauge should record success") {
-    forAll { i: Int =>
+    forAll { (i: Int) =>
       val nonZero = Math.abs(i) + 1
 
       opGauge.flatMap { case (gauge, res) =>
@@ -90,7 +90,7 @@ class OpStatusSuite extends CatsEffectSuite with ScalaCheckSuite {
   }
 
   property("op counter should record cancelation") {
-    forAll { i: Int =>
+    forAll { (i: Int) =>
       val nonZero = Math.abs(i) + 1
 
       opCounter.flatMap { case (counter, res) =>
@@ -106,7 +106,7 @@ class OpStatusSuite extends CatsEffectSuite with ScalaCheckSuite {
   }
 
   property("op gauge should record cancelation") {
-    forAll { i: Int =>
+    forAll { (i: Int) =>
       val nonZero = Math.abs(i) + 1
 
       opGauge.flatMap { case (gauge, res) =>
@@ -122,7 +122,7 @@ class OpStatusSuite extends CatsEffectSuite with ScalaCheckSuite {
   }
 
   property("op counter should record failure") {
-    forAll { i: Int =>
+    forAll { (i: Int) =>
       val nonZero = Math.abs(i) + 1
 
       opCounter.flatMap { case (counter, res) =>
@@ -134,7 +134,7 @@ class OpStatusSuite extends CatsEffectSuite with ScalaCheckSuite {
   }
 
   property("op gauge should record failure") {
-    forAll { i: Int =>
+    forAll { (i: Int) =>
       val nonZero = Math.abs(i) + 1
 
       opGauge.flatMap { case (gauge, res) =>
