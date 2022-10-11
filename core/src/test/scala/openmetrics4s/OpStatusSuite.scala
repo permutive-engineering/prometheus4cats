@@ -22,8 +22,6 @@ import munit.{CatsEffectSuite, ScalaCheckSuite}
 import org.scalacheck.Prop.{Status => _, _}
 import org.scalacheck.{Arbitrary, Gen}
 
-import scala.concurrent.duration._
-
 class OpStatusSuite extends CatsEffectSuite with ScalaCheckSuite {
   val opCounter: IO[(OpStatus[IO], IO[Map[Status, Int]])] =
     Ref.of[IO, Map[Status, Int]](Map.empty).map { ref =>
@@ -96,7 +94,7 @@ class OpStatusSuite extends CatsEffectSuite with ScalaCheckSuite {
       opCounter.flatMap { case (counter, res) =>
         // the deferred in the race here gives time for the finalizers to be registered on the first IO
         IO.deferred[Unit]
-          .flatMap(wait => counter.surround(wait.complete(()) >> IO.sleep(10.minutes)).race(wait.get))
+          .flatMap(wait => counter.surround(wait.complete(()) >> IO.never).race(wait.get))
           .replicateA(nonZero) >> res
           .map(
             assertEquals(_, Map[Status, Int](Status.Canceled -> nonZero))
@@ -112,7 +110,7 @@ class OpStatusSuite extends CatsEffectSuite with ScalaCheckSuite {
       opGauge.flatMap { case (gauge, res) =>
         // the deferred in the race here gives time for the finalizers to be registered on the first IO
         IO.deferred[Unit]
-          .flatMap(wait => gauge.surround(wait.complete(()) >> IO.sleep(10.minutes)).race(wait.get))
+          .flatMap(wait => gauge.surround(wait.complete(()) >> IO.never).race(wait.get))
           .replicateA(nonZero) >> res
           .map(
             assertEquals(_, Map[Status, Int](Status.Succeeded -> 0, Status.Errored -> 0, Status.Canceled -> nonZero))
@@ -183,7 +181,7 @@ class OpStatusSuite extends CatsEffectSuite with ScalaCheckSuite {
       labelledOpCounter.flatMap { case (counter, res) =>
         // the deferred in the race here gives time for the finalizers to be registered on the first IO
         IO.deferred[Unit]
-          .flatMap(wait => counter.surround(wait.complete(()) >> IO.sleep(10.minutes), s).race(wait.get))
+          .flatMap(wait => counter.surround(wait.complete(()) >> IO.never, s).race(wait.get))
           .replicateA(nonZero) >> res.map(
           assertEquals(_, Map[(String, Status), Int]((s, Status.Canceled) -> nonZero))
         )
@@ -198,7 +196,7 @@ class OpStatusSuite extends CatsEffectSuite with ScalaCheckSuite {
       labelledOpGauge.flatMap { case (gauge, res) =>
         // the deferred in the race here gives time for the finalizers to be registered on the first IO
         IO.deferred[Unit]
-          .flatMap(wait => gauge.surround(wait.complete(()) >> IO.sleep(10.minutes), s).race(wait.get))
+          .flatMap(wait => gauge.surround(wait.complete(()) >> IO.never, s).race(wait.get))
           .replicateA(nonZero) >> res.map(
           assertEquals(
             _,
