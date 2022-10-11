@@ -196,7 +196,7 @@ trait MetricsRegistrySuite[State] extends TestInstances { self: ScalaCheckSuite 
                 decOneValue <- get
                 _ <- gauge.dec(dec)
                 decValue <- get
-                _ <- gauge.setToCurrentTime()
+                _ <- gauge.setToCurrentTime
                 timeValue <- get
               } yield {
                 assertEquals(setValue, Some(set))
