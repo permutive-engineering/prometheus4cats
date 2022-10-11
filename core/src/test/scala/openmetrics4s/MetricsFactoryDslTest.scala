@@ -37,6 +37,8 @@ object MetricsFactoryDslTest {
   doubleLabelledGaugeBuilder.asTimer.build
   doubleLabelledGaugeBuilder.asOpStatus.build
 
+  val doubleLabelsGaugeBuilder = doubleGaugeBuilder.labels(Sized(Label.Name("test")))((s: String) => Sized(s)).build
+
   val longGaugeBuilder = gaugeBuilder.ofLong.help("help")
   longGaugeBuilder.build
   longGaugeBuilder.resource

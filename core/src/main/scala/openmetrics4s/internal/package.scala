@@ -69,25 +69,15 @@ object BuildStep {
   }
 }
 
-private[internal] trait FirstLabelStep[F[_], A, L[_[_], _, _]] {
+final class MetricDsl[F[_], A, M[_[_], _], L[_[_], _, _]] private[openmetrics4s] (
+    makeMetric: F[M[F, A]],
+    private[internal] val makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L]
+) extends BuildStep[F, M[F, A]](makeMetric) {
 
   /** Sets the first label of the metric. Requires either a `Show` instance for the label type, or a method converting
     * the label value to a `String`.
     */
-  def label[B]: FirstLabelApply[F, A, B, L]
-
-}
-
-final class MetricDsl[F[_], A, M[_[_], _], L[_[_], _, _]] private[openmetrics4s] (
-    makeMetric: F[M[F, A]],
-    private[internal] val makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L]
-) extends BuildStep[F, M[F, A]](makeMetric)
-    with FirstLabelStep[F, A, L]
-    with UnsafeLabelsStep[F, A, L] {
-
-  /** @inheritdoc
-    */
-  override def label[B]: FirstLabelApply[F, A, B, L] =
+  def label[B]: FirstLabelApply[F, A, B, L] =
     (name, toString) =>
       new LabelledMetricDsl(
         makeLabelledMetric,
@@ -95,7 +85,16 @@ final class MetricDsl[F[_], A, M[_[_], _], L[_[_], _, _]] private[openmetrics4s]
         a => Sized(toString(a))
       )
 
-  override def unsafeLabels(
+  /** Creates a metric whose labels aren't checked at compile time. Provides a builder for a labelled metric that takes
+    * a map of label names to their values.
+    *
+    * This should be used when the labels are not known at compile time and potentially come from some source at
+    * runtime.
+    *
+    * @param labelNames
+    *   names of the labels
+    */
+  def unsafeLabels(
       labelNames: IndexedSeq[Label.Name]
   ): BuildStep[F, L[F, A, Map[Label.Name, String]]] =
     new BuildStep[F, L[F, A, Map[Label.Name, String]]](
@@ -103,6 +102,37 @@ final class MetricDsl[F[_], A, M[_[_], _], L[_[_], _, _]] private[openmetrics4s]
         labelNames
       )(labels => labelNames.flatMap(labels.get))
     )
+
+  /** Creates a metric whose labels aren't checked at compile time. Provides a builder for a labelled metric that takes
+    * a map of label names to their values.
+    *
+    * This should be used when the labels are not known at compile time and potentially come from some source at
+    * runtime.
+    *
+    * @param labelNames
+    *   glob of names of the labels
+    */
+  def unsafeLabels(
+      labelNames: Label.Name*
+  ): BuildStep[F, L[F, A, Map[Label.Name, String]]] = unsafeLabels(labelNames.toIndexedSeq)
+
+  /** Creates a metric whose label sizes _are_ checked at compile time. Takes a sized collection of label name and a
+    * function converting some label object `B` to a sized collection of strings.
+    *
+    * This is useful where a single type `B` translates to multiple labels. Once invoked, this cannot be used with the
+    * singular `.label` syntax.
+    *
+    * @tparam B
+    *   type to convert into labels
+    * @tparam N
+    *   size of the label collection
+    * @param labelNames
+    *   sized collection of labels names
+    * @param f
+    *   function to convert `B` in to a sized collection of label values
+    */
+  def labels[B, N <: Nat](labelNames: Sized[IndexedSeq[Label.Name], N])(f: B => Sized[IndexedSeq[String], N]) =
+    new LabelsBuildStep(makeLabelledMetric, labelNames, f)
 }
 
 object MetricDsl {
@@ -123,17 +153,62 @@ object MetricDsl {
   }
 }
 
-final class LabelledMetricDsl[F[_], A, T, N <: Nat, L[_[_], _, _]] private[internal] (
-    private[internal] val makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L],
-    private[internal] val labelNames: Sized[IndexedSeq[Label.Name], N],
-    private[internal] val f: T => Sized[IndexedSeq[String], N]
+private[openmetrics4s] trait BaseLabelsBuildStep[F[_], A, T, N <: Nat, L[_[_], _, _]] {
+  protected[internal] val makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L]
+  protected[internal] val labelNames: Sized[IndexedSeq[Label.Name], N]
+  protected[internal] val f: T => Sized[IndexedSeq[String], N]
+}
+
+object BaseLabelsBuildStep {
+  implicit class CounterSyntax[F[_]: MonadCancelThrow, A, T, N <: Nat](
+      dsl: BaseLabelsBuildStep[F, A, T, N, Counter.Labelled]
+  ) {
+    def asOpStatus: BuildStep[F, OpStatus.Labelled.Aux[F, A, T, Counter.Labelled]] = new BuildStep(
+      dsl
+        .makeLabelledMetric[(T, Status)](dsl.labelNames.unsized :+ Label.Name.status) { case (t, status) =>
+          dsl.f(t).unsized :+ status.show
+        }
+        .map(OpStatus.Labelled.fromCounter(_))
+    )
+  }
+
+  implicit class GaugeSyntax[F[_]: MonadCancelThrow, A, T, N <: Nat](
+      dsl: BaseLabelsBuildStep[F, A, T, N, Gauge.Labelled]
+  ) {
+    def asOpStatus: BuildStep[F, OpStatus.Labelled.Aux[F, A, T, Gauge.Labelled]] = new BuildStep(
+      dsl
+        .makeLabelledMetric[(T, Status)](dsl.labelNames.unsized :+ Label.Name.status) { case (t, status) =>
+          dsl.f(t).unsized :+ status.show
+        }
+        .map(OpStatus.Labelled.fromGauge(_))
+    )
+  }
+}
+
+final class LabelsBuildStep[F[_], A, T, N <: Nat, L[_[_], _, _]] private[internal] (
+    protected[internal] val makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L],
+    protected[internal] val labelNames: Sized[IndexedSeq[Label.Name], N],
+    protected[internal] val f: T => Sized[IndexedSeq[String], N]
 ) extends BuildStep[F, L[F, A, T]](
       makeLabelledMetric(labelNames.unsized)(
         // avoid using andThen because it can be slow and this gets called repeatedly during runtime
         t => f(t).unsized
       )
     )
-    with NextLabelsStep[F, A, T, N, L] {
+    with BaseLabelsBuildStep[F, A, T, N, L]
+
+final class LabelledMetricDsl[F[_], A, T, N <: Nat, L[_[_], _, _]] private[internal] (
+    protected[internal] val makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L],
+    protected[internal] val labelNames: Sized[IndexedSeq[Label.Name], N],
+    protected[internal] val f: T => Sized[IndexedSeq[String], N]
+) extends BuildStep[F, L[F, A, T]](
+      makeLabelledMetric(labelNames.unsized)(
+        // avoid using andThen because it can be slow and this gets called repeatedly during runtime
+        t => f(t).unsized
+      )
+    )
+    with NextLabelsStep[F, A, T, N, L]
+    with BaseLabelsBuildStep[F, A, T, N, L] {
 
   /** @inheritdoc
     */
@@ -150,62 +225,6 @@ final class LabelledMetricDsl[F[_], A, T, N <: Nat, L[_[_], _, _]] private[inter
       )
 
     }
-
-}
-
-object LabelledMetricDsl {
-  implicit class CounterSyntax[F[_]: MonadCancelThrow, A, T, N <: Nat](
-      dsl: LabelledMetricDsl[F, A, T, N, Counter.Labelled]
-  ) {
-    def asOpStatus: BuildStep[F, OpStatus.Labelled.Aux[F, A, T, Counter.Labelled]] = new BuildStep(
-      dsl
-        .makeLabelledMetric[(T, Status)](dsl.labelNames.unsized :+ Label.Name.status) { case (t, status) =>
-          dsl.f(t).unsized :+ status.show
-        }
-        .map(OpStatus.Labelled.fromCounter(_))
-    )
-  }
-
-  implicit class GaugeSyntax[F[_]: MonadCancelThrow, A, T, N <: Nat](
-      dsl: LabelledMetricDsl[F, A, T, N, Gauge.Labelled]
-  ) {
-    def asOpStatus: BuildStep[F, OpStatus.Labelled.Aux[F, A, T, Gauge.Labelled]] = new BuildStep(
-      dsl
-        .makeLabelledMetric[(T, Status)](dsl.labelNames.unsized :+ Label.Name.status) { case (t, status) =>
-          dsl.f(t).unsized :+ status.show
-        }
-        .map(OpStatus.Labelled.fromGauge(_))
-    )
-  }
-}
-
-private[internal] trait UnsafeLabelsStep[F[_], A, L[_[_], _, _]] {
-
-  /** Creates a metric whose labels aren't checked at compile time. Provides a builder for a labelled metric that takes
-    * a map of label names to their values.
-    *
-    * This should be used when the labels are not known at compile time and potentially come from some source at
-    * runtime.
-    *
-    * @param labelNames
-    *   names of the labels
-    */
-  def unsafeLabels(
-      labelNames: IndexedSeq[Label.Name]
-  ): BuildStep[F, L[F, A, Map[Label.Name, String]]]
-
-  /** Creates a metric whose labels aren't checked at compile time. Provides a builder for a labelled metric that takes
-    * a map of label names to their values.
-    *
-    * This should be used when the labels are not known at compile time and potentially come from some source at
-    * runtime.
-    *
-    * @param labelNames
-    *   glob of names of the labels
-    */
-  def unsafeLabels(
-      labelNames: Label.Name*
-  ): BuildStep[F, L[F, A, Map[Label.Name, String]]] = unsafeLabels(labelNames.toIndexedSeq)
 }
 
 abstract class FirstLabelApply[F[_], A, B, L[_[_], _, _]] {
