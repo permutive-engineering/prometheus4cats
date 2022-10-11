@@ -34,7 +34,6 @@ class TimerSuite extends ScalaCheckSuite with TickerSuite {
   val gauge =
     Timer.fromGauge(
       Gauge.make(
-        1.0,
         write,
         write,
         write,
@@ -49,7 +48,6 @@ class TimerSuite extends ScalaCheckSuite with TickerSuite {
 
   val labelledGauge = Timer.Labelled.fromGauge(
     Gauge.Labelled.make(
-      1.0,
       writeLabels[String],
       writeLabels[String],
       writeLabels[String],
@@ -114,8 +112,8 @@ class TimerSuite extends ScalaCheckSuite with TickerSuite {
           .map(res => assertEquals(res, (dur :: durs).map { case (dur, l) => dur.toUnit(TimeUnit.SECONDS) -> l }))
 
       exec(
-        test(labelledHistogram.timeAttempt[String](_, identity, { case th => th.getMessage })) >> test(
-          labelledGauge.timeAttempt[String](_, identity, { case th => th.getMessage })
+        test(labelledHistogram.timeAttempt[String](_)(identity, { case th => th.getMessage })) >> test(
+          labelledGauge.timeAttempt[String](_)(identity, { case th => th.getMessage })
         )
       )
     }
@@ -142,19 +140,18 @@ class TimerSuite extends ScalaCheckSuite with TickerSuite {
         test((ref, s) =>
           Timer.Labelled
             .fromHistogram(Histogram.Labelled.make[IO, Double, String]((d, s) => ref.update(_ :+ (d -> s))))
-            .timeAttempt[String](s, identity, { case th => th.getMessage })
+            .timeAttempt[String](s)(identity, { case th => th.getMessage })
         ) >> test((ref, s) =>
           Timer.Labelled
             .fromGauge(
               Gauge.Labelled.make[IO, Double, String](
-                1.0,
                 gaugeSet(ref),
                 gaugeSet(ref),
                 gaugeSet(ref),
-                s => Clock[IO].realTime.flatMap(dur => gaugeSet(ref)(dur.toSeconds.toDouble, s))
+                (s: String) => Clock[IO].realTime.flatMap(dur => gaugeSet(ref)(dur.toSeconds.toDouble, s))
               )
             )
-            .timeAttempt[String](s, identity, { case th => th.getMessage })
+            .timeAttempt[String](s)(identity, { case th => th.getMessage })
         )
       )
     }

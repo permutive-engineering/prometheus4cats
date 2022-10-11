@@ -16,10 +16,9 @@
 
 package openmetrics4s
 
-import cats.Show
 import cats.effect.kernel.syntax.monadCancel._
-import cats.syntax.flatMap._
 import cats.effect.kernel.{MonadCancelThrow, Outcome}
+import cats.syntax.flatMap._
 
 sealed abstract class OpCounter[F[_]: MonadCancelThrow] {
   final def surround[A](fa: F[A]): F[A] = fa.guaranteeCase {
@@ -36,20 +35,6 @@ sealed abstract class OpCounter[F[_]: MonadCancelThrow] {
 }
 
 object OpCounter {
-  sealed trait Status
-  object Status {
-    case object Succeeded extends Status
-
-    case object Errored extends Status
-
-    case object Canceled extends Status
-
-    implicit val catsInstances: Show[Status] = Show.show {
-      case Status.Succeeded => "succeeded"
-      case Status.Errored => "errored"
-      case Status.Canceled => "canceled"
-    }
-  }
 
   def fromCounter[F[_]: MonadCancelThrow, A](counter: Counter.Labelled[F, A, Status]): OpCounter[F] = new OpCounter[F] {
     override protected val onCanceled: F[Unit] = counter.inc(Status.Canceled)

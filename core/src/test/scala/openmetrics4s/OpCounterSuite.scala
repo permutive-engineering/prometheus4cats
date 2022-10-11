@@ -19,9 +19,8 @@ package openmetrics4s
 import cats.effect.{IO, Ref}
 import cats.syntax.semigroup._
 import munit.{CatsEffectSuite, ScalaCheckSuite}
-import openmetrics4s.OpCounter.Status
 import org.scalacheck.{Arbitrary, Gen}
-import org.scalacheck.Prop._
+import org.scalacheck.Prop.{Status => _, _}
 
 import scala.concurrent.duration._
 
@@ -29,14 +28,14 @@ class OpCounterSuite extends CatsEffectSuite with ScalaCheckSuite {
   val opCounter: IO[(OpCounter[IO], IO[Map[Status, Int]])] =
     Ref.of[IO, Map[Status, Int]](Map.empty).map { ref =>
       OpCounter.fromCounter(
-        Counter.Labelled.make[IO, Int, Status](1, (i, s) => ref.update(_ |+| Map(s -> i)))
+        Counter.Labelled.make[IO, Int, Status]((i: Int, s: Status) => ref.update(_ |+| Map(s -> i)))
       ) -> ref.get
     }
 
   val labelledOpCounter: IO[(OpCounter.Labelled[IO, String], IO[Map[(String, Status), Int]])] =
     Ref.of[IO, Map[(String, Status), Int]](Map.empty).map { ref =>
       OpCounter.Labelled.fromCounter(
-        Counter.Labelled.make[IO, Int, (String, Status)](1, (i, s) => ref.update(_ |+| Map(s -> i)))
+        Counter.Labelled.make[IO, Int, (String, Status)]((i: Int, s: (String, Status)) => ref.update(_ |+| Map(s -> i)))
       ) -> ref.get
     }
 

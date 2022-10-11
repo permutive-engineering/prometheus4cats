@@ -65,7 +65,7 @@ object Timer {
     def recordTime(duration: FiniteDuration, labels: A): F[Unit]
 
     final def time[B](fb: F[B], labels: A): F[B] =
-      timeWithComputedLabels(fb, _ => labels)
+      timeWithComputedLabels(fb)(_ => labels)
 
     final def timeWithComputedLabels[B](fb: F[B])(labels: B => A): F[B] =
       Clock[F].timed(fb).flatMap { case (t, a) => recordTime(t, labels(a)).as(a) }
@@ -85,6 +85,19 @@ object Timer {
         )
         res <- x._2.liftTo[F]
       } yield res
+
+//    final def timeAttempt[B](fb: F[B])(
+//        labelsSuccess: B => A,
+//        labelsError: Throwable => A
+//    ): F[B] =
+//      for {
+//        x <- Clock[F].timed(fb.attempt)
+//        _ <- x._2.fold(
+//          e => recordTime(x._1, labelsError(e)),
+//          a => recordTime(x._1, labelsSuccess(a))
+//        )
+//        res <- x._2.liftTo[F]
+//      } yield res
   }
 
   object Labelled {

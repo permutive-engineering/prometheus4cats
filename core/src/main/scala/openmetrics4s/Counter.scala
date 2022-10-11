@@ -84,6 +84,8 @@ object Counter {
     override def inc(n: A): F[Unit] = _inc(n)
   }
 
+  def make[F[_], A](_inc: A => F[Unit])(implicit A: Numeric[A]): Counter[F, A] = make(A.one, _inc)
+
   def noop[F[_]: Applicative, A]: Counter[F, A] = new Counter[F, A] {
     override def inc: F[Unit] = Applicative[F].unit
 
@@ -123,6 +125,8 @@ object Counter {
 
         override def inc(n: A, labels: B): F[Unit] = _inc(n, labels)
       }
+
+    def make[F[_], A, B](_inc: (A, B) => F[Unit])(implicit A: Numeric[A]): Labelled[F, A, B] = make(A.one, _inc)
 
     def noop[F[_]: Applicative, A, B]: Labelled[F, A, B] = new Labelled[F, A, B] {
       override def inc(labels: B): F[Unit] = Applicative[F].unit

@@ -19,7 +19,6 @@ package openmetrics4s.internal
 import cats.effect.kernel.{Clock, MonadCancelThrow, Resource}
 import cats.syntax.all._
 import cats.{Contravariant, FlatMap, Functor, MonadThrow, Show}
-import openmetrics4s.OpCounter.Status
 import openmetrics4s._
 
 class BuildStep[F[_], A] private[openmetrics4s] (fa: F[A]) {
@@ -110,7 +109,7 @@ object MetricDsl {
   implicit class CounterSyntax[F[_]: MonadCancelThrow, A](dsl: MetricDsl[F, A, Counter, Counter.Labelled]) {
     def asOpCounter: BuildStep[F, OpCounter[F]] = new BuildStep(
       dsl
-        .makeLabelledMetric[OpCounter.Status](IndexedSeq(Label.Name.status))(status => IndexedSeq(status.show))
+        .makeLabelledMetric[Status](IndexedSeq(Label.Name.status))(status => IndexedSeq(status.show))
         .map(OpCounter.fromCounter(_))
     )
   }
