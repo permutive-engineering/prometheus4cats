@@ -16,9 +16,9 @@
 
 package openmetrics4s.internal
 
-import cats.effect.kernel.{MonadCancelThrow, Resource}
+import cats.effect.kernel.{Clock, MonadCancelThrow, Resource}
 import cats.syntax.all._
-import cats.{Contravariant, Functor, Show}
+import cats.{Contravariant, FlatMap, Functor, MonadThrow, Show}
 import openmetrics4s.OpCounter.Status
 import openmetrics4s._
 
@@ -35,22 +35,22 @@ class BuildStep[F[_], A] private[openmetrics4s] (fa: F[A]) {
 }
 
 object BuildStep {
-  implicit class GaugeTimerSyntax[F[_]: Functor: Record](bs: BuildStep[F, Gauge[F, Double]]) {
+  implicit class GaugeTimerSyntax[F[_]: FlatMap: Clock](bs: BuildStep[F, Gauge[F, Double]]) {
     def asTimer: BuildStep[F, Timer.Aux[F, Double, Gauge]] = bs.map(Timer.fromGauge[F])
   }
 
-  implicit class HistogramTimerSyntax[F[_]: Functor: Record](bs: BuildStep[F, Histogram[F, Double]]) {
+  implicit class HistogramTimerSyntax[F[_]: FlatMap: Clock](bs: BuildStep[F, Histogram[F, Double]]) {
     def asTimer: BuildStep[F, Timer.Aux[F, Double, Histogram]] = bs.map(Timer.fromHistogram[F])
   }
 
-  implicit class LabelledGaugeTimerSyntax[F[_]: Functor: RecordAttempt, A](
+  implicit class LabelledGaugeTimerSyntax[F[_]: MonadThrow: Clock, A](
       bs: BuildStep[F, Gauge.Labelled[F, Double, A]]
   ) {
     def asTimer: BuildStep[F, Timer.Labelled.Aux[F, A, Double, Gauge.Labelled]] =
       bs.map(Timer.Labelled.fromGauge[F, A])
   }
 
-  implicit class LabelledHistogramTimerSyntax[F[_]: Functor: RecordAttempt, A](
+  implicit class LabelledHistogramTimerSyntax[F[_]: MonadThrow: Clock, A](
       bs: BuildStep[F, Histogram.Labelled[F, Double, A]]
   ) {
     def asTimer: BuildStep[F, Timer.Labelled.Aux[F, A, Double, Histogram.Labelled]] =
