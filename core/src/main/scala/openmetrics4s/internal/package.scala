@@ -35,24 +35,24 @@ class BuildStep[F[_], A] private[openmetrics4s] (fa: F[A]) {
 
 object BuildStep {
   implicit class GaugeTimerSyntax[F[_]: FlatMap: Clock](bs: BuildStep[F, Gauge[F, Double]]) {
-    def asTimer: BuildStep[F, Timer.Aux[F, Double, Gauge]] = bs.map(Timer.fromGauge[F])
+    def asTimer: BuildStep[F, Timer.Aux[F, Gauge]] = bs.map(Timer.fromGauge[F])
   }
 
   implicit class HistogramTimerSyntax[F[_]: FlatMap: Clock](bs: BuildStep[F, Histogram[F, Double]]) {
-    def asTimer: BuildStep[F, Timer.Aux[F, Double, Histogram]] = bs.map(Timer.fromHistogram[F])
+    def asTimer: BuildStep[F, Timer.Aux[F, Histogram]] = bs.map(Timer.fromHistogram[F])
   }
 
   implicit class LabelledGaugeTimerSyntax[F[_]: MonadThrow: Clock, A](
       bs: BuildStep[F, Gauge.Labelled[F, Double, A]]
   ) {
-    def asTimer: BuildStep[F, Timer.Labelled.Aux[F, A, Double, Gauge.Labelled]] =
+    def asTimer: BuildStep[F, Timer.Labelled.Aux[F, A, Gauge.Labelled]] =
       bs.map(Timer.Labelled.fromGauge[F, A])
   }
 
   implicit class LabelledHistogramTimerSyntax[F[_]: MonadThrow: Clock, A](
       bs: BuildStep[F, Histogram.Labelled[F, Double, A]]
   ) {
-    def asTimer: BuildStep[F, Timer.Labelled.Aux[F, A, Double, Histogram.Labelled]] =
+    def asTimer: BuildStep[F, Timer.Labelled.Aux[F, A, Histogram.Labelled]] =
       bs.map(Timer.Labelled.fromHistogram[F, A])
   }
 
@@ -163,7 +163,8 @@ object MetricDsl {
   }
 }
 
-private[openmetrics4s] trait BaseLabelsBuildStep[F[_], A, T, N <: Nat, L[_[_], _, _]] {
+abstract private[openmetrics4s] class BaseLabelsBuildStep[F[_], A, T, N <: Nat, L[_[_], _, _]](build: F[L[F, A, T]])
+    extends BuildStep[F, L[F, A, T]](build) {
   protected[internal] val makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L]
   protected[internal] val labelNames: Sized[IndexedSeq[Label.Name], N]
   protected[internal] val f: T => Sized[IndexedSeq[String], N]
@@ -180,6 +181,8 @@ object BaseLabelsBuildStep {
         }
         .map(OutcomeRecorder.Labelled.fromCounter(_))
     )
+
+    def contramap[B](f: B => A): BuildStep[F, Counter.Labelled[F, B, T]] = dsl.map(_.contramap(f))
   }
 
   implicit class GaugeSyntax[F[_]: MonadCancelThrow, A, T, N <: Nat](
@@ -192,6 +195,14 @@ object BaseLabelsBuildStep {
         }
         .map(OutcomeRecorder.Labelled.fromGauge(_))
     )
+
+    def contramap[B](f: B => A): BuildStep[F, Gauge.Labelled[F, B, T]] = dsl.map(_.contramap(f))
+  }
+
+  implicit class HistogramSyntax[F[_]: Functor, A, T, N <: Nat](
+      dsl: BaseLabelsBuildStep[F, A, T, N, Histogram.Labelled]
+  ) {
+    def contramap[B](f: B => A): BuildStep[F, Histogram.Labelled[F, B, T]] = dsl.map(_.contramap(f))
   }
 }
 
@@ -199,29 +210,24 @@ final class LabelsBuildStep[F[_], A, T, N <: Nat, L[_[_], _, _]] private[interna
     protected[internal] val makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L],
     protected[internal] val labelNames: Sized[IndexedSeq[Label.Name], N],
     protected[internal] val f: T => Sized[IndexedSeq[String], N]
-) extends BuildStep[F, L[F, A, T]](
+) extends BaseLabelsBuildStep[F, A, T, N, L](
       makeLabelledMetric(labelNames.unsized)(
         // avoid using andThen because it can be slow and this gets called repeatedly during runtime
         t => f(t).unsized
       )
     )
-    with BaseLabelsBuildStep[F, A, T, N, L]
 
 final class LabelledMetricDsl[F[_], A, T, N <: Nat, L[_[_], _, _]] private[internal] (
     protected[internal] val makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L],
     protected[internal] val labelNames: Sized[IndexedSeq[Label.Name], N],
     protected[internal] val f: T => Sized[IndexedSeq[String], N]
-) extends BuildStep[F, L[F, A, T]](
+) extends BaseLabelsBuildStep[F, A, T, N, L](
       makeLabelledMetric(labelNames.unsized)(
         // avoid using andThen because it can be slow and this gets called repeatedly during runtime
         t => f(t).unsized
       )
     )
-    with NextLabelsStep[F, A, T, N, L]
-    with BaseLabelsBuildStep[F, A, T, N, L] {
-
-  def contramap[B](f: B => A)(implicit F: Functor[F], L: Contravariant[L[F, *, T]]): BuildStep[F, L[F, B, T]] =
-    map(x => L.contramap(x)(f))
+    with NextLabelsStep[F, A, T, N, L] {
 
   /** @inheritdoc
     */

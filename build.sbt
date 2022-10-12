@@ -15,6 +15,8 @@ ThisBuild / tlSonatypeUseLegacyHost := false
 
 val Scala213 = "2.13.8"
 
+val Cats = "2.8.0"
+
 val CatsEffect = "3.3.14"
 
 val Log4Cats = "2.5.0"
@@ -39,8 +41,10 @@ lazy val core = project
       "org.typelevel" %%% "cats-effect-kernel" % CatsEffect,
       "org.typelevel" %%% "cats-effect" % CatsEffect % Test,
       "org.typelevel" %% "cats-effect-testkit" % CatsEffect % Test,
+      "org.typelevel" %%% "cats-laws" % Cats,
       "org.scalameta" %%% "munit" % Munit % Test,
       "org.typelevel" %% "munit-cats-effect-3" % MunitCe3,
+      "org.typelevel" %%% "discipline-munit" % "1.0.9" % Test,
       "org.scalameta" %% "munit-scalacheck" % Munit % Test,
       "org.typelevel" %% "scalacheck-effect-munit" % ScalacheckEffect % Test
     ),
