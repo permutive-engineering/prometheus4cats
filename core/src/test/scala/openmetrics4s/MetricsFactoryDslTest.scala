@@ -29,13 +29,13 @@ object MetricsFactoryDslTest {
   doubleGaugeBuilder.build
   doubleGaugeBuilder.resource
   doubleGaugeBuilder.asTimer.build
-  doubleGaugeBuilder.asOpStatus.build
+  doubleGaugeBuilder.asOutcomeRecorder.build
 
   val doubleLabelledGaugeBuilder =
     doubleGaugeBuilder.label[String]("label1").label[Int]("label2").label[BigInteger]("label3", _.toString)
   doubleLabelledGaugeBuilder.build
   doubleLabelledGaugeBuilder.asTimer.build
-  doubleLabelledGaugeBuilder.asOpStatus.build
+  doubleLabelledGaugeBuilder.asOutcomeRecorder.build
 
   val doubleLabelsGaugeBuilder = doubleGaugeBuilder.labels(Sized(Label.Name("test")))((s: String) => Sized(s)).build
 
@@ -50,13 +50,13 @@ object MetricsFactoryDslTest {
   val doubleCounterBuilder = counterBuilder.ofDouble.help("help")
   doubleCounterBuilder.build
   doubleCounterBuilder.resource
-  doubleCounterBuilder.asOpStatus.build
+  doubleCounterBuilder.asOutcomeRecorder.build
   doubleCounterBuilder.unsafeLabels(Label.Name("label1"), Label.Name("label2")).build
 
   val doubleLabelledCounterBuilder =
     doubleCounterBuilder.label[String]("label1").label[Int]("label2").label[BigInteger]("label3", _.toString)
   doubleLabelledCounterBuilder.build
-  doubleLabelledCounterBuilder.asOpStatus.build
+  doubleLabelledCounterBuilder.asOutcomeRecorder.build
 
   val longCounterBuilder = counterBuilder.ofLong.help("help")
   longCounterBuilder.build

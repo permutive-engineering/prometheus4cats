@@ -147,18 +147,18 @@ final class MetricDsl[F[_], A, M[_[_], _], L[_[_], _, _]] private[openmetrics4s]
 
 object MetricDsl {
   implicit class CounterSyntax[F[_]: MonadCancelThrow, A](dsl: MetricDsl[F, A, Counter, Counter.Labelled]) {
-    def asOpStatus: BuildStep[F, OpStatus.Aux[F, A, Counter.Labelled]] = new BuildStep(
+    def asOutcomeRecorder: BuildStep[F, OutcomeRecorder.Aux[F, A, Counter.Labelled]] = new BuildStep(
       dsl
         .makeLabelledMetric[Status](IndexedSeq(Label.Name.status))(status => IndexedSeq(status.show))
-        .map(OpStatus.fromCounter(_))
+        .map(OutcomeRecorder.fromCounter(_))
     )
   }
 
   implicit class GaugeSyntax[F[_]: MonadCancelThrow, A](dsl: MetricDsl[F, A, Gauge, Gauge.Labelled]) {
-    def asOpStatus: BuildStep[F, OpStatus.Aux[F, A, Gauge.Labelled]] = new BuildStep(
+    def asOutcomeRecorder: BuildStep[F, OutcomeRecorder.Aux[F, A, Gauge.Labelled]] = new BuildStep(
       dsl
         .makeLabelledMetric[Status](IndexedSeq(Label.Name.status))(status => IndexedSeq(status.show))
-        .map(OpStatus.fromGauge(_))
+        .map(OutcomeRecorder.fromGauge(_))
     )
   }
 }
@@ -173,24 +173,24 @@ object BaseLabelsBuildStep {
   implicit class CounterSyntax[F[_]: MonadCancelThrow, A, T, N <: Nat](
       dsl: BaseLabelsBuildStep[F, A, T, N, Counter.Labelled]
   ) {
-    def asOpStatus: BuildStep[F, OpStatus.Labelled.Aux[F, A, T, Counter.Labelled]] = new BuildStep(
+    def asOutcomeRecorder: BuildStep[F, OutcomeRecorder.Labelled.Aux[F, A, T, Counter.Labelled]] = new BuildStep(
       dsl
         .makeLabelledMetric[(T, Status)](dsl.labelNames.unsized :+ Label.Name.status) { case (t, status) =>
           dsl.f(t).unsized :+ status.show
         }
-        .map(OpStatus.Labelled.fromCounter(_))
+        .map(OutcomeRecorder.Labelled.fromCounter(_))
     )
   }
 
   implicit class GaugeSyntax[F[_]: MonadCancelThrow, A, T, N <: Nat](
       dsl: BaseLabelsBuildStep[F, A, T, N, Gauge.Labelled]
   ) {
-    def asOpStatus: BuildStep[F, OpStatus.Labelled.Aux[F, A, T, Gauge.Labelled]] = new BuildStep(
+    def asOutcomeRecorder: BuildStep[F, OutcomeRecorder.Labelled.Aux[F, A, T, Gauge.Labelled]] = new BuildStep(
       dsl
         .makeLabelledMetric[(T, Status)](dsl.labelNames.unsized :+ Label.Name.status) { case (t, status) =>
           dsl.f(t).unsized :+ status.show
         }
-        .map(OpStatus.Labelled.fromGauge(_))
+        .map(OutcomeRecorder.Labelled.fromGauge(_))
     )
   }
 }

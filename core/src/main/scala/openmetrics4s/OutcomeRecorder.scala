@@ -21,16 +21,16 @@ import cats.effect.kernel.{MonadCancelThrow, Outcome}
 import cats.syntax.flatMap._
 import cats.~>
 
-/** A derived metric type that records the outcome of an operation. See [[OpStatus.fromCounter]] and
-  * [[OpStatus.fromGauge]] for more information.
+/** A derived metric type that records the outcome of an operation. See [[OutcomeRecorder.fromCounter]] and
+  * [[OutcomeRecorder.fromGauge]] for more information.
   */
-sealed abstract class OpStatus[F[_]: MonadCancelThrow] { self =>
+sealed abstract class OutcomeRecorder[F[_]: MonadCancelThrow] { self =>
   type Metric
 
   /** Surround an operation and evaluate its outcome using an instance of [[cats.effect.kernel.MonadCancel]].
     *
-    * The resulting metrics depend on the underlying implementation. See [[OpStatus.fromCounter]] and
-    * [[OpStatus.fromGauge]] for more details.
+    * The resulting metrics depend on the underlying implementation. See [[OutcomeRecorder.fromCounter]] and
+    * [[OutcomeRecorder.fromGauge]] for more details.
     *
     * @param fa
     *   operation to be evaluated
@@ -47,7 +47,7 @@ sealed abstract class OpStatus[F[_]: MonadCancelThrow] { self =>
 
   protected def onSucceeded: F[Unit]
 
-  def mapK[G[_]: MonadCancelThrow](fk: F ~> G): OpStatus[G] = new OpStatus[G] {
+  def mapK[G[_]: MonadCancelThrow](fk: F ~> G): OutcomeRecorder[G] = new OutcomeRecorder[G] {
     override type Metric = self.Metric
 
     override protected def onCanceled: G[Unit] = fk(self.onCanceled)
@@ -58,26 +58,27 @@ sealed abstract class OpStatus[F[_]: MonadCancelThrow] { self =>
   }
 }
 
-object OpStatus {
+object OutcomeRecorder {
 
-  type Aux[F[_], A, M[_[_], _, _]] = OpStatus[F] {
+  type Aux[F[_], A, M[_[_], _, _]] = OutcomeRecorder[F] {
     type Metric = M[F, A, Status]
   }
 
-  /** Create an [[OpStatus]] from a [[Counter.Labelled]] instance, where its only label type is [[Status]].
+  /** Create an [[OutcomeRecorder]] from a [[Counter.Labelled]] instance, where its only label type is [[Status]].
     *
     * This works by incrementing a counter with a label value that corresponds to the value [[Status]] on each
     * invocation.
     *
-    * The best way to construct a counter based [[OpStatus]] is to use the `.asOpStatus` on the counter DSL provided by
-    * [[MetricsFactory]].
+    * The best way to construct a counter based [[OutcomeRecorder]] is to use the `.asOutcomeRecorder` on the counter
+    * DSL provided by [[MetricsFactory]].
     *
     * @return
-    *   an [[OpStatus.Aux]] that is annotated with the type of underlying metric, in this case [[Counter.Labelled]]
+    *   an [[OutcomeRecorder.Aux]] that is annotated with the type of underlying metric, in this case
+    *   [[Counter.Labelled]]
     */
   def fromCounter[F[_]: MonadCancelThrow, A](
       counter: Counter.Labelled[F, A, Status]
-  ): OpStatus.Aux[F, A, Counter.Labelled] = new OpStatus[F] {
+  ): OutcomeRecorder.Aux[F, A, Counter.Labelled] = new OutcomeRecorder[F] {
     override type Metric = Counter.Labelled[F, A, Status]
 
     override protected val onCanceled: F[Unit] = counter.inc(Status.Canceled)
@@ -87,19 +88,21 @@ object OpStatus {
     override protected val onSucceeded: F[Unit] = counter.inc(Status.Succeeded)
   }
 
-  /** Create an [[OpStatus]] from a [[Gauge.Labelled]] instance, where its only label type is [[Status]].
+  /** Create an [[OutcomeRecorder]] from a [[Gauge.Labelled]] instance, where its only label type is [[Status]].
     *
     * This works by setting gauge with a label value that corresponds to the value of [[Status]] to `1` on each
     * invocation, while the other statuses are set to `0`.
     *
-    * The best way to construct a gauge based [[OpStatus]] is to use the `.asOpStatus` on the gauge DSL provided by
-    * [[MetricsFactory]].
+    * The best way to construct a gauge based [[OutcomeRecorder]] is to use the `.asOutcomeRecorder` on the gauge DSL
+    * provided by [[MetricsFactory]].
     *
     * @return
-    *   an [[OpStatus.Aux]] that is annotated with the type of underlying metric, in this case [[Gauge.Labelled]]
+    *   an [[OutcomeRecorder.Aux]] that is annotated with the type of underlying metric, in this case [[Gauge.Labelled]]
     */
-  def fromGauge[F[_]: MonadCancelThrow, A](gauge: Gauge.Labelled[F, A, Status]): OpStatus.Aux[F, A, Gauge.Labelled] =
-    new OpStatus[F] {
+  def fromGauge[F[_]: MonadCancelThrow, A](
+      gauge: Gauge.Labelled[F, A, Status]
+  ): OutcomeRecorder.Aux[F, A, Gauge.Labelled] =
+    new OutcomeRecorder[F] {
       override type Metric = Gauge.Labelled[F, A, Status]
 
       override protected val onCanceled: F[Unit] =
@@ -112,20 +115,19 @@ object OpStatus {
         (gauge.reset(Status.Canceled) >> gauge.reset(Status.Errored) >> gauge.inc(Status.Succeeded)).uncancelable
     }
 
-  /** A derived metric type that records the outcome of an operation. See [[OpStatus.Labelled.fromCounter]] and
-    * [[OpStatus.Labelled.fromGauge]] for more information.
+  /** A derived metric type that records the outcome of an operation. See [[OutcomeRecorder.Labelled.fromCounter]] and
+    * [[OutcomeRecorder.Labelled.fromGauge]] for more information.
     */
   sealed abstract class Labelled[F[_]: MonadCancelThrow, A] { self =>
     type Metric
 
     /** Surround an operation and evaluate its outcome using an instance of [[cats.effect.kernel.MonadCancel]].
       *
-      * The resulting metrics depend on the underlying implementation. See [[OpStatus.Labelled.fromCounter]] and
-      * [[OpStatus.Labelled.fromGauge]] for more details.
+      * The resulting metrics depend on the underlying implementation. See [[OutcomeRecorder.Labelled.fromCounter]] and
+      * [[OutcomeRecorder.Labelled.fromGauge]] for more details.
       *
       * @param fb
       *   operation to be evaluated
-      *
       * @param labels
       *   labels to add to the underlying metric
       */
@@ -138,8 +140,8 @@ object OpStatus {
     /** Surround an operation and evaluate its outcome using an instance of [[cats.effect.kernel.MonadCancel]],
       * computing additional labels from the result.
       *
-      * The resulting metrics depend on the underlying implementation. See [[OpStatus.Labelled.fromCounter]] and
-      * [[OpStatus.Labelled.fromGauge]] for more details.
+      * The resulting metrics depend on the underlying implementation. See [[OutcomeRecorder.Labelled.fromCounter]] and
+      * [[OutcomeRecorder.Labelled.fromGauge]] for more details.
       *
       * @param fb
       *   operation to be evaluated
@@ -187,26 +189,26 @@ object OpStatus {
   }
 
   object Labelled {
-    type Aux[F[_], A, B, M[_[_], _, _]] = OpStatus.Labelled[F, B] {
+    type Aux[F[_], A, B, M[_[_], _, _]] = OutcomeRecorder.Labelled[F, B] {
       type Metric = M[F, A, (B, Status)]
     }
 
-    /** Create an [[OpStatus]] from a [[Counter.Labelled]] instance, where its labels type is a tuple of the original
-      * labels of the counter and [[Status]].
+    /** Create an [[OutcomeRecorder]] from a [[Counter.Labelled]] instance, where its labels type is a tuple of the
+      * original labels of the counter and [[Status]].
       *
       * This works by incrementing a counter with a label value that corresponds to the value [[Status]] on each
       * invocation.
       *
-      * The best way to construct a counter based [[OpStatus]] is to use the `.asOpStatus` on the counter DSL provided
-      * by [[MetricsFactory]].
+      * The best way to construct a counter based [[OutcomeRecorder]] is to use the `.asOutcomeRecorder` on the counter
+      * DSL provided by [[MetricsFactory]].
       *
       * @return
-      *   an [[OpStatus.Labelled.Aux]] that is annotated with the type of underlying metric, in this case
+      *   an [[OutcomeRecorder.Labelled.Aux]] that is annotated with the type of underlying metric, in this case
       *   [[Counter.Labelled]]
       */
     def fromCounter[F[_]: MonadCancelThrow, A, B](
         counter: Counter.Labelled[F, A, (B, Status)]
-    ): OpStatus.Labelled.Aux[F, A, B, Counter.Labelled] = new OpStatus.Labelled[F, B] {
+    ): OutcomeRecorder.Labelled.Aux[F, A, B, Counter.Labelled] = new OutcomeRecorder.Labelled[F, B] {
       override type Metric = Counter.Labelled[F, A, (B, Status)]
 
       override protected def onCanceled(labels: B): F[Unit] = counter.inc((labels, Status.Canceled))
@@ -216,23 +218,23 @@ object OpStatus {
       override protected def onSucceeded(labels: B): F[Unit] = counter.inc((labels, Status.Succeeded))
     }
 
-    /** Create an [[OpStatus]] from a [[Gauge.Labelled]] instance, where its only label type is a tuple of the original
-      * labels of the counter and [[Status]].
+    /** Create an [[OutcomeRecorder]] from a [[Gauge.Labelled]] instance, where its only label type is a tuple of the
+      * original labels of the counter and [[Status]].
       *
       * This works by setting gauge with a label value that corresponds to the value of [[Status]] to `1` on each
       * invocation, while the other statuses are set to `0`.
       *
-      * The best way to construct a gauge based [[OpStatus]] is to use the `.asOpStatus` on the gauge DSL provided by
-      * [[MetricsFactory]].
+      * The best way to construct a gauge based [[OutcomeRecorder]] is to use the `.asOutcomeRecorder` on the gauge DSL
+      * provided by [[MetricsFactory]].
       *
       * @return
-      *   an [[OpStatus.Labelled.Aux]] that is annotated with the type of underlying metric, in this case
+      *   an [[OutcomeRecorder.Labelled.Aux]] that is annotated with the type of underlying metric, in this case
       *   [[Gauge.Labelled]]
       */
     def fromGauge[F[_]: MonadCancelThrow, A, B](
         gauge: Gauge.Labelled[F, A, (B, Status)]
-    ): OpStatus.Labelled.Aux[F, A, B, Gauge.Labelled] =
-      new OpStatus.Labelled[F, B] {
+    ): OutcomeRecorder.Labelled.Aux[F, A, B, Gauge.Labelled] =
+      new OutcomeRecorder.Labelled[F, B] {
         override type Metric = Gauge.Labelled[F, A, (B, Status)]
 
         override protected def onCanceled(labels: B): F[Unit] =

@@ -64,7 +64,7 @@ object Timer {
     *
     * Values are recorded in [[scala.Double]]s by converting a [[scala.concurrent.duration.FiniteDuration]] to seconds.
     *
-    * * The best way to construct a histogram based [[Timer]] is to use the `.asTimer` on the counter DSL provided by
+    * * The best way to construct a histogram based [[Timer]] is to use the `.asTimer` on the histogram DSL provided by
     * [[MetricsFactory]].
     *
     * @return
@@ -83,7 +83,7 @@ object Timer {
     *
     * Values are recorded in [[scala.Double]]s by converting a [[scala.concurrent.duration.FiniteDuration]] to seconds.
     *
-    * * The best way to construct a gauge based [[Timer]] is to use the `.asTimer` on the counter DSL provided by
+    * * The best way to construct a gauge based [[Timer]] is to use the `.asTimer` on the gauge DSL provided by
     * [[MetricsFactory]].
     *
     * @return
@@ -183,7 +183,7 @@ object Timer {
       * Values are recorded in [[scala.Double]]s by converting a [[scala.concurrent.duration.FiniteDuration]] to
       * seconds.
       *
-      * * The best way to construct a histogram based [[Timer.Labelled]] is to use the `.asTimer` on the counter DSL
+      * * The best way to construct a histogram based [[Timer.Labelled]] is to use the `.asTimer` on the histogram DSL
       * provided by [[MetricsFactory]].
       *
       * @return
@@ -208,7 +208,7 @@ object Timer {
       * Values are recorded in [[scala.Double]]s by converting a [[scala.concurrent.duration.FiniteDuration]] to
       * seconds.
       *
-      * * The best way to construct a gauge based [[Timer.Labelled]] is to use the `.asTimer` on the counter DSL
+      * * The best way to construct a gauge based [[Timer.Labelled]] is to use the `.asTimer` on the histogram DSL
       * provided by [[MetricsFactory]].
       *
       * @return
