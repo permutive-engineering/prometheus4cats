@@ -220,6 +220,9 @@ final class LabelledMetricDsl[F[_], A, T, N <: Nat, L[_[_], _, _]] private[inter
     with NextLabelsStep[F, A, T, N, L]
     with BaseLabelsBuildStep[F, A, T, N, L] {
 
+  def contramap[B](f: B => A)(implicit F: Functor[F], L: Contravariant[L[F, *, T]]): BuildStep[F, L[F, B, T]] =
+    map(x => L.contramap(x)(f))
+
   /** @inheritdoc
     */
   override def label[B]: LabelApply[F, A, T, N, B, L] =
