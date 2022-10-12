@@ -18,6 +18,7 @@ package openmetrics4s
 
 import java.math.BigInteger
 
+import cats.Contravariant
 import cats.effect.IO
 
 object MetricsFactoryDslTest {
@@ -28,14 +29,21 @@ object MetricsFactoryDslTest {
   val doubleGaugeBuilder = gaugeBuilder.ofDouble.help("help")
   doubleGaugeBuilder.build
   doubleGaugeBuilder.resource
+  doubleGaugeBuilder.contramap[Int](_.toDouble).build
   doubleGaugeBuilder.asTimer.build
   doubleGaugeBuilder.asOutcomeRecorder.build
 
   val doubleLabelledGaugeBuilder =
     doubleGaugeBuilder.label[String]("label1").label[Int]("label2").label[BigInteger]("label3", _.toString)
   doubleLabelledGaugeBuilder.build
+  doubleLabelledGaugeBuilder.contramap[Int](_.toDouble)
+  doubleLabelledGaugeBuilder.contramapLabels[String](s => ???)
   doubleLabelledGaugeBuilder.asTimer.build
   doubleLabelledGaugeBuilder.asOutcomeRecorder.build
+
+//  Contravariant[Gauge.Labelled[IO, Double, *]]
+//
+//  LabelsContravariant[Gauge.Labelled[IO, *, String]]
 
   val doubleLabelsGaugeBuilder = doubleGaugeBuilder.labels(Sized(Label.Name("test")))((s: String) => Sized(s)).build
 

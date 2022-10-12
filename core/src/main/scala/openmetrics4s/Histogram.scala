@@ -112,12 +112,14 @@ object Histogram {
   }
 
   object Labelled {
-    implicit def catsInstances[F[_], C, D]
-        : Contravariant[Labelled[F, *, C]] with LabelsContravariant[Labelled[F, D, *]] =
-      new Contravariant[Labelled[F, *, C]] with LabelsContravariant[Labelled[F, D, *]] {
+    implicit def catsInstances[F[_], C]: Contravariant[Labelled[F, *, C]] =
+      new Contravariant[Labelled[F, *, C]] {
         override def contramap[A, B](fa: Labelled[F, A, C])(f: B => A): Labelled[F, B, C] = fa.contramap(f)
+      }
 
-        override def contramapLabels[A, B](fa: Labelled[F, D, A])(f: B => A): Labelled[F, D, B] = fa.contramapLabels(f)
+    implicit def labelsContravariant[F[_], C]: LabelsContravariant[Labelled[F, C, *]] =
+      new LabelsContravariant[Labelled[F, C, *]] {
+        override def contramapLabels[A, B](fa: Labelled[F, C, A])(f: B => A): Labelled[F, C, B] = fa.contramapLabels(f)
       }
 
     def make[F[_], A, B](

@@ -193,6 +193,11 @@ object OutcomeRecorder {
       type Metric = M[F, A, (B, Status)]
     }
 
+    implicit def labelsContravariant[F[_]]: LabelsContravariant[Labelled[F, *]] =
+      new LabelsContravariant[Labelled[F, *]] {
+        override def contramapLabels[A, B](fa: Labelled[F, A])(f: B => A): Labelled[F, B] = fa.contramapLabels(f)
+      }
+
     /** Create an [[OutcomeRecorder]] from a [[Counter.Labelled]] instance, where its labels type is a tuple of the
       * original labels of the counter and [[Status]].
       *

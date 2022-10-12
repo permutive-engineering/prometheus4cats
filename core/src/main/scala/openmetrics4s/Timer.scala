@@ -171,9 +171,10 @@ object Timer {
       type Metric = M[F, N, A]
     }
 
-    implicit def instances[F[_]]: LabelsContravariant[Labelled[F, *]] = new LabelsContravariant[Labelled[F, *]] {
-      override def contramapLabels[A, B](fa: Labelled[F, A])(f: B => A): Labelled[F, B] = fa.contramapLabels(f)
-    }
+    implicit def labelsContravariant[F[_]]: LabelsContravariant[Labelled[F, *]] =
+      new LabelsContravariant[Labelled[F, *]] {
+        override def contramapLabels[A, B](fa: Labelled[F, A])(f: B => A): Labelled[F, B] = fa.contramapLabels(f)
+      }
 
     /** Create a [[Timer.Labelled]] from a [[Histogram.Labelled]] instance.
       *

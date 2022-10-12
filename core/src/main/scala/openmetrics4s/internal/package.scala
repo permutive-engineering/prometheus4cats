@@ -71,11 +71,11 @@ object BuildStep {
     }
 
   implicit class ContravariantSyntax[F[_]: Functor, M[_]: Contravariant, A](bs: BuildStep[F, M[A]]) {
-    def contramap[B](f: B => A): F[M[B]] = bs.build.map(_.contramap(f))
+    def contramap[B](f: B => A): BuildStep[F, M[B]] = bs.map(_.contramap(f))
   }
 
   implicit class LabelsContravariantSyntax[F[_]: Functor, M[_]: LabelsContravariant, A](bs: BuildStep[F, M[A]]) {
-    def contramapLabels[B](f: B => A): F[M[B]] = bs.build.map(LabelsContravariant[M].contramapLabels(_)(f))
+    def contramapLabels[B](f: B => A): BuildStep[F, M[B]] = bs.map(LabelsContravariant[M].contramapLabels(_)(f))
   }
 }
 
