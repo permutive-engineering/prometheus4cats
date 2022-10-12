@@ -23,6 +23,8 @@ val Munit = "0.7.29"
 
 val MunitCe3 = "1.0.7"
 
+val ScalacheckEffect = "1.0.4"
+
 ThisBuild / crossScalaVersions := Seq("2.12.15", "3.2.0", Scala213)
 ThisBuild / scalaVersion := crossScalaVersions.value.last
 
@@ -39,7 +41,8 @@ lazy val core = project
       "org.typelevel" %% "cats-effect-testkit" % CatsEffect % Test,
       "org.scalameta" %%% "munit" % Munit % Test,
       "org.typelevel" %% "munit-cats-effect-3" % MunitCe3,
-      "org.scalameta" %% "munit-scalacheck" % Munit % Test
+      "org.scalameta" %% "munit-scalacheck" % Munit % Test,
+      "org.typelevel" %% "scalacheck-effect-munit" % ScalacheckEffect % Test
     ),
     libraryDependencies ++= PartialFunction
       .condOpt(CrossVersion.partialVersion(scalaVersion.value)) { case Some((2, _)) =>
@@ -64,7 +67,8 @@ lazy val testkit = project
       "org.typelevel" %% "cats-effect-testkit" % CatsEffect,
       "org.scalameta" %% "munit" % Munit,
       "org.typelevel" %% "munit-cats-effect-3" % MunitCe3,
-      "org.scalameta" %% "munit-scalacheck" % Munit
+      "org.scalameta" %% "munit-scalacheck" % Munit,
+      "org.typelevel" %% "scalacheck-effect-munit" % ScalacheckEffect
     )
   )
   .dependsOn(core)

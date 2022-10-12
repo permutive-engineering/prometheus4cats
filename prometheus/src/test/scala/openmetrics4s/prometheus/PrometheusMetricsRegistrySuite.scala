@@ -22,17 +22,17 @@ import cats.effect.IO
 import cats.effect.kernel.Resource
 import cats.syntax.either._
 import io.prometheus.client.CollectorRegistry
-import munit.ScalaCheckSuite
+import munit.CatsEffectSuite
+import openmetrics4s._
 import openmetrics4s.testkit.MetricsRegistrySuite
 import openmetrics4s.util.NameUtils
-import openmetrics4s._
-import org.scalacheck.Prop._
+import org.scalacheck.effect.PropF._
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.noop.NoOpLogger
 
 import scala.jdk.CollectionConverters._
 
-class PrometheusMetricsRegistrySuite extends ScalaCheckSuite with MetricsRegistrySuite[CollectorRegistry] {
+class PrometheusMetricsRegistrySuite extends CatsEffectSuite with MetricsRegistrySuite[CollectorRegistry] {
   implicit val logger: Logger[IO] = NoOpLogger.impl
 
   override val stateResource: Resource[IO, CollectorRegistry] = Resource.eval(IO.delay(new CollectorRegistry()))
@@ -115,8 +115,8 @@ class PrometheusMetricsRegistrySuite extends ScalaCheckSuite with MetricsRegistr
         }
     }
 
-  property("returns an existing metric when labels and name are the same") {
-    forAll {
+  test("returns an existing metric when labels and name are the same") {
+    forAllF {
       (
           prefix: Option[Metric.Prefix],
           name: Counter.Name,
@@ -124,7 +124,7 @@ class PrometheusMetricsRegistrySuite extends ScalaCheckSuite with MetricsRegistr
           commonLabels: Metric.CommonLabels,
           labels: Set[Label.Name]
       ) =>
-        exec(stateResource.flatMap(registryResource).use { reg =>
+        stateResource.flatMap(registryResource).use { reg =>
           val metric = reg
             .createAndRegisterLabelledDoubleCounter[Map[Label.Name, String]](
               prefix,
@@ -138,12 +138,12 @@ class PrometheusMetricsRegistrySuite extends ScalaCheckSuite with MetricsRegistr
             _ <- metric
             _ <- metric
           } yield ()
-        })
+        }
     }
   }
 
-  property("fails when a metric with the same name and different labels") {
-    forAll {
+  test("fails when a metric with the same name and different labels") {
+    forAllF {
       (
           prefix: Option[Metric.Prefix],
           name: Counter.Name,
@@ -152,43 +152,43 @@ class PrometheusMetricsRegistrySuite extends ScalaCheckSuite with MetricsRegistr
           labels: Set[Label.Name],
           labelName2: Label.Name
       ) =>
-        val res = exec(
-          stateResource
-            .flatMap(registryResource)
-            .use { reg =>
-              for {
-                _ <- reg
-                  .createAndRegisterLabelledDoubleCounter[Map[Label.Name, String]](
-                    prefix,
-                    name,
-                    help,
-                    commonLabels,
-                    labels.toIndexedSeq
-                  )(_.values.toIndexedSeq)
-                _ <- reg
-                  .createAndRegisterLabelledDoubleCounter[Map[Label.Name, String]](
-                    prefix,
-                    name,
-                    help,
-                    commonLabels,
-                    IndexedSeq(labelName2)
-                  )(_.values.toIndexedSeq)
-              } yield ()
-            }
-            .attempt
-        )
+        stateResource
+          .flatMap(registryResource)
+          .use { reg =>
+            for {
+              _ <- reg
+                .createAndRegisterLabelledDoubleCounter[Map[Label.Name, String]](
+                  prefix,
+                  name,
+                  help,
+                  commonLabels,
+                  labels.toIndexedSeq
+                )(_.values.toIndexedSeq)
+              _ <- reg
+                .createAndRegisterLabelledDoubleCounter[Map[Label.Name, String]](
+                  prefix,
+                  name,
+                  help,
+                  commonLabels,
+                  IndexedSeq(labelName2)
+                )(_.values.toIndexedSeq)
+            } yield ()
+          }
+          .attempt
+          .map { res =>
+            assertEquals(
+              res.leftMap(_.getMessage),
+              Left(
+                s"A metric with the same name as '${NameUtils.makeName(prefix, name.value.replace("_total", ""))}' is already registered with different labels and/or type"
+              )
+            )
+          }
 
-        assertEquals(
-          res.leftMap(_.getMessage),
-          Left(
-            s"A metric with the same name as '${NameUtils.makeName(prefix, name.value.replace("_total", ""))}' is already registered with different labels and/or type"
-          )
-        )
     }
   }
 
-  property("fails when a metric with the same name and different type") {
-    forAll {
+  test("fails when a metric with the same name and different type") {
+    forAllF {
       (
           prefix: Option[Metric.Prefix],
           name: Metric.Prefix,
@@ -199,38 +199,37 @@ class PrometheusMetricsRegistrySuite extends ScalaCheckSuite with MetricsRegistr
         val counterName = Counter.Name.from(s"${name.value}_total").toOption.get
         val gaugeName = Gauge.Name.from(name.value).toOption.get
 
-        val res = exec(
-          stateResource
-            .flatMap(registryResource)
-            .use { reg =>
-              for {
-                _ <- reg
-                  .createAndRegisterLabelledDoubleCounter[Map[Label.Name, String]](
-                    prefix,
-                    counterName,
-                    help,
-                    commonLabels,
-                    labels.toIndexedSeq
-                  )(_.values.toIndexedSeq)
-                _ <- reg
-                  .createAndRegisterLabelledDoubleGauge[Map[Label.Name, String]](
-                    prefix,
-                    gaugeName,
-                    help,
-                    commonLabels,
-                    labels.toIndexedSeq
-                  )(_.values.toIndexedSeq)
-              } yield ()
-            }
-            .attempt
-        )
-
-        assertEquals(
-          res.leftMap(_.getMessage),
-          Left(
-            s"A metric with the same name as '${NameUtils.makeName(prefix, gaugeName)}' is already registered with different labels and/or type"
-          )
-        )
+        stateResource
+          .flatMap(registryResource)
+          .use { reg =>
+            for {
+              _ <- reg
+                .createAndRegisterLabelledDoubleCounter[Map[Label.Name, String]](
+                  prefix,
+                  counterName,
+                  help,
+                  commonLabels,
+                  labels.toIndexedSeq
+                )(_.values.toIndexedSeq)
+              _ <- reg
+                .createAndRegisterLabelledDoubleGauge[Map[Label.Name, String]](
+                  prefix,
+                  gaugeName,
+                  help,
+                  commonLabels,
+                  labels.toIndexedSeq
+                )(_.values.toIndexedSeq)
+            } yield ()
+          }
+          .attempt
+          .map { res =>
+            assertEquals(
+              res.leftMap(_.getMessage),
+              Left(
+                s"A metric with the same name as '${NameUtils.makeName(prefix, gaugeName)}' is already registered with different labels and/or type"
+              )
+            )
+          }
     }
   }
 }

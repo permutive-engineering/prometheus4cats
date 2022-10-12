@@ -19,16 +19,16 @@ package openmetrics4s.testkit
 import cats.data.NonEmptySeq
 import cats.effect.IO
 import cats.effect.kernel.Resource
-import cats.effect.testkit.TestInstances
-import munit.ScalaCheckSuite
+import cats.effect.testkit.TestControl
+import munit.{CatsEffectSuite, ScalaCheckEffectSuite}
 import openmetrics4s.Metric.CommonLabels
 import openmetrics4s._
-import org.scalacheck.Prop._
+import org.scalacheck.effect.PropF._
 import org.scalacheck.{Arbitrary, Gen}
 
 import scala.concurrent.duration._
 
-trait MetricsRegistrySuite[State] extends TestInstances { self: ScalaCheckSuite =>
+trait MetricsRegistrySuite[State] extends ScalaCheckEffectSuite { self: CatsEffectSuite =>
   def stateResource: Resource[IO, State]
   def registryResource(state: State): Resource[IO, MetricsRegistry[IO]]
 
@@ -64,17 +64,6 @@ trait MetricsRegistrySuite[State] extends TestInstances { self: ScalaCheckSuite 
   implicit val commonLabelsArb: Arbitrary[Metric.CommonLabels] =
     Arbitrary(labelMapArb.arbitrary.flatMap(map => Gen.oneOf(CommonLabels.from(map).toOption)))
 
-  private val time: FiniteDuration = 0.nanos
-
-  def exec[A](fa: IO[A], tickBy: FiniteDuration = 1.second): A = {
-    implicit val ticker: Ticker = Ticker()
-
-    val res = fa.unsafeToFuture()
-    ticker.ctx.tickAll()
-    ticker.ctx.advanceAndTick(tickBy)
-    res.value.get.get
-  }
-
   def getCounterValue(
       state: State,
       prefix: Option[Metric.Prefix],
@@ -103,8 +92,8 @@ trait MetricsRegistrySuite[State] extends TestInstances { self: ScalaCheckSuite 
       extraLabels: Map[Label.Name, String] = Map.empty
   ): IO[Option[Map[String, Double]]]
 
-  property("create and increment a counter") {
-    forAll {
+  test("create and increment a counter") {
+    forAllF {
       (
           prefix: Option[Metric.Prefix],
           name: Counter.Name,
@@ -112,7 +101,7 @@ trait MetricsRegistrySuite[State] extends TestInstances { self: ScalaCheckSuite 
           commonLabels: Metric.CommonLabels,
           incBy: Double
       ) =>
-        exec(stateResource.use { state =>
+        stateResource.use { state =>
           registryResource(state).use { reg =>
             reg
               .createAndRegisterDoubleCounter(prefix, name, help, commonLabels)
@@ -125,12 +114,12 @@ trait MetricsRegistrySuite[State] extends TestInstances { self: ScalaCheckSuite 
             ).map(res => if (incBy >= 0) assertEquals(res, Some(incBy)) else assertEquals(res, Some(0.0)))
 
           }
-        })
+        }
     }
   }
 
-  property("create and increment a labelled counter") {
-    forAll {
+  test("create and increment a labelled counter") {
+    forAllF {
       (
           prefix: Option[Metric.Prefix],
           name: Counter.Name,
@@ -139,7 +128,7 @@ trait MetricsRegistrySuite[State] extends TestInstances { self: ScalaCheckSuite 
           labels: Map[Label.Name, String],
           incBy: Double
       ) =>
-        exec(stateResource.use { state =>
+        stateResource.use { state =>
           registryResource(state).use { reg =>
             reg
               .createAndRegisterLabelledDoubleCounter[Map[Label.Name, String]](
@@ -158,12 +147,12 @@ trait MetricsRegistrySuite[State] extends TestInstances { self: ScalaCheckSuite 
               labels
             ).map(res => if (incBy >= 0) assertEquals(res, Some(incBy)) else assertEquals(res, Some(0.0)))
           }
-        })
+        }
     }
   }
 
-  property("create and update a gauge") {
-    forAll {
+  test("create and update a gauge") {
+    forAllF {
       (
           prefix: Option[Metric.Prefix],
           name: Gauge.Name,
@@ -173,8 +162,8 @@ trait MetricsRegistrySuite[State] extends TestInstances { self: ScalaCheckSuite 
           inc: Double,
           dec: Double
       ) =>
-        exec(
-          stateResource.use { state =>
+        TestControl
+          .executeEmbed(stateResource.use { state =>
             registryResource(state).use { reg =>
               val get = getGaugeValue(
                 state,
@@ -198,23 +187,22 @@ trait MetricsRegistrySuite[State] extends TestInstances { self: ScalaCheckSuite 
                 decValue <- get
                 _ <- gauge.setToCurrentTime
                 timeValue <- get
-              } yield {
-                assertEquals(setValue, Some(set))
-                assertEquals(incOneValue, setValue.map(_ + 1))
-                assertEquals(incValue, incOneValue.map(_ + inc))
-                assertEquals(decOneValue, incValue.map(_ - 1))
-                assertEquals(decValue, decOneValue.map(_ - dec))
-                assertEquals(timeValue, Some(time.toSeconds.toDouble))
-              }
-
+              } yield (setValue, incOneValue, incValue, decOneValue, decValue, timeValue)
             }
+          })
+          .map { case (setValue, incOneValue, incValue, decOneValue, decValue, timeValue) =>
+            assertEquals(setValue, Some(set))
+            assertEquals(incOneValue, setValue.map(_ + 1))
+            assertEquals(incValue, incOneValue.map(_ + inc))
+            assertEquals(decOneValue, incValue.map(_ - 1))
+            assertEquals(decValue, decOneValue.map(_ - dec))
+            assertEquals(timeValue, Some(0.seconds.toSeconds.toDouble))
           }
-        )
     }
   }
 
-  property("create and set a labelled gauge") {
-    forAll {
+  test("create and set a labelled gauge") {
+    forAllF {
       (
           prefix: Option[Metric.Prefix],
           name: Gauge.Name,
@@ -225,8 +213,8 @@ trait MetricsRegistrySuite[State] extends TestInstances { self: ScalaCheckSuite 
           inc: Double,
           dec: Double
       ) =>
-        exec(
-          stateResource.use { state =>
+        TestControl
+          .executeEmbed(stateResource.use { state =>
             registryResource(state).use { reg =>
               val get = getGaugeValue(
                 state,
@@ -257,23 +245,22 @@ trait MetricsRegistrySuite[State] extends TestInstances { self: ScalaCheckSuite 
                 decValue <- get
                 _ <- gauge.setToCurrentTime(labels)
                 timeValue <- get
-              } yield {
-                assertEquals(setValue, Some(set))
-                assertEquals(incOneValue, setValue.map(_ + 1))
-                assertEquals(incValue, incOneValue.map(_ + inc))
-                assertEquals(decOneValue, incValue.map(_ - 1))
-                assertEquals(decValue, decOneValue.map(_ - dec))
-                assertEquals(timeValue, Some(time.toSeconds.toDouble))
-              }
-
+              } yield (setValue, incOneValue, incValue, decOneValue, decValue, timeValue)
             }
+          })
+          .map { case (setValue, incOneValue, incValue, decOneValue, decValue, timeValue) =>
+            assertEquals(setValue, Some(set))
+            assertEquals(incOneValue, setValue.map(_ + 1))
+            assertEquals(incValue, incOneValue.map(_ + inc))
+            assertEquals(decOneValue, incValue.map(_ - 1))
+            assertEquals(decValue, decOneValue.map(_ - dec))
+            assertEquals(timeValue, Some(0.seconds.toSeconds.toDouble))
           }
-        )
     }
   }
 
-  property("create and increment a histogram") {
-    forAll {
+  test("create and increment a histogram") {
+    forAllF {
       (
           prefix: Option[Metric.Prefix],
           name: Histogram.Name,
@@ -281,7 +268,7 @@ trait MetricsRegistrySuite[State] extends TestInstances { self: ScalaCheckSuite 
           commonLabels: Metric.CommonLabels,
           value: Double
       ) =>
-        exec(stateResource.use { state =>
+        stateResource.use { state =>
           registryResource(state).use { reg =>
             val buckets = NonEmptySeq.of[Double](0, value).sorted
 
@@ -301,12 +288,12 @@ trait MetricsRegistrySuite[State] extends TestInstances { self: ScalaCheckSuite 
             ).map(res => assertEquals(res, Some(expected)))
 
           }
-        })
+        }
     }
   }
 
-  property("create and increment a labelled histogram") {
-    forAll {
+  test("create and increment a labelled histogram") {
+    forAllF {
       (
           prefix: Option[Metric.Prefix],
           name: Histogram.Name,
@@ -315,7 +302,7 @@ trait MetricsRegistrySuite[State] extends TestInstances { self: ScalaCheckSuite 
           labels: Map[Label.Name, String],
           value: Double
       ) =>
-        exec(stateResource.use { state =>
+        stateResource.use { state =>
           registryResource(state).use { reg =>
             val buckets = NonEmptySeq.of[Double](0, value).sorted
 
@@ -342,7 +329,7 @@ trait MetricsRegistrySuite[State] extends TestInstances { self: ScalaCheckSuite 
               labels
             ).map(res => assertEquals(res, Some(expected)))
           }
-        })
+        }
     }
   }
 }

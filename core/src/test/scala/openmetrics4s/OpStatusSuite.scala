@@ -18,11 +18,11 @@ package openmetrics4s
 
 import cats.effect.{IO, Ref}
 import cats.syntax.semigroup._
-import munit.{CatsEffectSuite, ScalaCheckSuite}
-import org.scalacheck.Prop.{Status => _, _}
+import munit.{CatsEffectSuite, ScalaCheckEffectSuite}
+import org.scalacheck.effect.PropF._
 import org.scalacheck.{Arbitrary, Gen}
 
-class OpStatusSuite extends CatsEffectSuite with ScalaCheckSuite {
+class OpStatusSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
   val opCounter: IO[(OpStatus[IO], IO[Map[Status, Int]])] =
     Ref.of[IO, Map[Status, Int]](Map.empty).map { ref =>
       OpStatus.fromCounter(
@@ -63,32 +63,32 @@ class OpStatusSuite extends CatsEffectSuite with ScalaCheckSuite {
 
   implicit val posInt: Arbitrary[Int] = Arbitrary(Gen.posNum[Int])
 
-  property("op counter should record success") {
-    forAll { (i: Int) =>
+  test("op counter should record success") {
+    forAllF { (i: Int) =>
       val nonZero = Math.abs(i) + 1
 
       opCounter.flatMap { case (counter, res) =>
         counter.surround(IO.unit).replicateA(nonZero) >> res.map(
           assertEquals(_, Map[Status, Int](Status.Succeeded -> nonZero))
         )
-      }.unsafeRunSync()
+      }
     }
   }
 
-  property("op gauge should record success") {
-    forAll { (i: Int) =>
+  test("op gauge should record success") {
+    forAllF { (i: Int) =>
       val nonZero = Math.abs(i) + 1
 
       opGauge.flatMap { case (gauge, res) =>
         gauge.surround(IO.unit).replicateA(nonZero) >> res.map(
           assertEquals(_, Map[Status, Int](Status.Succeeded -> nonZero, Status.Errored -> 0, Status.Canceled -> 0))
         )
-      }.unsafeRunSync()
+      }
     }
   }
 
-  property("op counter should record cancelation") {
-    forAll { (i: Int) =>
+  test("op counter should record cancelation") {
+    forAllF { (i: Int) =>
       val nonZero = Math.abs(i) + 1
 
       opCounter.flatMap { case (counter, res) =>
@@ -99,12 +99,12 @@ class OpStatusSuite extends CatsEffectSuite with ScalaCheckSuite {
           .map(
             assertEquals(_, Map[Status, Int](Status.Canceled -> nonZero))
           )
-      }.unsafeRunSync()
+      }
     }
   }
 
-  property("op gauge should record cancelation") {
-    forAll { (i: Int) =>
+  test("op gauge should record cancelation") {
+    forAllF { (i: Int) =>
       val nonZero = Math.abs(i) + 1
 
       opGauge.flatMap { case (gauge, res) =>
@@ -115,48 +115,48 @@ class OpStatusSuite extends CatsEffectSuite with ScalaCheckSuite {
           .map(
             assertEquals(_, Map[Status, Int](Status.Succeeded -> 0, Status.Errored -> 0, Status.Canceled -> nonZero))
           )
-      }.unsafeRunSync()
+      }
     }
   }
 
-  property("op counter should record failure") {
-    forAll { (i: Int) =>
+  test("op counter should record failure") {
+    forAllF { (i: Int) =>
       val nonZero = Math.abs(i) + 1
 
       opCounter.flatMap { case (counter, res) =>
         counter.surround(IO.raiseError(new RuntimeException())).attempt.replicateA(nonZero) >> res.map(
           assertEquals(_, Map[Status, Int](Status.Errored -> nonZero))
         )
-      }.unsafeRunSync()
+      }
     }
   }
 
-  property("op gauge should record failure") {
-    forAll { (i: Int) =>
+  test("op gauge should record failure") {
+    forAllF { (i: Int) =>
       val nonZero = Math.abs(i) + 1
 
       opGauge.flatMap { case (gauge, res) =>
         gauge.surround(IO.raiseError(new RuntimeException())).attempt.replicateA(nonZero) >> res.map(
           assertEquals(_, Map[Status, Int](Status.Succeeded -> 0, Status.Errored -> nonZero, Status.Canceled -> 0))
         )
-      }.unsafeRunSync()
+      }
     }
   }
 
-  property("op counter should record success with labels") {
-    forAll { (i: Int, s: String) =>
+  test("op counter should record success with labels") {
+    forAllF { (i: Int, s: String) =>
       val nonZero = Math.abs(i) + 1
 
       labelledOpCounter.flatMap { case (counter, res) =>
         counter.surround(IO.unit, s).replicateA(nonZero) >> res.map(
           assertEquals(_, Map[(String, Status), Int]((s, Status.Succeeded) -> nonZero))
         )
-      }.unsafeRunSync()
+      }
     }
   }
 
-  property("op gauge should record success with labels") {
-    forAll { (i: Int, s: String) =>
+  test("op gauge should record success with labels") {
+    forAllF { (i: Int, s: String) =>
       val nonZero = Math.abs(i) + 1
 
       labelledOpGauge.flatMap { case (gauge, res) =>
@@ -170,12 +170,12 @@ class OpStatusSuite extends CatsEffectSuite with ScalaCheckSuite {
             )
           )
         )
-      }.unsafeRunSync()
+      }
     }
   }
 
-  property("op counter should record cancelation with labels") {
-    forAll { (i: Int, s: String) =>
+  test("op counter should record cancelation with labels") {
+    forAllF { (i: Int, s: String) =>
       val nonZero = Math.abs(i) + 1
 
       labelledOpCounter.flatMap { case (counter, res) =>
@@ -185,12 +185,12 @@ class OpStatusSuite extends CatsEffectSuite with ScalaCheckSuite {
           .replicateA(nonZero) >> res.map(
           assertEquals(_, Map[(String, Status), Int]((s, Status.Canceled) -> nonZero))
         )
-      }.unsafeRunSync()
+      }
     }
   }
 
-  property("op counter should record cancelation with labels") {
-    forAll { (i: Int, s: String) =>
+  test("op counter should record cancelation with labels") {
+    forAllF { (i: Int, s: String) =>
       val nonZero = Math.abs(i) + 1
 
       labelledOpGauge.flatMap { case (gauge, res) =>
@@ -207,24 +207,24 @@ class OpStatusSuite extends CatsEffectSuite with ScalaCheckSuite {
             )
           )
         )
-      }.unsafeRunSync()
+      }
     }
   }
 
-  property("op counter should record failure with labels") {
-    forAll { (i: Int, s: String) =>
+  test("op counter should record failure with labels") {
+    forAllF { (i: Int, s: String) =>
       val nonZero = Math.abs(i) + 1
 
       labelledOpCounter.flatMap { case (counter, res) =>
         counter.surround(IO.raiseError(new RuntimeException()), s).attempt.replicateA(nonZero) >> res.map(
           assertEquals(_, Map[(String, Status), Int]((s, Status.Errored) -> nonZero))
         )
-      }.unsafeRunSync()
+      }
     }
   }
 
-  property("op counter should record failure with labels") {
-    forAll { (i: Int, s: String) =>
+  test("op counter should record failure with labels") {
+    forAllF { (i: Int, s: String) =>
       val nonZero = Math.abs(i) + 1
 
       labelledOpGauge.flatMap { case (gauge, res) =>
@@ -238,7 +238,7 @@ class OpStatusSuite extends CatsEffectSuite with ScalaCheckSuite {
             )
           )
         )
-      }.unsafeRunSync()
+      }
     }
   }
 }
