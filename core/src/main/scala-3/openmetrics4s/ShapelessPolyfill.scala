@@ -48,8 +48,8 @@ trait ShapelessPolyfill {
 
   trait GT[A <: Nat, B <: Nat] extends Serializable
   object GT {
-    given gt1[B <: Nat]: GT[Succ[B], Nat._0] = new GT[Succ[B], Nat._0] {}
-    given gt2[A <: Nat, B <: Nat](using GT[A, B]): GT[Succ[A], Succ[B]] = new GT[Succ[A], Succ[B]] {}
+    given gt1[B <: Nat]: GT[S[B], Nat._0] = new GT[S[B], Nat._0] {}
+    given gt2[A <: Nat, B <: Nat](using GT[A, B]): GT[S[A], S[B]] = new GT[S[A], S[B]] {}
   }
 
   type TupleSized[R, A, N <: Int] <: Tuple = N match {
