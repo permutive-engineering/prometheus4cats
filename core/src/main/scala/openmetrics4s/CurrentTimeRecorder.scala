@@ -22,7 +22,12 @@ import cats.syntax.flatMap._
 
 import scala.concurrent.duration.FiniteDuration
 
+/** A derived metric type that sets an underlying [[Gauge]] to the current system time.
+  */
 sealed abstract class CurrentTimeRecorder[F[_]] { self =>
+
+  /** Set the underlying [[Gauge]] to the current system time.
+    */
   def mark: F[Unit]
 
   def mapK[G[_]](fk: F ~> G): CurrentTimeRecorder[G] = new CurrentTimeRecorder[G] {
@@ -31,18 +36,46 @@ sealed abstract class CurrentTimeRecorder[F[_]] { self =>
 }
 
 object CurrentTimeRecorder {
+
+  /** Create a [[CurrentTimeRecorder]] from a [[Gauge]] that records [[scala.Long]] values
+    *
+    * The best way to construct a [[CurrentTimeRecorder]] is to use the `asCurrentTimeRecorder` on the gauge DSL
+    * provided by [[MetricsFactory]]
+    *
+    * @param gauge
+    *   the [[Gauge]] instance to set the current time value against
+    * @param f
+    *   a function to go from the current time represented in [[scala.concurrent.duration.FiniteDuration]] as a
+    *   [[scala.Long]]
+    */
   def fromLongGauge[F[_]: FlatMap: Clock](gauge: Gauge[F, Long])(f: FiniteDuration => Long): CurrentTimeRecorder[F] =
     new CurrentTimeRecorder[F] {
       override def mark: F[Unit] = Clock[F].monotonic.flatMap(dur => gauge.set(f(dur)))
     }
 
+  /** Create a [[CurrentTimeRecorder]] from a [[Gauge]] that records [[scala.Double]] values
+    *
+    * The best way to construct a [[CurrentTimeRecorder]] is to use the `asCurrentTimeRecorder` on the gauge DSL
+    * provided by [[MetricsFactory]]
+    *
+    * @param gauge
+    *   the [[Gauge]] instance to set the current time value against
+    * @param f
+    *   a function to go from the current time represented in [[scala.concurrent.duration.FiniteDuration]] as a
+    *   [[scala.Double]]
+    */
   def fromDoubleGauge[F[_]: FlatMap: Clock](
       gauge: Gauge[F, Double]
   )(f: FiniteDuration => Double): CurrentTimeRecorder[F] = new CurrentTimeRecorder[F] {
     override def mark: F[Unit] = Clock[F].monotonic.flatMap(dur => gauge.set(f(dur)))
   }
 
+  /** A derived metric type that sets an underlying [[Gauge.Labelled]] to the current system time.
+    */
   trait Labelled[F[_], A] extends Metric.Labelled[A] { self =>
+
+    /** Set the underlying [[Gauge.Labelled]] to the current system time.
+      */
     def mark(labels: A): F[Unit]
 
     def contramapLabels[B](f: B => A): Labelled[F, B] = new Labelled[F, B] {
@@ -60,6 +93,17 @@ object CurrentTimeRecorder {
         override def contramapLabels[A, B](fa: Labelled[F, A])(f: B => A): Labelled[F, B] = fa.contramapLabels(f)
       }
 
+    /** Create a [[CurrentTimeRecorder]] from a [[Gauge.Labelled]] that records [[scala.Long]] values
+      *
+      * The best way to construct a [[CurrentTimeRecorder]] is to use the `asCurrentTimeRecorder` on the gauge DSL
+      * provided by [[MetricsFactory]]
+      *
+      * @param gauge
+      *   the [[Gauge.Labelled]] instance to set the current time value against
+      * @param f
+      *   a function to go from the current time represented in [[scala.concurrent.duration.FiniteDuration]] as a
+      *   [[scala.Long]]
+      */
     def fromLongGauge[F[_]: FlatMap: Clock, A](
         gauge: Gauge.Labelled[F, Long, A]
     )(f: FiniteDuration => Long): CurrentTimeRecorder.Labelled[F, A] =
@@ -67,6 +111,17 @@ object CurrentTimeRecorder {
         override def mark(labels: A): F[Unit] = Clock[F].monotonic.flatMap(dur => gauge.set(f(dur), labels))
       }
 
+    /** Create a [[CurrentTimeRecorder]] from a [[Gauge.Labelled]] that records [[scala.Double]] values
+      *
+      * The best way to construct a [[CurrentTimeRecorder]] is to use the `asCurrentTimeRecorder` on the gauge DSL
+      * provided by [[MetricsFactory]]
+      *
+      * @param gauge
+      *   the [[Gauge.Labelled]] instance to set the current time value against
+      * @param f
+      *   a function to go from the current time represented in [[scala.concurrent.duration.FiniteDuration]] as a
+      *   [[scala.Double]]
+      */
     def fromDoubleGauge[F[_]: FlatMap: Clock, A](
         gauge: Gauge.Labelled[F, Double, A]
     )(f: FiniteDuration => Double): CurrentTimeRecorder.Labelled[F, A] = new CurrentTimeRecorder.Labelled[F, A] {
