@@ -18,7 +18,7 @@ package prometheus4cats
 
 import cats.{Applicative, Contravariant, Eq, Hash, Order, Show, ~>}
 
-sealed abstract class Gauge[F[_], A] extends Metric[A] { self =>
+sealed abstract class Gauge[F[_], -A] extends Metric[A] { self =>
 
   def inc: F[Unit]
   def inc(n: A): F[Unit]
@@ -140,7 +140,7 @@ object Gauge {
     override def reset: F[Unit] = Applicative[F].unit
   }
 
-  abstract class Labelled[F[_], A, B] extends Metric[A] with Metric.Labelled[B] {
+  abstract class Labelled[F[_], -A, -B] extends Metric[A] with Metric.Labelled[B] {
     self =>
 
     def inc(labels: B): F[Unit]

@@ -72,7 +72,7 @@ object CurrentTimeRecorder {
 
   /** A derived metric type that sets an underlying [[Gauge.Labelled]] to the current system time.
     */
-  trait Labelled[F[_], A] extends Metric.Labelled[A] { self =>
+  trait Labelled[F[_], -A] extends Metric.Labelled[A] { self =>
 
     /** Set the underlying [[Gauge.Labelled]] to the current system time.
       */

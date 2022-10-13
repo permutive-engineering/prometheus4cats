@@ -19,7 +19,7 @@ package prometheus4cats
 import cats.syntax.traverse._
 import cats.{Eq, Hash, Order, Show}
 
-private[prometheus4cats] trait Metric[A] {
+private[prometheus4cats] trait Metric[-A] {
   def contramap[B](f: B => A): Metric[B]
 }
 
@@ -128,7 +128,7 @@ object Metric {
     }
   }
 
-  private[prometheus4cats] trait Labelled[A] {
+  private[prometheus4cats] trait Labelled[-A] {
     def contramapLabels[B](f: B => A): Labelled[B]
   }
 }

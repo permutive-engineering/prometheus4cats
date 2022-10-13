@@ -118,7 +118,7 @@ object OutcomeRecorder {
   /** A derived metric type that records the outcome of an operation. See [[OutcomeRecorder.Labelled.fromCounter]] and
     * [[OutcomeRecorder.Labelled.fromGauge]] for more information.
     */
-  sealed abstract class Labelled[F[_]: MonadCancelThrow, A] extends Metric.Labelled[A] { self =>
+  sealed abstract class Labelled[F[_]: MonadCancelThrow, -A] extends Metric.Labelled[A] { self =>
     type Metric
 
     /** Surround an operation and evaluate its outcome using an instance of [[cats.effect.kernel.MonadCancel]].

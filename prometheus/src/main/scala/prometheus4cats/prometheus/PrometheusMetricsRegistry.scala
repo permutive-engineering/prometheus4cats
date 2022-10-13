@@ -111,7 +111,7 @@ class PrometheusMetricsRegistry[F[_]: Sync: Logger] private (
     ).map { counter =>
       Counter.make(
         1.0,
-        d =>
+        (d: Double) =>
           Utils
             .modifyMetric[F, Counter.Name, PCounter.Child](counter, name, commonLabelNames, commonLabelValues, _.inc(d))
       )
@@ -138,7 +138,7 @@ class PrometheusMetricsRegistry[F[_]: Sync: Logger] private (
     ).map { counter =>
       Counter.Labelled.make(
         1.0,
-        (d, labels) =>
+        (d: Double, labels: A) =>
           Utils.modifyMetric[F, Counter.Name, PCounter.Child](
             counter,
             name,
