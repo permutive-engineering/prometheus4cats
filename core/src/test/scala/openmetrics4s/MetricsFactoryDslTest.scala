@@ -17,6 +17,7 @@
 package openmetrics4s
 
 import java.math.BigInteger
+import java.util.concurrent.TimeUnit
 
 import cats.effect.IO
 
@@ -28,6 +29,8 @@ object MetricsFactoryDslTest {
   val doubleGaugeBuilder = gaugeBuilder.ofDouble.help("help")
   doubleGaugeBuilder.build
   doubleGaugeBuilder.resource
+  doubleGaugeBuilder.asCurrentTimeRecorder
+  doubleGaugeBuilder.asCurrentTimeRecorder(_.toUnit(TimeUnit.NANOSECONDS))
   doubleGaugeBuilder.contramap[Int](_.toDouble).build
   doubleGaugeBuilder.asTimer.build
   doubleGaugeBuilder.asOutcomeRecorder.build
@@ -39,6 +42,8 @@ object MetricsFactoryDslTest {
     (i.toString, s.toInt, BigInteger.valueOf(l))
   }
   doubleLabelledGaugeBuilder.asTimer.build
+  doubleLabelledGaugeBuilder.asCurrentTimeRecorder
+  doubleLabelledGaugeBuilder.asCurrentTimeRecorder(_.toUnit(TimeUnit.NANOSECONDS))
   doubleLabelledGaugeBuilder.asOutcomeRecorder.build
 
   val doubleLabelsGaugeBuilder = doubleGaugeBuilder.labels(Sized(Label.Name("test")))((s: String) => Sized(s)).build
@@ -46,6 +51,8 @@ object MetricsFactoryDslTest {
   val longGaugeBuilder = gaugeBuilder.ofLong.help("help")
   longGaugeBuilder.build
   longGaugeBuilder.resource
+  longGaugeBuilder.asCurrentTimeRecorder
+  longGaugeBuilder.asCurrentTimeRecorder(_.toDays)
   longGaugeBuilder.label[String]("label1").label[Int]("label2").label[BigInteger]("label3", _.toString).build
   longGaugeBuilder.unsafeLabels(Label.Name("label1"), Label.Name("label2")).build
 

@@ -21,6 +21,8 @@ import cats.syntax.all._
 import cats.{Contravariant, FlatMap, Functor, MonadThrow, Show}
 import openmetrics4s._
 
+import scala.concurrent.duration.FiniteDuration
+
 class BuildStep[F[_], A] private[openmetrics4s] (fa: F[A]) {
 
   /** Builds the metric */
@@ -34,22 +36,51 @@ class BuildStep[F[_], A] private[openmetrics4s] (fa: F[A]) {
 }
 
 object BuildStep {
-  implicit class GaugeTimerSyntax[F[_]: FlatMap: Clock](bs: BuildStep[F, Gauge[F, Double]]) {
+
+  implicit class DoubleGaugeSyntax[F[_]: FlatMap: Clock](bs: BuildStep[F, Gauge[F, Double]]) {
     def asTimer: BuildStep[F, Timer.Aux[F, Gauge]] = bs.map(Timer.fromGauge[F])
+
+    def asCurrentTimeRecorder: BuildStep[F, CurrentTimeRecorder[F]] = asCurrentTimeRecorder(_.toSeconds.toDouble)
+
+    def asCurrentTimeRecorder(f: FiniteDuration => Double): BuildStep[F, CurrentTimeRecorder[F]] =
+      bs.map(CurrentTimeRecorder.fromDoubleGauge(_)(f))
   }
 
-  implicit class HistogramTimerSyntax[F[_]: FlatMap: Clock](bs: BuildStep[F, Histogram[F, Double]]) {
+  implicit class LongGaugeSyntax[F[_]: FlatMap: Clock](bs: BuildStep[F, Gauge[F, Long]]) {
+    def asCurrentTimeRecorder: BuildStep[F, CurrentTimeRecorder[F]] = asCurrentTimeRecorder(_.toSeconds)
+
+    def asCurrentTimeRecorder(f: FiniteDuration => Long): BuildStep[F, CurrentTimeRecorder[F]] =
+      bs.map(CurrentTimeRecorder.fromLongGauge(_)(f))
+  }
+
+  implicit class DoubleHistogramSyntax[F[_]: FlatMap: Clock](bs: BuildStep[F, Histogram[F, Double]]) {
     def asTimer: BuildStep[F, Timer.Aux[F, Histogram]] = bs.map(Timer.fromHistogram[F])
   }
 
-  implicit class LabelledGaugeTimerSyntax[F[_]: MonadThrow: Clock, A](
+  implicit class DoubleLabelledGaugeSyntax[F[_]: MonadThrow: Clock, A](
       bs: BuildStep[F, Gauge.Labelled[F, Double, A]]
   ) {
     def asTimer: BuildStep[F, Timer.Labelled.Aux[F, A, Gauge.Labelled]] =
       bs.map(Timer.Labelled.fromGauge[F, A])
+
+    def asCurrentTimeRecorder: BuildStep[F, CurrentTimeRecorder.Labelled[F, A]] = asCurrentTimeRecorder(
+      _.toSeconds.toDouble
+    )
+
+    def asCurrentTimeRecorder(f: FiniteDuration => Double): BuildStep[F, CurrentTimeRecorder.Labelled[F, A]] =
+      bs.map(CurrentTimeRecorder.Labelled.fromDoubleGauge(_)(f))
   }
 
-  implicit class LabelledHistogramTimerSyntax[F[_]: MonadThrow: Clock, A](
+  implicit class LongLabelledGaugeSyntax[F[_]: MonadThrow: Clock, A](
+      bs: BuildStep[F, Gauge.Labelled[F, Long, A]]
+  ) {
+    def asCurrentTimeRecorder: BuildStep[F, CurrentTimeRecorder.Labelled[F, A]] = asCurrentTimeRecorder(_.toSeconds)
+
+    def asCurrentTimeRecorder(f: FiniteDuration => Long): BuildStep[F, CurrentTimeRecorder.Labelled[F, A]] =
+      bs.map(CurrentTimeRecorder.Labelled.fromLongGauge(_)(f))
+  }
+
+  implicit class DoubleLabelledHistogramSyntax[F[_]: MonadThrow: Clock, A](
       bs: BuildStep[F, Histogram.Labelled[F, Double, A]]
   ) {
     def asTimer: BuildStep[F, Timer.Labelled.Aux[F, A, Histogram.Labelled]] =

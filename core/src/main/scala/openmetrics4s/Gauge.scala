@@ -25,9 +25,6 @@ sealed abstract class Gauge[F[_], A] { self =>
   def dec: F[Unit]
   def dec(n: A): F[Unit]
   def set(n: A): F[Unit]
-
-  def setToCurrentTime: F[Unit]
-
   def reset: F[Unit]
 
   def contramap[B](f: B => A): Gauge[F, B] = new Gauge[F, B] {
@@ -40,8 +37,6 @@ sealed abstract class Gauge[F[_], A] { self =>
     override def dec(n: B): F[Unit] = self.dec(f(n))
 
     override def set(n: B): F[Unit] = self.set(f(n))
-
-    override def setToCurrentTime: F[Unit] = self.setToCurrentTime
 
     override def reset: F[Unit] = self.reset
   }
@@ -56,8 +51,6 @@ sealed abstract class Gauge[F[_], A] { self =>
     override def dec(n: A): G[Unit] = fk(self.dec(n))
 
     override def set(n: A): G[Unit] = fk(self.set(n))
-
-    override def setToCurrentTime: G[Unit] = fk(self.setToCurrentTime)
 
     override def reset: G[Unit] = fk(self.reset)
   }
@@ -112,7 +105,6 @@ object Gauge {
       _inc: A => F[Unit],
       _dec: A => F[Unit],
       _set: A => F[Unit],
-      _setToCurrentTime: F[Unit],
       _reset: F[Unit]
   ): Gauge[F, A] = new Gauge[F, A] {
     override def inc: F[Unit] = inc(default)
@@ -125,17 +117,14 @@ object Gauge {
 
     override def set(n: A): F[Unit] = _set(n)
 
-    override def setToCurrentTime: F[Unit] = _setToCurrentTime
-
     override def reset: F[Unit] = _reset
   }
 
   def make[F[_], A](
       _inc: A => F[Unit],
       _dec: A => F[Unit],
-      _set: A => F[Unit],
-      _setToCurrentTime: F[Unit]
-  )(implicit A: Numeric[A]): Gauge[F, A] = make(A.one, _inc, _dec, _set, _setToCurrentTime, _set(A.zero))
+      _set: A => F[Unit]
+  )(implicit A: Numeric[A]): Gauge[F, A] = make(A.one, _inc, _dec, _set, _set(A.zero))
 
   def noop[F[_]: Applicative, A]: Gauge[F, A] = new Gauge[F, A] {
     override def inc: F[Unit] = Applicative[F].unit
@@ -147,8 +136,6 @@ object Gauge {
     override def dec(n: A): F[Unit] = Applicative[F].unit
 
     override def set(n: A): F[Unit] = Applicative[F].unit
-
-    override def setToCurrentTime: F[Unit] = Applicative[F].unit
 
     override def reset: F[Unit] = Applicative[F].unit
   }
@@ -166,8 +153,6 @@ object Gauge {
 
     def set(n: A, labels: B): F[Unit]
 
-    def setToCurrentTime(labels: B): F[Unit]
-
     def reset(labels: B): F[Unit]
 
     def contramap[C](f: C => A): Labelled[F, C, B] = new Labelled[F, C, B] {
@@ -180,8 +165,6 @@ object Gauge {
       override def dec(n: C, labels: B): F[Unit] = self.dec(f(n), labels)
 
       override def set(n: C, labels: B): F[Unit] = self.set(f(n), labels)
-
-      override def setToCurrentTime(labels: B): F[Unit] = self.setToCurrentTime(labels)
 
       override def reset(labels: B): F[Unit] = self.reset(labels)
     }
@@ -196,8 +179,6 @@ object Gauge {
       override def dec(n: A, labels: C): F[Unit] = self.dec(n, f(labels))
 
       override def set(n: A, labels: C): F[Unit] = self.set(n, f(labels))
-
-      override def setToCurrentTime(labels: C): F[Unit] = self.setToCurrentTime(f(labels))
 
       override def reset(labels: C): F[Unit] = self.reset(f(labels))
     }
@@ -221,10 +202,6 @@ object Gauge {
           self.set(n, labels)
         )
 
-        override def setToCurrentTime(labels: B): G[Unit] = fk(
-          self.setToCurrentTime(labels)
-        )
-
         override def reset(labels: B): G[Unit] = fk(self.reset(labels))
       }
 
@@ -246,7 +223,6 @@ object Gauge {
         _inc: (A, B) => F[Unit],
         _dec: (A, B) => F[Unit],
         _set: (A, B) => F[Unit],
-        _setToCurrentTime: B => F[Unit],
         _reset: B => F[Unit]
     ): Labelled[F, A, B] = new Labelled[F, A, B] {
       override def inc(labels: B): F[Unit] = inc(default, labels)
@@ -259,20 +235,15 @@ object Gauge {
 
       override def set(n: A, labels: B): F[Unit] = _set(n, labels)
 
-      override def setToCurrentTime(labels: B): F[Unit] = _setToCurrentTime(
-        labels
-      )
-
       override def reset(labels: B): F[Unit] = _reset(labels)
     }
 
     def make[F[_], A, B](
         _inc: (A, B) => F[Unit],
         _dec: (A, B) => F[Unit],
-        _set: (A, B) => F[Unit],
-        _setToCurrentTime: B => F[Unit]
+        _set: (A, B) => F[Unit]
     )(implicit A: Numeric[A]): Labelled[F, A, B] =
-      make(A.one, _inc, _dec, _set, _setToCurrentTime, _set(A.zero, _))
+      make(A.one, _inc, _dec, _set, _set(A.zero, _))
 
     def noop[F[_]: Applicative, A, B]: Labelled[F, A, B] = new Labelled[F, A, B] {
       override def inc(labels: B): F[Unit] = Applicative[F].unit
@@ -284,8 +255,6 @@ object Gauge {
       override def dec(n: A, labels: B): F[Unit] = Applicative[F].unit
 
       override def set(n: A, labels: B): F[Unit] = Applicative[F].unit
-
-      override def setToCurrentTime(labels: B): F[Unit] = Applicative[F].unit
 
       override def reset(labels: B): F[Unit] = Applicative[F].unit
     }

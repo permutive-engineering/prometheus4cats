@@ -36,8 +36,7 @@ class OutcomeRecorderSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
         Gauge.Labelled.make[IO, Int, Status](
           (i: Int, s: Status) => ref.update(_ |+| Map(s -> i)),
           (i: Int, s: Status) => ref.update(_ |+| Map(s -> -i)),
-          (i: Int, s: Status) => ref.update(_.updated(s, i)),
-          (s: Status) => ref.update(_.updated(s, 0))
+          (i: Int, s: Status) => ref.update(_.updated(s, i))
         )
       ) -> ref.get
     }
@@ -55,8 +54,7 @@ class OutcomeRecorderSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
         Gauge.Labelled.make[IO, Int, (String, Status)](
           (i: Int, s: (String, Status)) => ref.update(_ |+| Map(s -> i)),
           (i: Int, s: (String, Status)) => ref.update(_ |+| Map(s -> -i)),
-          (i: Int, s: (String, Status)) => ref.update(_.updated(s, i)),
-          (s: (String, Status)) => ref.update(_.updated(s, 0))
+          (i: Int, s: (String, Status)) => ref.update(_.updated(s, i))
         )
       ) -> ref.get
     }

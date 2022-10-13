@@ -179,12 +179,7 @@ class PrometheusMetricsRegistry[F[_]: Sync: Logger] private (
       def set(n: Double): F[Unit] =
         modify(_.set(n))
 
-      def setToCurrentTime(): F[Unit] =
-        Clock[F].realTime.flatMap { d =>
-          modify(_.set(d.toSeconds.toDouble))
-        }
-
-      Gauge.make(inc, dec, set, setToCurrentTime())
+      Gauge.make(inc, dec, set)
     }
   }
 
@@ -223,10 +218,7 @@ class PrometheusMetricsRegistry[F[_]: Sync: Logger] private (
 
       def set(n: Double, labels: A): F[Unit] = modify(_.set(n), labels)
 
-      def setToCurrentTime(labels: A): F[Unit] =
-        Clock[F].realTime.flatMap(d => modify(_.set(d.toSeconds.toDouble), labels))
-
-      Gauge.Labelled.make(inc, dec, set, setToCurrentTime)
+      Gauge.Labelled.make(inc, dec, set)
     }
   }
 

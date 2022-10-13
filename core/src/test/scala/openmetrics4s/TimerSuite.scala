@@ -22,7 +22,7 @@ import cats.Id
 import cats.data.{NonEmptyList, WriterT}
 import cats.effect.kernel.Outcome.Succeeded
 import cats.effect.testkit.TestControl
-import cats.effect.{Clock, IO, Ref}
+import cats.effect.{IO, Ref}
 import cats.syntax.traverse._
 import munit.{CatsEffectSuite, ScalaCheckEffectSuite}
 import org.scalacheck.effect.PropF._
@@ -41,8 +41,7 @@ class TimerSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
       Gauge.make(
         write,
         write,
-        write,
-        Clock[WriterT[IO, List[Double], *]].realTime.flatMap(dur => write(dur.toSeconds.toDouble))
+        write
       )
     )
 
@@ -55,9 +54,7 @@ class TimerSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
     Gauge.Labelled.make(
       writeLabels[String],
       writeLabels[String],
-      writeLabels[String],
-      (s: String) =>
-        Clock[WriterT[IO, List[(Double, String)], *]].realTime.flatMap(dur => writeLabels(dur.toSeconds.toDouble, s))
+      writeLabels[String]
     )
   )
 
@@ -205,8 +202,7 @@ class TimerSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
             Gauge.Labelled.make[IO, Double, String](
               gaugeSet(ref),
               gaugeSet(ref),
-              gaugeSet(ref),
-              (s: String) => Clock[IO].realTime.flatMap(dur => gaugeSet(ref)(dur.toSeconds.toDouble, s))
+              gaugeSet(ref)
             )
           )
           .timeAttempt[String](s)(identity, { case th => th.getMessage })

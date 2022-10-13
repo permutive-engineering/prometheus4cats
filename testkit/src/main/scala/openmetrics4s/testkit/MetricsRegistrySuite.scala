@@ -26,8 +26,6 @@ import openmetrics4s._
 import org.scalacheck.effect.PropF._
 import org.scalacheck.{Arbitrary, Gen}
 
-import scala.concurrent.duration._
-
 trait MetricsRegistrySuite[State] extends ScalaCheckEffectSuite { self: CatsEffectSuite =>
   def stateResource: Resource[IO, State]
   def registryResource(state: State): Resource[IO, MetricsRegistry[IO]]
@@ -185,18 +183,15 @@ trait MetricsRegistrySuite[State] extends ScalaCheckEffectSuite { self: CatsEffe
                 decOneValue <- get
                 _ <- gauge.dec(dec)
                 decValue <- get
-                _ <- gauge.setToCurrentTime
-                timeValue <- get
-              } yield (setValue, incOneValue, incValue, decOneValue, decValue, timeValue)
+              } yield (setValue, incOneValue, incValue, decOneValue, decValue)
             }
           })
-          .map { case (setValue, incOneValue, incValue, decOneValue, decValue, timeValue) =>
+          .map { case (setValue, incOneValue, incValue, decOneValue, decValue) =>
             assertEquals(setValue, Some(set))
             assertEquals(incOneValue, setValue.map(_ + 1))
             assertEquals(incValue, incOneValue.map(_ + inc))
             assertEquals(decOneValue, incValue.map(_ - 1))
             assertEquals(decValue, decOneValue.map(_ - dec))
-            assertEquals(timeValue, Some(0.seconds.toSeconds.toDouble))
           }
     }
   }
@@ -213,49 +208,44 @@ trait MetricsRegistrySuite[State] extends ScalaCheckEffectSuite { self: CatsEffe
           inc: Double,
           dec: Double
       ) =>
-        TestControl
-          .executeEmbed(stateResource.use { state =>
-            registryResource(state).use { reg =>
-              val get = getGaugeValue(
-                state,
+        stateResource.use { state =>
+          registryResource(state).use { reg =>
+            val get = getGaugeValue(
+              state,
+              prefix,
+              name,
+              help,
+              commonLabels,
+              labels
+            )
+
+            for {
+              gauge <- reg.createAndRegisterLabelledDoubleGauge[Map[Label.Name, String]](
                 prefix,
                 name,
                 help,
                 commonLabels,
-                labels
-              )
-
-              for {
-                gauge <- reg.createAndRegisterLabelledDoubleGauge[Map[Label.Name, String]](
-                  prefix,
-                  name,
-                  help,
-                  commonLabels,
-                  labels.keys.toIndexedSeq
-                )(_.values.toIndexedSeq)
-                _ <- gauge.set(set, labels)
-                setValue <- get
-                _ <- gauge.inc(labels = labels)
-                incOneValue <- get
-                _ <- gauge.inc(inc, labels)
-                incValue <- get
-                _ <- gauge.dec(labels = labels)
-                decOneValue <- get
-                _ <- gauge.dec(dec, labels)
-                decValue <- get
-                _ <- gauge.setToCurrentTime(labels)
-                timeValue <- get
-              } yield (setValue, incOneValue, incValue, decOneValue, decValue, timeValue)
+                labels.keys.toIndexedSeq
+              )(_.values.toIndexedSeq)
+              _ <- gauge.set(set, labels)
+              setValue <- get
+              _ <- gauge.inc(labels = labels)
+              incOneValue <- get
+              _ <- gauge.inc(inc, labels)
+              incValue <- get
+              _ <- gauge.dec(labels = labels)
+              decOneValue <- get
+              _ <- gauge.dec(dec, labels)
+              decValue <- get
+            } yield {
+              assertEquals(setValue, Some(set))
+              assertEquals(incOneValue, setValue.map(_ + 1))
+              assertEquals(incValue, incOneValue.map(_ + inc))
+              assertEquals(decOneValue, incValue.map(_ - 1))
+              assertEquals(decValue, decOneValue.map(_ - dec))
             }
-          })
-          .map { case (setValue, incOneValue, incValue, decOneValue, decValue, timeValue) =>
-            assertEquals(setValue, Some(set))
-            assertEquals(incOneValue, setValue.map(_ + 1))
-            assertEquals(incValue, incOneValue.map(_ + inc))
-            assertEquals(decOneValue, incValue.map(_ - 1))
-            assertEquals(decValue, decOneValue.map(_ - dec))
-            assertEquals(timeValue, Some(0.seconds.toSeconds.toDouble))
           }
+        }
     }
   }
 
