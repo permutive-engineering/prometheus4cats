@@ -79,7 +79,7 @@ class OutcomeRecorderSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
 
       opGauge.flatMap { case (gauge, res) =>
         gauge.surround(IO.unit).replicateA(nonZero) >> res.map(
-          assertEquals(_, Map[Status, Int](Status.Succeeded -> nonZero, Status.Errored -> 0, Status.Canceled -> 0))
+          assertEquals(_, Map[Status, Int](Status.Succeeded -> 1, Status.Errored -> 0, Status.Canceled -> 0))
         )
       }
     }
@@ -111,7 +111,7 @@ class OutcomeRecorderSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
           .flatMap(wait => gauge.surround(wait.complete(()) >> IO.never).race(wait.get))
           .replicateA(nonZero) >> res
           .map(
-            assertEquals(_, Map[Status, Int](Status.Succeeded -> 0, Status.Errored -> 0, Status.Canceled -> nonZero))
+            assertEquals(_, Map[Status, Int](Status.Succeeded -> 0, Status.Errored -> 0, Status.Canceled -> 1))
           )
       }
     }
@@ -135,7 +135,7 @@ class OutcomeRecorderSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
 
       opGauge.flatMap { case (gauge, res) =>
         gauge.surround(IO.raiseError(new RuntimeException())).attempt.replicateA(nonZero) >> res.map(
-          assertEquals(_, Map[Status, Int](Status.Succeeded -> 0, Status.Errored -> nonZero, Status.Canceled -> 0))
+          assertEquals(_, Map[Status, Int](Status.Succeeded -> 0, Status.Errored -> 1, Status.Canceled -> 0))
         )
       }
     }
@@ -162,7 +162,7 @@ class OutcomeRecorderSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
           assertEquals(
             _,
             Map[(String, Status), Int](
-              (s, Status.Succeeded) -> nonZero,
+              (s, Status.Succeeded) -> 1,
               (s, Status.Errored) -> 0,
               (s, Status.Canceled) -> 0
             )
@@ -187,7 +187,7 @@ class OutcomeRecorderSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
     }
   }
 
-  test("op counter should record cancelation with labels") {
+  test("op gauge should record cancelation with labels") {
     forAllF { (i: Int, s: String) =>
       val nonZero = Math.abs(i) + 1
 
@@ -201,7 +201,7 @@ class OutcomeRecorderSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
             Map[(String, Status), Int](
               (s, Status.Succeeded) -> 0,
               (s, Status.Errored) -> 0,
-              (s, Status.Canceled) -> nonZero
+              (s, Status.Canceled) -> 1
             )
           )
         )
@@ -221,7 +221,7 @@ class OutcomeRecorderSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
     }
   }
 
-  test("op counter should record failure with labels") {
+  test("op gauge should record failure with labels") {
     forAllF { (i: Int, s: String) =>
       val nonZero = Math.abs(i) + 1
 
@@ -231,7 +231,7 @@ class OutcomeRecorderSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
             _,
             Map[(String, Status), Int](
               (s, Status.Succeeded) -> 0,
-              (s, Status.Errored) -> nonZero,
+              (s, Status.Errored) -> 1,
               (s, Status.Canceled) -> 0
             )
           )

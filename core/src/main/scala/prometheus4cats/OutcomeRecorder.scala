@@ -106,13 +106,19 @@ object OutcomeRecorder {
       override type Metric = Gauge.Labelled[F, A, Status]
 
       override protected val onCanceled: F[Unit] =
-        (gauge.reset(Status.Succeeded) >> gauge.reset(Status.Errored) >> gauge.inc(Status.Canceled)).uncancelable
+        (gauge.reset(Status.Succeeded) >> gauge.reset(Status.Canceled) >> gauge.reset(Status.Errored) >> gauge.inc(
+          Status.Canceled
+        )).uncancelable
 
       override protected val onErrored: F[Unit] =
-        (gauge.reset(Status.Succeeded) >> gauge.reset(Status.Canceled) >> gauge.inc(Status.Errored)).uncancelable
+        (gauge.reset(Status.Succeeded) >> gauge.reset(Status.Canceled) >> gauge.reset(Status.Errored) >> gauge.inc(
+          Status.Errored
+        )).uncancelable
 
       override protected val onSucceeded: F[Unit] =
-        (gauge.reset(Status.Canceled) >> gauge.reset(Status.Errored) >> gauge.inc(Status.Succeeded)).uncancelable
+        (gauge.reset(Status.Succeeded) >> gauge.reset(Status.Canceled) >> gauge.reset(Status.Errored) >> gauge.inc(
+          Status.Succeeded
+        )).uncancelable
     }
 
   /** A derived metric type that records the outcome of an operation. See [[OutcomeRecorder.Labelled.fromCounter]] and
@@ -243,17 +249,23 @@ object OutcomeRecorder {
         override type Metric = Gauge.Labelled[F, A, (B, Status)]
 
         override protected def onCanceled(labels: B): F[Unit] =
-          (gauge.reset(labels -> Status.Succeeded) >> gauge.reset(labels -> Status.Errored) >> gauge.inc(
+          (gauge.reset(labels -> Status.Succeeded) >> gauge.reset(labels -> Status.Canceled) >> gauge.reset(
+            labels -> Status.Errored
+          ) >> gauge.inc(
             labels -> Status.Canceled
           )).uncancelable
 
         override protected def onErrored(labels: B): F[Unit] =
-          (gauge.reset(labels -> Status.Succeeded) >> gauge.reset(labels -> Status.Canceled) >> gauge.inc(
+          (gauge.reset(labels -> Status.Succeeded) >> gauge.reset(labels -> Status.Canceled) >> gauge.reset(
+            labels -> Status.Errored
+          ) >> gauge.inc(
             labels -> Status.Errored
           )).uncancelable
 
         override protected def onSucceeded(labels: B): F[Unit] =
-          (gauge.reset(labels -> Status.Canceled) >> gauge.reset(labels -> Status.Errored) >> gauge.inc(
+          (gauge.reset(labels -> Status.Succeeded) >> gauge.reset(labels -> Status.Canceled) >> gauge.reset(
+            labels -> Status.Errored
+          ) >> gauge.inc(
             labels -> Status.Succeeded
           )).uncancelable
       }
