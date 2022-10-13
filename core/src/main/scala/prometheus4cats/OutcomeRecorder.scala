@@ -35,7 +35,17 @@ sealed abstract class OutcomeRecorder[F[_]: MonadCancelThrow] { self =>
     * @param fa
     *   operation to be evaluated
     */
-  final def surround[A](fa: F[A]): F[A] = fa.guaranteeCase {
+  final def surround[A](fa: F[A]): F[A] = fa.guaranteeCase(recordOutcome[A, Throwable])
+
+  /** Record the result of provided [[cats.effect.kernel.Outcome]]
+    *
+    * The resulting metrics depend on the underlying implementation. See [[OutcomeRecorder.fromCounter]] and
+    * [[OutcomeRecorder.fromGauge]] for more details.
+    *
+    * @param outcome
+    *   the [[cats.effect.kernel.Outcome]] to be recorded
+    */
+  final def recordOutcome[A, E](outcome: Outcome[F, E, A]): F[Unit] = outcome match {
     case Outcome.Succeeded(_) => onSucceeded
     case Outcome.Errored(_) => onErrored
     case Outcome.Canceled() => onCanceled
@@ -137,11 +147,24 @@ object OutcomeRecorder {
       * @param labels
       *   labels to add to the underlying metric
       */
-    final def surround[B](fb: F[B], labels: A): F[B] = fb.guaranteeCase {
-      case Outcome.Succeeded(_) => onSucceeded(labels)
-      case Outcome.Errored(_) => onErrored(labels)
-      case Outcome.Canceled() => onCanceled(labels)
-    }
+    final def surround[B](fb: F[B], labels: A): F[B] = fb.guaranteeCase(recordOutcome(_, labels))
+
+    /** Record the result of provided [[cats.effect.kernel.Outcome]]
+      *
+      * The resulting metrics depend on the underlying implementation. See [[OutcomeRecorder.Labelled.fromCounter]] and
+      * [[OutcomeRecorder.Labelled.fromGauge]] for more details.
+      *
+      * @param outcome
+      *   the [[cats.effect.kernel.Outcome]] to be recorded
+      * @param labels
+      *   labels to add to the underlying metric
+      */
+    final def recordOutcome[B, E](outcome: Outcome[F, E, B], labels: A): F[Unit] =
+      outcome match {
+        case Outcome.Succeeded(_) => onSucceeded(labels)
+        case Outcome.Errored(_) => onErrored(labels)
+        case Outcome.Canceled() => onCanceled(labels)
+      }
 
     /** Surround an operation and evaluate its outcome using an instance of [[cats.effect.kernel.MonadCancel]],
       * computing additional labels from the result.
@@ -161,11 +184,32 @@ object OutcomeRecorder {
     final def surroundWithComputedLabels[B](
         fb: F[B],
         labelsCanceled: A
-    )(labelsSuccess: B => A, labelsError: Throwable => A): F[B] = fb.guaranteeCase {
-      case Outcome.Succeeded(fb) => fb.flatMap(b => onSucceeded(labelsSuccess(b)))
-      case Outcome.Errored(th) => onErrored(labelsError(th))
-      case Outcome.Canceled() => onCanceled(labelsCanceled)
-    }
+    )(labelsSuccess: B => A, labelsError: Throwable => A): F[B] =
+      fb.guaranteeCase(recordOutcomeWithComputedLabels(_, labelsCanceled)(labelsSuccess, labelsError))
+
+    /** Record the result of provided [[cats.effect.kernel.Outcome]] computing additional labels from the result.
+      *
+      * The resulting metrics depend on the underlying implementation. See [[OutcomeRecorder.Labelled.fromCounter]] and
+      * [[OutcomeRecorder.Labelled.fromGauge]] for more details.
+      *
+      * @param outcome
+      *   the [[cats.effect.kernel.Outcome]] to be recorded
+      * @param labelsCanceled
+      *   labels to add when the operation is canceled
+      * @param labelsSuccess
+      *   function to compute labels from the result of `fb` when the operation is successful
+      * @param labelsError
+      *   function to compute labels from the exception that was raised if the operation is unsuccessful
+      */
+    final def recordOutcomeWithComputedLabels[B, E](
+        outcome: Outcome[F, E, B],
+        labelsCanceled: A
+    )(labelsSuccess: B => A, labelsError: E => A): F[Unit] =
+      outcome match {
+        case Outcome.Succeeded(fb) => fb.flatMap(b => onSucceeded(labelsSuccess(b)))
+        case Outcome.Errored(th) => onErrored(labelsError(th))
+        case Outcome.Canceled() => onCanceled(labelsCanceled)
+      }
 
     protected def onCanceled(labels: A): F[Unit]
 
