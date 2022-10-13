@@ -39,7 +39,7 @@ trait MetricsRegistry[F[_]] {
     * @return
     *   a [[Counter]] wrapped in whatever side effect that was performed in registering it
     */
-  def createAndRegisterDoubleCounter(
+  protected[prometheus4cats] def createAndRegisterDoubleCounter(
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
       help: Metric.Help,
@@ -59,7 +59,7 @@ trait MetricsRegistry[F[_]] {
     * @return
     *   a [[Counter]] wrapped in whatever side effect that was performed in registering it
     */
-  def createAndRegisterLongCounter(
+  protected[prometheus4cats] def createAndRegisterLongCounter(
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
       help: Metric.Help,
@@ -84,7 +84,7 @@ trait MetricsRegistry[F[_]] {
     * @return
     *   a [[Counter.Labelled]] wrapped in whatever side effect that was performed in registering it
     */
-  def createAndRegisterLabelledDoubleCounter[A](
+  protected[prometheus4cats] def createAndRegisterLabelledDoubleCounter[A](
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
       help: Metric.Help,
@@ -110,7 +110,7 @@ trait MetricsRegistry[F[_]] {
     * @return
     *   a [[Counter.Labelled]] wrapped in whatever side effect that was performed in registering it
     */
-  def createAndRegisterLabelledLongCounter[A](
+  protected[prometheus4cats] def createAndRegisterLabelledLongCounter[A](
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
       help: Metric.Help,
@@ -131,7 +131,7 @@ trait MetricsRegistry[F[_]] {
     * @return
     *   a [[Gauge]] wrapped in whatever side effect that was performed in registering it
     */
-  def createAndRegisterDoubleGauge(
+  protected[prometheus4cats] def createAndRegisterDoubleGauge(
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
       help: Metric.Help,
@@ -151,7 +151,7 @@ trait MetricsRegistry[F[_]] {
     * @return
     *   a [[Gauge]] wrapped in whatever side effect that was performed in registering it
     */
-  def createAndRegisterLongGauge(
+  protected[prometheus4cats] def createAndRegisterLongGauge(
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
       help: Metric.Help,
@@ -176,7 +176,7 @@ trait MetricsRegistry[F[_]] {
     * @return
     *   a [[Gauge.Labelled]] wrapped in whatever side effect that was performed in registering it
     */
-  def createAndRegisterLabelledDoubleGauge[A](
+  protected[prometheus4cats] def createAndRegisterLabelledDoubleGauge[A](
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
       help: Metric.Help,
@@ -202,7 +202,7 @@ trait MetricsRegistry[F[_]] {
     * @return
     *   a [[Gauge.Labelled]] wrapped in whatever side effect that was performed in registering it
     */
-  def createAndRegisterLabelledLongGauge[A](
+  protected[prometheus4cats] def createAndRegisterLabelledLongGauge[A](
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
       help: Metric.Help,
@@ -225,7 +225,7 @@ trait MetricsRegistry[F[_]] {
     * @return
     *   a [[Gauge]] wrapped in whatever side effect that was performed in registering it
     */
-  def createAndRegisterDoubleHistogram(
+  protected[prometheus4cats] def createAndRegisterDoubleHistogram(
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
       help: Metric.Help,
@@ -248,7 +248,7 @@ trait MetricsRegistry[F[_]] {
     * @return
     *   a [[Gauge]] wrapped in whatever side effect that was performed in registering it
     */
-  def createAndRegisterLongHistogram(
+  protected[prometheus4cats] def createAndRegisterLongHistogram(
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
       help: Metric.Help,
@@ -276,7 +276,7 @@ trait MetricsRegistry[F[_]] {
     * @return
     *   a [[Histogram.Labelled]] wrapped in whatever side effect that was performed in registering it
     */
-  def createAndRegisterLabelledDoubleHistogram[A](
+  protected[prometheus4cats] def createAndRegisterLabelledDoubleHistogram[A](
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
       help: Metric.Help,
@@ -305,7 +305,7 @@ trait MetricsRegistry[F[_]] {
     * @return
     *   a [[Histogram.Labelled]] wrapped in whatever side effect that was performed in registering it
     */
-  def createAndRegisterLabelledLongHistogram[A](
+  protected[prometheus4cats] def createAndRegisterLabelledLongHistogram[A](
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
       help: Metric.Help,
@@ -318,14 +318,14 @@ trait MetricsRegistry[F[_]] {
 object MetricsRegistry {
   def noop[F[_]](implicit F: Applicative[F]): MetricsRegistry[F] =
     new MetricsRegistry[F] {
-      override def createAndRegisterDoubleCounter(
+      override protected[prometheus4cats] def createAndRegisterDoubleCounter(
           prefix: Option[Metric.Prefix],
           name: Counter.Name,
           help: Metric.Help,
           commonLabels: CommonLabels
       ): F[Counter[F, Double]] = F.pure(Counter.noop)
 
-      override def createAndRegisterLabelledDoubleCounter[A](
+      override protected[prometheus4cats] def createAndRegisterLabelledDoubleCounter[A](
           prefix: Option[Metric.Prefix],
           name: Counter.Name,
           help: Metric.Help,
@@ -334,7 +334,7 @@ object MetricsRegistry {
       )(f: A => IndexedSeq[String]): F[Counter.Labelled[F, Double, A]] =
         F.pure(Counter.Labelled.noop)
 
-      override def createAndRegisterDoubleGauge(
+      override protected[prometheus4cats] def createAndRegisterDoubleGauge(
           prefix: Option[Metric.Prefix],
           name: Gauge.Name,
           help: Metric.Help,
@@ -342,7 +342,7 @@ object MetricsRegistry {
       ): F[Gauge[F, Double]] =
         F.pure(Gauge.noop)
 
-      override def createAndRegisterLongGauge(
+      override protected[prometheus4cats] def createAndRegisterLongGauge(
           prefix: Option[Metric.Prefix],
           name: Gauge.Name,
           help: Metric.Help,
@@ -350,7 +350,7 @@ object MetricsRegistry {
       ): F[Gauge[F, Long]] =
         F.pure(Gauge.noop)
 
-      override def createAndRegisterLabelledDoubleGauge[A](
+      override protected[prometheus4cats] def createAndRegisterLabelledDoubleGauge[A](
           prefix: Option[Metric.Prefix],
           name: Gauge.Name,
           help: Metric.Help,
@@ -359,7 +359,7 @@ object MetricsRegistry {
       )(f: A => IndexedSeq[String]): F[Gauge.Labelled[F, Double, A]] =
         F.pure(Gauge.Labelled.noop)
 
-      override def createAndRegisterDoubleHistogram(
+      override protected[prometheus4cats] def createAndRegisterDoubleHistogram(
           prefix: Option[Metric.Prefix],
           name: Histogram.Name,
           help: Metric.Help,
@@ -367,7 +367,7 @@ object MetricsRegistry {
           buckets: NonEmptySeq[Double]
       ): F[Histogram[F, Double]] = F.pure(Histogram.noop)
 
-      override def createAndRegisterLabelledDoubleHistogram[A](
+      override protected[prometheus4cats] def createAndRegisterLabelledDoubleHistogram[A](
           prefix: Option[Metric.Prefix],
           name: Histogram.Name,
           help: Metric.Help,
@@ -377,14 +377,14 @@ object MetricsRegistry {
       )(f: A => IndexedSeq[String]): F[Histogram.Labelled[F, Double, A]] =
         F.pure(Histogram.Labelled.noop)
 
-      override def createAndRegisterLongCounter(
+      override protected[prometheus4cats] def createAndRegisterLongCounter(
           prefix: Option[Metric.Prefix],
           name: Counter.Name,
           help: Metric.Help,
           commonLabels: CommonLabels
       ): F[Counter[F, Long]] = F.pure(Counter.noop)
 
-      override def createAndRegisterLabelledLongCounter[A](
+      override protected[prometheus4cats] def createAndRegisterLabelledLongCounter[A](
           prefix: Option[Metric.Prefix],
           name: Counter.Name,
           help: Metric.Help,
@@ -393,7 +393,7 @@ object MetricsRegistry {
       )(f: A => IndexedSeq[String]): F[Counter.Labelled[F, Long, A]] =
         F.pure(Counter.Labelled.noop)
 
-      override def createAndRegisterLabelledLongGauge[A](
+      override protected[prometheus4cats] def createAndRegisterLabelledLongGauge[A](
           prefix: Option[Metric.Prefix],
           name: Gauge.Name,
           help: Metric.Help,
@@ -402,7 +402,7 @@ object MetricsRegistry {
       )(f: A => IndexedSeq[String]): F[Gauge.Labelled[F, Long, A]] =
         F.pure(Gauge.Labelled.noop)
 
-      override def createAndRegisterLongHistogram(
+      override protected[prometheus4cats] def createAndRegisterLongHistogram(
           prefix: Option[Metric.Prefix],
           name: Histogram.Name,
           help: Metric.Help,
@@ -410,7 +410,7 @@ object MetricsRegistry {
           buckets: NonEmptySeq[Long]
       ): F[Histogram[F, Long]] = F.pure(Histogram.noop)
 
-      override def createAndRegisterLabelledLongHistogram[A](
+      override protected[prometheus4cats] def createAndRegisterLabelledLongHistogram[A](
           prefix: Option[Metric.Prefix],
           name: Histogram.Name,
           help: Metric.Help,
@@ -425,7 +425,7 @@ object MetricsRegistry {
       fk: F ~> G
   ): MetricsRegistry[G] =
     new MetricsRegistry[G] {
-      override def createAndRegisterDoubleCounter(
+      override protected[prometheus4cats] def createAndRegisterDoubleCounter(
           prefix: Option[Metric.Prefix],
           name: Counter.Name,
           help: Metric.Help,
@@ -434,7 +434,7 @@ object MetricsRegistry {
         self.createAndRegisterDoubleCounter(prefix, name, help, commonLabels)
       ).map(_.mapK(fk))
 
-      override def createAndRegisterLabelledDoubleCounter[A](
+      override protected[prometheus4cats] def createAndRegisterLabelledDoubleCounter[A](
           prefix: Option[Metric.Prefix],
           name: Counter.Name,
           help: Metric.Help,
@@ -450,7 +450,7 @@ object MetricsRegistry {
         )(f)
       ).map(_.mapK(fk))
 
-      override def createAndRegisterDoubleGauge(
+      override protected[prometheus4cats] def createAndRegisterDoubleGauge(
           prefix: Option[Metric.Prefix],
           name: Gauge.Name,
           help: Metric.Help,
@@ -459,7 +459,7 @@ object MetricsRegistry {
         self.createAndRegisterDoubleGauge(prefix, name, help, commonLabels)
       ).map(_.mapK(fk))
 
-      override def createAndRegisterLongGauge(
+      override protected[prometheus4cats] def createAndRegisterLongGauge(
           prefix: Option[Metric.Prefix],
           name: Gauge.Name,
           help: Metric.Help,
@@ -468,7 +468,7 @@ object MetricsRegistry {
         self.createAndRegisterLongGauge(prefix, name, help, commonLabels)
       ).map(_.mapK(fk))
 
-      override def createAndRegisterLabelledDoubleGauge[A](
+      override protected[prometheus4cats] def createAndRegisterLabelledDoubleGauge[A](
           prefix: Option[Metric.Prefix],
           name: Gauge.Name,
           help: Metric.Help,
@@ -484,7 +484,7 @@ object MetricsRegistry {
         )(f)
       ).map(_.mapK(fk))
 
-      override def createAndRegisterDoubleHistogram(
+      override protected[prometheus4cats] def createAndRegisterDoubleHistogram(
           prefix: Option[Metric.Prefix],
           name: Histogram.Name,
           help: Metric.Help,
@@ -500,7 +500,7 @@ object MetricsRegistry {
         )
       ).map(_.mapK(fk))
 
-      override def createAndRegisterLabelledDoubleHistogram[A](
+      override protected[prometheus4cats] def createAndRegisterLabelledDoubleHistogram[A](
           prefix: Option[Metric.Prefix],
           name: Histogram.Name,
           help: Metric.Help,
@@ -518,14 +518,14 @@ object MetricsRegistry {
         )(f)
       ).map(_.mapK(fk))
 
-      override def createAndRegisterLongCounter(
+      override protected[prometheus4cats] def createAndRegisterLongCounter(
           prefix: Option[Metric.Prefix],
           name: Counter.Name,
           help: Metric.Help,
           commonLabels: CommonLabels
       ): G[Counter[G, Long]] = fk(self.createAndRegisterLongCounter(prefix, name, help, commonLabels)).map(_.mapK(fk))
 
-      override def createAndRegisterLabelledLongCounter[A](
+      override protected[prometheus4cats] def createAndRegisterLabelledLongCounter[A](
           prefix: Option[Metric.Prefix],
           name: Counter.Name,
           help: Metric.Help,
@@ -534,7 +534,7 @@ object MetricsRegistry {
       )(f: A => IndexedSeq[String]): G[Counter.Labelled[G, Long, A]] =
         fk(self.createAndRegisterLabelledLongCounter(prefix, name, help, commonLabels, labelNames)(f)).map(_.mapK(fk))
 
-      override def createAndRegisterLabelledLongGauge[A](
+      override protected[prometheus4cats] def createAndRegisterLabelledLongGauge[A](
           prefix: Option[Metric.Prefix],
           name: Gauge.Name,
           help: Metric.Help,
@@ -543,7 +543,7 @@ object MetricsRegistry {
       )(f: A => IndexedSeq[String]): G[Gauge.Labelled[G, Long, A]] =
         fk(self.createAndRegisterLabelledLongGauge(prefix, name, help, commonLabels, labelNames)(f)).map(_.mapK(fk))
 
-      override def createAndRegisterLongHistogram(
+      override protected[prometheus4cats] def createAndRegisterLongHistogram(
           prefix: Option[Metric.Prefix],
           name: Histogram.Name,
           help: Metric.Help,
@@ -552,7 +552,7 @@ object MetricsRegistry {
       ): G[Histogram[G, Long]] =
         fk(self.createAndRegisterLongHistogram(prefix, name, help, commonLabels, buckets)).map(_.mapK(fk))
 
-      override def createAndRegisterLabelledLongHistogram[A](
+      override protected[prometheus4cats] def createAndRegisterLabelledLongHistogram[A](
           prefix: Option[Metric.Prefix],
           name: Histogram.Name,
           help: Metric.Help,

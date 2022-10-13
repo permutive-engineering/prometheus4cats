@@ -159,6 +159,15 @@ sealed abstract class MetricsFactory[F[_]](
     */
   def withPrefix(prefix: Metric.Prefix): MetricsFactory[F] =
     new MetricsFactory[F](registry, Some(prefix), commonLabels) {}
+
+  /** Creates a new instance of [[MetricsFactory]] with any [[Metric.CommonLabels]]
+    */
+  def dropCommonLabels: MetricsFactory[F] = new MetricsFactory[F](registry, prefix, CommonLabels.empty) {}
+
+  /** Creates a new instance of [[MetricsFactory]] with the provided [[Metric.CommonLabels]]
+    */
+  def withCommonLabels(commonLabels: CommonLabels): MetricsFactory[F] =
+    new MetricsFactory[F](registry, prefix, commonLabels) {}
 }
 
 object MetricsFactory {
