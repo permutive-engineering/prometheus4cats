@@ -15,6 +15,8 @@ ThisBuild / tlSonatypeUseLegacyHost := false
 
 val Scala213 = "2.13.8"
 
+val Cats = "2.8.0"
+
 val CatsEffect = "3.3.14"
 
 val Log4Cats = "2.5.0"
@@ -22,6 +24,8 @@ val Log4Cats = "2.5.0"
 val Munit = "0.7.29"
 
 val MunitCe3 = "1.0.7"
+
+val ScalacheckEffect = "1.0.4"
 
 ThisBuild / crossScalaVersions := Seq("2.12.15", "3.2.0", Scala213)
 ThisBuild / scalaVersion := crossScalaVersions.value.last
@@ -31,14 +35,18 @@ lazy val root = tlCrossRootProject.aggregate(core, testkit, prometheus)
 lazy val core = project
   .in(file("core"))
   .settings(
-    name := "openmetrics4s",
+    name := "prometheus4cats",
     libraryDependencies ++= Seq(
       "org.typelevel" %%% "cats-core" % "2.8.0",
       "org.typelevel" %%% "cats-effect-kernel" % CatsEffect,
       "org.typelevel" %%% "cats-effect" % CatsEffect % Test,
       "org.typelevel" %% "cats-effect-testkit" % CatsEffect % Test,
-      "org.scalameta" %%% "munit" % "0.7.29" % Test,
-      "org.scalameta" %% "munit-scalacheck" % "0.7.29" % Test
+      "org.typelevel" %%% "cats-laws" % Cats,
+      "org.scalameta" %%% "munit" % Munit % Test,
+      "org.typelevel" %% "munit-cats-effect-3" % MunitCe3,
+      "org.typelevel" %%% "discipline-munit" % "1.0.9" % Test,
+      "org.scalameta" %% "munit-scalacheck" % Munit % Test,
+      "org.typelevel" %% "scalacheck-effect-munit" % ScalacheckEffect % Test
     ),
     libraryDependencies ++= PartialFunction
       .condOpt(CrossVersion.partialVersion(scalaVersion.value)) { case Some((2, _)) =>
@@ -58,12 +66,13 @@ lazy val core = project
 lazy val testkit = project
   .in(file("testkit"))
   .settings(
-    name := "openmetrics4s-testkit",
+    name := "prometheus4cats-testkit",
     libraryDependencies ++= Seq(
       "org.typelevel" %% "cats-effect-testkit" % CatsEffect,
       "org.scalameta" %% "munit" % Munit,
       "org.typelevel" %% "munit-cats-effect-3" % MunitCe3,
-      "org.scalameta" %% "munit-scalacheck" % Munit
+      "org.scalameta" %% "munit-scalacheck" % Munit,
+      "org.typelevel" %% "scalacheck-effect-munit" % ScalacheckEffect
     )
   )
   .dependsOn(core)
@@ -72,7 +81,7 @@ lazy val prometheus =
   project
     .in(file("prometheus"))
     .settings(
-      name := "openmetrics4s-prometheus",
+      name := "prometheus4cats-prometheus",
       libraryDependencies ++= Seq(
         "org.typelevel" %% "cats-effect-std" % CatsEffect,
         "org.typelevel" %% "log4cats-core" % Log4Cats,
