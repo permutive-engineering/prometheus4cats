@@ -19,6 +19,10 @@ package openmetrics4s
 import cats.syntax.traverse._
 import cats.{Eq, Hash, Order, Show}
 
+private[openmetrics4s] trait Metric[A] {
+  def contramap[B](f: B => A): Metric[B]
+}
+
 object Metric {
 
   final class CommonLabels private (val value: Map[Label.Name, String]) extends AnyVal {
@@ -122,5 +126,9 @@ object Metric {
 
       override def eqv(x: Prefix, y: Prefix): Boolean = Eq[String].eqv(x.value, y.value)
     }
+  }
+
+  private[openmetrics4s] trait Labelled[A] {
+    def contramapLabels[B](f: B => A): Labelled[B]
   }
 }

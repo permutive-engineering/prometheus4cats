@@ -18,7 +18,7 @@ package openmetrics4s
 
 import cats.{Applicative, Contravariant, Eq, Hash, Order, Show, ~>}
 
-sealed abstract class Counter[F[_], A] { self =>
+sealed abstract class Counter[F[_], A] extends Metric[A] { self =>
 
   def inc: F[Unit]
   def inc(n: A): F[Unit]
@@ -92,7 +92,7 @@ object Counter {
     override def inc(n: A): F[Unit] = Applicative[F].unit
   }
 
-  sealed abstract class Labelled[F[_], A, B] {
+  sealed abstract class Labelled[F[_], A, B] extends Metric[A] with Metric.Labelled[B] {
     self =>
     def inc(labels: B): F[Unit]
 

@@ -98,7 +98,7 @@ object Timer {
   /** A derived metric type that can time a given operation. See [[Timer.Labelled.fromHistogram]] and
     * [[Timer.Labelled.fromGauge]] for more information.
     */
-  sealed abstract class Labelled[F[_]: MonadThrow: Clock, A] { self =>
+  sealed abstract class Labelled[F[_]: MonadThrow: Clock, A] extends Metric.Labelled[A] { self =>
     type Metric
 
     def recordTime(duration: FiniteDuration, labels: A): F[Unit]

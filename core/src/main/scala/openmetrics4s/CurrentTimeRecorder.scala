@@ -16,14 +16,18 @@
 
 package openmetrics4s
 
-import cats.FlatMap
+import cats.{FlatMap, ~>}
 import cats.effect.kernel.Clock
 import cats.syntax.flatMap._
 
 import scala.concurrent.duration.FiniteDuration
 
-sealed abstract class CurrentTimeRecorder[F[_]] {
+sealed abstract class CurrentTimeRecorder[F[_]] { self =>
   def mark: F[Unit]
+
+  def mapK[G[_]](fk: F ~> G): CurrentTimeRecorder[G] = new CurrentTimeRecorder[G] {
+    override def mark: G[Unit] = fk(self.mark)
+  }
 }
 
 object CurrentTimeRecorder {
@@ -38,11 +42,15 @@ object CurrentTimeRecorder {
     override def mark: F[Unit] = Clock[F].monotonic.flatMap(dur => gauge.set(f(dur)))
   }
 
-  trait Labelled[F[_], A] { self =>
+  trait Labelled[F[_], A] extends Metric.Labelled[A] { self =>
     def mark(labels: A): F[Unit]
 
     def contramapLabels[B](f: B => A): Labelled[F, B] = new Labelled[F, B] {
       override def mark(labels: B): F[Unit] = self.mark(f(labels))
+    }
+
+    def mapK[G[_]](fk: F ~> G): Labelled[G, A] = new Labelled[G, A] {
+      override def mark(labels: A): G[Unit] = fk(self.mark(labels))
     }
   }
 

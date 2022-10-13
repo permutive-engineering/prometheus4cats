@@ -19,7 +19,7 @@ package openmetrics4s
 import cats.data.NonEmptySeq
 import cats.{Applicative, Contravariant, Eq, Hash, Order, Show, ~>}
 
-sealed abstract class Histogram[F[_], A] { self =>
+sealed abstract class Histogram[F[_], A] extends Metric[A] { self =>
 
   def observe(n: A): F[Unit]
 
@@ -89,7 +89,7 @@ object Histogram {
       override def observe(n: A): F[Unit] = Applicative[F].unit
     }
 
-  sealed abstract class Labelled[F[_], A, B] {
+  sealed abstract class Labelled[F[_], A, B] extends Metric[A] with Metric.Labelled[B] {
     self =>
 
     def observe(n: A, labels: B): F[Unit]
