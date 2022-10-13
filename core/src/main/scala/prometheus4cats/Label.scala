@@ -46,6 +46,18 @@ object Label {
         s"$string must match `$regex`"
       )
 
+    /** Unsafely parse a [[Name]] from the given string
+      *
+      * @param string
+      *   value from which to parse a counter name
+      * @return
+      *   a parsed [[Name]]
+      * @throws java.lang.IllegalArgumentException
+      *   if `string` is not valid
+      */
+    def unsafeFrom(string: String): Name =
+      from(string).fold(msg => throw new IllegalArgumentException(msg), identity)
+
     // prevents macro compilation problems with the status label
     private[prometheus4cats] val status = new Name("status")
 
