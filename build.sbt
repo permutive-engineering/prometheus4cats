@@ -130,7 +130,7 @@ lazy val docs = project
         primaryLight = Color.hex("ffcee3"),
         secondary = Color.hex("8ed1fc"),
         text = Color.hex("000000"),
-        background = Color.hex("ffffff"),
+        background = Color.rgba(0, 0, 0, 0),
         bgGradient = (Color.hex("ffffff"), Color.hex("ffffff"))
       )
       .site
