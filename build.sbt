@@ -178,7 +178,8 @@ lazy val docs = project
     tlSiteApiPackage := Some("prometheus4cats"),
     libraryDependencies ++= Seq(
       "org.typelevel" %%% "cats-effect" % CatsEffect
-    )
+    ),
+    scalacOptions := Seq()
   )
   .dependsOn(core, java)
   .enablePlugins(TypelevelSitePlugin)
