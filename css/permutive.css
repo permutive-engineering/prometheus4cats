@@ -1,0 +1,119 @@
+li, p, h1, h2, h3, h4, h5, h6 {
+  font-family: moderat, sans-serif;
+  color: black;
+}
+
+#sidebar {
+  background: white;
+}
+
+@media (min-width: 1020px) {
+  #sidebar {
+    background: none;
+  }
+}
+
+header .image-link {
+  flex: auto;
+  margin-left: 20px;
+  margin-top: 45px;
+}
+
+header img {
+  height: 64px !important;
+}
+
+h1.title {
+  border-bottom: 0;
+  font-size: 3.5em;
+}
+
+h2 {
+  font-size: 2.25em;
+}
+
+h3 {
+  font-size: 1.75em;
+}
+
+hr {
+  border-top: 2px solid black;
+}
+
+#sidebar {
+  top: 100px;
+}
+
+header img {
+  height: 64px;
+  width: auto;
+  margin-top: 50px;
+}
+
+a {
+  color: black;
+  font-weight: bold;
+  text-decoration: underline;
+}
+
+a:hover {
+  background: black;
+  color: white;
+}
+
+a.image-link:hover {
+  background: none;
+}
+
+p {
+  font-size: 1.15em;
+}
+
+.nav-list li.nav-header {
+  color: black;
+  font-size: 1.5em;
+  text-transform: capitalize;
+}
+
+.nav-list a {
+    text-decoration: none;
+}
+
+.nav-list .active a,
+.nav-list .active a:hover,
+#page-nav .header a,
+#page-nav .header a:hover {
+  color: white;
+}
+
+body {
+  position: static;
+}
+
+header {
+  border-bottom: none;
+}
+
+#bg {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -100;
+  background: radial-gradient(circle at left bottom, rgba(181, 170, 214, 0.57) 0%, rgba(242, 184, 219, 0.5) 25%, rgb(255, 255, 255) 76%);
+}
+
+code {
+  font-family: monospace;
+}
+
+#top-bar {
+  background: none;
+}
+
+#sidebar {
+  box-shadow: none;
+}
+
+/* from permutive.com */
+@font-face{font-family:'moderat';src:url("../../fonts/Moderat-Bold.eot") format("eot");src:url("../../fonts/Moderat-Bold.woff") format("woff");src:url("../../fonts/Moderat-Bold.woff2") format("woff2");font-weight:700;font-style:bold}@font-face{font-family:'moderat';src:url("../../fonts/Moderat-Light.eot") format("eot");src:url("../../fonts/Moderat-Light.woff") format("woff");src:url("../../fonts/Moderat-Light.woff2") format("woff2");font-weight:400;font-style:normal}

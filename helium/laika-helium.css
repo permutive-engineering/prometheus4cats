@@ -4,7 +4,7 @@
   --primary-medium: #ffcee3;
   --secondary-color: #8ed1fc;
   --text-color: #000000;
-  --bg-color: #ffffff;
+  --bg-color: rgba(0,0,0,0.0);
   --gradient-top: #ffffff;
   --gradient-bottom: #ffffff;
   --top-color: var(--primary-color);
