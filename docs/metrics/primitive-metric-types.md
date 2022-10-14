@@ -12,11 +12,22 @@ import prometheus4cats._
 val factory: MetricsFactory[IO] = MetricsFactory.noop[IO]
 ```
 
-### Counter
-
+### `Counter`
 
 
 ```scala mdoc
-factory.counter("my_counter_total")
+factory.counter("my_counter_total").ofLong.help("Metric description")
 ```
 
+### `Gauge`
+
+```scala mdoc
+factory.gauge("my_counter_total").ofLong.help("Metric description")
+```
+
+### `Histogram`
+
+
+```scala mdoc
+factory.histogram("my_counter_total").ofDouble.help("Metric description").buckets(0.1, 0.5, 1.0, 1.5, 2.0)
+```
