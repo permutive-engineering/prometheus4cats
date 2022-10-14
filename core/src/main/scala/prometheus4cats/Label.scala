@@ -59,7 +59,7 @@ object Label {
       from(string).fold(msg => throw new IllegalArgumentException(msg), identity)
 
     // prevents macro compilation problems with the status label
-    private[prometheus4cats] val status = new Name("status")
+    private[prometheus4cats] val outcomeStatus = new Name("outcome_status")
 
     implicit val catsInstances: Hash[Name] with Order[Name] with Show[Name] = new Hash[Name]
       with Order[Name]

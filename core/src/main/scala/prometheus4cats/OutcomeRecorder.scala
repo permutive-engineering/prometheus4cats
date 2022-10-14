@@ -19,7 +19,7 @@ package prometheus4cats
 import cats.effect.kernel.syntax.monadCancel._
 import cats.effect.kernel.{MonadCancelThrow, Outcome}
 import cats.syntax.flatMap._
-import cats.~>
+import cats.{Show, ~>}
 
 /** A derived metric type that records the outcome of an operation. See [[OutcomeRecorder.fromCounter]] and
   * [[OutcomeRecorder.fromGauge]] for more information.
@@ -72,6 +72,22 @@ object OutcomeRecorder {
 
   type Aux[F[_], A, M[_[_], _, _]] = OutcomeRecorder[F] {
     type Metric = M[F, A, Status]
+  }
+
+  sealed trait Status
+
+  object Status {
+    case object Succeeded extends Status
+
+    case object Errored extends Status
+
+    case object Canceled extends Status
+
+    implicit val catsInstances: Show[Status] = Show.show {
+      case Status.Succeeded => "succeeded"
+      case Status.Errored => "errored"
+      case Status.Canceled => "canceled"
+    }
   }
 
   /** Create an [[OutcomeRecorder]] from a [[Counter.Labelled]] instance, where its only label type is [[Status]].
