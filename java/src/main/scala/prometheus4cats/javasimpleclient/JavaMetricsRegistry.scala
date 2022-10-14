@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package prometheus4cats.java
+package prometheus4cats.javasimpleclient
 
 import cats.data.NonEmptySeq
 import cats.effect.kernel._
@@ -32,8 +32,8 @@ import io.prometheus.client.{
   Gauge => PGauge,
   Histogram => PHistogram
 }
-import prometheus4cats.java.internal.Utils
-import prometheus4cats.java.models.MetricType
+import prometheus4cats.javasimpleclient.internal.Utils
+import prometheus4cats.javasimpleclient.models.MetricType
 import prometheus4cats.util.NameUtils
 import prometheus4cats._
 import org.typelevel.log4cats.Logger

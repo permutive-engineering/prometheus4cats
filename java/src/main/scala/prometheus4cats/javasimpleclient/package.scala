@@ -14,11 +14,15 @@
  * limitations under the License.
  */
 
-package prometheus4cats.java.models
+package prometheus4cats
 
-sealed trait MetricType
-object MetricType {
-  case object Counter extends MetricType
-  case object Gauge extends MetricType
-  case object Histogram extends MetricType
+import io.prometheus.client.SimpleCollector
+import prometheus4cats.javasimpleclient.models.MetricType
+
+package object javasimpleclient {
+  private[javasimpleclient] type StateKey = (Option[Metric.Prefix], String) // TODO allow specific names maybe
+  private[javasimpleclient] type MetricID = (IndexedSeq[Label.Name], MetricType)
+  private[javasimpleclient] type StateValue = (MetricID, SimpleCollector[_])
+
+  private[javasimpleclient] type State = Map[StateKey, StateValue]
 }
