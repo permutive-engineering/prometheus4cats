@@ -45,7 +45,7 @@ ThisBuild / tlSitePublishBranch := Some("main")
 
 ThisBuild / tlSonatypeUseLegacyHost := true
 
-lazy val root = tlCrossRootProject.aggregate(core, testkit, java)
+lazy val root = tlCrossRootProject.aggregate(core, testkit, java, unidocs)
 
 lazy val core = project
   .in(file("core"))

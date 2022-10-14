@@ -2,4 +2,4 @@
 
 ## Getting Started
 
-[Head over to the microsite](https://permutive-engineering.github.io/prometheus4s/)
+[Head over to the microsite](https://permutive-engineering.github.io/prometheus4cats/)
