@@ -5,3 +5,4 @@ mirrors the functionality in the [Prometheus Java client]. Unlike the Java clien
 are separated.
 
 
+[Prometheus Java client]: https://github.com/prometheus/client_java/

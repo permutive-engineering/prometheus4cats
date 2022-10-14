@@ -13,3 +13,5 @@ libraryDependencies ++= Seq(
   "com.permutive" %% "prometheus4cats" % "@VERSION@"
 )
 ```
+
+[Prometheus]: https://prometheus.io
