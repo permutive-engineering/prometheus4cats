@@ -19,6 +19,7 @@ package prometheus4cats.internal
 import cats.effect.kernel.{Clock, MonadCancelThrow, Resource}
 import cats.syntax.all._
 import cats.{Contravariant, FlatMap, Functor, MonadThrow, Show}
+import prometheus4cats.OutcomeRecorder.Status
 import prometheus4cats._
 
 import scala.concurrent.duration.FiniteDuration
@@ -180,7 +181,7 @@ object MetricDsl {
   implicit class CounterSyntax[F[_]: MonadCancelThrow, A](dsl: MetricDsl[F, A, Counter, Counter.Labelled]) {
     def asOutcomeRecorder: BuildStep[F, OutcomeRecorder.Aux[F, A, Counter.Labelled]] = new BuildStep(
       dsl
-        .makeLabelledMetric[Status](IndexedSeq(Label.Name.status))(status => IndexedSeq(status.show))
+        .makeLabelledMetric[Status](IndexedSeq(Label.Name.outcomeStatus))(status => IndexedSeq(status.show))
         .map(OutcomeRecorder.fromCounter(_))
     )
   }
@@ -188,7 +189,7 @@ object MetricDsl {
   implicit class GaugeSyntax[F[_]: MonadCancelThrow, A](dsl: MetricDsl[F, A, Gauge, Gauge.Labelled]) {
     def asOutcomeRecorder: BuildStep[F, OutcomeRecorder.Aux[F, A, Gauge.Labelled]] = new BuildStep(
       dsl
-        .makeLabelledMetric[Status](IndexedSeq(Label.Name.status))(status => IndexedSeq(status.show))
+        .makeLabelledMetric[Status](IndexedSeq(Label.Name.outcomeStatus))(status => IndexedSeq(status.show))
         .map(OutcomeRecorder.fromGauge(_))
     )
   }
@@ -207,7 +208,7 @@ object BaseLabelsBuildStep {
   ) {
     def asOutcomeRecorder: BuildStep[F, OutcomeRecorder.Labelled.Aux[F, A, T, Counter.Labelled]] = new BuildStep(
       dsl
-        .makeLabelledMetric[(T, Status)](dsl.labelNames.unsized :+ Label.Name.status) { case (t, status) =>
+        .makeLabelledMetric[(T, Status)](dsl.labelNames.unsized :+ Label.Name.outcomeStatus) { case (t, status) =>
           dsl.f(t).unsized :+ status.show
         }
         .map(OutcomeRecorder.Labelled.fromCounter(_))
@@ -221,7 +222,7 @@ object BaseLabelsBuildStep {
   ) {
     def asOutcomeRecorder: BuildStep[F, OutcomeRecorder.Labelled.Aux[F, A, T, Gauge.Labelled]] = new BuildStep(
       dsl
-        .makeLabelledMetric[(T, Status)](dsl.labelNames.unsized :+ Label.Name.status) { case (t, status) =>
+        .makeLabelledMetric[(T, Status)](dsl.labelNames.unsized :+ Label.Name.outcomeStatus) { case (t, status) =>
           dsl.f(t).unsized :+ status.show
         }
         .map(OutcomeRecorder.Labelled.fromGauge(_))

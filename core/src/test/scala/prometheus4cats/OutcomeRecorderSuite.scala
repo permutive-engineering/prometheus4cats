@@ -21,6 +21,7 @@ import cats.syntax.semigroup._
 import munit.{CatsEffectSuite, ScalaCheckEffectSuite}
 import org.scalacheck.effect.PropF._
 import org.scalacheck.{Arbitrary, Gen}
+import prometheus4cats.OutcomeRecorder.Status
 
 class OutcomeRecorderSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
   val opCounter: IO[(OutcomeRecorder[IO], IO[Map[Status, Int]])] =
