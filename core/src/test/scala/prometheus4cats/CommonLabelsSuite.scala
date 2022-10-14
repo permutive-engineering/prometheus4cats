@@ -31,7 +31,7 @@ class CommonLabelsSuite extends ScalaCheckSuite {
   } yield l)
 
   test("labels can be empty") {
-    assertEquals(CommonLabels.from(), Right(CommonLabels.empty))
+    assertEquals(CommonLabels.of(), Right(CommonLabels.empty))
   }
 
   property("parses successfully label count is no more than 10") {

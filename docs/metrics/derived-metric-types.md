@@ -89,13 +89,15 @@ val simpleCurrentTimeRecorderGauge: IO[CurrentTimeRecorder[IO]] = factory
 ```
 
 ```scala mdoc:silent
-val labelledCurrentTimeRecorderGauge: IO[CurrentTimeRecorder.Labelled[IO, String]] = factory
-  .gauge("current_time")
-  .ofDouble
-  .help("Records the how long an opertation took")
-  .label[String]("some_label")
-  .asCurrentTimeRecorder
-  .build
+val labelledCurrentTimeRecorderGauge:
+  IO[CurrentTimeRecorder.Labelled[IO, String]] =
+    factory
+      .gauge("current_time")
+      .ofDouble
+      .help("Records the how long an opertation took")
+      .label[String]("some_label")
+      .asCurrentTimeRecorder
+      .build
 ```
 
 

@@ -179,9 +179,13 @@ lazy val docs = project
         )
       ),
     tlSiteApiPackage := Some("prometheus4cats"),
-    tlSiteRelatedProjects += TypelevelProject.CatsEffect,
+    tlSiteRelatedProjects ++= Seq(
+      TypelevelProject.CatsEffect,
+      ("epimetheus", new URL("https://github.com/davenverse/epimetheus"))
+    ),
     libraryDependencies ++= Seq(
-      "org.typelevel" %%% "cats-effect" % CatsEffect
+      "org.typelevel" %%% "cats-effect" % CatsEffect,
+      "org.typelevel" %% "log4cats-noop" % Log4Cats
     ),
     scalacOptions := Seq()
   )

@@ -13,7 +13,19 @@ val factory: MetricFactory[IO] = MetricFactory.noop[IO]
 
 ### Refined Types
 
+Value classes exist for metric and label names that are refined at compile time from string literals. It is also
+possible to refine at runtime, where the result is returned in an `Either`.
 
+The value classes used by the DSL are as follows:
+
+- `Counter.Name`
+- `Gauge.Name`
+- `Histogram.Name`
+- `Label.Name`
+- `Metric.Help`
+
+When used in the DSL with string literals the value classes are implicitly resolved, so there is no need to wrap every
+value.
 
 ### Choosing a Primitive Metric
 
