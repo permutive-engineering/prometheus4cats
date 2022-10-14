@@ -43,7 +43,7 @@ ThisBuild / scalaVersion := crossScalaVersions.value.last
 
 ThisBuild / tlSitePublishBranch := Some("main")
 
-lazy val root = tlCrossRootProject.aggregate(core, testkit, prometheus)
+lazy val root = tlCrossRootProject.aggregate(core, testkit, java)
 
 lazy val core = project
   .in(file("core"))
@@ -90,11 +90,11 @@ lazy val testkit = project
   )
   .dependsOn(core)
 
-lazy val prometheus =
+lazy val java =
   project
     .in(file("java"))
     .settings(
-      name := "prometheus4cats-prometheus",
+      name := "prometheus4cats-java",
       libraryDependencies ++= Seq(
         "org.typelevel" %% "cats-effect-std" % CatsEffect,
         "org.typelevel" %% "log4cats-core" % Log4Cats,
@@ -184,5 +184,5 @@ lazy val unidocs = project
   .enablePlugins(TypelevelUnidocPlugin) // also enables the ScalaUnidocPlugin
   .settings(
     name := "prometheus4cats-docs",
-    ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(core, testkit, prometheus)
+    ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(core, testkit, java)
   )

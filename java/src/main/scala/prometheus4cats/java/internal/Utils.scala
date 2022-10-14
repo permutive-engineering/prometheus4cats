@@ -14,18 +14,18 @@
  * limitations under the License.
  */
 
-package prometheus4cats.prometheus.internal
+package prometheus4cats.java.internal
 
 import cats.Show
 import cats.effect.kernel.Sync
 import cats.syntax.all._
-import prometheus4cats.prometheus.models.Exceptions._
+import prometheus4cats.java.models.Exceptions._
 import io.prometheus.client.SimpleCollector
 import prometheus4cats.Label
-import prometheus4cats.prometheus.models.Exceptions.PrometheusException
+import prometheus4cats.java.models.Exceptions.PrometheusException
 import org.typelevel.log4cats.Logger
 
-private[prometheus] object Utils {
+private[java] object Utils {
   def modifyMetric[F[_]: Sync: Logger, A: Show, B](
       c: SimpleCollector[B],
       metricName: A,
