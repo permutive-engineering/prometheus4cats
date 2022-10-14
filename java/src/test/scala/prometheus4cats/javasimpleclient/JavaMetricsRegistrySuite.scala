@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package prometheus4cats.java
+package prometheus4cats.javasimpleclient
 
 import cats.Show
 import cats.data.NonEmptySeq

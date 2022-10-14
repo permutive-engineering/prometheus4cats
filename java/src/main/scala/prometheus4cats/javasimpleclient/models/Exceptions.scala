@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package prometheus4cats.java.models
+package prometheus4cats.javasimpleclient.models
 
 import cats.Show
 import cats.syntax.show._
