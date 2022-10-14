@@ -8,6 +8,7 @@ import laika.helium.config.ImageLink
 import laika.theme.config.Color
 import laika.config._
 import laika.rewrite.link._
+import org.typelevel.sbt.site.TypelevelProject
 
 // https://typelevel.org/sbt-typelevel/faq.html#what-is-a-base-version-anyway
 ThisBuild / tlBaseVersion := "0.0" // your current series x.y
@@ -178,6 +179,7 @@ lazy val docs = project
         )
       ),
     tlSiteApiPackage := Some("prometheus4cats"),
+    tlSiteRelatedProjects += TypelevelProject.CatsEffect,
     libraryDependencies ++= Seq(
       "org.typelevel" %%% "cats-effect" % CatsEffect
     ),
