@@ -77,6 +77,18 @@ object Metric {
     def from(string: String): Either[String, Help] =
       Either.cond(string.nonEmpty, new Help(string), s"must not be empty blank")
 
+    /** Unsafely parse a [[Help]] from the given string
+      *
+      * @param string
+      *   value from which to parse a counter name
+      * @return
+      *   a parsed [[Help]]
+      * @throws java.lang.IllegalArgumentException
+      *   if `string` is not valid
+      */
+    def unsafeFrom(string: String): Help =
+      from(string).fold(msg => throw new IllegalArgumentException(msg), identity)
+
     implicit val catsInstances: Hash[Help] with Order[Help] with Show[Help] = new Hash[Help]
       with Order[Help]
       with Show[Help] {
@@ -114,6 +126,18 @@ object Metric {
         new Prefix(string),
         s"$string must match `$regex`"
       )
+
+    /** Unsafely parse a [[Prefix]] from the given string
+      *
+      * @param string
+      *   value from which to parse a counter name
+      * @return
+      *   a parsed [[Prefix]]
+      * @throws java.lang.IllegalArgumentException
+      *   if `string` is not valid
+      */
+    def unsafeFrom(string: String): Prefix =
+      from(string).fold(msg => throw new IllegalArgumentException(msg), identity)
 
     implicit val catsInstances: Hash[Prefix] with Order[Prefix] with Show[Prefix] = new Hash[Prefix]
       with Order[Prefix]
