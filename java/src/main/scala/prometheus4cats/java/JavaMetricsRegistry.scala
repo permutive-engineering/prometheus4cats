@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package prometheus4cats.prometheus
+package prometheus4cats.java
 
 import cats.data.NonEmptySeq
 import cats.effect.kernel._
@@ -32,13 +32,13 @@ import io.prometheus.client.{
   Gauge => PGauge,
   Histogram => PHistogram
 }
-import prometheus4cats.prometheus.internal.Utils
-import prometheus4cats.prometheus.models.MetricType
+import prometheus4cats.java.internal.Utils
+import prometheus4cats.java.models.MetricType
 import prometheus4cats.util.NameUtils
 import prometheus4cats._
 import org.typelevel.log4cats.Logger
 
-class PrometheusMetricsRegistry[F[_]: Sync: Logger] private (
+class JavaMetricsRegistry[F[_]: Sync: Logger] private (
     registry: CollectorRegistry,
     ref: Ref[F, State],
     sem: Semaphore[F]
@@ -329,18 +329,18 @@ class PrometheusMetricsRegistry[F[_]: Sync: Logger] private (
       .map(_.contramap(_.toDouble))
 }
 
-object PrometheusMetricsRegistry {
-  def default[F[_]: Async: Logger]: Resource[F, PrometheusMetricsRegistry[F]] = fromSimpleClientRegistry(
+object JavaMetricsRegistry {
+  def default[F[_]: Async: Logger]: Resource[F, JavaMetricsRegistry[F]] = fromSimpleClientRegistry(
     CollectorRegistry.defaultRegistry
   )
 
   def fromSimpleClientRegistry[F[_]: Async: Logger](
       promRegistry: CollectorRegistry
-  ): Resource[F, PrometheusMetricsRegistry[F]] = {
+  ): Resource[F, JavaMetricsRegistry[F]] = {
     val acquire = for {
       ref <- Ref.of[F, State](Map.empty)
       sem <- Semaphore[F](1L)
-    } yield ref -> new PrometheusMetricsRegistry[F](promRegistry, ref, sem)
+    } yield ref -> new JavaMetricsRegistry[F](promRegistry, ref, sem)
 
     Resource
       .make(acquire) { case (ref, _) =>

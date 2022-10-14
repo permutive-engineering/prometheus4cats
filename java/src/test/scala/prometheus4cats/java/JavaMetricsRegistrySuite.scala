@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package prometheus4cats.prometheus
+package prometheus4cats.java
 
 import cats.Show
 import cats.data.NonEmptySeq
@@ -32,13 +32,13 @@ import org.typelevel.log4cats.noop.NoOpLogger
 
 import scala.jdk.CollectionConverters._
 
-class PrometheusMetricsRegistrySuite extends CatsEffectSuite with MetricsRegistrySuite[CollectorRegistry] {
+class JavaMetricsRegistrySuite extends CatsEffectSuite with MetricsRegistrySuite[CollectorRegistry] {
   implicit val logger: Logger[IO] = NoOpLogger.impl
 
   override val stateResource: Resource[IO, CollectorRegistry] = Resource.eval(IO.delay(new CollectorRegistry()))
 
   override def registryResource(state: CollectorRegistry): Resource[IO, MetricsRegistry[IO]] =
-    PrometheusMetricsRegistry.fromSimpleClientRegistry[IO](state)
+    JavaMetricsRegistry.fromSimpleClientRegistry[IO](state)
 
   def getMetricValue[A: Show](
       state: CollectorRegistry,

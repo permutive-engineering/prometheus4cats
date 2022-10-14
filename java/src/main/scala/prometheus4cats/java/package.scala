@@ -17,12 +17,12 @@
 package prometheus4cats
 
 import io.prometheus.client.SimpleCollector
-import prometheus4cats.prometheus.models.MetricType
+import prometheus4cats.java.models.MetricType
 
-package object prometheus {
-  private[prometheus] type StateKey = (Option[Metric.Prefix], String) // TODO allow specific names maybe
-  private[prometheus] type MetricID = (IndexedSeq[Label.Name], MetricType)
-  private[prometheus] type StateValue = (MetricID, SimpleCollector[_])
+package object java {
+  private[java] type StateKey = (Option[Metric.Prefix], String) // TODO allow specific names maybe
+  private[java] type MetricID = (IndexedSeq[Label.Name], MetricType)
+  private[java] type StateValue = (MetricID, SimpleCollector[_])
 
-  private[prometheus] type State = Map[StateKey, StateValue]
+  private[java] type State = Map[StateKey, StateValue]
 }

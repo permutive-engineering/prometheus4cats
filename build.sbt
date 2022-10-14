@@ -1,3 +1,14 @@
+import laika.ast.LengthUnit._
+import laika.ast._
+import laika.helium.Helium
+import laika.helium.config.Favicon
+import laika.helium.config.HeliumIcon
+import laika.helium.config.IconLink
+import laika.helium.config.ImageLink
+import laika.theme.config.Color
+import laika.config._
+import laika.rewrite.link._
+
 // https://typelevel.org/sbt-typelevel/faq.html#what-is-a-base-version-anyway
 ThisBuild / tlBaseVersion := "0.0" // your current series x.y
 
@@ -6,7 +17,7 @@ ThisBuild / organizationName := "Permutive"
 ThisBuild / startYear := Some(2022)
 ThisBuild / licenses := Seq(License.Apache2)
 ThisBuild / developers := List(
-  // your GitHub handle and name
+  tlGitHubDev("janstenpickle", "Chris Jansen"),
   tlGitHubDev("TimWSpence", "Tim Spence")
 )
 
@@ -30,7 +41,9 @@ val ScalacheckEffect = "1.0.4"
 ThisBuild / crossScalaVersions := Seq("2.12.15", "3.2.0", Scala213)
 ThisBuild / scalaVersion := crossScalaVersions.value.last
 
-lazy val root = tlCrossRootProject.aggregate(core, testkit, prometheus)
+ThisBuild / tlSitePublishBranch := Some("main")
+
+lazy val root = tlCrossRootProject.aggregate(core, testkit, java)
 
 lazy val core = project
   .in(file("core"))
@@ -77,11 +90,11 @@ lazy val testkit = project
   )
   .dependsOn(core)
 
-lazy val prometheus =
+lazy val java =
   project
-    .in(file("prometheus"))
+    .in(file("java"))
     .settings(
-      name := "prometheus4cats-prometheus",
+      name := "prometheus4cats-java",
       libraryDependencies ++= Seq(
         "org.typelevel" %% "cats-effect-std" % CatsEffect,
         "org.typelevel" %% "log4cats-core" % Log4Cats,
@@ -96,4 +109,85 @@ lazy val prometheus =
     )
     .dependsOn(core, testkit % "test->compile")
 
-lazy val docs = project.in(file("site"))
+lazy val docs = project
+  .in(file("site"))
+  .settings(
+    tlSiteHeliumConfig := Helium.defaults.site
+      .metadata(
+        title = Some("Prometheus4Cats"),
+        language = Some("en")
+      )
+      .site
+      .darkMode
+      .disabled
+      .site
+      .themeColors(
+        primary = Color.hex("000000"),
+        primaryMedium = Color.hex("ffcee3"),
+        primaryLight = Color.hex("ffcee3"),
+        secondary = Color.hex("8ed1fc"),
+        text = Color.hex("000000"),
+        background = Color.hex("ffffff"),
+        bgGradient = (Color.hex("ffffff"), Color.hex("ffffff"))
+      )
+      .site
+      .layout(
+        contentWidth = px(860),
+        navigationWidth = px(275),
+        topBarHeight = px(50),
+        defaultBlockSpacing = px(10),
+        defaultLineHeight = 1.5,
+        anchorPlacement = laika.helium.config.AnchorPlacement.Right
+      )
+      .site
+      .favIcons(
+        Favicon.external("img/icon-150x150.png", "32x32", "image/png"),
+        Favicon.external("img/icon-300x300.png", "192x192", "image/png")
+      )
+      .site
+      .topNavigationBar(
+        homeLink = ImageLink.external(
+          "https://permutive.com",
+          Image.external("img/symbol.svg")
+        ),
+        navLinks = tlSiteApiUrl.value.toList.map { url =>
+          IconLink.external(
+            url.toString,
+            HeliumIcon.api,
+            options = Styles("svg-link")
+          )
+        } ++ List(
+          IconLink.external(
+            scmInfo.value.fold("https://github.com/permutive-engineering")(_.browseUrl.toString),
+            HeliumIcon.github,
+            options = Styles("svg-link")
+          )
+        )
+      ),
+    laikaConfig := LaikaConfig.defaults
+      .withConfigValue(
+        LinkConfig(
+          targets = Seq(
+            TargetDefinition("Prometheus Java Client", ExternalTarget("https://github.com/prometheus/client_java/")),
+            TargetDefinition("Prometheus", ExternalTarget("https://prometheus.io"))
+          ),
+          sourceLinks =
+            Seq(SourceLinks(baseUri = "https://github.com/permutive-engineering/prometheus4cats", suffix = "scala"))
+        )
+      ),
+    tlSiteApiPackage := Some("prometheus4cats"),
+    libraryDependencies ++= Seq(
+      "org.typelevel" %%% "cats-effect" % CatsEffect
+    ),
+    scalacOptions := Seq()
+  )
+  .dependsOn(core, java)
+  .enablePlugins(TypelevelSitePlugin)
+
+lazy val unidocs = project
+  .in(file("unidocs"))
+  .enablePlugins(TypelevelUnidocPlugin) // also enables the ScalaUnidocPlugin
+  .settings(
+    name := "prometheus4cats-docs",
+    ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(core, testkit, java)
+  )

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package prometheus4cats.prometheus.models
+package prometheus4cats.java.models
 
 sealed trait MetricType
 object MetricType {
