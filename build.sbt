@@ -175,8 +175,12 @@ lazy val docs = project
             Seq(SourceLinks(baseUri = "https://github.com/permutive-engineering/prometheus4cats", suffix = "scala"))
         )
       ),
-    tlSiteApiPackage := Some("prometheus4cats")
+    tlSiteApiPackage := Some("prometheus4cats"),
+    libraryDependencies ++= Seq(
+      "org.typelevel" %%% "cats-effect" % CatsEffect
+    )
   )
+  .dependsOn(core, java)
   .enablePlugins(TypelevelSitePlugin)
 
 lazy val unidocs = project
