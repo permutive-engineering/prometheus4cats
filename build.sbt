@@ -1,5 +1,5 @@
 import laika.ast.LengthUnit._
-import laika.ast._
+import laika.ast.{Path => LPath, _}
 import laika.helium.Helium
 import laika.helium.config.Favicon
 import laika.helium.config.HeliumIcon
@@ -42,6 +42,8 @@ ThisBuild / crossScalaVersions := Seq("2.12.15", "3.2.0", Scala213)
 ThisBuild / scalaVersion := crossScalaVersions.value.last
 
 ThisBuild / tlSitePublishBranch := Some("main")
+
+ThisBuild / tlSonatypeUseLegacyHost := true
 
 lazy val root = tlCrossRootProject.aggregate(core, testkit, java)
 
@@ -141,14 +143,14 @@ lazy val docs = project
       )
       .site
       .favIcons(
-        Favicon.external("img/icon-150x150.png", "32x32", "image/png"),
-        Favicon.external("img/icon-300x300.png", "192x192", "image/png")
+        Favicon.internal(LPath.Root / "img" / "icon-150x150.png", "32x32"),
+        Favicon.internal(LPath.Root / "img" / "icon-300x300.png", "192x192")
       )
       .site
       .topNavigationBar(
         homeLink = ImageLink.external(
           "https://permutive.com",
-          Image.external("img/symbol.svg")
+          Image.internal(LPath.Root / "img" / "symbol.svg")
         ),
         navLinks = tlSiteApiUrl.value.toList.map { url =>
           IconLink.external(
