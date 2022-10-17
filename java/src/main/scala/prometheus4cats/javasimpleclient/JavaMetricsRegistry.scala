@@ -16,9 +16,12 @@
 
 package prometheus4cats.javasimpleclient
 
+import java.util
+
 import cats.data.NonEmptySeq
 import cats.effect.kernel._
-import cats.effect.std.Semaphore
+import cats.effect.syntax.temporal._
+import cats.effect.std.{Dispatcher, Semaphore}
 import cats.syntax.applicativeError._
 import cats.syntax.flatMap._
 import cats.syntax.foldable._
@@ -26,7 +29,9 @@ import cats.syntax.functor._
 import cats.syntax.show._
 import cats.{Applicative, ApplicativeThrow, Show}
 import io.prometheus.client.{
+  Collector,
   CollectorRegistry,
+  CounterMetricFamily,
   SimpleCollector,
   Counter => PCounter,
   Gauge => PGauge,
@@ -38,10 +43,15 @@ import prometheus4cats.util.NameUtils
 import prometheus4cats._
 import org.typelevel.log4cats.Logger
 
-class JavaMetricsRegistry[F[_]: Sync: Logger] private (
+import scala.concurrent.duration._
+import scala.jdk.CollectionConverters._
+
+class JavaMetricsRegistry[F[_]: Async: Logger] private (
     registry: CollectorRegistry,
     ref: Ref[F, State],
-    sem: Semaphore[F]
+    sem: Semaphore[F],
+    dispatcher: Dispatcher[F],
+    callbackTimeout: FiniteDuration
 ) extends MetricsRegistry[F] {
 
   private def configureBuilderOrRetrieve[A: Show, B <: SimpleCollector.Builder[B, C], C <: SimpleCollector[_]](
@@ -117,6 +127,50 @@ class JavaMetricsRegistry[F[_]: Sync: Logger] private (
       )
     }
   }
+
+  private def register(
+      prefix: Option[Metric.Prefix],
+      name: Counter.Name,
+      commonLabels: Metric.CommonLabels,
+      callback: F[Double]
+  )(
+      makeFamily: (String, Double) => Collector.MetricFamilySamples,
+      f: (String, util.List[String], util.List[String], Double) => Collector.MetricFamilySamples
+  ): F[Unit] = {
+    lazy val stringName = NameUtils.makeName(prefix, name)
+
+    lazy val commonLabelNames: util.List[String] = commonLabels.value.keys.map(_.value).toList.asJava
+    lazy val commonLabelValues: util.List[String] = commonLabels.value.values.toList.asJava
+
+    def runCallback: Double = dispatcher.unsafeRunSync(callback.timeout(callbackTimeout).handleErrorWith { th =>
+      Logger[F].warn(th)(s"Could not read metric value for $stringName").as(null)
+    })
+
+    val collector = new Collector {
+      override def collect(): util.List[Collector.MetricFamilySamples] = {
+
+        val metrics =
+          if (commonLabels.value.isEmpty) List[Collector.MetricFamilySamples](makeFamily(stringName, runCallback))
+          else List(f(stringName, commonLabelNames, commonLabelValues, runCallback))
+
+        metrics.asJava
+      }
+    }
+
+    Sync[F].delay(collector.register(registry))
+  }
+
+//  override protected[prometheus4cats] def createAndRegisterDoubleCounterReader(
+//      prefix: Option[Metric.Prefix],
+//      name: Counter.Name,
+//      help: Metric.Help,
+//      commonLabels: Metric.CommonLabels,
+//      callback: F[Double]
+//  ): F[Unit] =
+//    register(prefix, name, commonLabels, callback)(
+//      (n, v) => new CounterMetricFamily(n, help.value, v),
+//      (n, lns, lvs, v) => new CounterMetricFamily(n, help.value, lns).addMetric(lvs, v)
+//    )
 
   override protected[prometheus4cats] def createAndRegisterLabelledDoubleCounter[A](
       prefix: Option[Metric.Prefix],
@@ -330,31 +384,36 @@ class JavaMetricsRegistry[F[_]: Sync: Logger] private (
 }
 
 object JavaMetricsRegistry {
-  def default[F[_]: Async: Logger]: Resource[F, JavaMetricsRegistry[F]] = fromSimpleClientRegistry(
-    CollectorRegistry.defaultRegistry
-  )
+  def default[F[_]: Async: Logger](callbackTimeout: FiniteDuration = 10.millis): Resource[F, JavaMetricsRegistry[F]] =
+    fromSimpleClientRegistry(
+      CollectorRegistry.defaultRegistry,
+      callbackTimeout
+    )
 
   def fromSimpleClientRegistry[F[_]: Async: Logger](
-      promRegistry: CollectorRegistry
+      promRegistry: CollectorRegistry,
+      callbackTimeout: FiniteDuration = 10.millis
   ): Resource[F, JavaMetricsRegistry[F]] = {
     val acquire = for {
       ref <- Ref.of[F, State](Map.empty)
       sem <- Semaphore[F](1L)
-    } yield ref -> new JavaMetricsRegistry[F](promRegistry, ref, sem)
+      dis <- Dispatcher[F].allocated
+    } yield (ref, dis._2, new JavaMetricsRegistry[F](promRegistry, ref, sem, dis._1, callbackTimeout))
 
     Resource
-      .make(acquire) { case (ref, _) =>
-        ref.get.flatMap { metrics =>
-          metrics.values
-            .map(_._2)
-            .toList
-            .traverse_ { collector =>
-              Sync[F].delay(promRegistry.unregister(collector)).handleErrorWith { e =>
-                Logger[F].warn(e)(s"Failed to unregister a collector on shutdown.")
+      .make(acquire) { case (ref, disRelease, _) =>
+        disRelease >>
+          ref.get.flatMap { metrics =>
+            metrics.values
+              .map(_._2)
+              .toList
+              .traverse_ { collector =>
+                Sync[F].delay(promRegistry.unregister(collector)).handleErrorWith { e =>
+                  Logger[F].warn(e)(s"Failed to unregister a collector on shutdown.")
+                }
               }
-            }
-        }
+          }
       }
-      .map(_._2)
+      .map(_._3)
   }
 }

@@ -21,7 +21,7 @@ import prometheus4cats._
 
 import scala.annotation.nowarn
 
-final class BucketDsl[A, N] private[prometheus4cats] (
+final class BucketDsl[+A, N] private[prometheus4cats] (
     f: NonEmptySeq[N] => A
 )(implicit N: Numeric[N]) {
 

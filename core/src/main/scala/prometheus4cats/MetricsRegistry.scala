@@ -313,9 +313,12 @@ trait MetricsRegistry[F[_]] {
       labelNames: IndexedSeq[Label.Name],
       buckets: NonEmptySeq[Long]
   )(f: A => IndexedSeq[String]): F[Histogram.Labelled[F, Long, A]]
+
+  final def mapK[G[_]: Functor](fk: F ~> G): MetricsRegistry[G] = MetricsRegistry.mapK(this, fk)
 }
 
 object MetricsRegistry {
+
   def noop[F[_]](implicit F: Applicative[F]): MetricsRegistry[F] =
     new MetricsRegistry[F] {
       override protected[prometheus4cats] def createAndRegisterDoubleCounter(

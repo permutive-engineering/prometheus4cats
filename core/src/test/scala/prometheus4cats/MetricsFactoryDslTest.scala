@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit
 import cats.effect.IO
 
 object MetricsFactoryDslTest {
-  val factory: MetricsFactory[IO] = MetricsFactory.builder.withPrefix("prefix").noop
+  val factory: MetricsFactory.WithCallbacks[IO] = MetricsFactory.builder.withPrefix("prefix").noop[IO]
 
   val gaugeBuilder = factory.gauge("test")
 
@@ -81,6 +81,7 @@ object MetricsFactoryDslTest {
   val doubleHistogramBuilder = histogramBuilder.ofDouble.help("help").defaultHttpBuckets
   doubleHistogramBuilder.build
   doubleHistogramBuilder.resource
+  doubleHistogramBuilder.callback(IO(1.0))
   doubleHistogramBuilder.asTimer.build
   doubleHistogramBuilder
     .label[String]("label1")
