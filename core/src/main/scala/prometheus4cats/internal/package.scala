@@ -111,10 +111,14 @@ object BuildStep {
   }
 }
 
-trait CallbackStep[F[_], B] {
-  protected def buildCallback: F[B] => F[Unit]
+trait CallbackStep[F[_], A] { self =>
+  protected def buildCallback: F[A] => F[Unit]
 
-  def callback(callback: F[B]): BuildStep[F, Unit] = new BuildStep(buildCallback(callback))
+  def callback(callback: F[A]): BuildStep[F, Unit] = new BuildStep(buildCallback(callback))
+
+  def contramapCallback[B](f: B => A)(implicit F: Functor[F]): CallbackStep[F, B] = new CallbackStep[F, B] {
+    override protected def buildCallback: F[B] => F[Unit] = fb => self.buildCallback(fb.map(f))
+  }
 }
 
 class CallbackBuildStep[F[_], A, B](fa: F[A], override val buildCallback: F[B] => F[Unit])
@@ -253,6 +257,8 @@ abstract private[prometheus4cats] class BaseLabelsBuildStep[F[_], A, T, N <: Nat
   protected[internal] val makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L]
   protected[internal] val labelNames: Sized[IndexedSeq[Label.Name], N]
   protected[internal] val f: T => Sized[IndexedSeq[String], N]
+
+  def contramapLabels[B](f: B => T): BaseLabelsBuildStep[F, A, B, N, L]
 }
 
 object BaseLabelsBuildStep {
@@ -300,7 +306,13 @@ class LabelsBuildStep[F[_], A, T, N <: Nat, L[_[_], _, _]] private[internal] (
         // avoid using andThen because it can be slow and this gets called repeatedly during runtime
         t => f(t).unsized
       )
-    )
+    ) {
+  override def contramapLabels[B](f0: B => T): LabelsBuildStep[F, A, B, N, L] = new LabelsBuildStep[F, A, B, N, L](
+    makeLabelledMetric,
+    labelNames,
+    b => f(f0(b))
+  )
+}
 
 object LabelsBuildStep {
   class WithCallbacks[F[_], A, A0, T, N <: Nat, L[_[_], _, _]] private[internal] (
@@ -316,6 +328,9 @@ object LabelsBuildStep {
       with CallbackStep[F, (A0, T)] {
     override protected def buildCallback: F[(A0, T)] => F[Unit] = cb =>
       makeLabelledCallback(labelNames.unsized, cb)(f(_).unsized)
+
+    override def contramapLabels[B](f0: B => T): LabelsBuildStep.WithCallbacks[F, A, A0, B, N, L] =
+      new WithCallbacks(makeLabelledMetric, makeLabelledCallback, labelNames, b => f(f0(b)))
   }
 }
 
@@ -347,6 +362,11 @@ class LabelledMetricDsl[F[_], A, T, N <: Nat, L[_[_], _, _]] private[internal] (
 
     }
 
+  override def contramapLabels[B](f0: B => T): LabelledMetricDsl[F, A, B, N, L] = new LabelledMetricDsl(
+    makeLabelledMetric,
+    labelNames,
+    b => f(f0(b))
+  )
 }
 object LabelledMetricDsl {
   final class WithCallbacks[F[_], A, A0, T, N <: Nat, L[_[_], _, _]] private[internal] (
@@ -376,6 +396,9 @@ object LabelledMetricDsl {
         )
 
       }
+
+    override def contramapLabels[B](f0: B => T): WithCallbacks[F, A, A0, B, N, L] =
+      new WithCallbacks(makeLabelledMetric, makeLabelledCallback, labelNames, b => f(f0(b)))
   }
 }
 
