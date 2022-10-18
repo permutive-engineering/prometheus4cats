@@ -28,13 +28,13 @@ import prometheus4cats.internal.{
 }
 
 sealed abstract class MetricsFactory[F[_]](
-    metricRegistry: MetricsRegistry[F],
-    prefix: Option[Metric.Prefix],
-    commonLabels: CommonLabels
+    val metricRegistry: MetricsRegistry[F],
+    val prefix: Option[Metric.Prefix],
+    val commonLabels: CommonLabels
 ) {
   def mapK[G[_]: Functor](fk: F ~> G): MetricsFactory[G] =
     new MetricsFactory[G](
-      MetricsRegistry.mapK(metricRegistry, fk),
+      metricRegistry.mapK(fk),
       prefix,
       commonLabels
     ) {}
@@ -189,10 +189,17 @@ object MetricsFactory {
 
   sealed abstract class WithCallbacks[F[_]](
       metricRegistry: MetricsRegistry[F],
-      callbackRegistry: CallbackRegistry[F],
+      val callbackRegistry: CallbackRegistry[F],
       prefix: Option[Metric.Prefix],
       commonLabels: CommonLabels
   ) extends MetricsFactory[F](metricRegistry, prefix, commonLabels) {
+
+    def imapK[G[_]: Functor](fk: F ~> G, gk: G ~> F): WithCallbacks[G] = new WithCallbacks[G](
+      metricRegistry.mapK(fk),
+      callbackRegistry.imapK(fk, gk),
+      prefix,
+      commonLabels
+    ) {}
 
     type SimpleCallbackDsl[G[_], A, M[_[_], _], L[_[_], _, _]] = MetricDsl.WithCallbacks[G, A, A, M, L]
 
@@ -309,7 +316,7 @@ object MetricsFactory {
             buckets =>
               new MetricDsl.WithCallbacks(
                 metricRegistry.createAndRegisterLongHistogram(prefix, name, help, commonLabels, buckets),
-                cb => callbackRegistry.registerLongHistogramCallback(prefix, name, help, commonLabels, cb),
+                cb => callbackRegistry.registerLongHistogramCallback(prefix, name, help, commonLabels, buckets, cb),
                 new LabelledMetricPartiallyApplied[F, Long, Histogram.Labelled] {
                   override def apply[B](
                       labels: IndexedSeq[Label.Name]
@@ -322,7 +329,15 @@ object MetricsFactory {
                       f: B => IndexedSeq[String]
                   ): F[Unit] =
                     callbackRegistry
-                      .registerLabelledLongHistogramCallback(prefix, name, help, commonLabels, labels, callback)(
+                      .registerLabelledLongHistogramCallback(
+                        prefix,
+                        name,
+                        help,
+                        commonLabels,
+                        labels,
+                        buckets,
+                        callback
+                      )(
                         f
                       )
                 }
@@ -336,7 +351,7 @@ object MetricsFactory {
           ](buckets =>
             new MetricDsl.WithCallbacks(
               metricRegistry.createAndRegisterDoubleHistogram(prefix, name, help, commonLabels, buckets),
-              cb => callbackRegistry.registerDoubleHistogramCallback(prefix, name, help, commonLabels, cb),
+              cb => callbackRegistry.registerDoubleHistogramCallback(prefix, name, help, commonLabels, buckets, cb),
               new LabelledMetricPartiallyApplied[F, Double, Histogram.Labelled] {
                 override def apply[B](
                     labels: IndexedSeq[Label.Name]
@@ -349,7 +364,15 @@ object MetricsFactory {
                     f: B => IndexedSeq[String]
                 ): F[Unit] =
                   callbackRegistry
-                    .registerLabelledDoubleHistogramCallback(prefix, name, help, commonLabels, labels, callback)(
+                    .registerLabelledDoubleHistogramCallback(
+                      prefix,
+                      name,
+                      help,
+                      commonLabels,
+                      labels,
+                      buckets,
+                      callback
+                    )(
                       f
                     )
               }

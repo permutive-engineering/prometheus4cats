@@ -143,7 +143,7 @@ class JavaMetricsRegistry[F[_]: Async: Logger] private (
     lazy val commonLabelValues: util.List[String] = commonLabels.value.values.toList.asJava
 
     def runCallback: Double = dispatcher.unsafeRunSync(callback.timeout(callbackTimeout).handleErrorWith { th =>
-      Logger[F].warn(th)(s"Could not read metric value for $stringName").as(null)
+      Logger[F].warn(th)(s"Could not read metric value for $stringName").as(null.asInstanceOf[Double])
     })
 
     val collector = new Collector {
