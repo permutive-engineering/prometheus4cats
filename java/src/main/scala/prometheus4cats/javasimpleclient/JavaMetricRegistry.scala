@@ -41,20 +41,20 @@ import io.prometheus.client.{
 }
 import prometheus4cats.javasimpleclient.internal.Utils
 import prometheus4cats.javasimpleclient.models.MetricType
-import prometheus4cats.util.{DoubleCallbackRegistry, DoubleMetricsRegistry, NameUtils}
+import prometheus4cats.util.{DoubleCallbackRegistry, DoubleMetricRegistry, NameUtils}
 import prometheus4cats._
 import org.typelevel.log4cats.Logger
 
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 
-class JavaMetricsRegistry[F[_]: Async: Logger] private (
+class JavaMetricRegistry[F[_]: Async: Logger] private (
     registry: CollectorRegistry,
     ref: Ref[F, State],
     sem: Semaphore[F],
     dispatcher: Dispatcher[F],
     callbackTimeout: FiniteDuration
-) extends DoubleMetricsRegistry[F]
+) extends DoubleMetricRegistry[F]
     with DoubleCallbackRegistry[F] {
   override protected val F: Functor[F] = implicitly
 
@@ -593,8 +593,8 @@ class JavaMetricsRegistry[F[_]: Async: Logger] private (
   }
 }
 
-object JavaMetricsRegistry {
-  def default[F[_]: Async: Logger](callbackTimeout: FiniteDuration = 10.millis): Resource[F, JavaMetricsRegistry[F]] =
+object JavaMetricRegistry {
+  def default[F[_]: Async: Logger](callbackTimeout: FiniteDuration = 10.millis): Resource[F, JavaMetricRegistry[F]] =
     fromSimpleClientRegistry(
       CollectorRegistry.defaultRegistry,
       callbackTimeout
@@ -603,12 +603,12 @@ object JavaMetricsRegistry {
   def fromSimpleClientRegistry[F[_]: Async: Logger](
       promRegistry: CollectorRegistry,
       callbackTimeout: FiniteDuration = 10.millis
-  ): Resource[F, JavaMetricsRegistry[F]] = {
+  ): Resource[F, JavaMetricRegistry[F]] = {
     val acquire = for {
       ref <- Ref.of[F, State](Map.empty)
       sem <- Semaphore[F](1L)
       dis <- Dispatcher[F].allocated
-    } yield (ref, dis._2, new JavaMetricsRegistry[F](promRegistry, ref, sem, dis._1, callbackTimeout))
+    } yield (ref, dis._2, new JavaMetricRegistry[F](promRegistry, ref, sem, dis._1, callbackTimeout))
 
     Resource
       .make(acquire) { case (ref, disRelease, _) =>

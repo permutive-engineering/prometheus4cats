@@ -38,7 +38,7 @@ object Histogram {
     *
     * @note
     *   the size `bucketValues` '''MUST MATCH''' that of the number of buckets defined when creating the histogram in
-    *   [[MetricsFactory.WithCallbacks]]. If they do not match, the histogram may not render correctly or at all.
+    *   [[MetricFactory.WithCallbacks]]. If they do not match, the histogram may not render correctly or at all.
     *
     * @param sum
     *   the histogram sum

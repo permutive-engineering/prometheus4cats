@@ -102,7 +102,7 @@ object Metric {
 
   }
 
-  /** Refined value class that can be used with [[MetricsFactory]] to prefix every metric name with a certain string
+  /** Refined value class that can be used with [[MetricFactory]] to prefix every metric name with a certain string
     * value
     */
   final class Prefix private (val value: String) extends AnyVal {

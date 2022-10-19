@@ -40,7 +40,7 @@ object CurrentTimeRecorder {
   /** Create a [[CurrentTimeRecorder]] from a [[Gauge]] that records [[scala.Long]] values
     *
     * The best way to construct a [[CurrentTimeRecorder]] is to use the `asCurrentTimeRecorder` on the gauge DSL
-    * provided by [[MetricsFactory]]
+    * provided by [[MetricFactory]]
     *
     * @param gauge
     *   the [[Gauge]] instance to set the current time value against
@@ -56,7 +56,7 @@ object CurrentTimeRecorder {
   /** Create a [[CurrentTimeRecorder]] from a [[Gauge]] that records [[scala.Double]] values
     *
     * The best way to construct a [[CurrentTimeRecorder]] is to use the `asCurrentTimeRecorder` on the gauge DSL
-    * provided by [[MetricsFactory]]
+    * provided by [[MetricFactory]]
     *
     * @param gauge
     *   the [[Gauge]] instance to set the current time value against
@@ -96,7 +96,7 @@ object CurrentTimeRecorder {
     /** Create a [[CurrentTimeRecorder]] from a [[Gauge.Labelled]] that records [[scala.Long]] values
       *
       * The best way to construct a [[CurrentTimeRecorder]] is to use the `asCurrentTimeRecorder` on the gauge DSL
-      * provided by [[MetricsFactory]]
+      * provided by [[MetricFactory]]
       *
       * @param gauge
       *   the [[Gauge.Labelled]] instance to set the current time value against
@@ -114,7 +114,7 @@ object CurrentTimeRecorder {
     /** Create a [[CurrentTimeRecorder]] from a [[Gauge.Labelled]] that records [[scala.Double]] values
       *
       * The best way to construct a [[CurrentTimeRecorder]] is to use the `asCurrentTimeRecorder` on the gauge DSL
-      * provided by [[MetricsFactory]]
+      * provided by [[MetricFactory]]
       *
       * @param gauge
       *   the [[Gauge.Labelled]] instance to set the current time value against

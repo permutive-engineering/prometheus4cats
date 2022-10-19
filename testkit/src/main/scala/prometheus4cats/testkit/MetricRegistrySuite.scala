@@ -24,9 +24,9 @@ import munit.CatsEffectSuite
 import org.scalacheck.effect.PropF._
 import prometheus4cats._
 
-trait MetricsRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffectSuite =>
+trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffectSuite =>
 
-  def metricRegistryResource(state: State): Resource[IO, MetricsRegistry[IO]]
+  def metricRegistryResource(state: State): Resource[IO, MetricRegistry[IO]]
 
   test("create and increment a counter") {
     forAllF {

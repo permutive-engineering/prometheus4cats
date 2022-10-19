@@ -27,17 +27,17 @@ import prometheus4cats.internal.{
   TypeStep
 }
 
-sealed abstract class MetricsFactory[F[_]](
-    val metricRegistry: MetricsRegistry[F],
+sealed abstract class MetricFactory[F[_]](
+    val metricRegistry: MetricRegistry[F],
     val prefix: Option[Metric.Prefix],
     val commonLabels: CommonLabels
 ) {
 
-  /** Given a natural transformation from `F` to `G`, transforms this [[MetricsFactory]] from effect `F` to effect `G`.
+  /** Given a natural transformation from `F` to `G`, transforms this [[MetricFactory]] from effect `F` to effect `G`.
     * The G constraint can also be satisfied by requiring a Functor[G].
     */
-  def mapK[G[_]: Functor](fk: F ~> G): MetricsFactory[G] =
-    new MetricsFactory[G](
+  def mapK[G[_]: Functor](fk: F ~> G): MetricFactory[G] =
+    new MetricFactory[G](
       metricRegistry.mapK(fk),
       prefix,
       commonLabels
@@ -170,42 +170,42 @@ sealed abstract class MetricsFactory[F[_]](
       )
     )
 
-  /** Creates a new instance of [[MetricsFactory]] without a [[Metric.Prefix]] set
+  /** Creates a new instance of [[MetricFactory]] without a [[Metric.Prefix]] set
     */
-  def dropPrefix: MetricsFactory[F] = new MetricsFactory[F](metricRegistry, None, commonLabels) {}
+  def dropPrefix: MetricFactory[F] = new MetricFactory[F](metricRegistry, None, commonLabels) {}
 
-  /** Creates a new instance of [[MetricsFactory]] with the given [[Metric.Prefix]] set
+  /** Creates a new instance of [[MetricFactory]] with the given [[Metric.Prefix]] set
     */
-  def withPrefix(prefix: Metric.Prefix): MetricsFactory[F] =
-    new MetricsFactory[F](metricRegistry, Some(prefix), commonLabels) {}
+  def withPrefix(prefix: Metric.Prefix): MetricFactory[F] =
+    new MetricFactory[F](metricRegistry, Some(prefix), commonLabels) {}
 
-  /** Creates a new instance of [[MetricsFactory]] with any [[Metric.CommonLabels]]
+  /** Creates a new instance of [[MetricFactory]] with any [[Metric.CommonLabels]]
     */
-  def dropCommonLabels: MetricsFactory[F] = new MetricsFactory[F](metricRegistry, prefix, CommonLabels.empty) {}
+  def dropCommonLabels: MetricFactory[F] = new MetricFactory[F](metricRegistry, prefix, CommonLabels.empty) {}
 
-  /** Creates a new instance of [[MetricsFactory]] with the provided [[Metric.CommonLabels]]
+  /** Creates a new instance of [[MetricFactory]] with the provided [[Metric.CommonLabels]]
     */
-  def withCommonLabels(commonLabels: CommonLabels): MetricsFactory[F] =
-    new MetricsFactory[F](metricRegistry, prefix, commonLabels) {}
+  def withCommonLabels(commonLabels: CommonLabels): MetricFactory[F] =
+    new MetricFactory[F](metricRegistry, prefix, commonLabels) {}
 }
 
-object MetricsFactory {
+object MetricFactory {
 
-  /** Subtype of [[MetricsFactory]] that can register metric callbacks with the DSL
+  /** Subtype of [[MetricFactory]] that can register metric callbacks with the DSL
     *
     * @note
-    *   Calling [[MetricsFactory.WithCallbacks.mapK]] will return a [[MetricsFactory]] only. To change the type of `F`
-    *   and return a [[MetricsFactory.WithCallbacks]] you must you [[MetricsFactory.WithCallbacks.imapK]].
+    *   Calling [[MetricFactory.WithCallbacks.mapK]] will return a [[MetricFactory]] only. To change the type of `F` and
+    *   return a [[MetricFactory.WithCallbacks]] you must you [[MetricFactory.WithCallbacks.imapK]].
     */
   sealed abstract class WithCallbacks[F[_]](
-      metricRegistry: MetricsRegistry[F],
+      metricRegistry: MetricRegistry[F],
       val callbackRegistry: CallbackRegistry[F],
       prefix: Option[Metric.Prefix],
       commonLabels: CommonLabels
-  ) extends MetricsFactory[F](metricRegistry, prefix, commonLabels) {
+  ) extends MetricFactory[F](metricRegistry, prefix, commonLabels) {
 
     /** Given a natural transformation from `F` to `G` and from `G` to `F`, transforms this
-      * [[MetricsFactory.WithCallbacks]] from effect `F` to effect `G`. The G constraint can also be satisfied by
+      * [[MetricFactory.WithCallbacks]] from effect `F` to effect `G`. The G constraint can also be satisfied by
       * requiring a Functor[G].
       */
     def imapK[G[_]: Functor](fk: F ~> G, gk: G ~> F): WithCallbacks[G] = new WithCallbacks[G](
@@ -403,54 +403,55 @@ object MetricsFactory {
 
     /** @inheritdoc
       */
-    override def dropPrefix: MetricsFactory[F] =
-      new MetricsFactory.WithCallbacks[F](metricRegistry, callbackRegistry, None, commonLabels) {}
+    override def dropPrefix: MetricFactory[F] =
+      new MetricFactory.WithCallbacks[F](metricRegistry, callbackRegistry, None, commonLabels) {}
 
     /** @inheritdoc
       */
-    override def withPrefix(prefix: Metric.Prefix): MetricsFactory[F] =
-      new MetricsFactory.WithCallbacks[F](metricRegistry, callbackRegistry, Some(prefix), commonLabels) {}
+    override def withPrefix(prefix: Metric.Prefix): MetricFactory[F] =
+      new MetricFactory.WithCallbacks[F](metricRegistry, callbackRegistry, Some(prefix), commonLabels) {}
 
     /** @inheritdoc
       */
-    override def dropCommonLabels: MetricsFactory[F] =
-      new MetricsFactory.WithCallbacks[F](metricRegistry, callbackRegistry, prefix, CommonLabels.empty) {}
+    override def dropCommonLabels: MetricFactory[F] =
+      new MetricFactory.WithCallbacks[F](metricRegistry, callbackRegistry, prefix, CommonLabels.empty) {}
 
     /** @inheritdoc
       */
-    override def withCommonLabels(commonLabels: CommonLabels): MetricsFactory[F] =
-      new MetricsFactory.WithCallbacks[F](metricRegistry, callbackRegistry, prefix, commonLabels) {}
+    override def withCommonLabels(commonLabels: CommonLabels): MetricFactory[F] =
+      new MetricFactory.WithCallbacks[F](metricRegistry, callbackRegistry, prefix, commonLabels) {}
   }
 
   object WithCallbacks {
     def noop[F[_]: Applicative]: WithCallbacks[F] =
-      new WithCallbacks[F](MetricsRegistry.noop, CallbackRegistry.noop, None, CommonLabels.empty) {}
+      new WithCallbacks[F](MetricRegistry.noop, CallbackRegistry.noop, None, CommonLabels.empty) {}
   }
 
-  /** Create an instance of [[MetricsFactory]] that performs no operations
+  /** Create an instance of [[MetricFactory]] that performs no operations
     */
-  def noop[F[_]: Applicative]: MetricsFactory[F] =
-    new MetricsFactory[F](
-      MetricsRegistry.noop,
+  def noop[F[_]: Applicative]: MetricFactory[F] =
+    new MetricFactory[F](
+      MetricRegistry.noop,
       None,
       CommonLabels.empty
     ) {}
 
-  /** Builder for [[MetricsFactory]]
+  /** Builder for [[MetricFactory]]
     */
   class Builder private[prometheus4cats] (
       prefix: Option[Metric.Prefix] = None,
       commonLabels: CommonLabels = CommonLabels.empty
   ) {
 
-    /** Add a prefix to all metrics created by the [[MetricsFactory]]
+    /** Add a prefix to all metrics created by the [[MetricFactory]]
+      *
       * @param prefix
       *   [[Metric.Prefix]]
       */
     def withPrefix(prefix: Metric.Prefix): Builder =
       new Builder(Some(prefix), commonLabels)
 
-    /** Add the given labels to all metrics created by the [[MetricsFactory]]
+    /** Add the given labels to all metrics created by the [[MetricFactory]]
       *
       * @param labels
       *   [[Metric.CommonLabels]]
@@ -458,52 +459,52 @@ object MetricsFactory {
     def withCommonLabels(labels: CommonLabels): Builder =
       new Builder(prefix, labels)
 
-    /** Build a [[MetricsFactory]] from a [[MetricsRegistry]]
+    /** Build a [[MetricFactory]] from a [[MetricRegistry]]
       *
       * @param metricRegistry
-      *   [[MetricsRegistry]] with which to register new metrics created by the built [[MetricsFactory]]
+      *   [[MetricRegistry]] with which to register new metrics created by the built [[MetricFactory]]
       * @return
-      *   a new [[MetricsFactory]] instance
+      *   a new [[MetricFactory]] instance
       */
-    def build[F[_]](metricRegistry: MetricsRegistry[F]): MetricsFactory[F] =
-      new MetricsFactory[F](metricRegistry, prefix, commonLabels) {}
+    def build[F[_]](metricRegistry: MetricRegistry[F]): MetricFactory[F] =
+      new MetricFactory[F](metricRegistry, prefix, commonLabels) {}
 
-    /** Build a [[MetricsFactory]] from a [[MetricsRegistry]] and separate [[CallbackRegistry]]
+    /** Build a [[MetricFactory]] from a [[MetricRegistry]] and separate [[CallbackRegistry]]
       *
       * @param metricRegistry
-      *   [[MetricsRegistry]] with which to register new metrics created by the built [[MetricsFactory]]
+      *   [[MetricRegistry]] with which to register new metrics created by the built [[MetricFactory]]
       * @param callbackRegistry
-      *   [[CallbackRegistry]] with which to register new metrics created by the built [[MetricsFactory]]
+      *   [[CallbackRegistry]] with which to register new metrics created by the built [[MetricFactory]]
       * @return
-      *   a new [[MetricsFactory.WithCallbacks]] instance
+      *   a new [[MetricFactory.WithCallbacks]] instance
       */
     def build[F[_]](
-        metricRegistry: MetricsRegistry[F],
+        metricRegistry: MetricRegistry[F],
         callbackRegistry: CallbackRegistry[F]
-    ): MetricsFactory.WithCallbacks[F] =
-      new MetricsFactory.WithCallbacks[F](metricRegistry, callbackRegistry, prefix, commonLabels) {}
+    ): MetricFactory.WithCallbacks[F] =
+      new MetricFactory.WithCallbacks[F](metricRegistry, callbackRegistry, prefix, commonLabels) {}
 
-    /** Build a [[MetricsFactory]] from a [[MetricsRegistry with CallbackRegistry]]
+    /** Build a [[MetricFactory]] from a [[MetricRegistry with CallbackRegistry]]
       *
       * @param metricRegistry
-      *   [[[MetricsRegistry with CallbackRegistry]] with which to register new metrics and callbacks created by the
-      *   built [[MetricsFactory]]
+      *   [[[MetricRegistry with CallbackRegistry]] with which to register new metrics and callbacks created by the
+      *   built [[MetricFactory]]
       * @return
-      *   a new [[MetricsFactory.WithCallbacks]] instance
+      *   a new [[MetricFactory.WithCallbacks]] instance
       */
-    def build[F[_]](metricRegistry: MetricsRegistry[F] with CallbackRegistry[F]): MetricsFactory.WithCallbacks[F] =
-      new MetricsFactory.WithCallbacks[F](metricRegistry, metricRegistry, prefix, commonLabels) {}
+    def build[F[_]](metricRegistry: MetricRegistry[F] with CallbackRegistry[F]): MetricFactory.WithCallbacks[F] =
+      new MetricFactory.WithCallbacks[F](metricRegistry, metricRegistry, prefix, commonLabels) {}
 
-    /** Build a [[MetricsFactory]] the performs no operations
+    /** Build a [[MetricFactory]] the performs no operations
       *
       * @return
-      *   a new [[MetricsFactory]] instance that performs no operations
+      *   a new [[MetricFactory]] instance that performs no operations
       */
-    def noop[F[_]: Applicative]: MetricsFactory.WithCallbacks[F] =
-      MetricsFactory.WithCallbacks.noop[F]
+    def noop[F[_]: Applicative]: MetricFactory.WithCallbacks[F] =
+      MetricFactory.WithCallbacks.noop[F]
   }
 
-  /** Construct a [[MetricsFactory]] using [[MetricsFactory.Builder]]
+  /** Construct a [[MetricFactory]] using [[MetricFactory.Builder]]
     */
   def builder = new Builder()
 }

@@ -21,7 +21,7 @@ import cats.data.NonEmptySeq
 import cats.syntax.functor._
 import prometheus4cats._
 
-trait DoubleMetricsRegistry[F[_]] extends MetricsRegistry[F] {
+trait DoubleMetricRegistry[F[_]] extends MetricRegistry[F] {
   implicit protected val F: Functor[F]
 
   override protected[prometheus4cats] def createAndRegisterLongCounter(

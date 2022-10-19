@@ -20,7 +20,7 @@ import cats.data.NonEmptySeq
 import cats.{Applicative, ~>}
 
 /** Trait for registering callbacks against different backends. May be implemented by anyone for use with
-  * [[MetricsFactory.WithCallbacks]]
+  * [[MetricFactory.WithCallbacks]]
   */
 trait CallbackRegistry[F[_]] {
 

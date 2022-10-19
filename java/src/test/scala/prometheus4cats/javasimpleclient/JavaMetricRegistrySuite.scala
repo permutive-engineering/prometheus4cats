@@ -24,7 +24,7 @@ import cats.syntax.either._
 import io.prometheus.client.CollectorRegistry
 import munit.CatsEffectSuite
 import prometheus4cats._
-import prometheus4cats.testkit.{CallbackRegistrySuite, MetricsRegistrySuite}
+import prometheus4cats.testkit.{CallbackRegistrySuite, MetricRegistrySuite}
 import prometheus4cats.util.NameUtils
 import org.scalacheck.effect.PropF._
 import org.typelevel.log4cats.Logger
@@ -32,19 +32,19 @@ import org.typelevel.log4cats.noop.NoOpLogger
 
 import scala.jdk.CollectionConverters._
 
-class JavaMetricsRegistrySuite
+class JavaMetricRegistrySuite
     extends CatsEffectSuite
-    with MetricsRegistrySuite[CollectorRegistry]
+    with MetricRegistrySuite[CollectorRegistry]
     with CallbackRegistrySuite[CollectorRegistry] {
   implicit val logger: Logger[IO] = NoOpLogger.impl
 
   override val stateResource: Resource[IO, CollectorRegistry] = Resource.eval(IO.delay(new CollectorRegistry()))
 
-  override def metricRegistryResource(state: CollectorRegistry): Resource[IO, MetricsRegistry[IO]] =
-    JavaMetricsRegistry.fromSimpleClientRegistry[IO](state)
+  override def metricRegistryResource(state: CollectorRegistry): Resource[IO, MetricRegistry[IO]] =
+    JavaMetricRegistry.fromSimpleClientRegistry[IO](state)
 
   override def callbackRegistryResource(state: CollectorRegistry): Resource[IO, CallbackRegistry[IO]] =
-    JavaMetricsRegistry.fromSimpleClientRegistry[IO](state)
+    JavaMetricRegistry.fromSimpleClientRegistry[IO](state)
 
   def getMetricValue[A: Show](
       state: CollectorRegistry,
@@ -188,7 +188,7 @@ class JavaMetricsRegistrySuite
             assertEquals(
               res.leftMap(_.getMessage),
               Left(
-                s"A metric with the same name as '${NameUtils.makeName(prefix, name.value.replace("_total", ""))}' is already registered with different labels and/or type"
+                s"A metric with the same name as '${NameUtils.makeName(prefix, name)}' is already registered with different labels and/or type"
               )
             )
           }
