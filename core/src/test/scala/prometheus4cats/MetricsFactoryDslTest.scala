@@ -81,7 +81,6 @@ object MetricsFactoryDslTest {
   val doubleHistogramBuilder = histogramBuilder.ofDouble.help("help").defaultHttpBuckets
   doubleHistogramBuilder.build
   doubleHistogramBuilder.resource
-  doubleHistogramBuilder.callback(IO(1.0))
   doubleHistogramBuilder.asTimer.build
   doubleHistogramBuilder
     .label[String]("label1")
