@@ -18,6 +18,7 @@ package prometheus4cats
 
 import cats.data.NonEmptySeq
 import cats.{Applicative, Contravariant, Eq, Hash, Order, Show, ~>}
+import prometheus4cats.internal.HistogramNameFromStringLiteral
 
 sealed abstract class Histogram[F[_], -A] extends Metric[A] { self =>
 

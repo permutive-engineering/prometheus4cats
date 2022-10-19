@@ -14,37 +14,39 @@
  * limitations under the License.
  */
 
-package prometheus4cats
+package prometheus4cats.internal
+
+import prometheus4cats._
 
 import scala.quoted.*
 
-trait HistogramNameFromStringLiteral {
+trait MetricPrefixFromStringLiteral {
 
-  inline def apply(inline t: String): Histogram.Name = ${
-    HistogramNameFromStringLiteral.nameLiteral('t)
+  inline def apply(inline t: String): Metric.Prefix = ${
+    MetricPrefixFromStringLiteral.nameLiteral('t)
   }
 
-  implicit inline def fromStringLiteral(inline t: String): Histogram.Name = ${
-    HistogramNameFromStringLiteral.nameLiteral('t)
+  implicit inline def fromStringLiteral(inline t: String): Metric.Prefix = ${
+    MetricPrefixFromStringLiteral.nameLiteral('t)
   }
 
 }
 
-object HistogramNameFromStringLiteral extends MacroUtils {
-  def nameLiteral(s: Expr[String])(using q: Quotes): Expr[Histogram.Name] =
+object MetricPrefixFromStringLiteral extends MacroUtils {
+  def nameLiteral(s: Expr[String])(using q: Quotes): Expr[Metric.Prefix] =
     s.value match {
       case Some(string) =>
-        Histogram.Name
+        Metric.Prefix
           .from(string)
           .fold(
             error,
             _ =>
               '{
-                Histogram.Name.from(${ Expr(string) }).toOption.get
+                Metric.Prefix.from(${ Expr(string) }).toOption.get
               }
           )
       case None =>
-        abort("Histogram.Name.from")
+        abort("Metric.Prefix.from")
         '{ ??? }
     }
 }

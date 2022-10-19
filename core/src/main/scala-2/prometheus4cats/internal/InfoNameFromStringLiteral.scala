@@ -14,30 +14,32 @@
  * limitations under the License.
  */
 
-package prometheus4cats
+package prometheus4cats.internal
+
+import prometheus4cats.Info
 
 import scala.reflect.macros.blackbox
 
-trait HistogramNameFromStringLiteral {
+trait InfoNameFromStringLiteral {
 
-  def apply(t: String): Histogram.Name =
-    macro HistogramNameMacros.fromStringLiteral
+  def apply(t: String): Info.Name =
+    macro InfoNameMacros.fromStringLiteral
 
-  implicit def fromStringLiteral(t: String): Histogram.Name =
-    macro HistogramNameMacros.fromStringLiteral
+  implicit def fromStringLiteral(t: String): Info.Name =
+    macro InfoNameMacros.fromStringLiteral
 
 }
 
-private[prometheus4cats] class HistogramNameMacros(val c: blackbox.Context) extends MacroUtils {
+private[prometheus4cats] class InfoNameMacros(val c: blackbox.Context) extends MacroUtils {
 
-  def fromStringLiteral(t: c.Expr[String]): c.Expr[Histogram.Name] = {
-    val string: String = literal(t, or = "Histogram.Name.from({string})")
+  def fromStringLiteral(t: c.Expr[String]): c.Expr[Info.Name] = {
+    val string: String = literal(t, or = "Info.Name.from({string})")
 
-    Histogram.Name
+    Info.Name
       .from(string)
       .fold(
         abort,
-        _ => c.universe.reify(Histogram.Name.from(t.splice).toOption.get)
+        _ => c.universe.reify(Info.Name.from(t.splice).toOption.get)
       )
   }
 

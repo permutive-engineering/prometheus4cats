@@ -18,6 +18,7 @@ package prometheus4cats
 
 import cats.syntax.traverse._
 import cats.{Eq, Hash, Order, Show}
+import prometheus4cats.internal.{MetricHelpFromStringLiteral, MetricPrefixFromStringLiteral}
 
 private[prometheus4cats] trait Metric[-A] {
   def contramap[B](f: B => A): Metric[B]

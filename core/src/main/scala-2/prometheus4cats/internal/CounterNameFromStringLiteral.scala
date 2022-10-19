@@ -14,30 +14,32 @@
  * limitations under the License.
  */
 
-package prometheus4cats
+package prometheus4cats.internal
+
+import prometheus4cats.Counter
 
 import scala.reflect.macros.blackbox
 
-trait LabelNameFromStringLiteral {
+trait CounterNameFromStringLiteral {
 
-  def apply(t: String): Label.Name =
-    macro LabelNameMacros.fromStringLiteral
+  def apply(t: String): Counter.Name =
+    macro CounterNameMacros.fromStringLiteral
 
-  implicit def fromStringLiteral(t: String): Label.Name =
-    macro LabelNameMacros.fromStringLiteral
+  implicit def fromStringLiteral(t: String): Counter.Name =
+    macro CounterNameMacros.fromStringLiteral
 
 }
 
-private[prometheus4cats] class LabelNameMacros(val c: blackbox.Context) extends MacroUtils {
+private[prometheus4cats] class CounterNameMacros(val c: blackbox.Context) extends MacroUtils {
 
-  def fromStringLiteral(t: c.Expr[String]): c.Expr[Label.Name] = {
-    val string: String = literal(t, or = "Label.Name.from({string})")
+  def fromStringLiteral(t: c.Expr[String]): c.Expr[Counter.Name] = {
+    val string: String = literal(t, or = "Counter.Name.from({string})")
 
-    Label.Name
+    Counter.Name
       .from(string)
       .fold(
         abort,
-        _ => c.universe.reify(Label.Name.from(t.splice).toOption.get)
+        _ => c.universe.reify(Counter.Name.from(t.splice).toOption.get)
       )
   }
 

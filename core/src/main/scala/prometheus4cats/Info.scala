@@ -17,6 +17,7 @@
 package prometheus4cats
 
 import cats.{Applicative, Contravariant, Eq, Hash, Order, Show, ~>}
+import prometheus4cats.internal.InfoNameFromStringLiteral
 
 sealed abstract class Info[F[_], -A] extends Metric[A] { self =>
 

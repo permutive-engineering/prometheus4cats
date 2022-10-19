@@ -14,30 +14,32 @@
  * limitations under the License.
  */
 
-package prometheus4cats
+package prometheus4cats.internal
+
+import prometheus4cats.Metric
 
 import scala.reflect.macros.blackbox
 
-trait InfoNameFromStringLiteral {
+trait MetricPrefixFromStringLiteral {
 
-  def apply(t: String): Info.Name =
-    macro InfoNameMacros.fromStringLiteral
+  def apply(t: String): Metric.Prefix =
+    macro MetricPrefixMacros.fromStringLiteral
 
-  implicit def fromStringLiteral(t: String): Info.Name =
-    macro InfoNameMacros.fromStringLiteral
+  implicit def fromStringLiteral(t: String): Metric.Prefix =
+    macro MetricPrefixMacros.fromStringLiteral
 
 }
 
-private[prometheus4cats] class InfoNameMacros(val c: blackbox.Context) extends MacroUtils {
+private[prometheus4cats] class MetricPrefixMacros(val c: blackbox.Context) extends MacroUtils {
 
-  def fromStringLiteral(t: c.Expr[String]): c.Expr[Info.Name] = {
-    val string: String = literal(t, or = "Info.Name.from({string})")
+  def fromStringLiteral(t: c.Expr[String]): c.Expr[Metric.Prefix] = {
+    val string: String = literal(t, or = "Metric.Prefix.from({string})")
 
-    Info.Name
+    Metric.Prefix
       .from(string)
       .fold(
         abort,
-        _ => c.universe.reify(Info.Name.from(t.splice).toOption.get)
+        _ => c.universe.reify(Metric.Prefix.from(t.splice).toOption.get)
       )
   }
 

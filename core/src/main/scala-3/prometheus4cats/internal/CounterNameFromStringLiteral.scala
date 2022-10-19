@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-package prometheus4cats
+package prometheus4cats.internal
+
+import prometheus4cats._
 
 import scala.quoted.*
 

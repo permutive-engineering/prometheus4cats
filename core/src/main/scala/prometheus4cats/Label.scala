@@ -17,6 +17,7 @@
 package prometheus4cats
 
 import cats.{Eq, Hash, Order, Show}
+import prometheus4cats.internal.LabelNameFromStringLiteral
 
 object Label {
 

@@ -14,4 +14,6 @@
  * limitations under the License.
  */
 
+import prometheus4cats.internal.ShapelessPolyfill
+
 package object prometheus4cats extends ShapelessPolyfill

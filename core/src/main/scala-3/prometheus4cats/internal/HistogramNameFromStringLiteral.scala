@@ -14,37 +14,39 @@
  * limitations under the License.
  */
 
-package prometheus4cats
+package prometheus4cats.internal
+
+import prometheus4cats._
 
 import scala.quoted.*
 
-trait GaugeNameFromStringLiteral {
+trait HistogramNameFromStringLiteral {
 
-  inline def apply(inline t: String): Gauge.Name = ${
-    GaugeNameFromStringLiteral.nameLiteral('t)
+  inline def apply(inline t: String): Histogram.Name = ${
+    HistogramNameFromStringLiteral.nameLiteral('t)
   }
 
-  implicit inline def fromStringLiteral(inline t: String): Gauge.Name = ${
-    GaugeNameFromStringLiteral.nameLiteral('t)
+  implicit inline def fromStringLiteral(inline t: String): Histogram.Name = ${
+    HistogramNameFromStringLiteral.nameLiteral('t)
   }
 
 }
 
-object GaugeNameFromStringLiteral extends MacroUtils {
-  def nameLiteral(s: Expr[String])(using q: Quotes): Expr[Gauge.Name] =
+object HistogramNameFromStringLiteral extends MacroUtils {
+  def nameLiteral(s: Expr[String])(using q: Quotes): Expr[Histogram.Name] =
     s.value match {
       case Some(string) =>
-        Gauge.Name
+        Histogram.Name
           .from(string)
           .fold(
             error,
             _ =>
               '{
-                Gauge.Name.from(${ Expr(string) }).toOption.get
+                Histogram.Name.from(${ Expr(string) }).toOption.get
               }
           )
       case None =>
-        abort("Gauge.Name.from")
+        abort("Histogram.Name.from")
         '{ ??? }
     }
 }

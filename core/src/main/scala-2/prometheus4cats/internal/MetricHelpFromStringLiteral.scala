@@ -14,30 +14,32 @@
  * limitations under the License.
  */
 
-package prometheus4cats
+package prometheus4cats.internal
+
+import prometheus4cats.Metric
 
 import scala.reflect.macros.blackbox
 
-trait GaugeNameFromStringLiteral {
+trait MetricHelpFromStringLiteral {
 
-  def apply(t: String): Gauge.Name =
-    macro GaugeNameMacros.fromStringLiteral
+  def apply(t: String): Metric.Help =
+    macro MetricHelpMacros.fromStringLiteral
 
-  implicit def fromStringLiteral(t: String): Gauge.Name =
-    macro GaugeNameMacros.fromStringLiteral
+  implicit def fromStringLiteral(t: String): Metric.Help =
+    macro MetricHelpMacros.fromStringLiteral
 
 }
 
-private[prometheus4cats] class GaugeNameMacros(val c: blackbox.Context) extends MacroUtils {
+private[prometheus4cats] class MetricHelpMacros(val c: blackbox.Context) extends MacroUtils {
 
-  def fromStringLiteral(t: c.Expr[String]): c.Expr[Gauge.Name] = {
-    val string: String = literal(t, or = "Gauge.Name.from({string})")
+  def fromStringLiteral(t: c.Expr[String]): c.Expr[Metric.Help] = {
+    val string: String = literal(t, or = "Label.Name.from({string})")
 
-    Gauge.Name
+    Metric.Help
       .from(string)
       .fold(
         abort,
-        _ => c.universe.reify(Gauge.Name.from(t.splice).toOption.get)
+        _ => c.universe.reify(Metric.Help.from(t.splice).toOption.get)
       )
   }
 

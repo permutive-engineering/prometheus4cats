@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package prometheus4cats
+package prometheus4cats.internal
 
 import scala.reflect.macros.blackbox
 
