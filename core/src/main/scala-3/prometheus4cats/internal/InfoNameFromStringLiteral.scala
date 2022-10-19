@@ -14,42 +14,39 @@
  * limitations under the License.
  */
 
-package prometheus4cats
+package prometheus4cats.internal
+
+import prometheus4cats._
 
 import scala.quoted.*
 
-trait MetricHelpFromStringLiteral {
+trait InfoNameFromStringLiteral {
 
-  inline def apply(inline t: String): Metric.Help = ${
-    MetricHelpFromStringLiteral.nameLiteral('t)
+  inline def apply(inline t: String): Info.Name = ${
+    InfoNameFromStringLiteral.nameLiteral('t)
   }
 
-  implicit inline def fromStringLiteral(inline t: String): Metric.Help = ${
-    MetricHelpFromStringLiteral.nameLiteral('t)
+  implicit inline def fromStringLiteral(inline t: String): Info.Name = ${
+    InfoNameFromStringLiteral.nameLiteral('t)
   }
 
 }
 
-object MetricHelpFromStringLiteral extends MacroUtils {
-  def nameLiteral(s: Expr[String])(using q: Quotes): Expr[Metric.Help] =
+object InfoNameFromStringLiteral extends MacroUtils {
+  def nameLiteral(s: Expr[String])(using q: Quotes): Expr[Info.Name] =
     s.value match {
       case Some(string) =>
-        Metric.Help
+        Info.Name
           .from(string)
           .fold(
             error,
             _ =>
               '{
-                Metric.Help
-                  .from(${
-                    Expr(string)
-                  })
-                  .toOption
-                  .get
+                Info.Name.from(${ Expr(string) }).toOption.get
               }
           )
       case None =>
-        abort("Metric.Help.from")
+        abort("Info.Name.from")
         '{ ??? }
     }
 }

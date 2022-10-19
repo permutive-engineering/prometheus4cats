@@ -14,30 +14,32 @@
  * limitations under the License.
  */
 
-package prometheus4cats
+package prometheus4cats.internal
+
+import prometheus4cats.Histogram
 
 import scala.reflect.macros.blackbox
 
-trait MetricHelpFromStringLiteral {
+trait HistogramNameFromStringLiteral {
 
-  def apply(t: String): Metric.Help =
-    macro MetricHelpMacros.fromStringLiteral
+  def apply(t: String): Histogram.Name =
+    macro HistogramNameMacros.fromStringLiteral
 
-  implicit def fromStringLiteral(t: String): Metric.Help =
-    macro MetricHelpMacros.fromStringLiteral
+  implicit def fromStringLiteral(t: String): Histogram.Name =
+    macro HistogramNameMacros.fromStringLiteral
 
 }
 
-private[prometheus4cats] class MetricHelpMacros(val c: blackbox.Context) extends MacroUtils {
+private[prometheus4cats] class HistogramNameMacros(val c: blackbox.Context) extends MacroUtils {
 
-  def fromStringLiteral(t: c.Expr[String]): c.Expr[Metric.Help] = {
-    val string: String = literal(t, or = "Label.Name.from({string})")
+  def fromStringLiteral(t: c.Expr[String]): c.Expr[Histogram.Name] = {
+    val string: String = literal(t, or = "Histogram.Name.from({string})")
 
-    Metric.Help
+    Histogram.Name
       .from(string)
       .fold(
         abort,
-        _ => c.universe.reify(Metric.Help.from(t.splice).toOption.get)
+        _ => c.universe.reify(Histogram.Name.from(t.splice).toOption.get)
       )
   }
 

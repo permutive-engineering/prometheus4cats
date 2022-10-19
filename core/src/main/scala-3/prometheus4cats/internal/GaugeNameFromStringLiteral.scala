@@ -14,44 +14,39 @@
  * limitations under the License.
  */
 
-package prometheus4cats
+package prometheus4cats.internal
+
+import prometheus4cats._
 
 import scala.quoted.*
 
-trait LabelNameFromStringLiteral {
+trait GaugeNameFromStringLiteral {
 
-  inline def apply(inline t: String): Label.Name = ${
-    LabelNameFromStringLiteral.nameLiteral('t)
+  inline def apply(inline t: String): Gauge.Name = ${
+    GaugeNameFromStringLiteral.nameLiteral('t)
   }
 
-  implicit inline def fromStringLiteral(inline t: String): Label.Name = ${
-    LabelNameFromStringLiteral.nameLiteral('t)
+  implicit inline def fromStringLiteral(inline t: String): Gauge.Name = ${
+    GaugeNameFromStringLiteral.nameLiteral('t)
   }
 
 }
 
-object LabelNameFromStringLiteral extends MacroUtils {
-  def nameLiteral(s: Expr[String])(using q: Quotes): Expr[Label.Name] =
+object GaugeNameFromStringLiteral extends MacroUtils {
+  def nameLiteral(s: Expr[String])(using q: Quotes): Expr[Gauge.Name] =
     s.value match {
       case Some(string) =>
-        Label.Name
+        Gauge.Name
           .from(string)
           .fold(
             error,
             _ =>
               '{
-                Label.Name
-                  .from(${
-                    Expr(string)
-                  })
-                  .toOption
-                  .get
+                Gauge.Name.from(${ Expr(string) }).toOption.get
               }
           )
       case None =>
-        abort("Label.Name.from")
-        '{
-          ???
-        }
+        abort("Gauge.Name.from")
+        '{ ??? }
     }
 }

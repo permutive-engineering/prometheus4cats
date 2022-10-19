@@ -17,6 +17,7 @@
 package prometheus4cats
 
 import cats.{Applicative, Contravariant, Eq, Hash, Order, Show, ~>}
+import prometheus4cats.internal.CounterNameFromStringLiteral
 
 sealed abstract class Counter[F[_], -A] extends Metric[A] { self =>
 
