@@ -151,6 +151,141 @@ class JavaMetricRegistrySuite
     }
   }
 
+  test("fails to build a metric when a callback of the same name exists") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name: Counter.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels,
+          labels: Set[Label.Name]
+      ) =>
+        stateResource
+          .flatMap(JavaMetricRegistry.fromSimpleClientRegistry(_))
+          .use { reg =>
+            val metric = reg
+              .createAndRegisterLabelledDoubleCounter[Map[Label.Name, String]](
+                prefix,
+                name,
+                help,
+                commonLabels,
+                labels.toIndexedSeq
+              )(_.values.toIndexedSeq)
+
+            val callback = reg
+              .registerLabelledDoubleCounterCallback[Map[Label.Name, String]](
+                prefix,
+                name,
+                help,
+                commonLabels,
+                labels.toIndexedSeq,
+                IO(0.0 -> Map.empty[Label.Name, String])
+              )(_.values.toIndexedSeq)
+
+            for {
+              _ <- callback
+              _ <- metric
+            } yield ()
+          }
+          .attempt
+          .map { res =>
+            assertEquals(
+              res.leftMap(_.getMessage),
+              Left(
+                s"A callback with the same name as '${NameUtils.makeName(prefix, name)}' is already registered with different labels and/or type"
+              )
+            )
+          }
+    }
+  }
+
+  test("fails to build a callback when a metric of the same name exists") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name: Counter.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels,
+          labels: Set[Label.Name]
+      ) =>
+        stateResource
+          .flatMap(JavaMetricRegistry.fromSimpleClientRegistry(_))
+          .use { reg =>
+            val metric = reg
+              .createAndRegisterLabelledDoubleCounter[Map[Label.Name, String]](
+                prefix,
+                name,
+                help,
+                commonLabels,
+                labels.toIndexedSeq
+              )(_.values.toIndexedSeq)
+
+            val callback = reg
+              .registerLabelledDoubleCounterCallback[Map[Label.Name, String]](
+                prefix,
+                name,
+                help,
+                commonLabels,
+                labels.toIndexedSeq,
+                IO(0.0 -> Map.empty[Label.Name, String])
+              )(_.values.toIndexedSeq)
+
+            for {
+              _ <- metric
+              _ <- callback
+            } yield ()
+          }
+          .attempt
+          .map { res =>
+            assertEquals(
+              res.leftMap(_.getMessage),
+              Left(
+                s"A metric with the same name as '${NameUtils.makeName(prefix, name)}' is already registered with different labels and/or type"
+              )
+            )
+          }
+    }
+  }
+
+  test("fails to build a callback when a callback of the same name exists") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name: Counter.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels,
+          labels: Set[Label.Name]
+      ) =>
+        stateResource
+          .flatMap(JavaMetricRegistry.fromSimpleClientRegistry(_))
+          .use { reg =>
+            val callback = reg
+              .registerLabelledDoubleCounterCallback[Map[Label.Name, String]](
+                prefix,
+                name,
+                help,
+                commonLabels,
+                labels.toIndexedSeq,
+                IO(0.0 -> Map.empty[Label.Name, String])
+              )(_.values.toIndexedSeq)
+
+            for {
+              _ <- callback
+              _ <- callback
+            } yield ()
+          }
+          .attempt
+          .map { res =>
+            assertEquals(
+              res.leftMap(_.getMessage),
+              Left(
+                s"A callback with the same name as '${NameUtils.makeName(prefix, name)}' is already registered with different labels and/or type"
+              )
+            )
+          }
+    }
+  }
+
   test("fails when a metric with the same name and different labels") {
     forAllF {
       (
