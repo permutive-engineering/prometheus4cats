@@ -37,7 +37,8 @@ import io.prometheus.client.{
   SimpleCollector,
   Counter => PCounter,
   Gauge => PGauge,
-  Histogram => PHistogram
+  Histogram => PHistogram,
+  Info => PInfo
 }
 import prometheus4cats.javasimpleclient.internal.Utils
 import prometheus4cats.javasimpleclient.models.MetricType
@@ -593,6 +594,33 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
 
     registerCallback(MetricType.Histogram, prefix, name, labelNames ++ commonLabels.value.keys.toIndexedSeq, collector)
   }
+
+  // The java library always appends "_info" to the metric name, so we need a special `Show` instance
+  implicit private val infoNameShow: Show[Info.Name] = Show.show(_.value.replace("_info", ""))
+
+  override protected[prometheus4cats] def createAndRegisterInfo(
+      prefix: Option[Metric.Prefix],
+      name: Info.Name,
+      help: Metric.Help
+  ): F[Info[F, Map[Label.Name, String]]] =
+    configureBuilderOrRetrieve(
+      PInfo.build(),
+      MetricType.Info,
+      prefix,
+      name,
+      help,
+      IndexedSeq.empty
+    ).map { info =>
+      Info.make[F, Map[Label.Name, String]](labels =>
+        Utils.modifyMetric[F, Info.Name, PInfo.Child](
+          info,
+          name,
+          IndexedSeq.empty,
+          IndexedSeq.empty,
+          pinfo => pinfo.info(labels.map { case (n, v) => n.value -> v }.asJava)
+        )
+      )
+    }
 }
 
 object JavaMetricRegistry {

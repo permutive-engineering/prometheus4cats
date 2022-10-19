@@ -29,6 +29,7 @@ import prometheus4cats.util.NameUtils
 import org.scalacheck.effect.PropF._
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.noop.NoOpLogger
+import prometheus4cats.Metric.CommonLabels
 
 import scala.jdk.CollectionConverters._
 
@@ -123,6 +124,14 @@ class JavaMetricRegistrySuite
           }.toMap
         }
     }
+
+  override def getInfoValue(
+      state: CollectorRegistry,
+      prefix: Option[Metric.Prefix],
+      name: Info.Name,
+      help: Metric.Help,
+      labels: Map[Label.Name, String]
+  ): IO[Option[Double]] = IO(getMetricValue(state, prefix, name, CommonLabels.empty, labels))
 
   test("returns an existing metric when labels and name are the same") {
     forAllF {

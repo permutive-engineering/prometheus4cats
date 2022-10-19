@@ -314,6 +314,23 @@ trait MetricRegistry[F[_]] {
       buckets: NonEmptySeq[Long]
   )(f: A => IndexedSeq[String]): F[Histogram.Labelled[F, Long, A]]
 
+  /** Create and register an info metric against a metrics registry
+    *
+    * @param prefix
+    *   optional [[Metric.Prefix]] to be prepended to the metric name
+    * @param name
+    *   [[Histogram.Name]] metric name
+    * @param help
+    *   [[Metric.Help]] string to describe the metric
+    * @return
+    *   a [[Info]] wrapped in whatever side effect that was performed in registering it
+    */
+  protected[prometheus4cats] def createAndRegisterInfo(
+      prefix: Option[Metric.Prefix],
+      name: Info.Name,
+      help: Metric.Help
+  ): F[Info[F, Map[Label.Name, String]]]
+
   final def mapK[G[_]: Functor](fk: F ~> G): MetricRegistry[G] = MetricRegistry.mapK(this, fk)
 }
 
@@ -421,6 +438,12 @@ object MetricRegistry {
           labelNames: IndexedSeq[Label.Name],
           buckets: NonEmptySeq[Long]
       )(f: A => IndexedSeq[String]): F[Histogram.Labelled[F, Long, A]] = F.pure(Histogram.Labelled.noop)
+
+      override protected[prometheus4cats] def createAndRegisterInfo(
+          prefix: Option[Metric.Prefix],
+          name: Info.Name,
+          help: Metric.Help
+      ): F[Info[F, Map[Label.Name, String]]] = F.pure(Info.noop)
     }
 
   private[prometheus4cats] def mapK[F[_], G[_]: Functor](
@@ -565,5 +588,11 @@ object MetricRegistry {
       )(f: A => IndexedSeq[String]): G[Histogram.Labelled[G, Long, A]] =
         fk(self.createAndRegisterLabelledLongHistogram(prefix, name, help, commonLabels, labelNames, buckets)(f))
           .map(_.mapK(fk))
+
+      override protected[prometheus4cats] def createAndRegisterInfo(
+          prefix: Option[Metric.Prefix],
+          name: Info.Name,
+          help: Metric.Help
+      ): G[Info[G, Map[Label.Name, String]]] = fk(self.createAndRegisterInfo(prefix, name, help)).map(_.mapK(fk))
     }
 }
