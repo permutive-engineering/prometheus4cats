@@ -20,75 +20,13 @@ import cats.data.NonEmptySeq
 import cats.effect.IO
 import cats.effect.kernel.Resource
 import cats.effect.testkit.TestControl
-import munit.{CatsEffectSuite, ScalaCheckEffectSuite}
-import prometheus4cats.Metric.CommonLabels
-import prometheus4cats._
+import munit.CatsEffectSuite
 import org.scalacheck.effect.PropF._
-import org.scalacheck.{Arbitrary, Gen}
+import prometheus4cats._
 
-trait MetricsRegistrySuite[State] extends ScalaCheckEffectSuite { self: CatsEffectSuite =>
-  def stateResource: Resource[IO, State]
-  def registryResource(state: State): Resource[IO, MetricsRegistry[IO]]
+trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffectSuite =>
 
-  private val niceStringGen: Gen[String] = for {
-    c1 <- Gen.alphaChar
-    c2 <- Gen.alphaChar
-    s <- Gen.alphaNumStr
-  } yield s"$c1$c2$s"
-
-  private def niceStringArb[A](f: String => Either[String, A]): Arbitrary[A] = Arbitrary(
-    niceStringGen.flatMap(s => Gen.oneOf(f(s).toOption))
-  )
-
-  implicit val prefixArb: Arbitrary[Metric.Prefix] = niceStringArb(Metric.Prefix.from)
-
-  implicit val counterNameArb: Arbitrary[Counter.Name] = niceStringArb(s => Counter.Name.from(s"${s}_total"))
-
-  implicit val gaugeNameArb: Arbitrary[Gauge.Name] = niceStringArb(s => Gauge.Name.from(s))
-
-  implicit val histogramNameArb: Arbitrary[Histogram.Name] = niceStringArb(s => Histogram.Name.from(s))
-
-  implicit val helpArb: Arbitrary[Metric.Help] = niceStringArb(Metric.Help.from)
-
-  implicit val labelArb: Arbitrary[Label.Name] = niceStringArb(Label.Name.from)
-
-  implicit val labelMapArb: Arbitrary[Map[Label.Name, String]] = Arbitrary(
-    for {
-      size <- Gen.choose(0, 10)
-      map <- Gen.mapOfN(size, Arbitrary.arbitrary[(Label.Name, String)])
-    } yield map
-  )
-
-  implicit val commonLabelsArb: Arbitrary[Metric.CommonLabels] =
-    Arbitrary(labelMapArb.arbitrary.flatMap(map => Gen.oneOf(CommonLabels.from(map).toOption)))
-
-  def getCounterValue(
-      state: State,
-      prefix: Option[Metric.Prefix],
-      name: Counter.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels,
-      extraLabels: Map[Label.Name, String] = Map.empty
-  ): IO[Option[Double]]
-
-  def getGaugeValue(
-      state: State,
-      prefix: Option[Metric.Prefix],
-      name: Gauge.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels,
-      extraLabels: Map[Label.Name, String] = Map.empty
-  ): IO[Option[Double]]
-
-  def getHistogramValue(
-      state: State,
-      prefix: Option[Metric.Prefix],
-      name: Histogram.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels,
-      buckets: NonEmptySeq[Double],
-      extraLabels: Map[Label.Name, String] = Map.empty
-  ): IO[Option[Map[String, Double]]]
+  def metricRegistryResource(state: State): Resource[IO, MetricRegistry[IO]]
 
   test("create and increment a counter") {
     forAllF {
@@ -100,7 +38,7 @@ trait MetricsRegistrySuite[State] extends ScalaCheckEffectSuite { self: CatsEffe
           incBy: Double
       ) =>
         stateResource.use { state =>
-          registryResource(state).use { reg =>
+          metricRegistryResource(state).use { reg =>
             reg
               .createAndRegisterDoubleCounter(prefix, name, help, commonLabels)
               .flatMap(_.inc(incBy)) >> getCounterValue(
@@ -127,7 +65,7 @@ trait MetricsRegistrySuite[State] extends ScalaCheckEffectSuite { self: CatsEffe
           incBy: Double
       ) =>
         stateResource.use { state =>
-          registryResource(state).use { reg =>
+          metricRegistryResource(state).use { reg =>
             reg
               .createAndRegisterLabelledDoubleCounter[Map[Label.Name, String]](
                 prefix,
@@ -162,7 +100,7 @@ trait MetricsRegistrySuite[State] extends ScalaCheckEffectSuite { self: CatsEffe
       ) =>
         TestControl
           .executeEmbed(stateResource.use { state =>
-            registryResource(state).use { reg =>
+            metricRegistryResource(state).use { reg =>
               val get = getGaugeValue(
                 state,
                 prefix,
@@ -209,7 +147,7 @@ trait MetricsRegistrySuite[State] extends ScalaCheckEffectSuite { self: CatsEffe
           dec: Double
       ) =>
         stateResource.use { state =>
-          registryResource(state).use { reg =>
+          metricRegistryResource(state).use { reg =>
             val get = getGaugeValue(
               state,
               prefix,
@@ -259,7 +197,7 @@ trait MetricsRegistrySuite[State] extends ScalaCheckEffectSuite { self: CatsEffe
           value: Double
       ) =>
         stateResource.use { state =>
-          registryResource(state).use { reg =>
+          metricRegistryResource(state).use { reg =>
             val buckets = NonEmptySeq.of[Double](0, value).sorted
 
             val expected =
@@ -293,7 +231,7 @@ trait MetricsRegistrySuite[State] extends ScalaCheckEffectSuite { self: CatsEffe
           value: Double
       ) =>
         stateResource.use { state =>
-          registryResource(state).use { reg =>
+          metricRegistryResource(state).use { reg =>
             val buckets = NonEmptySeq.of[Double](0, value).sorted
 
             val expected =

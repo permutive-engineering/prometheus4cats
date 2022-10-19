@@ -96,7 +96,7 @@ object OutcomeRecorder {
     * invocation.
     *
     * The best way to construct a counter based [[OutcomeRecorder]] is to use the `.asOutcomeRecorder` on the counter
-    * DSL provided by [[MetricsFactory]].
+    * DSL provided by [[MetricFactory]].
     *
     * @return
     *   an [[OutcomeRecorder.Aux]] that is annotated with the type of underlying metric, in this case
@@ -120,7 +120,7 @@ object OutcomeRecorder {
     * invocation, while the other statuses are set to `0`.
     *
     * The best way to construct a gauge based [[OutcomeRecorder]] is to use the `.asOutcomeRecorder` on the gauge DSL
-    * provided by [[MetricsFactory]].
+    * provided by [[MetricFactory]].
     *
     * @return
     *   an [[OutcomeRecorder.Aux]] that is annotated with the type of underlying metric, in this case [[Gauge.Labelled]]
@@ -268,7 +268,7 @@ object OutcomeRecorder {
       * invocation.
       *
       * The best way to construct a counter based [[OutcomeRecorder]] is to use the `.asOutcomeRecorder` on the counter
-      * DSL provided by [[MetricsFactory]].
+      * DSL provided by [[MetricFactory]].
       *
       * @return
       *   an [[OutcomeRecorder.Labelled.Aux]] that is annotated with the type of underlying metric, in this case
@@ -293,7 +293,7 @@ object OutcomeRecorder {
       * invocation, while the other statuses are set to `0`.
       *
       * The best way to construct a gauge based [[OutcomeRecorder]] is to use the `.asOutcomeRecorder` on the gauge DSL
-      * provided by [[MetricsFactory]].
+      * provided by [[MetricFactory]].
       *
       * @return
       *   an [[OutcomeRecorder.Labelled.Aux]] that is annotated with the type of underlying metric, in this case

@@ -22,9 +22,9 @@ import cats.{Applicative, Functor, ~>}
 import prometheus4cats.Metric.CommonLabels
 
 /** Trait for registering metrics against different backends. May be implemented by anyone for use with
-  * [[MetricsFactory]]
+  * [[MetricFactory]]
   */
-trait MetricsRegistry[F[_]] {
+trait MetricRegistry[F[_]] {
 
   /** Create and register a counter that records [[scala.Double]] values against a metrics registry
     *
@@ -313,11 +313,14 @@ trait MetricsRegistry[F[_]] {
       labelNames: IndexedSeq[Label.Name],
       buckets: NonEmptySeq[Long]
   )(f: A => IndexedSeq[String]): F[Histogram.Labelled[F, Long, A]]
+
+  final def mapK[G[_]: Functor](fk: F ~> G): MetricRegistry[G] = MetricRegistry.mapK(this, fk)
 }
 
-object MetricsRegistry {
-  def noop[F[_]](implicit F: Applicative[F]): MetricsRegistry[F] =
-    new MetricsRegistry[F] {
+object MetricRegistry {
+
+  def noop[F[_]](implicit F: Applicative[F]): MetricRegistry[F] =
+    new MetricRegistry[F] {
       override protected[prometheus4cats] def createAndRegisterDoubleCounter(
           prefix: Option[Metric.Prefix],
           name: Counter.Name,
@@ -421,10 +424,10 @@ object MetricsRegistry {
     }
 
   private[prometheus4cats] def mapK[F[_], G[_]: Functor](
-      self: MetricsRegistry[F],
+      self: MetricRegistry[F],
       fk: F ~> G
-  ): MetricsRegistry[G] =
-    new MetricsRegistry[G] {
+  ): MetricRegistry[G] =
+    new MetricRegistry[G] {
       override protected[prometheus4cats] def createAndRegisterDoubleCounter(
           prefix: Option[Metric.Prefix],
           name: Counter.Name,

@@ -24,7 +24,7 @@ import cats.syntax.either._
 import io.prometheus.client.CollectorRegistry
 import munit.CatsEffectSuite
 import prometheus4cats._
-import prometheus4cats.testkit.MetricsRegistrySuite
+import prometheus4cats.testkit.{CallbackRegistrySuite, MetricRegistrySuite}
 import prometheus4cats.util.NameUtils
 import org.scalacheck.effect.PropF._
 import org.typelevel.log4cats.Logger
@@ -32,13 +32,19 @@ import org.typelevel.log4cats.noop.NoOpLogger
 
 import scala.jdk.CollectionConverters._
 
-class JavaMetricsRegistrySuite extends CatsEffectSuite with MetricsRegistrySuite[CollectorRegistry] {
+class JavaMetricRegistrySuite
+    extends CatsEffectSuite
+    with MetricRegistrySuite[CollectorRegistry]
+    with CallbackRegistrySuite[CollectorRegistry] {
   implicit val logger: Logger[IO] = NoOpLogger.impl
 
   override val stateResource: Resource[IO, CollectorRegistry] = Resource.eval(IO.delay(new CollectorRegistry()))
 
-  override def registryResource(state: CollectorRegistry): Resource[IO, MetricsRegistry[IO]] =
-    JavaMetricsRegistry.fromSimpleClientRegistry[IO](state)
+  override def metricRegistryResource(state: CollectorRegistry): Resource[IO, MetricRegistry[IO]] =
+    JavaMetricRegistry.fromSimpleClientRegistry[IO](state)
+
+  override def callbackRegistryResource(state: CollectorRegistry): Resource[IO, CallbackRegistry[IO]] =
+    JavaMetricRegistry.fromSimpleClientRegistry[IO](state)
 
   def getMetricValue[A: Show](
       state: CollectorRegistry,
@@ -110,7 +116,10 @@ class JavaMetricsRegistrySuite extends CatsEffectSuite with MetricsRegistrySuite
 
             labels - "le" == allLabels && labels.contains("le")
           }.map { sample =>
-            (sample.labelValues.asScala.last, sample.value)
+            (
+              sample.labelNames.asScala.zip(sample.labelValues.asScala).collectFirst { case ("le", v) => v }.get,
+              sample.value
+            )
           }.toMap
         }
     }
@@ -124,7 +133,7 @@ class JavaMetricsRegistrySuite extends CatsEffectSuite with MetricsRegistrySuite
           commonLabels: Metric.CommonLabels,
           labels: Set[Label.Name]
       ) =>
-        stateResource.flatMap(registryResource).use { reg =>
+        stateResource.flatMap(metricRegistryResource).use { reg =>
           val metric = reg
             .createAndRegisterLabelledDoubleCounter[Map[Label.Name, String]](
               prefix,
@@ -142,6 +151,141 @@ class JavaMetricsRegistrySuite extends CatsEffectSuite with MetricsRegistrySuite
     }
   }
 
+  test("fails to build a metric when a callback of the same name exists") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name: Counter.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels,
+          labels: Set[Label.Name]
+      ) =>
+        stateResource
+          .flatMap(JavaMetricRegistry.fromSimpleClientRegistry(_))
+          .use { reg =>
+            val metric = reg
+              .createAndRegisterLabelledDoubleCounter[Map[Label.Name, String]](
+                prefix,
+                name,
+                help,
+                commonLabels,
+                labels.toIndexedSeq
+              )(_.values.toIndexedSeq)
+
+            val callback = reg
+              .registerLabelledDoubleCounterCallback[Map[Label.Name, String]](
+                prefix,
+                name,
+                help,
+                commonLabels,
+                labels.toIndexedSeq,
+                IO(0.0 -> Map.empty[Label.Name, String])
+              )(_.values.toIndexedSeq)
+
+            for {
+              _ <- callback
+              _ <- metric
+            } yield ()
+          }
+          .attempt
+          .map { res =>
+            assertEquals(
+              res.leftMap(_.getMessage),
+              Left(
+                s"A callback with the same name as '${NameUtils.makeName(prefix, name)}' is already registered with different labels and/or type"
+              )
+            )
+          }
+    }
+  }
+
+  test("fails to build a callback when a metric of the same name exists") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name: Counter.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels,
+          labels: Set[Label.Name]
+      ) =>
+        stateResource
+          .flatMap(JavaMetricRegistry.fromSimpleClientRegistry(_))
+          .use { reg =>
+            val metric = reg
+              .createAndRegisterLabelledDoubleCounter[Map[Label.Name, String]](
+                prefix,
+                name,
+                help,
+                commonLabels,
+                labels.toIndexedSeq
+              )(_.values.toIndexedSeq)
+
+            val callback = reg
+              .registerLabelledDoubleCounterCallback[Map[Label.Name, String]](
+                prefix,
+                name,
+                help,
+                commonLabels,
+                labels.toIndexedSeq,
+                IO(0.0 -> Map.empty[Label.Name, String])
+              )(_.values.toIndexedSeq)
+
+            for {
+              _ <- metric
+              _ <- callback
+            } yield ()
+          }
+          .attempt
+          .map { res =>
+            assertEquals(
+              res.leftMap(_.getMessage),
+              Left(
+                s"A metric with the same name as '${NameUtils.makeName(prefix, name)}' is already registered with different labels and/or type"
+              )
+            )
+          }
+    }
+  }
+
+  test("fails to build a callback when a callback of the same name exists") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name: Counter.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels,
+          labels: Set[Label.Name]
+      ) =>
+        stateResource
+          .flatMap(JavaMetricRegistry.fromSimpleClientRegistry(_))
+          .use { reg =>
+            val callback = reg
+              .registerLabelledDoubleCounterCallback[Map[Label.Name, String]](
+                prefix,
+                name,
+                help,
+                commonLabels,
+                labels.toIndexedSeq,
+                IO(0.0 -> Map.empty[Label.Name, String])
+              )(_.values.toIndexedSeq)
+
+            for {
+              _ <- callback
+              _ <- callback
+            } yield ()
+          }
+          .attempt
+          .map { res =>
+            assertEquals(
+              res.leftMap(_.getMessage),
+              Left(
+                s"A callback with the same name as '${NameUtils.makeName(prefix, name)}' is already registered with different labels and/or type"
+              )
+            )
+          }
+    }
+  }
+
   test("fails when a metric with the same name and different labels") {
     forAllF {
       (
@@ -153,7 +297,7 @@ class JavaMetricsRegistrySuite extends CatsEffectSuite with MetricsRegistrySuite
           labelName2: Label.Name
       ) =>
         stateResource
-          .flatMap(registryResource)
+          .flatMap(metricRegistryResource)
           .use { reg =>
             for {
               _ <- reg
@@ -179,7 +323,7 @@ class JavaMetricsRegistrySuite extends CatsEffectSuite with MetricsRegistrySuite
             assertEquals(
               res.leftMap(_.getMessage),
               Left(
-                s"A metric with the same name as '${NameUtils.makeName(prefix, name.value.replace("_total", ""))}' is already registered with different labels and/or type"
+                s"A metric with the same name as '${NameUtils.makeName(prefix, name)}' is already registered with different labels and/or type"
               )
             )
           }
@@ -200,7 +344,7 @@ class JavaMetricsRegistrySuite extends CatsEffectSuite with MetricsRegistrySuite
         val gaugeName = Gauge.Name.from(name.value).toOption.get
 
         stateResource
-          .flatMap(registryResource)
+          .flatMap(metricRegistryResource)
           .use { reg =>
             for {
               _ <- reg

@@ -11,13 +11,13 @@ These metrics exist for the following reasons:
 - Provides a pattern for adding functionality that will not break binary compatibility
 
 The examples in this section assume you have imported the following and have created a
-[`MetricsFactory`](../interface/metrics-factory.md):
+[`MetricFactory`](../interface/metric-factory.md):
 
 ```scala mdoc
 import cats.effect._
 import prometheus4cats._
 
-val factory: MetricsFactory[IO] = MetricsFactory.noop[IO]
+val factory: MetricFactory[IO] = MetricFactory.noop[IO]
 ```
 
 ### `Timer`
@@ -159,7 +159,7 @@ val labelledOutcomeGauge:
     .build
 ```
 
-[`MetricRegistry`]: ../interface/metrics-registry.md
+[`MetricRegistry`]: ../interface/metric-registry.md
 [primitive]: primitive-metric-types.md
 [`Counter`]: primitive-metric-types.md#counter
 [`Gauge`]: primitive-metric-types.md#gauge

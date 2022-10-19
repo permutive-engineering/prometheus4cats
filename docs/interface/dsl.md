@@ -1,14 +1,14 @@
 ## Metrics DSL
 
-The metrics DSL provides a fluent API for constructing [primitive] and [derived] metrics from a [`MetricsFactory`].
+The metrics DSL provides a fluent API for constructing [primitive] and [derived] metrics from a [`MetricFactory`].
 
-The examples in this section assume you have imported the following and have created a [`MetricsFactory`]:
+The examples in this section assume you have imported the following and have created a [`MetricFactory`]:
 
 ```scala mdoc
 import cats.effect._
 import prometheus4cats._
 
-val factory: MetricsFactory[IO] = MetricsFactory.noop[IO]
+val factory: MetricFactory[IO] = MetricFactory.noop[IO]
 ```
 
 ### Refined Types
@@ -149,4 +149,4 @@ val updatedLabelsCounter: IO[Counter.Labelled[IO, Long, LabelsClass]] = factory
 
 [primitive]: ../metrics/primitive-metric-types.md
 [derived]: ../metrics/derived-metric-types.md
-[`MetricsFactory`]: metrics-factory.md
+[`MetricFactory`]: metric-factory.md

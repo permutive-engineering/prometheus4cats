@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit
 import cats.effect.IO
 
 object MetricsFactoryDslTest {
-  val factory: MetricsFactory[IO] = MetricsFactory.builder.withPrefix("prefix").noop
+  val factory: MetricFactory.WithCallbacks[IO] = MetricFactory.builder.withPrefix("prefix").noop[IO]
 
   val gaugeBuilder = factory.gauge("test")
 

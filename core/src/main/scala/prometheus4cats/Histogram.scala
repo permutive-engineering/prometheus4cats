@@ -34,6 +34,23 @@ sealed abstract class Histogram[F[_], -A] extends Metric[A] { self =>
 
 object Histogram {
 
+  /** A value that is produced by a histogram
+    *
+    * @note
+    *   the size `bucketValues` '''MUST MATCH''' that of the number of buckets defined when creating the histogram in
+    *   [[MetricFactory.WithCallbacks]]. If they do not match, the histogram may not render correctly or at all.
+    *
+    * @param sum
+    *   the histogram sum
+    * @param bucketValues
+    *   values corresponding to to buckets defined when creating the histogram
+    * @tparam A
+    *   number type for this histogram value
+    */
+  case class Value[A](sum: A, bucketValues: NonEmptySeq[A]) {
+    def map[B](f: A => B): Value[B] = Value(f(sum), bucketValues.map(f))
+  }
+
   val DefaultHttpBuckets: NonEmptySeq[Double] =
     NonEmptySeq.of(0.005, .01, .025, .05, .075, .1, .25, .5, .75, 1, 2.5, 5, 7.5, 10)
 
