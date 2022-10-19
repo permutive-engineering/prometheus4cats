@@ -70,7 +70,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
                 help,
                 commonLabels,
                 labels.keys.toIndexedSeq,
-                IO(value, labels)
+                IO(value -> labels)
               )(_.values.toIndexedSeq) >> getCounterValue(
               state,
               prefix,
@@ -127,7 +127,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
                 help,
                 commonLabels,
                 labels.keys.toIndexedSeq,
-                IO(value, labels)
+                IO(value -> labels)
               )(_.values.toIndexedSeq) >> getGaugeValue(
               state,
               prefix,
@@ -218,7 +218,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
                 commonLabels,
                 labels.keys.toIndexedSeq,
                 buckets,
-                IO(Histogram.Value(sum, bucketValues), labels)
+                IO(Histogram.Value(sum, bucketValues) -> labels)
               )(_.values.toIndexedSeq) >> getHistogramValue(
               state,
               prefix,
