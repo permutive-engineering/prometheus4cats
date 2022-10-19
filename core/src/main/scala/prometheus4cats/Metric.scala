@@ -17,18 +17,13 @@
 package prometheus4cats
 
 import cats.syntax.traverse._
-import cats.{Eq, Hash, Order, Show, ~>}
+import cats.{Eq, Hash, Order, Show}
 
 private[prometheus4cats] trait Metric[-A] {
   def contramap[B](f: B => A): Metric[B]
 }
 
 object Metric {
-
-  sealed trait Reader[F[_], A] { self =>
-    def addCallback(fa: F[A]): F[Unit]
-  }
-
   final class CommonLabels private (val value: Map[Label.Name, String]) extends AnyVal {
     override def toString: String = s"Metric.CommonLabels([${value.map { case (name, value) =>
         s"""$name -> "$value""""

@@ -1,9 +1,44 @@
+/*
+ * Copyright 2022 Permutive
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package prometheus4cats
 
 import cats.data.NonEmptySeq
 import cats.{Applicative, ~>}
 
+/** Trait for registering callbacks against different backends. May be implemented by anyone for use with
+  * [[MetricsFactory.WithCallbacks]]
+  */
 trait CallbackRegistry[F[_]] {
+
+  /** Register a counter value that records [[scala.Double]] values against a callback registry
+    *
+    * @param prefix
+    *   optional [[Metric.Prefix]] to be prepended to the metric name
+    * @param name
+    *   [[Counter.Name]] metric name
+    * @param help
+    *   [[Metric.Help]] string to describe the metric
+    * @param commonLabels
+    *   [[Metric.CommonLabels]] map of common labels to be added to the metric
+    * @param callback
+    *   Some effectful operation that returns a [[scala.Double]]
+    * @return
+    *   An empty side effect to indicate that the callback has been registered
+    */
   protected[prometheus4cats] def registerDoubleCounterCallback(
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
@@ -12,6 +47,21 @@ trait CallbackRegistry[F[_]] {
       callback: F[Double]
   ): F[Unit]
 
+  /** Register a counter value that records [[scala.Long]] values against a callback registry
+    *
+    * @param prefix
+    *   optional [[Metric.Prefix]] to be prepended to the metric name
+    * @param name
+    *   [[Counter.Name]] metric name
+    * @param help
+    *   [[Metric.Help]] string to describe the metric
+    * @param commonLabels
+    *   [[Metric.CommonLabels]] map of common labels to be added to the metric
+    * @param callback
+    *   Some effectful operation that returns a [[scala.Long]]
+    * @return
+    *   An empty side effect to indicate that the callback has been registered
+    */
   protected[prometheus4cats] def registerLongCounterCallback(
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
@@ -20,6 +70,26 @@ trait CallbackRegistry[F[_]] {
       callback: F[Long]
   ): F[Unit]
 
+  /** Register a labelled counter value that records [[scala.Double]] values against a metrics registry
+    *
+    * @param prefix
+    *   optional [[Metric.Prefix]] to be prepended to the metric name
+    * @param name
+    *   [[Counter.Name]] metric name
+    * @param help
+    *   [[Metric.Help]] string to describe the metric
+    * @param commonLabels
+    *   [[Metric.CommonLabels]] map of common labels to be added to the metric
+    * @param labelNames
+    *   an [[scala.IndexedSeq]] of [[Label.Name]]s to annotate the metric with
+    * @param f
+    *   a function from `A` to an [[scala.IndexedSeq]] of [[java.lang.String]] that provides label values, which must be
+    *   paired with their corresponding name in the [[scala.IndexedSeq]] of [[Label.Name]]s
+    * @param callback
+    *   Some effectful operation that returns a [[scala.Long]]
+    * @return
+    *   An empty side effect to indicate that the callback has been registered
+    */
   protected[prometheus4cats] def registerLabelledDoubleCounterCallback[A](
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
@@ -29,6 +99,26 @@ trait CallbackRegistry[F[_]] {
       callback: F[(Double, A)]
   )(f: A => IndexedSeq[String]): F[Unit]
 
+  /** Register a labelled counter value that records [[scala.Long]] values against a metrics registry
+    *
+    * @param prefix
+    *   optional [[Metric.Prefix]] to be prepended to the metric name
+    * @param name
+    *   [[Counter.Name]] metric name
+    * @param help
+    *   [[Metric.Help]] string to describe the metric
+    * @param commonLabels
+    *   [[Metric.CommonLabels]] map of common labels to be added to the metric
+    * @param labelNames
+    *   an [[scala.IndexedSeq]] of [[Label.Name]]s to annotate the metric with
+    * @param f
+    *   a function from `A` to an [[scala.IndexedSeq]] of [[java.lang.String]] that provides label values, which must be
+    *   paired with their corresponding name in the [[scala.IndexedSeq]] of [[Label.Name]]s
+    * @param callback
+    *   Some effectful operation that returns a [[scala.Double]]
+    * @return
+    *   An empty side effect to indicate that the callback has been registered
+    */
   protected[prometheus4cats] def registerLabelledLongCounterCallback[A](
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
@@ -38,6 +128,21 @@ trait CallbackRegistry[F[_]] {
       callback: F[(Long, A)]
   )(f: A => IndexedSeq[String]): F[Unit]
 
+  /** Register a gauge value that records [[scala.Double]] values against a callback registry
+    *
+    * @param prefix
+    *   optional [[Metric.Prefix]] to be prepended to the metric name
+    * @param name
+    *   [[Counter.Name]] metric name
+    * @param help
+    *   [[Metric.Help]] string to describe the metric
+    * @param commonLabels
+    *   [[Metric.CommonLabels]] map of common labels to be added to the metric
+    * @param callback
+    *   Some effectful operation that returns a [[scala.Double]]
+    * @return
+    *   An empty side effect to indicate that the callback has been registered
+    */
   protected[prometheus4cats] def registerDoubleGaugeCallback(
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
@@ -46,6 +151,21 @@ trait CallbackRegistry[F[_]] {
       callback: F[Double]
   ): F[Unit]
 
+  /** Register a gauge value that records [[scala.Long]] values against a callback registry
+    *
+    * @param prefix
+    *   optional [[Metric.Prefix]] to be prepended to the metric name
+    * @param name
+    *   [[Counter.Name]] metric name
+    * @param help
+    *   [[Metric.Help]] string to describe the metric
+    * @param commonLabels
+    *   [[Metric.CommonLabels]] map of common labels to be added to the metric
+    * @param callback
+    *   Some effectful operation that returns a [[scala.Long]]
+    * @return
+    *   An empty side effect to indicate that the callback has been registered
+    */
   protected[prometheus4cats] def registerLongGaugeCallback(
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
@@ -54,6 +174,26 @@ trait CallbackRegistry[F[_]] {
       callback: F[Long]
   ): F[Unit]
 
+  /** Register a labelled gauge value that records [[scala.Double]] values against a metrics registry
+    *
+    * @param prefix
+    *   optional [[Metric.Prefix]] to be prepended to the metric name
+    * @param name
+    *   [[Counter.Name]] metric name
+    * @param help
+    *   [[Metric.Help]] string to describe the metric
+    * @param commonLabels
+    *   [[Metric.CommonLabels]] map of common labels to be added to the metric
+    * @param labelNames
+    *   an [[scala.IndexedSeq]] of [[Label.Name]]s to annotate the metric with
+    * @param f
+    *   a function from `A` to an [[scala.IndexedSeq]] of [[java.lang.String]] that provides label values, which must be
+    *   paired with their corresponding name in the [[scala.IndexedSeq]] of [[Label.Name]]s
+    * @param callback
+    *   Some effectful operation that returns a [[scala.Double]]
+    * @return
+    *   An empty side effect to indicate that the callback has been registered
+    */
   protected[prometheus4cats] def registerLabelledDoubleGaugeCallback[A](
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
@@ -63,6 +203,26 @@ trait CallbackRegistry[F[_]] {
       callback: F[(Double, A)]
   )(f: A => IndexedSeq[String]): F[Unit]
 
+  /** Register a labelled gauge value that records [[scala.Long]] values against a metrics registry
+    *
+    * @param prefix
+    *   optional [[Metric.Prefix]] to be prepended to the metric name
+    * @param name
+    *   [[Counter.Name]] metric name
+    * @param help
+    *   [[Metric.Help]] string to describe the metric
+    * @param commonLabels
+    *   [[Metric.CommonLabels]] map of common labels to be added to the metric
+    * @param labelNames
+    *   an [[scala.IndexedSeq]] of [[Label.Name]]s to annotate the metric with
+    * @param f
+    *   a function from `A` to an [[scala.IndexedSeq]] of [[java.lang.String]] that provides label values, which must be
+    *   paired with their corresponding name in the [[scala.IndexedSeq]] of [[Label.Name]]s
+    * @param callback
+    *   Some effectful operation that returns a [[scala.Long]]
+    * @return
+    *   An empty side effect to indicate that the callback has been registered
+    */
   protected[prometheus4cats] def registerLabelledLongGaugeCallback[A](
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
@@ -72,6 +232,21 @@ trait CallbackRegistry[F[_]] {
       callback: F[(Long, A)]
   )(f: A => IndexedSeq[String]): F[Unit]
 
+  /** Register a histogram value that records [[scala.Double]] values against a callback registry
+    *
+    * @param prefix
+    *   optional [[Metric.Prefix]] to be prepended to the metric name
+    * @param name
+    *   [[Counter.Name]] metric name
+    * @param help
+    *   [[Metric.Help]] string to describe the metric
+    * @param commonLabels
+    *   [[Metric.CommonLabels]] map of common labels to be added to the metric
+    * @param callback
+    *   Some effectful operation that returns a [[Histogram.Value]] parameterised with [[scala.Double]]
+    * @return
+    *   An empty side effect to indicate that the callback has been registered
+    */
   protected[prometheus4cats] def registerDoubleHistogramCallback(
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
@@ -81,6 +256,21 @@ trait CallbackRegistry[F[_]] {
       callback: F[Histogram.Value[Double]]
   ): F[Unit]
 
+  /** Register a histogram value that records [[scala.Long]] values against a callback registry
+    *
+    * @param prefix
+    *   optional [[Metric.Prefix]] to be prepended to the metric name
+    * @param name
+    *   [[Counter.Name]] metric name
+    * @param help
+    *   [[Metric.Help]] string to describe the metric
+    * @param commonLabels
+    *   [[Metric.CommonLabels]] map of common labels to be added to the metric
+    * @param callback
+    *   Some effectful operation that returns a [[Histogram.Value]] parameterised with [[scala.Long]]
+    * @return
+    *   An empty side effect to indicate that the callback has been registered
+    */
   protected[prometheus4cats] def registerLongHistogramCallback(
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
@@ -90,6 +280,26 @@ trait CallbackRegistry[F[_]] {
       callback: F[Histogram.Value[Long]]
   ): F[Unit]
 
+  /** Register a labelled histogram value that records [[scala.Double]] values against a metrics registry
+    *
+    * @param prefix
+    *   optional [[Metric.Prefix]] to be prepended to the metric name
+    * @param name
+    *   [[Counter.Name]] metric name
+    * @param help
+    *   [[Metric.Help]] string to describe the metric
+    * @param commonLabels
+    *   [[Metric.CommonLabels]] map of common labels to be added to the metric
+    * @param labelNames
+    *   an [[scala.IndexedSeq]] of [[Label.Name]]s to annotate the metric with
+    * @param f
+    *   a function from `A` to an [[scala.IndexedSeq]] of [[java.lang.String]] that provides label values, which must be
+    *   paired with their corresponding name in the [[scala.IndexedSeq]] of [[Label.Name]]s
+    * @param callback
+    *   Some effectful operation that returns a [[Histogram.Value]] parameterised with [[scala.Double]]
+    * @return
+    *   An empty side effect to indicate that the callback has been registered
+    */
   protected[prometheus4cats] def registerLabelledDoubleHistogramCallback[A](
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
@@ -100,6 +310,26 @@ trait CallbackRegistry[F[_]] {
       callback: F[(Histogram.Value[Double], A)]
   )(f: A => IndexedSeq[String]): F[Unit]
 
+  /** Register a labelled histogram value that records [[scala.Long]] values against a metrics registry
+    *
+    * @param prefix
+    *   optional [[Metric.Prefix]] to be prepended to the metric name
+    * @param name
+    *   [[Counter.Name]] metric name
+    * @param help
+    *   [[Metric.Help]] string to describe the metric
+    * @param commonLabels
+    *   [[Metric.CommonLabels]] map of common labels to be added to the metric
+    * @param labelNames
+    *   an [[scala.IndexedSeq]] of [[Label.Name]]s to annotate the metric with
+    * @param f
+    *   a function from `A` to an [[scala.IndexedSeq]] of [[java.lang.String]] that provides label values, which must be
+    *   paired with their corresponding name in the [[scala.IndexedSeq]] of [[Label.Name]]s
+    * @param callback
+    *   Some effectful operation that returns a [[Histogram.Value]] parameterised with [[scala.Long]]
+    * @return
+    *   An empty side effect to indicate that the callback has been registered
+    */
   protected[prometheus4cats] def registerLabelledLongHistogramCallback[A](
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
@@ -110,6 +340,9 @@ trait CallbackRegistry[F[_]] {
       callback: F[(Histogram.Value[Long], A)]
   )(f: A => IndexedSeq[String]): F[Unit]
 
+  /** Given a natural transformation from `F` to `G` and from `G` to `F`, transforms this [[CallbackRegistry]] from
+    * effect `F` to effect `G`
+    */
   final def imapK[G[_]](fk: F ~> G, gk: G ~> F): CallbackRegistry[G] = CallbackRegistry.imapK(this, fk, gk)
 }
 
