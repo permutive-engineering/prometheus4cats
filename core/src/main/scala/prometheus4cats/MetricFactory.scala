@@ -19,13 +19,7 @@ package prometheus4cats
 import cats.{Applicative, Functor, ~>}
 import prometheus4cats.Metric.CommonLabels
 import prometheus4cats.internal.histogram.BucketDsl
-import prometheus4cats.internal.{
-  HelpStep,
-  LabelledCallbackPartiallyApplied,
-  LabelledMetricPartiallyApplied,
-  MetricDsl,
-  TypeStep
-}
+import prometheus4cats.internal._
 
 sealed abstract class MetricFactory[F[_]](
     val metricRegistry: MetricRegistry[F],
@@ -169,6 +163,18 @@ sealed abstract class MetricFactory[F[_]](
         )
       )
     )
+
+  /** Starts creating an "info" metric.
+    *
+    * @example
+    *   {{{metrics.info("app_info").help("my counter help").build}}}
+    * @param name
+    *   [[Info.Name]] value
+    * @return
+    *   Info builder
+    */
+  def info(name: Info.Name): HelpStep[BuildStep[F, Info[F, Map[Label.Name, String]]]] =
+    new HelpStep(help => new BuildStep(metricRegistry.createAndRegisterInfo(prefix, name, help)))
 
   /** Creates a new instance of [[MetricFactory]] without a [[Metric.Prefix]] set
     */

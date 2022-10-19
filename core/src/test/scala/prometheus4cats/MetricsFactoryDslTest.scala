@@ -98,4 +98,9 @@ object MetricsFactoryDslTest {
   longHistogramBuilder.resource
   longHistogramBuilder.label[String]("label1").label[Int]("label2").label[BigInteger]("label3", _.toString).build
   longHistogramBuilder.unsafeLabels(Label.Name("label1"), Label.Name("label2")).build
+
+  val infoBuilder = factory.info("test_info").help("help")
+  infoBuilder.contramap[List[(Label.Name, String)]](_.toMap)
+  infoBuilder.build
+  infoBuilder.resource
 }

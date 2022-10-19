@@ -21,4 +21,5 @@ object MetricType {
   case object Counter extends MetricType
   case object Gauge extends MetricType
   case object Histogram extends MetricType
+  case object Info extends MetricType
 }

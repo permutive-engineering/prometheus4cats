@@ -21,12 +21,23 @@ import cats.effect.IO
 import cats.effect.kernel.Resource
 import cats.effect.testkit.TestControl
 import munit.CatsEffectSuite
+import org.scalacheck.Arbitrary
 import org.scalacheck.effect.PropF._
 import prometheus4cats._
 
 trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffectSuite =>
 
+  implicit val infoNameArb: Arbitrary[Info.Name] = niceStringArb(s => Info.Name.from(s"${s}_info"))
+
   def metricRegistryResource(state: State): Resource[IO, MetricRegistry[IO]]
+
+  def getInfoValue(
+      state: State,
+      prefix: Option[Metric.Prefix],
+      name: Info.Name,
+      help: Metric.Help,
+      labels: Map[Label.Name, String]
+  ): IO[Option[Double]]
 
   test("create and increment a counter") {
     forAllF {
@@ -256,6 +267,26 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
               buckets,
               labels
             ).map(res => assertEquals(res, Some(expected)))
+          }
+        }
+    }
+  }
+
+  test("create and set info") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name: Info.Name,
+          help: Metric.Help,
+          labels: Map[Label.Name, String]
+      ) =>
+        stateResource.use { state =>
+          metricRegistryResource(state).use { reg =>
+            reg
+              .createAndRegisterInfo(prefix, name, help)
+              .flatMap(_.info(labels)) >> getInfoValue(state, prefix, name, help, labels).map(
+              assertEquals(_, Some(1.0))
+            )
           }
         }
     }

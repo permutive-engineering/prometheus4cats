@@ -35,7 +35,7 @@ trait RegistrySuite[State] extends ScalaCheckEffectSuite {
     s <- Gen.alphaNumStr
   } yield s"$c1$c2$s"
 
-  private def niceStringArb[A](f: String => Either[String, A]): Arbitrary[A] = Arbitrary(
+  protected def niceStringArb[A](f: String => Either[String, A]): Arbitrary[A] = Arbitrary(
     niceStringGen.flatMap(s => Gen.oneOf(f(s).toOption))
   )
 
