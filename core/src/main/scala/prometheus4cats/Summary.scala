@@ -62,7 +62,7 @@ object Summary {
   }
 
   final case class QuantileDefinition private (value: Quantile, error: Double) {
-    override def toString: String = s"""Summary.Quantile(value: "${value.value}", error: "$error")"""
+    override def toString: String = s"""Summary.QuantileDefinition(value: "${value.value}", error: "$error")"""
   }
 
   object QuantileDefinition {
