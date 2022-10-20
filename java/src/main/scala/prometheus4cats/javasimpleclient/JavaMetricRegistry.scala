@@ -710,19 +710,24 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
             n,
             help.value,
             List.empty[String].asJava,
-            v.quantiles.keys.toList.map[java.lang.Double](_.value).asJava
+            v.quantiles.keys.toList.map(_.value.asInstanceOf[java.lang.Double]).asJava
           )
             .addMetric(
               List.empty[String].asJava,
               v.count,
               v.sum,
-              v.quantiles.values.toList.map[java.lang.Double](d => d).asJava
+              v.quantiles.values.toList.map(_.asInstanceOf[java.lang.Double]).asJava
             ),
       (n, lns, lvs, v) =>
         if (v.quantiles.isEmpty) new SummaryMetricFamily(n, help.value, lns).addMetric(lvs, v.count, v.sum)
         else
-          new SummaryMetricFamily(n, help.value, lns, v.quantiles.keys.toList.map[java.lang.Double](_.value).asJava)
-            .addMetric(lvs, v.count, v.sum, v.quantiles.values.toList.map[java.lang.Double](d => d).asJava)
+          new SummaryMetricFamily(
+            n,
+            help.value,
+            lns,
+            v.quantiles.keys.toList.map(_.value.asInstanceOf[java.lang.Double]).asJava
+          )
+            .addMetric(lvs, v.count, v.sum, v.quantiles.values.toList.map(_.asInstanceOf[java.lang.Double]).asJava)
     )
 
   override protected[prometheus4cats] def registerLabelledDoubleSummaryCallback[A](
@@ -738,8 +743,13 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       (n, lns, lvs, v) =>
         if (v.quantiles.isEmpty) new SummaryMetricFamily(n, help.value, lns).addMetric(lvs, v.count, v.sum)
         else
-          new SummaryMetricFamily(n, help.value, lns, v.quantiles.keys.toList.map[java.lang.Double](_.value).asJava)
-            .addMetric(lvs, v.count, v.sum, v.quantiles.values.toList.map[java.lang.Double](d => d).asJava)
+          new SummaryMetricFamily(
+            n,
+            help.value,
+            lns,
+            v.quantiles.keys.toList.map(_.value.asInstanceOf[java.lang.Double]).asJava
+          )
+            .addMetric(lvs, v.count, v.sum, v.quantiles.values.toList.map(_.asInstanceOf[java.lang.Double]).asJava)
     )
 }
 

@@ -176,7 +176,7 @@ object Summary {
   }
 
   case class Value[A](count: A, sum: A, quantiles: Map[Quantile, A] = Map.empty) {
-    def map[B](f: A => B): Value[B] = Value(f(count), f(sum), quantiles.view.mapValues(f).toMap)
+    def map[B](f: A => B): Value[B] = Value(f(count), f(sum), quantiles.map { case (q, v) => q -> f(v) })
   }
 
   /** Refined value class for a gauge name that has been parsed from a string
