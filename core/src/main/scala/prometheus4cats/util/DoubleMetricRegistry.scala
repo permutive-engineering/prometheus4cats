@@ -88,7 +88,7 @@ trait DoubleMetricRegistry[F[_]] extends MetricRegistry[F] {
       commonLabels: Metric.CommonLabels,
       quantiles: Seq[Summary.QuantileDefinition],
       maxAge: FiniteDuration,
-      ageBuckets: Int
+      ageBuckets: Summary.AgeBuckets
   ): F[Summary[F, Long]] =
     createAndRegisterDoubleSummary(prefix, name, help, commonLabels, quantiles, maxAge, ageBuckets).map(
       _.contramap(_.toDouble)
@@ -102,7 +102,7 @@ trait DoubleMetricRegistry[F[_]] extends MetricRegistry[F] {
       labelNames: IndexedSeq[Label.Name],
       quantiles: Seq[Summary.QuantileDefinition],
       maxAge: FiniteDuration,
-      ageBuckets: Int
+      ageBuckets: Summary.AgeBuckets
   )(f: A => IndexedSeq[String]): F[Summary.Labelled[F, Long, A]] =
     createAndRegisterLabelledDoubleSummary(prefix, name, help, commonLabels, labelNames, quantiles, maxAge, ageBuckets)(
       f

@@ -329,7 +329,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       prefix,
       name,
       help,
-      labelNames ++ commonLabels.value.keys.toIndexedSeq
+      labelNames ++ commonLabelNames
     ).map { histogram =>
       Histogram.Labelled.make[F, Double, A](_observe = { (d: Double, labels: A) =>
         Utils.modifyMetric[F, Histogram.Name, PHistogram.Child](
@@ -350,14 +350,14 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       commonLabels: Metric.CommonLabels,
       quantiles: Seq[Summary.QuantileDefinition],
       maxAge: FiniteDuration,
-      ageBuckets: Int
+      ageBuckets: Summary.AgeBuckets
   ): F[Summary[F, Double]] = {
 
     val commonLabelNames = commonLabels.value.keys.toIndexedSeq
     val commonLabelValues = commonLabels.value.values.toIndexedSeq
 
     configureBuilderOrRetrieve(
-      quantiles.foldLeft(PSummary.build().ageBuckets(ageBuckets).maxAgeSeconds(maxAge.toSeconds))((b, q) =>
+      quantiles.foldLeft(PSummary.build().ageBuckets(ageBuckets.value).maxAgeSeconds(maxAge.toSeconds))((b, q) =>
         b.quantile(q.value.value, q.error)
       ),
       MetricType.Summary,
@@ -386,21 +386,21 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       labelNames: IndexedSeq[Label.Name],
       quantiles: Seq[Summary.QuantileDefinition],
       maxAge: FiniteDuration,
-      ageBuckets: Int
+      ageBuckets: Summary.AgeBuckets
   )(f: A => IndexedSeq[String]): F[Summary.Labelled[F, Double, A]] = {
 
     val commonLabelNames = commonLabels.value.keys.toIndexedSeq
     val commonLabelValues = commonLabels.value.values.toIndexedSeq
 
     configureBuilderOrRetrieve(
-      quantiles.foldLeft(PSummary.build().ageBuckets(ageBuckets).maxAgeSeconds(maxAge.toSeconds))((b, q) =>
+      quantiles.foldLeft(PSummary.build().ageBuckets(ageBuckets.value).maxAgeSeconds(maxAge.toSeconds))((b, q) =>
         b.quantile(q.value.value, q.error)
       ),
       MetricType.Summary,
       prefix,
       name,
       help,
-      commonLabelNames
+      labelNames ++ commonLabelNames
     ).map { summary =>
       Summary.Labelled.make[F, Double, A] { case (d, labels) =>
         Utils.modifyMetric[F, Summary.Name, PSummary.Child](

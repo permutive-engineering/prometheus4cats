@@ -347,7 +347,7 @@ trait MetricRegistry[F[_]] {
       commonLabels: Metric.CommonLabels,
       quantiles: Seq[QuantileDefinition],
       maxAge: FiniteDuration,
-      ageBuckets: Int
+      ageBuckets: Summary.AgeBuckets
   ): F[Summary[F, Double]]
 
   /** Create and register a summary that records [[scala.Long]] values against a metrics registry
@@ -380,7 +380,7 @@ trait MetricRegistry[F[_]] {
       commonLabels: Metric.CommonLabels,
       quantiles: Seq[QuantileDefinition],
       maxAge: FiniteDuration,
-      ageBuckets: Int
+      ageBuckets: Summary.AgeBuckets
   ): F[Summary[F, Long]]
 
   /** Create and register a summary that records [[scala.Double]] values against a metrics registry
@@ -419,7 +419,7 @@ trait MetricRegistry[F[_]] {
       labelNames: IndexedSeq[Label.Name],
       quantiles: Seq[QuantileDefinition],
       maxAge: FiniteDuration,
-      ageBuckets: Int
+      ageBuckets: Summary.AgeBuckets
   )(f: A => IndexedSeq[String]): F[Summary.Labelled[F, Double, A]]
 
   /** Create and register a summary that records [[scala.Long]] values against a metrics registry
@@ -458,7 +458,7 @@ trait MetricRegistry[F[_]] {
       labelNames: IndexedSeq[Label.Name],
       quantiles: Seq[QuantileDefinition],
       maxAge: FiniteDuration,
-      ageBuckets: Int
+      ageBuckets: Summary.AgeBuckets
   )(f: A => IndexedSeq[String]): F[Summary.Labelled[F, Long, A]]
 
   /** Create and register an info metric against a metrics registry
@@ -593,7 +593,7 @@ object MetricRegistry {
           commonLabels: CommonLabels,
           quantiles: Seq[QuantileDefinition],
           maxAge: FiniteDuration,
-          ageBuckets: Int
+          ageBuckets: Summary.AgeBuckets
       ): F[Summary[F, Double]] = F.pure(Summary.noop)
 
       override protected[prometheus4cats] def createAndRegisterLongSummary(
@@ -603,7 +603,7 @@ object MetricRegistry {
           commonLabels: CommonLabels,
           quantiles: Seq[QuantileDefinition],
           maxAge: FiniteDuration,
-          ageBuckets: Int
+          ageBuckets: Summary.AgeBuckets
       ): F[Summary[F, Long]] = F.pure(Summary.noop)
 
       override protected[prometheus4cats] def createAndRegisterLabelledDoubleSummary[A](
@@ -614,7 +614,7 @@ object MetricRegistry {
           labelNames: IndexedSeq[Label.Name],
           quantiles: Seq[QuantileDefinition],
           maxAge: FiniteDuration,
-          ageBuckets: Int
+          ageBuckets: Summary.AgeBuckets
       )(f: A => IndexedSeq[String]): F[Summary.Labelled[F, Double, A]] = F.pure(Summary.Labelled.noop)
 
       override protected[prometheus4cats] def createAndRegisterLabelledLongSummary[A](
@@ -625,7 +625,7 @@ object MetricRegistry {
           labelNames: IndexedSeq[Label.Name],
           quantiles: Seq[QuantileDefinition],
           maxAge: FiniteDuration,
-          ageBuckets: Int
+          ageBuckets: Summary.AgeBuckets
       )(f: A => IndexedSeq[String]): F[Summary.Labelled[F, Long, A]] = F.pure(Summary.Labelled.noop)
 
       override protected[prometheus4cats] def createAndRegisterInfo(
@@ -785,7 +785,7 @@ object MetricRegistry {
           commonLabels: CommonLabels,
           quantiles: Seq[QuantileDefinition],
           maxAge: FiniteDuration,
-          ageBuckets: Int
+          ageBuckets: Summary.AgeBuckets
       ): G[Summary[G, Double]] = fk(
         self.createAndRegisterDoubleSummary(prefix, name, help, commonLabels, quantiles, maxAge, ageBuckets)
       ).map(_.mapK(fk))
@@ -797,7 +797,7 @@ object MetricRegistry {
           commonLabels: CommonLabels,
           quantiles: Seq[QuantileDefinition],
           maxAge: FiniteDuration,
-          ageBuckets: Int
+          ageBuckets: Summary.AgeBuckets
       ): G[Summary[G, Long]] = fk(
         self.createAndRegisterLongSummary(prefix, name, help, commonLabels, quantiles, maxAge, ageBuckets)
       ).map(_.mapK(fk))
@@ -810,7 +810,7 @@ object MetricRegistry {
           labelNames: IndexedSeq[Label.Name],
           quantiles: Seq[QuantileDefinition],
           maxAge: FiniteDuration,
-          ageBuckets: Int
+          ageBuckets: Summary.AgeBuckets
       )(f: A => IndexedSeq[String]): G[Summary.Labelled[G, Double, A]] = fk(
         self.createAndRegisterLabelledDoubleSummary(
           prefix,
@@ -832,7 +832,7 @@ object MetricRegistry {
           labelNames: IndexedSeq[Label.Name],
           quantiles: Seq[QuantileDefinition],
           maxAge: FiniteDuration,
-          ageBuckets: Int
+          ageBuckets: Summary.AgeBuckets
       )(f: A => IndexedSeq[String]): G[Summary.Labelled[G, Long, A]] = fk(
         self.createAndRegisterLabelledLongSummary(
           prefix,

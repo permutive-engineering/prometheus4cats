@@ -20,6 +20,10 @@ import java.math.BigInteger
 import java.util.concurrent.TimeUnit
 
 import cats.effect.IO
+import prometheus4cats.Summary.AgeBuckets
+import prometheus4cats.internal.summary.SummaryDsl
+
+import scala.concurrent.duration._
 
 object MetricsFactoryDslTest {
   val factory: MetricFactory.WithCallbacks[IO] = MetricFactory.builder.withPrefix("prefix").noop[IO]
@@ -104,5 +108,12 @@ object MetricsFactoryDslTest {
   infoBuilder.build
   infoBuilder.resource
 
-  val doubleSummaryBuilder = factory.summary(???).ofDouble.help("some summary")
+  val doubleSummaryBuilder =
+    factory
+      .summary("summary")
+      .ofDouble
+      .help("some summary")
+      .quantile(Summary.QuantileDefinition(1.0, 0.1))
+      .maxAge(10.seconds)
+      .ageBuckets(5)
 }

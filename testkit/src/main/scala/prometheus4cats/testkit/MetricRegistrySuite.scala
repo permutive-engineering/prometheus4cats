@@ -23,7 +23,10 @@ import cats.effect.testkit.TestControl
 import munit.CatsEffectSuite
 import org.scalacheck.Arbitrary
 import org.scalacheck.effect.PropF._
+import prometheus4cats.Summary.QuantileDefinition
 import prometheus4cats._
+
+import scala.concurrent.duration._
 
 trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffectSuite =>
 
@@ -267,6 +270,84 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
               buckets,
               labels
             ).map(res => assertEquals(res, Some(expected)))
+          }
+        }
+    }
+  }
+
+  test("create and increment a summary") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name: Summary.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels,
+          value: Double,
+          quantiles: Seq[QuantileDefinition],
+          age: (FiniteDuration, Summary.AgeBuckets)
+      ) =>
+        stateResource.use { state =>
+          metricRegistryResource(state).use { reg =>
+            reg
+              .createAndRegisterDoubleSummary(
+                prefix,
+                name,
+                help,
+                commonLabels,
+                quantiles,
+                age._1 + 1.second,
+                age._2
+              )
+              .flatMap(_.observe(value)) >> getSummaryValue(state, prefix, name, help, commonLabels, Map.empty).map {
+              case (q, count, sum) =>
+                assertEquals(q, Some(quantiles.map(qd => qd.value.value.toString -> value).toMap))
+                assertEquals(count, Some(1.0))
+                assertEquals(sum, Some(value))
+
+            }
+          }
+        }
+    }
+  }
+
+  test("create and increment a labelled summary") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name: Summary.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels,
+          labels: Map[Label.Name, String],
+          value: Double,
+          quantiles: Seq[QuantileDefinition],
+          age: (FiniteDuration, Summary.AgeBuckets)
+      ) =>
+        stateResource.use { state =>
+          metricRegistryResource(state).use { reg =>
+            reg
+              .createAndRegisterLabelledDoubleSummary[Map[Label.Name, String]](
+                prefix,
+                name,
+                help,
+                commonLabels,
+                labels.keys.toIndexedSeq,
+                quantiles,
+                age._1 + 1.second,
+                age._2
+              )(_.values.toIndexedSeq)
+              .flatMap(_.observe(value, labels)) >> getSummaryValue(
+              state,
+              prefix,
+              name,
+              help,
+              commonLabels,
+              labels
+            ).map { case (q, count, sum) =>
+              assertEquals(q, Some(quantiles.map(qd => qd.value.value.toString -> value).toMap))
+              assertEquals(count, Some(1.0))
+              assertEquals(sum, Some(value))
+
+            }
           }
         }
     }

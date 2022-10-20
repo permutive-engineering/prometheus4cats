@@ -16,11 +16,58 @@ sealed abstract class Summary[F[_], -A] extends Metric[A] { self =>
 }
 
 object Summary {
+  final class AgeBuckets(val value: Int) extends AnyVal {
+    override def toString: String = s"""Summary.AgeBuckets(value: "$value")"""
+  }
+
+  object AgeBuckets extends internal.SummaryAgeBucketsFromIntLiteral {
+
+    val Default: AgeBuckets = new AgeBuckets(5)
+
+    /** Parse a [[AgeBuckets]] from the given string
+      *
+      * @param value
+      *   value from which to parse a quantile value
+      * @return
+      *   a parsed [[AgeBuckets]] or failure message, represented by an [[scala.Either]]
+      */
+    def from(value: Int): Either[String, AgeBuckets] =
+      Either.cond(
+        value > 0,
+        new AgeBuckets(value),
+        s"AgeBuckets value $value must be greater than 0"
+      )
+
+    /** Unsafely parse a [[AgeBuckets]] from the given double
+      *
+      * @param value
+      *   value from which to parse a quantile value
+      * @return
+      *   a parsed [[AgeBuckets]]
+      * @throws java.lang.IllegalArgumentException
+      *   if `string` is not valid
+      */
+    def unsafeFrom(value: Int): AgeBuckets =
+      from(value).fold(msg => throw new IllegalArgumentException(msg), identity)
+
+    implicit val catsInstances: Hash[AgeBuckets] with Order[AgeBuckets] with Show[AgeBuckets] = new Hash[AgeBuckets]
+      with Order[AgeBuckets]
+      with Show[AgeBuckets] {
+      override def hash(x: AgeBuckets): Int = Hash[Int].hash(x.value)
+
+      override def compare(x: AgeBuckets, y: AgeBuckets): Int = Order[Int].compare(x.value, y.value)
+
+      override def show(t: AgeBuckets): String = Show[Int].show(t.value)
+
+      override def eqv(x: AgeBuckets, y: AgeBuckets): Boolean = Eq[Int].eqv(x.value, y.value)
+    }
+  }
+
   final class Quantile(val value: Double) extends AnyVal {
     override def toString: String = s"""Summary.Quantile(value: "$value")"""
   }
 
-  object Quantile {
+  object Quantile extends internal.SummaryQuantileFromDoubleLiteral {
 
     /** Parse a [[Quantile]] from the given string
       *
@@ -31,17 +78,17 @@ object Summary {
       */
     def from(value: Double): Either[String, Quantile] =
       Either.cond(
-        value >= 0.0 && value >= 1.0,
+        value >= 0.0 && value <= 1.0,
         new Quantile(value),
         s"Quantile value $value must be between 0.0 and 1.0"
       )
 
-    /** Unsafely parse a [[QuantileDefinition]] from the given double
+    /** Unsafely parse a [[Quantile]] from the given double
       *
       * @param value
       *   value from which to parse a quantile value
       * @return
-      *   a parsed [[QuantileDefinition]]
+      *   a parsed [[Quantile]]
       * @throws java.lang.IllegalArgumentException
       *   if `string` is not valid
       */
@@ -65,7 +112,7 @@ object Summary {
     override def toString: String = s"""Summary.QuantileDefinition(value: "${value.value}", error: "$error")"""
   }
 
-  object QuantileDefinition {
+  object QuantileDefinition extends internal.SummaryQuantileDefinitionFromDoubleLiterals {
 
     /** Parse a [[QuantileDefinition]] from the given string
       *
@@ -76,12 +123,13 @@ object Summary {
       * @return
       *   a parsed [[QuantileDefinition]] or failure message, represented by an [[scala.Either]]
       */
-    def from(value: Quantile, error: Double): Either[String, QuantileDefinition] =
+    def from(value: Double, error: Double): Either[String, QuantileDefinition] = Quantile.from(value).flatMap { v =>
       Either.cond(
-        error >= 0.0 && error >= 1.0,
-        QuantileDefinition(value, error),
+        error >= 0.0 && error <= 1.0,
+        new QuantileDefinition(v, error),
         s"Quantile error rate $error must be between 0.0 and 1.0"
       )
+    }
 
     /** Unsafely parse a [[QuantileDefinition]] from the given values
       *
@@ -95,7 +143,7 @@ object Summary {
       *   if `string` is not valid
       */
     def unsafeFrom(value: Double, error: Double): QuantileDefinition =
-      from(Quantile.unsafeFrom(value), error).fold(msg => throw new IllegalArgumentException(msg), identity)
+      from(value, error).fold(msg => throw new IllegalArgumentException(msg), identity)
 
     implicit val catsInstances: Hash[QuantileDefinition] with Order[QuantileDefinition] with Show[QuantileDefinition] =
       new Hash[QuantileDefinition] with Order[QuantileDefinition] with Show[QuantileDefinition] {
@@ -121,7 +169,7 @@ object Summary {
     override def toString: String = s"""Summary.Name("$value")"""
   }
 
-  object Name {
+  object Name extends internal.SummaryNameFromStringLiteral {
 
     final private val regex = "^[a-zA-Z_:][a-zA-Z0-9_:]*$".r.pattern
 

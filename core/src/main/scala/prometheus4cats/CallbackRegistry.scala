@@ -18,7 +18,6 @@ package prometheus4cats
 
 import cats.data.NonEmptySeq
 import cats.{Applicative, ~>}
-import prometheus4cats.Summary.Quantile
 
 /** Trait for registering callbacks against different backends. May be implemented by anyone for use with
   * [[MetricFactory.WithCallbacks]]

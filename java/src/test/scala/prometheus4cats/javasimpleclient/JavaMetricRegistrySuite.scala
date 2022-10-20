@@ -30,6 +30,7 @@ import org.scalacheck.effect.PropF._
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.noop.NoOpLogger
 import prometheus4cats.Metric.CommonLabels
+import cats.syntax.show._
 
 import scala.jdk.CollectionConverters._
 
@@ -124,6 +125,44 @@ class JavaMetricRegistrySuite
           }.toMap
         }
     }
+
+  override def getSummaryValue(
+      state: CollectorRegistry,
+      prefix: Option[Metric.Prefix],
+      name: Summary.Name,
+      help: Metric.Help,
+      commonLabels: CommonLabels,
+      extraLabels: Map[Label.Name, String]
+  ): IO[(Option[Map[String, Double]], Option[Double], Option[Double])] = IO {
+    val n = NameUtils.makeName(prefix, name)
+
+    val allLabels = (commonLabels.value ++ extraLabels).map { case (n, v) => n.value -> v }
+
+    // the prometheus collector registry returns 0.0 when calling `getSampleValue` even if the metric is missing,
+    // despite what their Javadoc says
+    val quantiles = state
+      .metricFamilySamples()
+      .asScala
+      .find(_.name == n)
+      .map { sample =>
+        sample.samples.asScala.filter { sample =>
+          val labels = sample.labelNames.asScala.zip(sample.labelValues.asScala).toMap
+
+          labels - "quantile" == allLabels && labels.contains("quantile")
+        }.map { sample =>
+          (
+            sample.labelNames.asScala.zip(sample.labelValues.asScala).collectFirst { case ("quantile", v) => v }.get,
+            sample.value
+          )
+        }.toMap
+      }
+
+    (
+      quantiles,
+      getMetricValue(state, prefix, show"${name}_count", commonLabels, extraLabels),
+      getMetricValue(state, prefix, show"${name}_sum", commonLabels, extraLabels)
+    )
+  }
 
   override def getInfoValue(
       state: CollectorRegistry,
