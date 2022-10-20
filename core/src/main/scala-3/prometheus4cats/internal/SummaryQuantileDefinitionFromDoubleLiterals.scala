@@ -36,9 +36,9 @@ object SummaryQuantileDefinitionFromDoubleLiterals extends MacroUtils {
           .fold(
             error,
             _ =>
-            '{
-              Summary.QuantileDefinition.from(${ Expr(value) }, ${ Expr(err) }).toOption.get
-            }
+              '{
+                Summary.QuantileDefinition.from(${ Expr(value) }, ${ Expr(err) }).toOption.get
+              }
           )
       case _ =>
         abort("Summary.QuantileDefinition.from")

@@ -41,9 +41,9 @@ object SummaryAgeBucketsFromIntLiteral extends MacroUtils {
           .fold(
             error,
             _ =>
-            '{
-              Summary.AgeBuckets.from(${ Expr(int) }).toOption.get
-            }
+              '{
+                Summary.AgeBuckets.from(${ Expr(int) }).toOption.get
+              }
           )
       case None =>
         abort("Summary.AgeBuckets.from")

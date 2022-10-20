@@ -41,9 +41,9 @@ object SummaryNameFromStringLiteral extends MacroUtils {
           .fold(
             error,
             _ =>
-            '{
-              Summary.Name.from(${ Expr(string) }).toOption.get
-            }
+              '{
+                Summary.Name.from(${ Expr(string) }).toOption.get
+              }
           )
       case None =>
         abort("Summary.Name.from")
