@@ -88,6 +88,17 @@ object BuildStep {
       bs.map(Timer.Labelled.fromHistogram[F, A])
   }
 
+  implicit class DoubleSummarySyntax[F[_]: FlatMap: Clock](bs: BuildStep[F, Summary[F, Double]]) {
+    def asTimer: BuildStep[F, Timer.Aux[F, Summary]] = bs.map(Timer.fromSummary[F])
+  }
+
+  implicit class DoubleLabelledSummarySyntax[F[_]: MonadThrow: Clock, A](
+      bs: BuildStep[F, Summary.Labelled[F, Double, A]]
+  ) {
+    def asTimer: BuildStep[F, Timer.Labelled.Aux[F, A, Summary.Labelled]] =
+      bs.map(Timer.Labelled.fromSummary[F, A])
+  }
+
   type Aux[F[_], M[_], A] = BuildStep[F, M[A]]
 
   implicit def auxContravariant[F[_]: Functor, M[_]: Contravariant]: Contravariant[Aux[F, M, *]] =
@@ -294,6 +305,12 @@ object BaseLabelsBuildStep {
       dsl: BaseLabelsBuildStep[F, A, T, N, Histogram.Labelled]
   ) {
     def contramap[B](f: B => A): BuildStep[F, Histogram.Labelled[F, B, T]] = dsl.map(_.contramap(f))
+  }
+
+  implicit class SummarySyntax[F[_]: Functor, A, T, N <: Nat](
+      dsl: BaseLabelsBuildStep[F, A, T, N, Summary.Labelled]
+  ) {
+    def contramap[B](f: B => A): BuildStep[F, Summary.Labelled[F, B, T]] = dsl.map(_.contramap(f))
   }
 }
 
