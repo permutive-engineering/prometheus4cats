@@ -18,6 +18,7 @@ package prometheus4cats
 
 import cats.data.NonEmptySeq
 import cats.{Applicative, ~>}
+import prometheus4cats.Summary.Quantile
 
 /** Trait for registering callbacks against different backends. May be implemented by anyone for use with
   * [[MetricFactory.WithCallbacks]]
@@ -340,6 +341,110 @@ trait CallbackRegistry[F[_]] {
       callback: F[(Histogram.Value[Long], A)]
   )(f: A => IndexedSeq[String]): F[Unit]
 
+  /** Register a summary value that records [[scala.Double]] values against a metrics registry
+    *
+    * @param prefix
+    *   optional [[Metric.Prefix]] to be prepended to the metric name
+    * @param name
+    *   [[Summary.Name]] metric name
+    * @param help
+    *   [[Metric.Help]] string to describe the metric
+    * @param commonLabels
+    *   [[Metric.CommonLabels]] map of common labels to be added to the metric
+    * @param callback
+    *   Some effectful operation that returns a [[Summary.Value]] parameterised with [[scala.Double]]
+    * @return
+    *   An empty side effect to indicate that the callback has been registered
+    */
+  protected[prometheus4cats] def registerDoubleSummaryCallback(
+      prefix: Option[Metric.Prefix],
+      name: Summary.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      callback: F[Summary.Value[Double]]
+  ): F[Unit]
+
+  /** Register a summary value that records [[scala.Long]] values against a metrics registry
+    *
+    * @param prefix
+    *   optional [[Metric.Prefix]] to be prepended to the metric name
+    * @param name
+    *   [[Summary.Name]] metric name
+    * @param help
+    *   [[Metric.Help]] string to describe the metric
+    * @param commonLabels
+    *   [[Metric.CommonLabels]] map of common labels to be added to the metric
+    * @param callback
+    *   Some effectful operation that returns a [[Summary.Value]] parameterised with [[scala.Long]]
+    * @return
+    *   An empty side effect to indicate that the callback has been registered
+    */
+  protected[prometheus4cats] def registerLongSummaryCallback(
+      prefix: Option[Metric.Prefix],
+      name: Summary.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      callback: F[Summary.Value[Long]]
+  ): F[Unit]
+
+  /** Register a labelled summary value that records [[scala.Double]] values against a metrics registry
+    *
+    * @param prefix
+    *   optional [[Metric.Prefix]] to be prepended to the metric name
+    * @param name
+    *   [[Summary.Name]] metric name
+    * @param help
+    *   [[Metric.Help]] string to describe the metric
+    * @param commonLabels
+    *   [[Metric.CommonLabels]] map of common labels to be added to the metric
+    * @param labelNames
+    *   an [[scala.IndexedSeq]] of [[Label.Name]]s to annotate the metric with
+    * @param callback
+    *   Some effectful operation that returns a [[Summary.Value]] parameterised with [[scala.Double]]
+    * @param f
+    *   a function from `A` to an [[scala.IndexedSeq]] of [[java.lang.String]] that provides label values, which must be
+    *   paired with their corresponding name in the [[scala.IndexedSeq]] of [[Label.Name]]s
+    * @return
+    *   a [[Summary.Labelled]] wrapped in whatever side effect that was performed in registering it
+    */
+  protected[prometheus4cats] def registerLabelledDoubleSummaryCallback[A](
+      prefix: Option[Metric.Prefix],
+      name: Summary.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name],
+      callback: F[(Summary.Value[Double], A)]
+  )(f: A => IndexedSeq[String]): F[Unit]
+
+  /** Register a labelled summary value that records [[scala.Long]] values against a metrics registry
+    *
+    * @param prefix
+    *   optional [[Metric.Prefix]] to be prepended to the metric name
+    * @param name
+    *   [[Summary.Name]] metric name
+    * @param help
+    *   [[Metric.Help]] string to describe the metric
+    * @param commonLabels
+    *   [[Metric.CommonLabels]] map of common labels to be added to the metric
+    * @param labelNames
+    *   an [[scala.IndexedSeq]] of [[Label.Name]]s to annotate the metric with
+    * @param callback
+    *   Some effectful operation that returns a [[Summary.Value]] parameterised with [[scala.Long]]
+    * @param f
+    *   a function from `A` to an [[scala.IndexedSeq]] of [[java.lang.String]] that provides label values, which must be
+    *   paired with their corresponding name in the [[scala.IndexedSeq]] of [[Label.Name]]s
+    * @return
+    *   a [[Summary.Labelled]] wrapped in whatever side effect that was performed in registering it
+    */
+  protected[prometheus4cats] def registerLabelledLongSummaryCallback[A](
+      prefix: Option[Metric.Prefix],
+      name: Summary.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name],
+      callback: F[(Summary.Value[Long], A)]
+  )(f: A => IndexedSeq[String]): F[Unit]
+
   /** Given a natural transformation from `F` to `G` and from `G` to `F`, transforms this [[CallbackRegistry]] from
     * effect `F` to effect `G`
     */
@@ -452,6 +557,40 @@ object CallbackRegistry {
         labelNames: IndexedSeq[Label.Name],
         buckets: NonEmptySeq[Long],
         callback: F[(Histogram.Value[Long], A)]
+    )(f: A => IndexedSeq[String]): F[Unit] = F.unit
+
+    override protected[prometheus4cats] def registerDoubleSummaryCallback(
+        prefix: Option[Metric.Prefix],
+        name: Summary.Name,
+        help: Metric.Help,
+        commonLabels: Metric.CommonLabels,
+        callback: F[Summary.Value[Double]]
+    ): F[Unit] = F.unit
+
+    override protected[prometheus4cats] def registerLongSummaryCallback(
+        prefix: Option[Metric.Prefix],
+        name: Summary.Name,
+        help: Metric.Help,
+        commonLabels: Metric.CommonLabels,
+        callback: F[Summary.Value[Long]]
+    ): F[Unit] = F.unit
+
+    override protected[prometheus4cats] def registerLabelledDoubleSummaryCallback[A](
+        prefix: Option[Metric.Prefix],
+        name: Summary.Name,
+        help: Metric.Help,
+        commonLabels: Metric.CommonLabels,
+        labelNames: IndexedSeq[Label.Name],
+        callback: F[(Summary.Value[Double], A)]
+    )(f: A => IndexedSeq[String]): F[Unit] = F.unit
+
+    override protected[prometheus4cats] def registerLabelledLongSummaryCallback[A](
+        prefix: Option[Metric.Prefix],
+        name: Summary.Name,
+        help: Metric.Help,
+        commonLabels: Metric.CommonLabels,
+        labelNames: IndexedSeq[Label.Name],
+        callback: F[(Summary.Value[Long], A)]
     )(f: A => IndexedSeq[String]): F[Unit] = F.unit
   }
 
@@ -587,6 +726,74 @@ object CallbackRegistry {
           commonLabels,
           labelNames,
           buckets,
+          gk(callback)
+        )(f)
+      )
+
+      override protected[prometheus4cats] def registerDoubleSummaryCallback(
+          prefix: Option[Metric.Prefix],
+          name: Summary.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels,
+          callback: G[Summary.Value[Double]]
+      ): G[Unit] = fk(
+        self.registerDoubleSummaryCallback(
+          prefix,
+          name,
+          help,
+          commonLabels,
+          gk(callback)
+        )
+      )
+
+      override protected[prometheus4cats] def registerLongSummaryCallback(
+          prefix: Option[Metric.Prefix],
+          name: Summary.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels,
+          callback: G[Summary.Value[Long]]
+      ): G[Unit] = fk(
+        self.registerLongSummaryCallback(
+          prefix,
+          name,
+          help,
+          commonLabels,
+          gk(callback)
+        )
+      )
+
+      override protected[prometheus4cats] def registerLabelledDoubleSummaryCallback[A](
+          prefix: Option[Metric.Prefix],
+          name: Summary.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels,
+          labelNames: IndexedSeq[Label.Name],
+          callback: G[(Summary.Value[Double], A)]
+      )(f: A => IndexedSeq[String]): G[Unit] = fk(
+        self.registerLabelledDoubleSummaryCallback(
+          prefix,
+          name,
+          help,
+          commonLabels,
+          labelNames,
+          gk(callback)
+        )(f)
+      )
+
+      override protected[prometheus4cats] def registerLabelledLongSummaryCallback[A](
+          prefix: Option[Metric.Prefix],
+          name: Summary.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels,
+          labelNames: IndexedSeq[Label.Name],
+          callback: G[(Summary.Value[Long], A)]
+      )(f: A => IndexedSeq[String]): G[Unit] = fk(
+        self.registerLabelledLongSummaryCallback(
+          prefix,
+          name,
+          help,
+          commonLabels,
+          labelNames,
           gk(callback)
         )(f)
       )

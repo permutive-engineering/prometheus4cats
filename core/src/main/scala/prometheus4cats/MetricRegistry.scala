@@ -20,7 +20,7 @@ import cats.data.NonEmptySeq
 import cats.syntax.functor._
 import cats.{Applicative, Functor, ~>}
 import prometheus4cats.Metric.CommonLabels
-import prometheus4cats.Summary.Quantile
+import prometheus4cats.Summary.QuantileDefinition
 
 import scala.concurrent.duration.FiniteDuration
 
@@ -328,8 +328,8 @@ trait MetricRegistry[F[_]] {
     * @param commonLabels
     *   [[Metric.CommonLabels]] map of common labels to be added to the metric
     * @param quantiles
-    *   a [[scala.Seq]] of [[Summary.Quantile]]s representing bucket values for the summary. Quantiles are expensive to
-    *   calculate, so this may be empty.
+    *   a [[scala.Seq]] of [[Summary.QuantileDefinition]]s representing bucket values for the summary. Quantiles are
+    *   expensive to calculate, so this may be empty.
     * @param maxAge
     *   a [[scala.concurrent.duration.FiniteDuration]] indicating a window over which the summary should be calculate.
     *   Typically, you don't want to have a [[Summary]] representing the entire runtime of the application, but you want
@@ -345,7 +345,7 @@ trait MetricRegistry[F[_]] {
       name: Summary.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
-      quantiles: Seq[Quantile],
+      quantiles: Seq[QuantileDefinition],
       maxAge: FiniteDuration,
       ageBuckets: Int
   ): F[Summary[F, Double]]
@@ -361,8 +361,8 @@ trait MetricRegistry[F[_]] {
     * @param commonLabels
     *   [[Metric.CommonLabels]] map of common labels to be added to the metric
     * @param quantiles
-    *   a [[scala.Seq]] of [[Summary.Quantile]]s representing bucket values for the summary. Quantiles are expensive to
-    *   calculate, so this may be empty.
+    *   a [[scala.Seq]] of [[Summary.QuantileDefinition]]s representing bucket values for the summary. Quantiles are
+    *   expensive to calculate, so this may be empty.
     * @param maxAge
     *   a [[scala.concurrent.duration.FiniteDuration]] indicating a window over which the summary should be calculate.
     *   Typically, you don't want to have a [[Summary]] representing the entire runtime of the application, but you want
@@ -378,7 +378,7 @@ trait MetricRegistry[F[_]] {
       name: Summary.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
-      quantiles: Seq[Quantile],
+      quantiles: Seq[QuantileDefinition],
       maxAge: FiniteDuration,
       ageBuckets: Int
   ): F[Summary[F, Long]]
@@ -396,8 +396,8 @@ trait MetricRegistry[F[_]] {
     * @param labelNames
     *   an [[scala.IndexedSeq]] of [[Label.Name]]s to annotate the metric with
     * @param quantiles
-    *   a [[scala.Seq]] of [[Summary.Quantile]]s representing bucket values for the summary. Quantiles are expensive to
-    *   calculate, so this may be empty.
+    *   a [[scala.Seq]] of [[Summary.QuantileDefinition]]s representing bucket values for the summary. Quantiles are
+    *   expensive to calculate, so this may be empty.
     * @param maxAge
     *   a [[scala.concurrent.duration.FiniteDuration]] indicating a window over which the summary should be calculate.
     *   Typically, you don't want to have a [[Summary]] representing the entire runtime of the application, but you want
@@ -417,7 +417,7 @@ trait MetricRegistry[F[_]] {
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
-      quantiles: Seq[Quantile],
+      quantiles: Seq[QuantileDefinition],
       maxAge: FiniteDuration,
       ageBuckets: Int
   )(f: A => IndexedSeq[String]): F[Summary.Labelled[F, Double, A]]
@@ -435,8 +435,8 @@ trait MetricRegistry[F[_]] {
     * @param labelNames
     *   an [[scala.IndexedSeq]] of [[Label.Name]]s to annotate the metric with
     * @param quantiles
-    *   a [[scala.Seq]] of [[Summary.Quantile]]s representing bucket values for the summary. Quantiles are expensive to
-    *   calculate, so this may be empty.
+    *   a [[scala.Seq]] of [[Summary.QuantileDefinition]]s representing bucket values for the summary. Quantiles are
+    *   expensive to calculate, so this may be empty.
     * @param maxAge
     *   a [[scala.concurrent.duration.FiniteDuration]] indicating a window over which the summary should be calculate.
     *   Typically, you don't want to have a [[Summary]] representing the entire runtime of the application, but you want
@@ -456,7 +456,7 @@ trait MetricRegistry[F[_]] {
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
-      quantiles: Seq[Quantile],
+      quantiles: Seq[QuantileDefinition],
       maxAge: FiniteDuration,
       ageBuckets: Int
   )(f: A => IndexedSeq[String]): F[Summary.Labelled[F, Long, A]]
@@ -591,7 +591,7 @@ object MetricRegistry {
           name: Summary.Name,
           help: Metric.Help,
           commonLabels: CommonLabels,
-          quantiles: Seq[Quantile],
+          quantiles: Seq[QuantileDefinition],
           maxAge: FiniteDuration,
           ageBuckets: Int
       ): F[Summary[F, Double]] = F.pure(Summary.noop)
@@ -601,7 +601,7 @@ object MetricRegistry {
           name: Summary.Name,
           help: Metric.Help,
           commonLabels: CommonLabels,
-          quantiles: Seq[Quantile],
+          quantiles: Seq[QuantileDefinition],
           maxAge: FiniteDuration,
           ageBuckets: Int
       ): F[Summary[F, Long]] = F.pure(Summary.noop)
@@ -612,7 +612,7 @@ object MetricRegistry {
           help: Metric.Help,
           commonLabels: CommonLabels,
           labelNames: IndexedSeq[Label.Name],
-          quantiles: Seq[Quantile],
+          quantiles: Seq[QuantileDefinition],
           maxAge: FiniteDuration,
           ageBuckets: Int
       )(f: A => IndexedSeq[String]): F[Summary.Labelled[F, Double, A]] = F.pure(Summary.Labelled.noop)
@@ -623,7 +623,7 @@ object MetricRegistry {
           help: Metric.Help,
           commonLabels: CommonLabels,
           labelNames: IndexedSeq[Label.Name],
-          quantiles: Seq[Quantile],
+          quantiles: Seq[QuantileDefinition],
           maxAge: FiniteDuration,
           ageBuckets: Int
       )(f: A => IndexedSeq[String]): F[Summary.Labelled[F, Long, A]] = F.pure(Summary.Labelled.noop)
@@ -783,7 +783,7 @@ object MetricRegistry {
           name: Summary.Name,
           help: Metric.Help,
           commonLabels: CommonLabels,
-          quantiles: Seq[Quantile],
+          quantiles: Seq[QuantileDefinition],
           maxAge: FiniteDuration,
           ageBuckets: Int
       ): G[Summary[G, Double]] = fk(
@@ -795,7 +795,7 @@ object MetricRegistry {
           name: Summary.Name,
           help: Metric.Help,
           commonLabels: CommonLabels,
-          quantiles: Seq[Quantile],
+          quantiles: Seq[QuantileDefinition],
           maxAge: FiniteDuration,
           ageBuckets: Int
       ): G[Summary[G, Long]] = fk(
@@ -808,7 +808,7 @@ object MetricRegistry {
           help: Metric.Help,
           commonLabels: CommonLabels,
           labelNames: IndexedSeq[Label.Name],
-          quantiles: Seq[Quantile],
+          quantiles: Seq[QuantileDefinition],
           maxAge: FiniteDuration,
           ageBuckets: Int
       )(f: A => IndexedSeq[String]): G[Summary.Labelled[G, Double, A]] = fk(
@@ -830,7 +830,7 @@ object MetricRegistry {
           help: Metric.Help,
           commonLabels: CommonLabels,
           labelNames: IndexedSeq[Label.Name],
-          quantiles: Seq[Quantile],
+          quantiles: Seq[QuantileDefinition],
           maxAge: FiniteDuration,
           ageBuckets: Int
       )(f: A => IndexedSeq[String]): G[Summary.Labelled[G, Long, A]] = fk(

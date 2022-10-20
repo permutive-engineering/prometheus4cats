@@ -16,8 +16,8 @@ sealed abstract class Summary[F[_], -A] extends Metric[A] { self =>
 }
 
 object Summary {
-  final case class Quantile private (value: Double, error: Double) {
-    override def toString: String = s"""Summary.Quantile(value: "$value", error: "$error")"""
+  final class Quantile(val value: Double) extends AnyVal {
+    override def toString: String = s"""Summary.Quantile(value: "$value")"""
   }
 
   object Quantile {
@@ -26,56 +26,93 @@ object Summary {
       *
       * @param value
       *   value from which to parse a quantile value
-      * @param error
-      *   error rate of the given quantile
       * @return
       *   a parsed [[Quantile]] or failure message, represented by an [[scala.Either]]
       */
-    def from(value: Double, error: Double): Either[String, Quantile] =
-      for {
-        v <- Either.cond(
-          value >= 0.0 && value >= 1.0,
-          value,
-          s"Quantile value $value must be between 0.0 and 1.0"
-        )
-        e <- Either.cond(
-          error >= 0.0 && error >= 1.0,
-          error,
-          s"Quantile error rate $error must be between 0.0 and 1.0"
-        )
-      } yield Quantile(v, e)
+    def from(value: Double): Either[String, Quantile] =
+      Either.cond(
+        value >= 0.0 && value >= 1.0,
+        new Quantile(value),
+        s"Quantile value $value must be between 0.0 and 1.0"
+      )
 
-    /** Unsafely parse a [[Quantile]] from the given string
+    /** Unsafely parse a [[QuantileDefinition]] from the given double
+      *
+      * @param value
+      *   value from which to parse a quantile value
+      * @return
+      *   a parsed [[QuantileDefinition]]
+      * @throws java.lang.IllegalArgumentException
+      *   if `string` is not valid
+      */
+    def unsafeFrom(value: Double): Quantile =
+      from(value).fold(msg => throw new IllegalArgumentException(msg), identity)
+
+    implicit val catsInstances: Hash[Quantile] with Order[Quantile] with Show[Quantile] = new Hash[Quantile]
+      with Order[Quantile]
+      with Show[Quantile] {
+      override def hash(x: Quantile): Int = Hash[Double].hash(x.value)
+
+      override def compare(x: Quantile, y: Quantile): Int = Order[Double].compare(x.value, y.value)
+
+      override def show(t: Quantile): String = Show[Double].show(t.value)
+
+      override def eqv(x: Quantile, y: Quantile): Boolean = Eq[Double].eqv(x.value, y.value)
+    }
+  }
+
+  final case class QuantileDefinition private (value: Quantile, error: Double) {
+    override def toString: String = s"""Summary.Quantile(value: "${value.value}", error: "$error")"""
+  }
+
+  object QuantileDefinition {
+
+    /** Parse a [[QuantileDefinition]] from the given string
+      *
+      * @param value
+      *   quantile value
+      * @param error
+      *   error rate of the given quantile
+      * @return
+      *   a parsed [[QuantileDefinition]] or failure message, represented by an [[scala.Either]]
+      */
+    def from(value: Quantile, error: Double): Either[String, QuantileDefinition] =
+      Either.cond(
+        error >= 0.0 && error >= 1.0,
+        QuantileDefinition(value, error),
+        s"Quantile error rate $error must be between 0.0 and 1.0"
+      )
+
+    /** Unsafely parse a [[QuantileDefinition]] from the given values
       *
       * @param value
       *   value from which to parse a quantile value
       * @param error
       *   error rate of the given quantile
       * @return
-      *   a parsed [[Quantile]]
+      *   a parsed [[QuantileDefinition]]
       * @throws java.lang.IllegalArgumentException
       *   if `string` is not valid
       */
-    def unsafeFrom(value: Double, error: Double): Quantile =
-      from(value, error).fold(msg => throw new IllegalArgumentException(msg), identity)
+    def unsafeFrom(value: Double, error: Double): QuantileDefinition =
+      from(Quantile.unsafeFrom(value), error).fold(msg => throw new IllegalArgumentException(msg), identity)
 
-    implicit val catsInstances: Hash[Quantile] with Order[Quantile] with Show[Quantile] = new Hash[Quantile]
-      with Order[Quantile]
-      with Show[Quantile] {
-      override def hash(x: Quantile): Int = Hash[(Double, Double)].hash(x.value -> x.error)
+    implicit val catsInstances: Hash[QuantileDefinition] with Order[QuantileDefinition] with Show[QuantileDefinition] =
+      new Hash[QuantileDefinition] with Order[QuantileDefinition] with Show[QuantileDefinition] {
+        override def hash(x: QuantileDefinition): Int = Hash[(Quantile, Double)].hash(x.value -> x.error)
 
-      override def compare(x: Quantile, y: Quantile): Int =
-        Order[(Double, Double)].compare(x.value -> x.error, y.value -> y.error)
+        override def compare(x: QuantileDefinition, y: QuantileDefinition): Int =
+          Order[(Quantile, Double)].compare(x.value -> x.error, y.value -> y.error)
 
-      override def show(t: Quantile): String = t.toString
+        override def show(t: QuantileDefinition): String = t.toString
 
-      override def eqv(x: Quantile, y: Quantile): Boolean =
-        Eq[(Double, Double)].eqv(x.value -> x.error, y.value -> y.error)
-    }
+        override def eqv(x: QuantileDefinition, y: QuantileDefinition): Boolean =
+          Eq[(Quantile, Double)].eqv(x.value -> x.error, y.value -> y.error)
+      }
   }
 
-  case class Value[A](count: A, sum: A, quantiles: List[A] = List.empty) {
-    def map[B](f: A => B): Value[B] = Value(f(count), f(sum), quantiles.map(f))
+  case class Value[A](count: A, sum: A, quantiles: Map[Quantile, A] = Map.empty) {
+    def map[B](f: A => B): Value[B] = Value(f(count), f(sum), quantiles.view.mapValues(f).toMap)
   }
 
   /** Refined value class for a gauge name that has been parsed from a string

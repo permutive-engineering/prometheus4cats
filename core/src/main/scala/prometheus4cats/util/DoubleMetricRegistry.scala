@@ -86,7 +86,7 @@ trait DoubleMetricRegistry[F[_]] extends MetricRegistry[F] {
       name: Summary.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
-      quantiles: Seq[Summary.Quantile],
+      quantiles: Seq[Summary.QuantileDefinition],
       maxAge: FiniteDuration,
       ageBuckets: Int
   ): F[Summary[F, Long]] =
@@ -100,7 +100,7 @@ trait DoubleMetricRegistry[F[_]] extends MetricRegistry[F] {
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
-      quantiles: Seq[Summary.Quantile],
+      quantiles: Seq[Summary.QuantileDefinition],
       maxAge: FiniteDuration,
       ageBuckets: Int
   )(f: A => IndexedSeq[String]): F[Summary.Labelled[F, Long, A]] =
