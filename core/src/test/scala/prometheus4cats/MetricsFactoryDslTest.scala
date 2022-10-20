@@ -103,4 +103,6 @@ object MetricsFactoryDslTest {
   infoBuilder.contramap[List[(Label.Name, String)]](_.toMap)
   infoBuilder.build
   infoBuilder.resource
+
+  val doubleSummaryBuilder = factory.summary(???).ofDouble.help("some summary")
 }

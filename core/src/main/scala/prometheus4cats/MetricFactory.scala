@@ -20,6 +20,7 @@ import cats.{Applicative, Functor, ~>}
 import prometheus4cats.Metric.CommonLabels
 import prometheus4cats.internal.histogram.BucketDsl
 import prometheus4cats.internal._
+import prometheus4cats.internal.summary.SummaryDsl
 
 sealed abstract class MetricFactory[F[_]](
     val metricRegistry: MetricRegistry[F],
@@ -160,6 +161,58 @@ sealed abstract class MetricFactory[F[_]](
                 )(f)
             }
           )
+        )
+      )
+    )
+
+  type SummaryDslLambda[A] = HelpStep[SummaryDsl[F, A]]
+
+  def summary(name: Summary.Name): TypeStep[SummaryDslLambda] =
+    new TypeStep[SummaryDslLambda](
+      new HelpStep(help =>
+        new SummaryDsl[F, Long](
+          makeSummary = (quantiles, maxAge, ageBuckets) =>
+            metricRegistry
+              .createAndRegisterLongSummary(prefix, name, help, commonLabels, quantiles, maxAge, ageBuckets),
+          makeLabelledSummary = (quantiles, maxAge, ageBuckets) =>
+            new LabelledMetricPartiallyApplied[F, Long, Summary.Labelled] {
+              override def apply[B](
+                  labels: IndexedSeq[Label.Name]
+              )(f: B => IndexedSeq[String]): F[Summary.Labelled[F, Long, B]] =
+                metricRegistry.createAndRegisterLabelledLongSummary(
+                  prefix,
+                  name,
+                  help,
+                  commonLabels,
+                  labels,
+                  quantiles,
+                  maxAge,
+                  ageBuckets
+                )(f)
+            }
+        )
+      ),
+      new HelpStep(help =>
+        new SummaryDsl[F, Double](
+          makeSummary = (quantiles, maxAge, ageBuckets) =>
+            metricRegistry
+              .createAndRegisterDoubleSummary(prefix, name, help, commonLabels, quantiles, maxAge, ageBuckets),
+          makeLabelledSummary = (quantiles, maxAge, ageBuckets) =>
+            new LabelledMetricPartiallyApplied[F, Double, Summary.Labelled] {
+              override def apply[B](
+                  labels: IndexedSeq[Label.Name]
+              )(f: B => IndexedSeq[String]): F[Summary.Labelled[F, Double, B]] =
+                metricRegistry.createAndRegisterLabelledDoubleSummary(
+                  prefix,
+                  name,
+                  help,
+                  commonLabels,
+                  labels,
+                  quantiles,
+                  maxAge,
+                  ageBuckets
+                )(f)
+            }
         )
       )
     )
