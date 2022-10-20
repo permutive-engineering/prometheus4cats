@@ -59,20 +59,23 @@ trait RegistrySuite[State] extends ScalaCheckEffectSuite {
     Gen.choose(0.0, 1.0).flatMap(d => Gen.oneOf(Summary.Quantile.from(d).toOption))
   )
 
-  implicit val quantileDefinitionArb: Arbitrary[Summary.QuantileDefinition] = Arbitrary(
-    quantileArb.arbitrary.flatMap(q => Gen.oneOf(Summary.QuantileDefinition.from(q.value, 0.0).toOption))
+  implicit val errorArb: Arbitrary[Summary.AllowedError] = Arbitrary(
+    Gen.choose(0.0, 1.0).flatMap(d => Gen.oneOf(Summary.AllowedError.from(d).toOption))
   )
+
+  implicit val quantileDefinitionArb: Arbitrary[Summary.QuantileDefinition] = Arbitrary(for {
+    q <- quantileArb.arbitrary
+    e <- errorArb.arbitrary
+  } yield Summary.QuantileDefinition(q, e))
 
   implicit val helpArb: Arbitrary[Metric.Help] = niceStringArb(Metric.Help.from)
 
   implicit val labelArb: Arbitrary[Label.Name] = niceStringArb(Label.Name.from)
 
-  implicit val labelMapArb: Arbitrary[Map[Label.Name, String]] = Arbitrary(
-    for {
-      size <- Gen.choose(0, 10)
-      map <- Gen.mapOfN(size, Arbitrary.arbitrary[(Label.Name, String)])
-    } yield map
-  )
+  implicit val labelMapArb: Arbitrary[Map[Label.Name, String]] = Arbitrary(for {
+    size <- Gen.choose(0, 10)
+    map <- Gen.mapOfN(size, Arbitrary.arbitrary[(Label.Name, String)])
+  } yield map)
 
   implicit val commonLabelsArb: Arbitrary[Metric.CommonLabels] =
     Arbitrary(labelMapArb.arbitrary.flatMap(map => Gen.oneOf(CommonLabels.from(map).toOption)))

@@ -37,26 +37,22 @@ class SummaryDsl[F[_], A] private[prometheus4cats] (
       makeLabelledSummary(quantiles, maxAgeValue, ageBucketsValue)
     )
     with SummaryDsl.Base[F, A] {
-  def quantile(q: QuantileDefinition): SummaryDsl[F, A] = new SummaryDsl[F, A](
-    quantiles :+ q,
-    maxAgeValue,
-    ageBucketsValue,
-    makeSummary,
-    makeLabelledSummary
-  )
+  override def quantile(quantile: Summary.Quantile, error: Summary.AllowedError): SummaryDsl[F, A] =
+    new SummaryDsl[F, A](
+      quantiles :+ QuantileDefinition(quantile, error),
+      maxAgeValue,
+      ageBucketsValue,
+      makeSummary,
+      makeLabelledSummary
+    )
 
-  override def maxAge(age: FiniteDuration): AgeBucketsStep[F, A] = new AgeBucketsStep[F, A](
-    quantiles,
-    age,
-    ageBucketsValue,
-    makeSummary,
-    makeLabelledSummary
-  )
+  override def maxAge(age: FiniteDuration): AgeBucketsStep[F, A] =
+    new AgeBucketsStep[F, A](quantiles, age, ageBucketsValue, makeSummary, makeLabelledSummary)
 }
 
 object SummaryDsl {
   trait Base[F[_], A] { self: MetricDsl[F, A, Summary, Summary.Labelled] =>
-    def quantile(q: QuantileDefinition): SummaryDsl[F, A]
+    def quantile(quantile: Summary.Quantile, error: Summary.AllowedError): SummaryDsl[F, A]
     def maxAge(age: FiniteDuration): AgeBucketsStep[F, A]
   }
 
@@ -83,21 +79,17 @@ object SummaryDsl {
         makeLabelledSummaryCallback
       )
       with Base[F, A] {
-    override def quantile(q: QuantileDefinition): SummaryDsl[F, A] = new SummaryDsl[F, A](
-      quantiles :+ q,
-      maxAgeValue,
-      ageBucketsValue,
-      makeSummary,
-      makeLabelledSummary
-    )
+    override def quantile(quantile: Summary.Quantile, error: Summary.AllowedError): SummaryDsl[F, A] =
+      new SummaryDsl[F, A](
+        quantiles :+ QuantileDefinition(quantile, error),
+        maxAgeValue,
+        ageBucketsValue,
+        makeSummary,
+        makeLabelledSummary
+      )
 
-    override def maxAge(age: FiniteDuration): AgeBucketsStep[F, A] = new AgeBucketsStep[F, A](
-      quantiles,
-      age,
-      ageBucketsValue,
-      makeSummary,
-      makeLabelledSummary
-    )
+    override def maxAge(age: FiniteDuration): AgeBucketsStep[F, A] =
+      new AgeBucketsStep[F, A](quantiles, age, ageBucketsValue, makeSummary, makeLabelledSummary)
   }
 }
 

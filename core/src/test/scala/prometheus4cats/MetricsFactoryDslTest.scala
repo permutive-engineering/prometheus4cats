@@ -111,7 +111,7 @@ object MetricsFactoryDslTest {
       .summary("summary")
       .ofDouble
       .help("some summary")
-      .quantile(Summary.QuantileDefinition(1.0, 0.1))
+      .quantile(1.0, 0.1)
       .maxAge(10.seconds)
       .ageBuckets(5)
 }

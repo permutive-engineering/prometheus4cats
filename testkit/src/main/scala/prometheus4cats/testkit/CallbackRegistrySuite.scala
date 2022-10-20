@@ -76,14 +76,9 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
                 commonLabels,
                 labels.keys.toIndexedSeq,
                 IO(value -> labels)
-              )(_.values.toIndexedSeq) >> getCounterValue(
-              state,
-              prefix,
-              name,
-              help,
-              commonLabels,
-              labels
-            ).map(res => if (value >= 0) assertEquals(res, Some(value)) else assertEquals(res, Some(0.0)))
+              )(_.values.toIndexedSeq) >> getCounterValue(state, prefix, name, help, commonLabels, labels).map(res =>
+              if (value >= 0) assertEquals(res, Some(value)) else assertEquals(res, Some(0.0))
+            )
           }
         }
     }
@@ -133,14 +128,9 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
                 commonLabels,
                 labels.keys.toIndexedSeq,
                 IO(value -> labels)
-              )(_.values.toIndexedSeq) >> getGaugeValue(
-              state,
-              prefix,
-              name,
-              help,
-              commonLabels,
-              labels
-            ).map(assertEquals(_, Some(value)))
+              )(_.values.toIndexedSeq) >> getGaugeValue(state, prefix, name, help, commonLabels, labels).map(
+              assertEquals(_, Some(value))
+            )
           }
         }
     }
@@ -176,14 +166,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
                 commonLabels,
                 buckets,
                 IO(Histogram.Value(sum, bucketValues))
-              ) >> getHistogramValue(
-              state,
-              prefix,
-              name,
-              help,
-              commonLabels,
-              buckets
-            ).map { res =>
+              ) >> getHistogramValue(state, prefix, name, help, commonLabels, buckets).map { res =>
               assertEquals(res, Some(expected))
             }
 
@@ -224,15 +207,8 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
                 labels.keys.toIndexedSeq,
                 buckets,
                 IO(Histogram.Value(sum, bucketValues) -> labels)
-              )(_.values.toIndexedSeq) >> getHistogramValue(
-              state,
-              prefix,
-              name,
-              help,
-              commonLabels,
-              buckets,
-              labels
-            ).map(res => assertEquals(res, Some(expected)))
+              )(_.values.toIndexedSeq) >> getHistogramValue(state, prefix, name, help, commonLabels, buckets, labels)
+              .map(res => assertEquals(res, Some(expected)))
           }
         }
     }
@@ -257,7 +233,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
                 name,
                 help,
                 commonLabels,
-                IO(Summary.Value(count, sum, quantiles))
+                IO(Summary.Value(count, sum, quantiles.map { case (q, v) => q.value -> v }))
               ) >> getSummaryValue(state, prefix, name, help, commonLabels, Map.empty).map { case (q, c, s) =>
               assertEquals(q, Some(quantiles.map { case (q, v) => q.value.toString -> v }))
               assertEquals(c, Some(count))
@@ -289,18 +265,12 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
                 help,
                 commonLabels,
                 labels.keys.toIndexedSeq,
-                IO((Summary.Value(count, sum, quantiles), labels))
-              )(_.values.toIndexedSeq) >> getSummaryValue(
-              state,
-              prefix,
-              name,
-              help,
-              commonLabels,
-              labels
-            ).map { case (q, c, s) =>
-              assertEquals(q, Some(quantiles.map { case (q, v) => q.value.toString -> v }))
-              assertEquals(c, Some(count))
-              assertEquals(s, Some(sum))
+                IO((Summary.Value(count, sum, quantiles.map { case (q, v) => q.value -> v }), labels))
+              )(_.values.toIndexedSeq) >> getSummaryValue(state, prefix, name, help, commonLabels, labels).map {
+              case (q, c, s) =>
+                assertEquals(q, Some(quantiles.map { case (q, v) => q.value.toString -> v }))
+                assertEquals(c, Some(count))
+                assertEquals(s, Some(sum))
             }
           }
         }

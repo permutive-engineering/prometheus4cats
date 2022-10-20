@@ -17,7 +17,7 @@
 package prometheus4cats
 
 import cats.kernel.{Eq, Hash, Order}
-import cats.{Applicative, Contravariant, Show, ~>}
+import cats.{~>, Applicative, Contravariant, Show}
 
 sealed abstract class Summary[F[_], -A] extends Metric[A] { self =>
   def observe(n: A): F[Unit]
@@ -48,11 +48,7 @@ object Summary {
       *   a parsed [[AgeBuckets]] or failure message, represented by an [[scala.Either]]
       */
     def from(value: Int): Either[String, AgeBuckets] =
-      Either.cond(
-        value > 0,
-        new AgeBuckets(value),
-        s"AgeBuckets value $value must be greater than 0"
-      )
+      Either.cond(value > 0, new AgeBuckets(value), s"AgeBuckets value $value must be greater than 0")
 
     /** Unsafely parse a [[AgeBuckets]] from the given double
       *
@@ -124,58 +120,55 @@ object Summary {
     }
   }
 
-  final case class QuantileDefinition private (value: Quantile, error: Double) {
-    override def toString: String = s"""Summary.QuantileDefinition(value: "${value.value}", error: "$error")"""
+  final class AllowedError(val value: Double) extends AnyVal {
+    override def toString: String = s"""Summary.ErrorRate(value: "$value")"""
   }
 
-  object QuantileDefinition extends internal.SummaryQuantileDefinitionFromDoubleLiterals {
+  object AllowedError extends internal.SummaryAllowedErrorFromDoubleLiteral {
 
-    /** Parse a [[QuantileDefinition]] from the given string
-      *
-      * @param value
-      *   quantile value
-      * @param error
-      *   error rate of the given quantile
-      * @return
-      *   a parsed [[QuantileDefinition]] or failure message, represented by an [[scala.Either]]
-      */
-    def from(value: Double, error: Double): Either[String, QuantileDefinition] = Quantile.from(value).flatMap { v =>
-      Either.cond(
-        error >= 0.0 && error <= 1.0,
-        new QuantileDefinition(v, error),
-        s"Quantile error rate $error must be between 0.0 and 1.0"
-      )
-    }
-
-    /** Unsafely parse a [[QuantileDefinition]] from the given values
+    /** Parse a [[AllowedError]] from the given string
       *
       * @param value
       *   value from which to parse a quantile value
-      * @param error
-      *   error rate of the given quantile
       * @return
-      *   a parsed [[QuantileDefinition]]
+      *   a parsed [[AllowedError]] or failure message, represented by an [[scala.Either]]
+      */
+    def from(value: Double): Either[String, AllowedError] =
+      Either.cond(
+        value >= 0.0 && value <= 1.0,
+        new AllowedError(value),
+        s"ErrorRate value $value must be between 0.0 and 1.0"
+      )
+
+    /** Unsafely parse a [[AllowedError]] from the given double
+      *
+      * @param value
+      *   value from which to parse a quantile value
+      * @return
+      *   a parsed [[AllowedError]]
       * @throws java.lang.IllegalArgumentException
       *   if `string` is not valid
       */
-    def unsafeFrom(value: Double, error: Double): QuantileDefinition =
-      from(value, error).fold(msg => throw new IllegalArgumentException(msg), identity)
+    def unsafeFrom(value: Double): AllowedError =
+      from(value).fold(msg => throw new IllegalArgumentException(msg), identity)
 
-    implicit val catsInstances: Hash[QuantileDefinition] with Order[QuantileDefinition] with Show[QuantileDefinition] =
-      new Hash[QuantileDefinition] with Order[QuantileDefinition] with Show[QuantileDefinition] {
-        override def hash(x: QuantileDefinition): Int = Hash[(Quantile, Double)].hash(x.value -> x.error)
+    implicit val catsInstances: Hash[AllowedError] with Order[AllowedError] with Show[AllowedError] =
+      new Hash[AllowedError] with Order[AllowedError] with Show[AllowedError] {
+        override def hash(x: AllowedError): Int = Hash[Double].hash(x.value)
 
-        override def compare(x: QuantileDefinition, y: QuantileDefinition): Int =
-          Order[(Quantile, Double)].compare(x.value -> x.error, y.value -> y.error)
+        override def compare(x: AllowedError, y: AllowedError): Int = Order[Double].compare(x.value, y.value)
 
-        override def show(t: QuantileDefinition): String = t.toString
+        override def show(t: AllowedError): String = Show[Double].show(t.value)
 
-        override def eqv(x: QuantileDefinition, y: QuantileDefinition): Boolean =
-          Eq[(Quantile, Double)].eqv(x.value -> x.error, y.value -> y.error)
+        override def eqv(x: AllowedError, y: AllowedError): Boolean = Eq[Double].eqv(x.value, y.value)
       }
   }
 
-  case class Value[A](count: A, sum: A, quantiles: Map[Quantile, A] = Map.empty) {
+  final case class QuantileDefinition(value: Quantile, error: AllowedError) {
+    override def toString: String = s"""Summary.QuantileDefinition(value: "${value.value}", error: "${error.value}")"""
+  }
+
+  case class Value[A](count: A, sum: A, quantiles: Map[Double, A] = Map.empty) {
     def map[B](f: A => B): Value[B] = Value(f(count), f(sum), quantiles.map { case (q, v) => q -> f(v) })
   }
 
@@ -197,11 +190,7 @@ object Summary {
       *   a parsed [[Name]] or failure message, represented by an [[scala.Either]]
       */
     def from(string: String): Either[String, Name] =
-      Either.cond(
-        regex.matcher(string).matches(),
-        new Name(string),
-        s"$string must match `$regex`"
-      )
+      Either.cond(regex.matcher(string).matches(), new Name(string), s"$string must match `$regex`")
 
     /** Unsafely parse a [[Name]] from the given string
       *
@@ -256,9 +245,7 @@ object Summary {
 
     final def mapK[G[_]](fk: F ~> G): Labelled[G, A, B] =
       new Labelled[G, A, B] {
-        override def observe(n: A, labels: B): G[Unit] = fk(
-          self.observe(n, labels)
-        )
+        override def observe(n: A, labels: B): G[Unit] = fk(self.observe(n, labels))
       }
 
   }

@@ -20,28 +20,33 @@ import prometheus4cats._
 
 import scala.quoted.*
 
-trait SummaryQuantileDefinitionFromDoubleLiterals {
+trait SummaryAllowedErrorFromDoubleLiteral {
 
-  inline def apply(inline v: Double, e: Double): Summary.QuantileDefinition = ${
-    SummaryQuantileDefinitionFromDoubleLiterals.quantileDefinitionLiteral('v, 'e)
+  inline def apply(inline t: Double): Summary.AllowedError = ${
+    SummaryAllowedErrorFromDoubleLiteral.quantileLiteral('t)
   }
+
+  implicit inline def fromStringLiteral(inline t: Double): Summary.AllowedError = ${
+    SummaryAllowedErrorFromDoubleLiteral.quantileLiteral('t)
+  }
+
 }
 
-object SummaryQuantileDefinitionFromDoubleLiterals extends MacroUtils {
-  def quantileDefinitionLiteral(d: Expr[Double], e: Expr[Double])(using q: Quotes): Expr[Summary.QuantileDefinition] =
-    (d.value, e.value) match {
-      case (Some(value), Some(err)) =>
-        Summary.QuantileDefinition
-          .from(value, err)
+object SummaryAllowedErrorFromDoubleLiteral extends MacroUtils {
+  def quantileLiteral(d: Expr[Double])(using q: Quotes): Expr[Summary.AllowedError] =
+    d.value match {
+      case Some(int) =>
+        Summary.AllowedError
+          .from(int)
           .fold(
             error,
             _ =>
               '{
-                Summary.QuantileDefinition.from(${ Expr(value) }, ${ Expr(err) }).toOption.get
+                Summary.AllowedError.from(${ Expr(int) }).toOption.get
               }
           )
-      case _ =>
-        abort("Summary.QuantileDefinition.from")
+      case None =>
+        abort("Summary.AllowedError.from")
         '{ ??? }
     }
 }

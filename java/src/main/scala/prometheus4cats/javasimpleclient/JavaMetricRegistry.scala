@@ -358,7 +358,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
 
     configureBuilderOrRetrieve(
       quantiles.foldLeft(PSummary.build().ageBuckets(ageBuckets.value).maxAgeSeconds(maxAge.toSeconds))((b, q) =>
-        b.quantile(q.value.value, q.error)
+        b.quantile(q.value.value, q.error.value)
       ),
       MetricType.Summary,
       prefix,
@@ -394,7 +394,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
 
     configureBuilderOrRetrieve(
       quantiles.foldLeft(PSummary.build().ageBuckets(ageBuckets.value).maxAgeSeconds(maxAge.toSeconds))((b, q) =>
-        b.quantile(q.value.value, q.error)
+        b.quantile(q.value.value, q.error.value)
       ),
       MetricType.Summary,
       prefix,
@@ -710,7 +710,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
             n,
             help.value,
             List.empty[String].asJava,
-            v.quantiles.keys.toList.map(_.value.asInstanceOf[java.lang.Double]).asJava
+            v.quantiles.keys.toList.map(_.asInstanceOf[java.lang.Double]).asJava
           )
             .addMetric(
               List.empty[String].asJava,
@@ -725,7 +725,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
             n,
             help.value,
             lns,
-            v.quantiles.keys.toList.map(_.value.asInstanceOf[java.lang.Double]).asJava
+            v.quantiles.keys.toList.map(_.asInstanceOf[java.lang.Double]).asJava
           )
             .addMetric(lvs, v.count, v.sum, v.quantiles.values.toList.map(_.asInstanceOf[java.lang.Double]).asJava)
     )
@@ -747,7 +747,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
             n,
             help.value,
             lns,
-            v.quantiles.keys.toList.map(_.value.asInstanceOf[java.lang.Double]).asJava
+            v.quantiles.keys.toList.map(_.asInstanceOf[java.lang.Double]).asJava
           )
             .addMetric(lvs, v.count, v.sum, v.quantiles.values.toList.map(_.asInstanceOf[java.lang.Double]).asJava)
     )
