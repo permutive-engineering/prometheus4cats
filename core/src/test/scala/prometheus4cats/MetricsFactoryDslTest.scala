@@ -20,8 +20,6 @@ import java.math.BigInteger
 import java.util.concurrent.TimeUnit
 
 import cats.effect.IO
-import prometheus4cats.Summary.AgeBuckets
-import prometheus4cats.internal.summary.SummaryDsl
 
 import scala.concurrent.duration._
 
