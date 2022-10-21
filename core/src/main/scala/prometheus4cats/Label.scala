@@ -30,13 +30,21 @@ object Label {
 
   }
 
-  object Name extends internal.Refined.StringRegexRefinement[Name] with LabelNameFromStringLiteral {
+  object Name extends internal.Refined[String, Name] with LabelNameFromStringLiteral {
     // prevents macro compilation problems with the status label
     private[prometheus4cats] val outcomeStatus = new Name("outcome_status")
+
+    private val invalidNames: Set[String] = Set("quantile", "le", "name")
 
     protected val regex: Pattern = "^[a-zA-Z_:][a-zA-Z0-9_:]*$".r.pattern
 
     override protected def make(a: String): Name = new Name(a)
+
+    override protected def test(a: String): Boolean =
+      !invalidNames.contains(a) && regex.matcher(a).matches()
+
+    override protected def nonMatchMessage(a: String): String =
+      s"Label.Name must match pattern `$regex` and not be one of ${invalidNames.mkString(",")}"
   }
 
 }
