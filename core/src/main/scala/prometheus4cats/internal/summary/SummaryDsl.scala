@@ -57,20 +57,14 @@ object SummaryDsl {
 
     def label[B]: FirstLabelApply[F, A, B, Summary.Labelled]
 
-    /** @inheritdoc
-      */
     def unsafeLabels(
         labelNames: IndexedSeq[Label.Name]
     ): BuildStep[F, Summary.Labelled[F, A, Map[Label.Name, String]]]
 
-    /** @inheritdoc
-      */
     def unsafeLabels(
         labelNames: Label.Name*
     ): BuildStep[F, Summary.Labelled[F, A, Map[Label.Name, String]]]
 
-    /** @inheritdoc
-      */
     def labels[B, N <: Nat](labelNames: Sized[IndexedSeq[Label.Name], N])(
         f: B => Sized[IndexedSeq[String], N]
     ): LabelsBuildStep[F, A, B, N, Summary.Labelled]
