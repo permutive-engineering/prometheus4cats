@@ -16,8 +16,10 @@
 
 package prometheus4cats
 
+import java.util.regex.Pattern
+
+import cats.Hash
 import cats.syntax.traverse._
-import cats.{Eq, Hash, Order, Show}
 import prometheus4cats.internal.{MetricHelpFromStringLiteral, MetricPrefixFromStringLiteral}
 
 private[prometheus4cats] trait Metric[-A] {
@@ -59,97 +61,29 @@ object Metric {
 
   /** Refined value class for a help message that has been parsed from a string
     */
-  final class Help private (val value: String) extends AnyVal {
-
+  final class Help private (val value: String) extends AnyVal with internal.Refined.Value[String] {
     override def toString: String = s"""Metric.Help("$value")"""
-
   }
 
-  object Help extends MetricHelpFromStringLiteral {
+  object Help extends internal.Refined[String, Help] with MetricHelpFromStringLiteral {
+    override protected def make(a: String): Help = new Help(a)
 
-    /** Parse a [[Help]] from the given string
-      *
-      * @param string
-      *   value from which to parse a help string
-      * @return
-      *   a parsed [[Help]] or failure message, represented by an [[scala.Either]]
-      */
-    def from(string: String): Either[String, Help] =
-      Either.cond(string.nonEmpty, new Help(string), s"must not be empty blank")
+    override protected def test(a: String): Boolean = a.nonEmpty
 
-    /** Unsafely parse a [[Help]] from the given string
-      *
-      * @param string
-      *   value from which to parse a counter name
-      * @return
-      *   a parsed [[Help]]
-      * @throws java.lang.IllegalArgumentException
-      *   if `string` is not valid
-      */
-    def unsafeFrom(string: String): Help =
-      from(string).fold(msg => throw new IllegalArgumentException(msg), identity)
-
-    implicit val catsInstances: Hash[Help] with Order[Help] with Show[Help] = new Hash[Help]
-      with Order[Help]
-      with Show[Help] {
-      override def hash(x: Help): Int = Hash[String].hash(x.value)
-
-      override def compare(x: Help, y: Help): Int = Order[String].compare(x.value, y.value)
-
-      override def show(t: Help): String = t.value
-
-      override def eqv(x: Help, y: Help): Boolean = Eq[String].eqv(x.value, y.value)
-    }
-
+    override protected def nonMatchMessage(a: String): String = "Help must not be blank"
   }
 
   /** Refined value class that can be used with [[MetricFactory]] to prefix every metric name with a certain string
     * value
     */
-  final class Prefix private (val value: String) extends AnyVal {
+  final class Prefix private (val value: String) extends AnyVal with internal.Refined.Value[String] {
     override def toString: String = s"""Metric.Prefix("$value")"""
   }
 
-  object Prefix extends MetricPrefixFromStringLiteral {
-    final private val regex = "^[a-zA-Z_:][a-zA-Z0-9_:]*$".r.pattern
+  object Prefix extends internal.Refined.StringRegexRefinement[Prefix] with MetricPrefixFromStringLiteral {
+    protected val regex: Pattern = "^[a-zA-Z_:][a-zA-Z0-9_:]*$".r.pattern
 
-    /** Parse a [[Prefix]] from the given string
-      *
-      * @param string
-      *   value from which to parse a prefix value
-      * @return
-      *   a parsed [[Prefix]] or failure message, represented by an [[scala.Either]]
-      */
-    def from(string: String): Either[String, Prefix] =
-      Either.cond(
-        regex.matcher(string).matches(),
-        new Prefix(string),
-        s"$string must match `$regex`"
-      )
-
-    /** Unsafely parse a [[Prefix]] from the given string
-      *
-      * @param string
-      *   value from which to parse a counter name
-      * @return
-      *   a parsed [[Prefix]]
-      * @throws java.lang.IllegalArgumentException
-      *   if `string` is not valid
-      */
-    def unsafeFrom(string: String): Prefix =
-      from(string).fold(msg => throw new IllegalArgumentException(msg), identity)
-
-    implicit val catsInstances: Hash[Prefix] with Order[Prefix] with Show[Prefix] = new Hash[Prefix]
-      with Order[Prefix]
-      with Show[Prefix] {
-      override def hash(x: Prefix): Int = Hash[String].hash(x.value)
-
-      override def compare(x: Prefix, y: Prefix): Int = Order[String].compare(x.value, y.value)
-
-      override def show(t: Prefix): String = t.value
-
-      override def eqv(x: Prefix, y: Prefix): Boolean = Eq[String].eqv(x.value, y.value)
-    }
+    override protected def make(a: String): Prefix = new Prefix(a)
   }
 
   private[prometheus4cats] trait Labelled[-A] {

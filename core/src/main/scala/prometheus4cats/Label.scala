@@ -16,64 +16,27 @@
 
 package prometheus4cats
 
-import cats.{Eq, Hash, Order, Show}
+import java.util.regex.Pattern
+
 import prometheus4cats.internal.LabelNameFromStringLiteral
 
 object Label {
 
   /** Refined value class for a label name that has been parsed from a string
     */
-  final class Name private (val value: String) extends AnyVal {
+  final class Name private (val value: String) extends AnyVal with internal.Refined.Value[String] {
 
     override def toString: String = s"""Label.Name("$value")"""
 
   }
 
-  object Name extends LabelNameFromStringLiteral {
-
-    final private val regex = "^[a-zA-Z_:][a-zA-Z0-9_:]*$".r.pattern
-
-    /** Parse a [[Name]] from the given string
-      *
-      * @param string
-      *   value from which to parse a label name
-      * @return
-      *   a parsed [[Name]] or failure message, represented by an [[scala.Either]]
-      */
-    def from(string: String): Either[String, Name] =
-      Either.cond(
-        regex.matcher(string).matches(),
-        new Name(string),
-        s"$string must match `$regex`"
-      )
-
-    /** Unsafely parse a [[Name]] from the given string
-      *
-      * @param string
-      *   value from which to parse a counter name
-      * @return
-      *   a parsed [[Name]]
-      * @throws java.lang.IllegalArgumentException
-      *   if `string` is not valid
-      */
-    def unsafeFrom(string: String): Name =
-      from(string).fold(msg => throw new IllegalArgumentException(msg), identity)
-
+  object Name extends internal.Refined.StringRegexRefinement[Name] with LabelNameFromStringLiteral {
     // prevents macro compilation problems with the status label
     private[prometheus4cats] val outcomeStatus = new Name("outcome_status")
 
-    implicit val catsInstances: Hash[Name] with Order[Name] with Show[Name] = new Hash[Name]
-      with Order[Name]
-      with Show[Name] {
-      override def hash(x: Name): Int = Hash[String].hash(x.value)
+    protected val regex: Pattern = "^[a-zA-Z_:][a-zA-Z0-9_:]*$".r.pattern
 
-      override def compare(x: Name, y: Name): Int = Order[String].compare(x.value, y.value)
-
-      override def show(t: Name): String = t.value
-
-      override def eqv(x: Name, y: Name): Boolean = Eq[String].eqv(x.value, y.value)
-    }
-
+    override protected def make(a: String): Name = new Name(a)
   }
 
 }
