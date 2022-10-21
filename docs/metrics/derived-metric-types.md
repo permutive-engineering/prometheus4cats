@@ -22,11 +22,12 @@ val factory: MetricFactory[IO] = MetricFactory.noop[IO]
 
 ### `Timer`
 
-A `Timer` can be derived from either a [`Gauge`] or [`Histogram`] that record `Double` values. It uses [`Clock`] from
-[Cats-Effect] to time a given operation.
+A `Timer` can be derived from either a [`Gauge`], [`Histogram`] or [`Summary`] that record `Double` values. It uses
+[`Clock`] from [Cats-Effect] to time a given operation.
 
-The underlying metric type should be carefully considered; a [`Histogram`] can be used to measure many operations,
-where a [`Gauge`] will only record the last value so is best for singular operations.
+The underlying metric type should be carefully considered; a [`Histogram`] or [`Summary`] can be used to measure many
+operations at differing runtime costs, where a [`Gauge`] will only record the last value so is best for singular
+operations.
 
 #### Obtaining from a `Histogram`
 
@@ -46,6 +47,27 @@ val labelledTimerHistogram: IO[Timer.Labelled.Aux[IO, String, Histogram.Labelled
   .ofDouble
   .help("Records the how long an opertation took")
   .buckets(1.0, 2.0)
+  .label[String]("some_label")
+  .asTimer
+  .build
+```
+
+#### Obtaining from a `Summary`
+
+```scala mdoc:silent
+val simpleTimerSummary: IO[Timer.Aux[IO, Summary]] = factory
+  .summary("time")
+  .ofDouble
+  .help("Records the how long an opertation took")
+  .asTimer
+  .build
+```
+
+```scala mdoc:silent
+val labelledTimerSummary: IO[Timer.Labelled.Aux[IO, String, Summary.Labelled]] = factory
+  .summary("time")
+  .ofDouble
+  .help("Records the how long an opertation took")
   .label[String]("some_label")
   .asTimer
   .build

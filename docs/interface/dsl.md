@@ -8,7 +8,7 @@ The examples in this section assume you have imported the following and have cre
 import cats.effect._
 import prometheus4cats._
 
-val factory: MetricFactory[IO] = MetricFactory.noop[IO]
+val factory: MetricFactory.WithCallbacks[IO] = MetricFactory.builder.noop[IO]
 ```
 
 ### Refined Types
@@ -21,6 +21,8 @@ The value classes used by the DSL are as follows:
 - `Counter.Name`
 - `Gauge.Name`
 - `Histogram.Name`
+- `Summary.Name`
+- `Info.Name`
 - `Label.Name`
 - `Metric.Help`
 
@@ -33,6 +35,8 @@ value.
 factory.counter("counter_total")
 factory.gauge("gauge")
 factory.histogram("histogram")
+factory.summary("summary")
+factory.info("info_info")
 ```
 
 ### Specifying the Underlying Number Format
@@ -159,6 +163,75 @@ val updatedLabelsCounter: IO[Counter.Labelled[IO, Long, LabelsClass]] = factory
   .build
 ```
 
+### Metric Callbacks
+
+The callback DSL is only available with the `MetricFactory.WithCallbacks` implementation of [`MetricFactory`].
+
+Callbacks are useful when you have some runtime source of a metric value, like a JMX MBean, which will be loaded when
+the current values for each metric is inspected for export to Prometheus.
+
+Callbacks are both extremely powerful and dangerous, so should be used with care. Callbacks are assumed to be
+side-effecting in that each execution of the callback may yield a different underlying value, this also means that
+the operation could take a long time to complete if there is I/O involved (this is strongly discouraged). Therefore,
+implementations of [`CallbackRegistry`] may include a timeout.
+
+Some general guidance on callbacks:
+
+- **Do not perform any complex calculations as part of the callback, such as an I/O operation**
+- **Make callback calculations CPU bound, such as accessing a concurrent value**
+
+All [primitive] metric types, with exception to `Info` can be implemented as callbacks, like so for `Counter` and
+`Gauge`:
+
+```scala mdoc:silent
+factory
+  .counter("counter_total")
+  .ofDouble
+  .help("Describe what this metric does")
+  .callback(IO(1.0))
+
+factory
+  .gauge("gauge")
+  .ofDouble
+  .help("Describe what this metric does")
+  .callback(IO(1.0))
+```
+
+`Histogram` and `Summary` metrics are slightly different as they need a special value to contain the calculated
+components of each metric type:
+
+```scala mdoc:silent
+import cats.data.NonEmptySeq
+
+factory
+  .histogram("histogram")
+  .ofDouble
+  .help("Describe what this metric does")
+  .buckets(0.1, 0.5)
+  .callback(
+    IO(Histogram.Value(sum = 2.0, bucketValues = NonEmptySeq.of(0.0, 1.0, 1.0)))
+  )
+```
+
+**Note that with a histogram value there must always be one more bucket value than defined when creating the metric,
+this is to provide a value for `+Inf`.**
+
+
+```scala mdoc:silent
+factory
+  .summary("gauge")
+  .ofDouble
+  .help("Describe what this metric does")
+  .callback(
+    IO(Summary.Value(count = 1.0, sum = 1.0, quantiles = Map(0.5 -> 1.0)))
+  )
+```
+
+**Note that is you specify quantiles, max age or age buckets for the summary, you cannot register a callback. This is
+because these parameters are used when configuring a summary metric type which would be returned you, whereas the
+summary implementation may be configured differently.**
+
 [primitive]: ../metrics/primitive-metric-types.md
 [derived]: ../metrics/derived-metric-types.md
 [`MetricFactory`]: metric-factory.md
+[`CallbackRegistry`]: callback-registry.md

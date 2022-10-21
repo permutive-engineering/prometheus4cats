@@ -6,8 +6,8 @@ Permutive's internal library and [Epimetheus]. See the [design page](design/desi
 ### Features
 
 - [A fluent metric builder DSL](interface/dsl.md)
-- [Metric name prefix and common labels](interface/metrics-factory.md)
-- [Decoupled backend for registering metrics](interface/metrics-registry.md)
+- [Metric name prefix and common labels](interface/metric-factory.md)
+- [Decoupled backend for registering metrics](interface/metric-registry.md)
 
 ### Usage
 
@@ -35,8 +35,8 @@ import prometheus4cats.javasimpleclient._
 implicit val logger: Logger[IO] = NoOpLogger.impl
 
 for {
-  regsitry <- JavaMetricsRegistry.default[IO]
-  factory = MetricsFactory.builder.build(regsitry)
+  regsitry <- JavaMetricRegistry.default[IO]()
+  factory = MetricFactory.builder.build(regsitry)
 
 } yield ()
 ```

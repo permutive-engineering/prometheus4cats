@@ -23,7 +23,7 @@ import prometheus4cats.internal.histogram.BucketDsl
 import prometheus4cats.internal.summary.SummaryDsl
 
 sealed abstract class MetricFactory[F[_]](
-    val metricRegistry: MetricRegistry[F],
+    protected[prometheus4cats] val metricRegistry: MetricRegistry[F],
     val prefix: Option[Metric.Prefix],
     val commonLabels: CommonLabels
 ) {
@@ -227,7 +227,7 @@ sealed abstract class MetricFactory[F[_]](
     *   Info builder
     */
   def info(name: Info.Name): HelpStep[BuildStep[F, Info[F, Map[Label.Name, String]]]] =
-    new HelpStep(help => new BuildStep(metricRegistry.createAndRegisterInfo(prefix, name, help)))
+    new HelpStep(help => BuildStep(metricRegistry.createAndRegisterInfo(prefix, name, help)))
 
   /** Creates a new instance of [[MetricFactory]] without a [[Metric.Prefix]] set
     */
@@ -257,8 +257,8 @@ object MetricFactory {
     *   return a [[MetricFactory.WithCallbacks]] you must you [[MetricFactory.WithCallbacks.imapK]].
     */
   sealed abstract class WithCallbacks[F[_]](
-      metricRegistry: MetricRegistry[F],
-      val callbackRegistry: CallbackRegistry[F],
+      override protected[prometheus4cats] val metricRegistry: MetricRegistry[F],
+      private val callbackRegistry: CallbackRegistry[F],
       prefix: Option[Metric.Prefix],
       commonLabels: CommonLabels
   ) extends MetricFactory[F](metricRegistry, prefix, commonLabels) {
@@ -634,6 +634,21 @@ object MetricFactory {
       */
     def build[F[_]](metricRegistry: MetricRegistry[F] with CallbackRegistry[F]): MetricFactory.WithCallbacks[F] =
       new MetricFactory.WithCallbacks[F](metricRegistry, metricRegistry, prefix, commonLabels) {}
+
+    /** Build a [[MetricFactory]] from an existing [[MetricFactory]] and [[CallbackRegistry]]
+      *
+      * @param metricFactory
+      *   [[MetricFactory]] from which to obtain a [[MetricRegistry]]
+      * @param callbackRegistry
+      *   [[CallbackRegistry]] with which to register new metrics created by the built [[MetricFactory]]
+      * @return
+      *   a new [[MetricFactory.WithCallbacks]] instance
+      */
+    def build[F[_]](
+        metricFactory: MetricFactory[F],
+        callbackRegistry: CallbackRegistry[F]
+    ): MetricFactory.WithCallbacks[F] =
+      new MetricFactory.WithCallbacks[F](metricFactory.metricRegistry, callbackRegistry, prefix, commonLabels) {}
 
     /** Build a [[MetricFactory]] the performs no operations
       *
