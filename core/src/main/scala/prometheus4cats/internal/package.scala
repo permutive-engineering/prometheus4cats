@@ -24,19 +24,24 @@ import prometheus4cats._
 
 import scala.concurrent.duration.FiniteDuration
 
-class BuildStep[F[_], A] private[prometheus4cats] (fa: F[A]) {
+private[prometheus4cats] trait BuildStep[F[_], A] { self =>
 
   /** Builds the metric */
-  def build: F[A] = fa
+  def build: F[A]
 
   /** Builds the metric, wrapping the effect in a `Resource` */
   def resource: Resource[F, A] = Resource.eval(build)
 
-  def map[B](f: A => B)(implicit F: Functor[F]): BuildStep[F, B] = new BuildStep[F, B](fa.map(f))
+  def map[B](f: A => B)(implicit F: Functor[F]): BuildStep[F, B] = new BuildStep[F, B] {
+    override def build: F[B] = self.build.map(f)
+  }
 
 }
 
 object BuildStep {
+  private[prometheus4cats] def apply[F[_], A](fa: F[A]): BuildStep[F, A] = new BuildStep[F, A] {
+    override def build: F[A] = fa
+  }
 
   implicit class DoubleGaugeSyntax[F[_]: FlatMap: Clock](bs: BuildStep[F, Gauge[F, Double]]) {
     def asTimer: BuildStep[F, Timer.Aux[F, Gauge]] = bs.map(Timer.fromGauge[F])
@@ -125,7 +130,9 @@ object BuildStep {
 trait CallbackStep[F[_], A] { self =>
   protected def buildCallback: F[A] => F[Unit]
 
-  def callback(callback: F[A]): BuildStep[F, Unit] = new BuildStep(buildCallback(callback))
+  def callback(callback: F[A]): BuildStep[F, Unit] = new BuildStep[F, Unit] {
+    override def build: F[Unit] = buildCallback(callback)
+  }
 
   def contramapCallback[B](f: B => A)(implicit F: Functor[F]): CallbackStep[F, B] = new CallbackStep[F, B] {
     override protected def buildCallback: F[B] => F[Unit] = fb => self.buildCallback(fb.map(f))
@@ -133,13 +140,17 @@ trait CallbackStep[F[_], A] { self =>
 }
 
 class CallbackBuildStep[F[_], A, B](fa: F[A], override val buildCallback: F[B] => F[Unit])
-    extends BuildStep[F, A](fa)
-    with CallbackStep[F, B]
+    extends BuildStep[F, A]
+    with CallbackStep[F, B] {
+  override def build: F[A] = fa
+}
 
 class MetricDsl[F[_], A, M[_[_], _], L[_[_], _, _]] private[prometheus4cats] (
     makeMetric: F[M[F, A]],
     private[internal] val makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L]
-) extends BuildStep[F, M[F, A]](makeMetric) {
+) extends BuildStep[F, M[F, A]] {
+
+  override def build: F[M[F, A]] = makeMetric
 
   /** Sets the first label of the metric. Requires either a `Show` instance for the label type, or a method converting
     * the label value to a `String`.
@@ -164,7 +175,7 @@ class MetricDsl[F[_], A, M[_[_], _], L[_[_], _, _]] private[prometheus4cats] (
   def unsafeLabels(
       labelNames: IndexedSeq[Label.Name]
   ): BuildStep[F, L[F, A, Map[Label.Name, String]]] =
-    new BuildStep[F, L[F, A, Map[Label.Name, String]]](
+    BuildStep[F, L[F, A, Map[Label.Name, String]]](
       makeLabelledMetric(
         labelNames
       )(labels => labelNames.flatMap(labels.get))
@@ -198,7 +209,9 @@ class MetricDsl[F[_], A, M[_[_], _], L[_[_], _, _]] private[prometheus4cats] (
     * @param f
     *   function to convert `B` in to a sized collection of label values
     */
-  def labels[B, N <: Nat](labelNames: Sized[IndexedSeq[Label.Name], N])(f: B => Sized[IndexedSeq[String], N]) =
+  def labels[B, N <: Nat](labelNames: Sized[IndexedSeq[Label.Name], N])(
+      f: B => Sized[IndexedSeq[String], N]
+  ): LabelsBuildStep[F, A, B, N, L] =
     new LabelsBuildStep(makeLabelledMetric, labelNames, f)
 }
 
@@ -247,7 +260,7 @@ object MetricDsl {
   }
 
   implicit class CounterSyntax[F[_]: MonadCancelThrow, A](dsl: MetricDsl[F, A, Counter, Counter.Labelled]) {
-    def asOutcomeRecorder: BuildStep[F, OutcomeRecorder.Aux[F, A, Counter.Labelled]] = new BuildStep(
+    def asOutcomeRecorder: BuildStep[F, OutcomeRecorder.Aux[F, A, Counter.Labelled]] = BuildStep(
       dsl
         .makeLabelledMetric[Status](IndexedSeq(Label.Name.outcomeStatus))(status => IndexedSeq(status.show))
         .map(OutcomeRecorder.fromCounter(_))
@@ -255,7 +268,7 @@ object MetricDsl {
   }
 
   implicit class GaugeSyntax[F[_]: MonadCancelThrow, A](dsl: MetricDsl[F, A, Gauge, Gauge.Labelled]) {
-    def asOutcomeRecorder: BuildStep[F, OutcomeRecorder.Aux[F, A, Gauge.Labelled]] = new BuildStep(
+    def asOutcomeRecorder: BuildStep[F, OutcomeRecorder.Aux[F, A, Gauge.Labelled]] = BuildStep(
       dsl
         .makeLabelledMetric[Status](IndexedSeq(Label.Name.outcomeStatus))(status => IndexedSeq(status.show))
         .map(OutcomeRecorder.fromGauge(_))
@@ -263,20 +276,22 @@ object MetricDsl {
   }
 }
 
-abstract private[prometheus4cats] class BaseLabelsBuildStep[F[_], A, T, N <: Nat, L[_[_], _, _]](build: F[L[F, A, T]])
-    extends BuildStep[F, L[F, A, T]](build) {
+abstract private[prometheus4cats] class BaseLabelsBuildStep[F[_], A, T, N <: Nat, L[_[_], _, _]](fa: F[L[F, A, T]])
+    extends BuildStep[F, L[F, A, T]] {
   protected[internal] val makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L]
   protected[internal] val labelNames: Sized[IndexedSeq[Label.Name], N]
   protected[internal] val f: T => Sized[IndexedSeq[String], N]
 
   def contramapLabels[B](f: B => T): BaseLabelsBuildStep[F, A, B, N, L]
+
+  override def build: F[L[F, A, T]] = fa
 }
 
 object BaseLabelsBuildStep {
   implicit class CounterSyntax[F[_]: MonadCancelThrow, A, T, N <: Nat](
       dsl: BaseLabelsBuildStep[F, A, T, N, Counter.Labelled]
   ) {
-    def asOutcomeRecorder: BuildStep[F, OutcomeRecorder.Labelled.Aux[F, A, T, Counter.Labelled]] = new BuildStep(
+    def asOutcomeRecorder: BuildStep[F, OutcomeRecorder.Labelled.Aux[F, A, T, Counter.Labelled]] = BuildStep(
       dsl
         .makeLabelledMetric[(T, Status)](dsl.labelNames.unsized :+ Label.Name.outcomeStatus) { case (t, status) =>
           dsl.f(t).unsized :+ status.show
@@ -290,7 +305,7 @@ object BaseLabelsBuildStep {
   implicit class GaugeSyntax[F[_]: MonadCancelThrow, A, T, N <: Nat](
       dsl: BaseLabelsBuildStep[F, A, T, N, Gauge.Labelled]
   ) {
-    def asOutcomeRecorder: BuildStep[F, OutcomeRecorder.Labelled.Aux[F, A, T, Gauge.Labelled]] = new BuildStep(
+    def asOutcomeRecorder: BuildStep[F, OutcomeRecorder.Labelled.Aux[F, A, T, Gauge.Labelled]] = BuildStep(
       dsl
         .makeLabelledMetric[(T, Status)](dsl.labelNames.unsized :+ Label.Name.outcomeStatus) { case (t, status) =>
           dsl.f(t).unsized :+ status.show

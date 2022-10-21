@@ -18,7 +18,7 @@ package prometheus4cats.internal.summary
 
 import prometheus4cats.Summary.QuantileDefinition
 import prometheus4cats._
-import prometheus4cats.internal.{LabelledCallbackPartiallyApplied, LabelledMetricPartiallyApplied, MetricDsl}
+import prometheus4cats.internal._
 
 import scala.concurrent.duration._
 
@@ -51,9 +51,23 @@ class SummaryDsl[F[_], A] private[prometheus4cats] (
 }
 
 object SummaryDsl {
-  trait Base[F[_], A] { self: MetricDsl[F, A, Summary, Summary.Labelled] =>
+  trait Base[F[_], A] extends BuildStep[F, Summary[F, A]] { self: MetricDsl[F, A, Summary, Summary.Labelled] =>
     def quantile(quantile: Summary.Quantile, error: Summary.AllowedError): SummaryDsl[F, A]
     def maxAge(age: FiniteDuration): AgeBucketsStep[F, A]
+
+    def label[B]: FirstLabelApply[F, A, B, Summary.Labelled]
+
+    def unsafeLabels(
+        labelNames: IndexedSeq[Label.Name]
+    ): BuildStep[F, Summary.Labelled[F, A, Map[Label.Name, String]]]
+
+    def unsafeLabels(
+        labelNames: Label.Name*
+    ): BuildStep[F, Summary.Labelled[F, A, Map[Label.Name, String]]]
+
+    def labels[B, N <: Nat](labelNames: Sized[IndexedSeq[Label.Name], N])(
+        f: B => Sized[IndexedSeq[String], N]
+    ): LabelsBuildStep[F, A, B, N, Summary.Labelled]
   }
 
   private val defaultQuantiles: Seq[Summary.QuantileDefinition] = Seq.empty

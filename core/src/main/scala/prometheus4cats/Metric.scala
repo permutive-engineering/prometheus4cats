@@ -45,7 +45,7 @@ object Metric {
         "Number of common labels must not be more than 10"
       )
 
-    def from(labels: (Label.Name, String)*): Either[String, CommonLabels] =
+    def of(labels: (Label.Name, String)*): Either[String, CommonLabels] =
       from(labels.toMap)
 
     def fromStrings(labels: Map[String, String]): Either[String, CommonLabels] =
@@ -53,7 +53,7 @@ object Metric {
         Label.Name.from(name).map(_ -> value)
       }.flatMap(ls => from(ls.toMap))
 
-    def fromStrings(labels: (String, String)*): Either[String, CommonLabels] =
+    def ofStrings(labels: (String, String)*): Either[String, CommonLabels] =
       fromStrings(labels.toMap)
 
     implicit val catsInstances: Hash[CommonLabels] = Hash.by(_.value)
