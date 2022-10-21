@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="generator" content="Laika 0.18.1 + Helium Theme" />
-  <title>Metric Registry</title>
+  <title>Callback Registry</title>
   
   
   <meta name="description" content="docs"/>
@@ -76,10 +76,10 @@
     <li class="level1 nav-header">design</li>
     <li class="level2"><a href="../design/design.html">Design</a></li>
     <li class="level1 nav-header">interface</li>
-    <li class="level2"><a href="callback-registry.html">Callback Registry</a></li>
+    <li class="level2 active"><a href="#">Callback Registry</a></li>
     <li class="level2"><a href="dsl.html">Metrics DSL</a></li>
     <li class="level2"><a href="metric-factory.html">Metric Factory</a></li>
-    <li class="level2 active"><a href="#">Metric Registry</a></li>
+    <li class="level2"><a href="metric-registry.html">Metric Registry</a></li>
     <li class="level1 nav-header">metrics</li>
     <li class="level2"><a href="../metrics/derived-metric-types.html">Derived Metric Types</a></li>
     <li class="level2"><a href="../metrics/primitive-metric-types.html">Primitive Metric Types</a></li>
@@ -101,7 +101,7 @@
 <div id="container">
 
   <nav id="page-nav">
-    <p class="header"><a href="#">Metric Registry</a></p>
+    <p class="header"><a href="#">Callback Registry</a></p>
 
     <ul class="nav-list">
     </ul>
@@ -111,10 +111,10 @@
 
   <main class="content">
 
-    <h1 id="metric-registry" class="title">Metric Registry</h1>
-    <p>The <code>MetricRegistry</code> is an interface that may be implemented by different backends to provide concurrent access to
-    metrics. This is not designed for use by users of the API directly, they should use it with the <a href="metric-factory.html"><code>MetricFactory</code></a> to
-    create metrics using the <a href="dsl.html">DSL</a>.</p>
+    <h1 id="callback-registry" class="title">Callback Registry</h1>
+    <p>The <code>CallbackRegistry</code> is an interface that may be implemented by different backends to provide concurrent access to
+    metric callbacks. This is not designed for use by users of the API directly, they should use it with the
+    <a href="metric-factory.html"><code>MetricFactory</code></a> to create metrics using the <a href="dsl.html#metric-callbacks">DSL</a>.</p>
 
     <hr style="margin-top: 30px"/>
     <footer style="font-size: 90%; text-align: center">
