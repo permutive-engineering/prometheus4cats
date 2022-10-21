@@ -21,6 +21,8 @@ import java.util.concurrent.TimeUnit
 
 import cats.effect.IO
 
+import scala.concurrent.duration._
+
 object MetricsFactoryDslTest {
   val factory: MetricFactory.WithCallbacks[IO] = MetricFactory.builder.withPrefix("prefix").noop[IO]
 
@@ -103,4 +105,13 @@ object MetricsFactoryDslTest {
   infoBuilder.contramap[List[(Label.Name, String)]](_.toMap)
   infoBuilder.build
   infoBuilder.resource
+
+  val doubleSummaryBuilder =
+    factory
+      .summary("summary")
+      .ofDouble
+      .help("some summary")
+      .quantile(1.0, 0.1)
+      .maxAge(10.seconds)
+      .ageBuckets(5)
 }

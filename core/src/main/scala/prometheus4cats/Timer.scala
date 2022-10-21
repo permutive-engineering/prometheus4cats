@@ -64,7 +64,7 @@ object Timer {
     *
     * Values are recorded in [[scala.Double]]s by converting a [[scala.concurrent.duration.FiniteDuration]] to seconds.
     *
-    * * The best way to construct a histogram based [[Timer]] is to use the `.asTimer` on the histogram DSL provided by
+    * The best way to construct a histogram based [[Timer]] is to use the `.asTimer` on the histogram DSL provided by
     * [[MetricFactory]].
     *
     * @return
@@ -76,6 +76,26 @@ object Timer {
       override def recordTime(duration: FiniteDuration): F[Unit] = histogram.observe(duration.toUnit(TimeUnit.SECONDS))
     }
 
+  /** Create a [[Timer]] from a [[Summary]] instance.
+    *
+    * This delegates to the underlying [[Summary]] instance and assumes you have already set up sensible buckets for the
+    * distribution of values.
+    *
+    * Values are recorded in [[scala.Double]]s by converting a [[scala.concurrent.duration.FiniteDuration]] to seconds.
+    *
+    * The best way to construct a histogram based [[Timer]] is to use the `.asTimer` on the summary DSL provided by
+    * [[MetricFactory]].
+    *
+    * @return
+    *   a [[Timer.Aux]] that is annotated with the type of underlying metrics, in this case [[Summary]]
+    */
+  def fromSummary[F[_]: FlatMap: Clock](summary: Summary[F, Double]): Timer.Aux[F, Summary] =
+    new Timer[F] {
+      override type Metric = Summary[F, Double]
+
+      override def recordTime(duration: FiniteDuration): F[Unit] = summary.observe(duration.toUnit(TimeUnit.SECONDS))
+    }
+
   /** Create a [[Timer]] from a [[Gauge]] instance.
     *
     * This delegates to the underlying [[Gauge]] instance which will only ever show the last value for duration of the
@@ -83,7 +103,7 @@ object Timer {
     *
     * Values are recorded in [[scala.Double]]s by converting a [[scala.concurrent.duration.FiniteDuration]] to seconds.
     *
-    * * The best way to construct a gauge based [[Timer]] is to use the `.asTimer` on the gauge DSL provided by
+    * The best way to construct a gauge based [[Timer]] is to use the `.asTimer` on the gauge DSL provided by
     * [[MetricFactory]].
     *
     * @return
@@ -184,7 +204,7 @@ object Timer {
       * Values are recorded in [[scala.Double]]s by converting a [[scala.concurrent.duration.FiniteDuration]] to
       * seconds.
       *
-      * * The best way to construct a histogram based [[Timer.Labelled]] is to use the `.asTimer` on the histogram DSL
+      * The best way to construct a histogram based [[Timer.Labelled]] is to use the `.asTimer` on the histogram DSL
       * provided by [[MetricFactory]].
       *
       * @return
@@ -201,6 +221,31 @@ object Timer {
           histogram.observe(duration.toUnit(TimeUnit.SECONDS), labels)
       }
 
+    /** Create a [[Timer.Labelled]] from a [[Summary.Labelled]] instance.
+      *
+      * This delegates to the underlying [[Summary.Labelled]] instance and assumes you have already set up sensible
+      * buckets for the distribution of values.
+      *
+      * Values are recorded in [[scala.Double]]s by converting a [[scala.concurrent.duration.FiniteDuration]] to
+      * seconds.
+      *
+      * The best way to construct a histogram based [[Timer.Labelled]] is to use the `.asTimer` on the summary DSL
+      * provided by [[MetricFactory]].
+      *
+      * @return
+      *   a [[Timer.Labelled.Aux]] that is annotated with the type of underlying metrics, in this case
+      *   [[Summary.Labelled]]
+      */
+    def fromSummary[F[_]: MonadThrow: Clock, A](
+        summary: Summary.Labelled[F, Double, A]
+    ): Labelled.Aux[F, A, Summary.Labelled] =
+      new Labelled[F, A] {
+        override type Metric = Summary.Labelled[F, Double, A]
+
+        override def recordTime(duration: FiniteDuration, labels: A): F[Unit] =
+          summary.observe(duration.toUnit(TimeUnit.SECONDS), labels)
+      }
+
     /** Create a [[Timer.Labelled]] from a [[Gauge.Labelled]] instance.
       *
       * This delegates to the underlying [[Gauge.Labelled]] instance which will only ever show the last value for
@@ -209,7 +254,7 @@ object Timer {
       * Values are recorded in [[scala.Double]]s by converting a [[scala.concurrent.duration.FiniteDuration]] to
       * seconds.
       *
-      * * The best way to construct a gauge based [[Timer.Labelled]] is to use the `.asTimer` on the histogram DSL
+      * The best way to construct a gauge based [[Timer.Labelled]] is to use the `.asTimer` on the histogram DSL
       * provided by [[MetricFactory]].
       *
       * @return

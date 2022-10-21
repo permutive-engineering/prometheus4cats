@@ -16,19 +16,31 @@
 
 package prometheus4cats.internal
 
+import prometheus4cats.Summary
+
 import scala.reflect.macros.blackbox
 
-private[prometheus4cats] trait MacroUtils {
+trait SummaryAgeBucketsFromIntLiteral {
 
-  val c: blackbox.Context
+  def apply(t: Int): Summary.AgeBuckets =
+    macro SummaryAgeBucketsMacros.fromIntLiteral
 
-  import c.universe._
+  implicit def fromDoubleLiteral(t: Int): Summary.AgeBuckets =
+    macro SummaryAgeBucketsMacros.fromIntLiteral
 
-  def abort(msg: String) = c.abort(c.enclosingPosition, msg)
+}
 
-  def literal[A](t: c.Expr[A], or: String): A = t.tree match {
-    case Literal(Constant(value)) => value.asInstanceOf[A]
-    case _ => abort(s"compile-time refinement only works with literals, use $or instead")
+private[prometheus4cats] class SummaryAgeBucketsMacros(val c: blackbox.Context) extends MacroUtils {
+
+  def fromIntLiteral(t: c.Expr[Int]): c.Expr[Summary.AgeBuckets] = {
+    val int: Int = literal(t, or = "Summary.AgeBuckets.from({int})")
+
+    Summary.AgeBuckets
+      .from(int)
+      .fold(
+        abort,
+        _ => c.universe.reify(Summary.AgeBuckets.from(t.splice).toOption.get)
+      )
   }
 
 }

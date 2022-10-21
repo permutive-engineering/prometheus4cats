@@ -20,6 +20,9 @@ import cats.data.NonEmptySeq
 import cats.syntax.functor._
 import cats.{Applicative, Functor, ~>}
 import prometheus4cats.Metric.CommonLabels
+import prometheus4cats.Summary.QuantileDefinition
+
+import scala.concurrent.duration.FiniteDuration
 
 /** Trait for registering metrics against different backends. May be implemented by anyone for use with
   * [[MetricFactory]]
@@ -314,6 +317,150 @@ trait MetricRegistry[F[_]] {
       buckets: NonEmptySeq[Long]
   )(f: A => IndexedSeq[String]): F[Histogram.Labelled[F, Long, A]]
 
+  /** Create and register a summary that records [[scala.Double]] values against a metrics registry
+    *
+    * @param prefix
+    *   optional [[Metric.Prefix]] to be prepended to the metric name
+    * @param name
+    *   [[Summary.Name]] metric name
+    * @param help
+    *   [[Metric.Help]] string to describe the metric
+    * @param commonLabels
+    *   [[Metric.CommonLabels]] map of common labels to be added to the metric
+    * @param quantiles
+    *   a [[scala.Seq]] of [[Summary.QuantileDefinition]]s representing bucket values for the summary. Quantiles are
+    *   expensive to calculate, so this may be empty.
+    * @param maxAge
+    *   a [[scala.concurrent.duration.FiniteDuration]] indicating a window over which the summary should be calculate.
+    *   Typically, you don't want to have a [[Summary]] representing the entire runtime of the application, but you want
+    *   to look at a reasonable time interval. [[Summary]] metrics should implement a configurable sliding time window.
+    * @param ageBuckets
+    *   how many intervals there should be in a given time window defined by `maxAge`. For example, if a time window of
+    *   10 minutes and 5 age buckets, i.e. the time window is 10 minutes wide, and we slide it forward every 2 minutes.
+    * @return
+    *   a [[Summary]] wrapped in whatever side effect that was performed in registering it
+    */
+  protected[prometheus4cats] def createAndRegisterDoubleSummary(
+      prefix: Option[Metric.Prefix],
+      name: Summary.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      quantiles: Seq[QuantileDefinition],
+      maxAge: FiniteDuration,
+      ageBuckets: Summary.AgeBuckets
+  ): F[Summary[F, Double]]
+
+  /** Create and register a summary that records [[scala.Long]] values against a metrics registry
+    *
+    * @param prefix
+    *   optional [[Metric.Prefix]] to be prepended to the metric name
+    * @param name
+    *   [[Summary.Name]] metric name
+    * @param help
+    *   [[Metric.Help]] string to describe the metric
+    * @param commonLabels
+    *   [[Metric.CommonLabels]] map of common labels to be added to the metric
+    * @param quantiles
+    *   a [[scala.Seq]] of [[Summary.QuantileDefinition]]s representing bucket values for the summary. Quantiles are
+    *   expensive to calculate, so this may be empty.
+    * @param maxAge
+    *   a [[scala.concurrent.duration.FiniteDuration]] indicating a window over which the summary should be calculate.
+    *   Typically, you don't want to have a [[Summary]] representing the entire runtime of the application, but you want
+    *   to look at a reasonable time interval. [[Summary]] metrics should implement a configurable sliding time window.
+    * @param ageBuckets
+    *   how many intervals there should be in a given time window defined by `maxAge`. For example, if a time window of
+    *   10 minutes and 5 age buckets, i.e. the time window is 10 minutes wide, and we slide it forward every 2 minutes.
+    * @return
+    *   a [[Summary]] wrapped in whatever side effect that was performed in registering it
+    */
+  protected[prometheus4cats] def createAndRegisterLongSummary(
+      prefix: Option[Metric.Prefix],
+      name: Summary.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      quantiles: Seq[QuantileDefinition],
+      maxAge: FiniteDuration,
+      ageBuckets: Summary.AgeBuckets
+  ): F[Summary[F, Long]]
+
+  /** Create and register a summary that records [[scala.Double]] values against a metrics registry
+    *
+    * @param prefix
+    *   optional [[Metric.Prefix]] to be prepended to the metric name
+    * @param name
+    *   [[Summary.Name]] metric name
+    * @param help
+    *   [[Metric.Help]] string to describe the metric
+    * @param commonLabels
+    *   [[Metric.CommonLabels]] map of common labels to be added to the metric
+    * @param labelNames
+    *   an [[scala.IndexedSeq]] of [[Label.Name]]s to annotate the metric with
+    * @param quantiles
+    *   a [[scala.Seq]] of [[Summary.QuantileDefinition]]s representing bucket values for the summary. Quantiles are
+    *   expensive to calculate, so this may be empty.
+    * @param maxAge
+    *   a [[scala.concurrent.duration.FiniteDuration]] indicating a window over which the summary should be calculate.
+    *   Typically, you don't want to have a [[Summary]] representing the entire runtime of the application, but you want
+    *   to look at a reasonable time interval. [[Summary]] metrics should implement a configurable sliding time window.
+    * @param ageBuckets
+    *   how many intervals there should be in a given time window defined by `maxAge`. For example, if a time window of
+    *   10 minutes and 5 age buckets, i.e. the time window is 10 minutes wide, and we slide it forward every 2 minutes.
+    * @param f
+    *   a function from `A` to an [[scala.IndexedSeq]] of [[java.lang.String]] that provides label values, which must be
+    *   paired with their corresponding name in the [[scala.IndexedSeq]] of [[Label.Name]]s
+    * @return
+    *   a [[Summary.Labelled]] wrapped in whatever side effect that was performed in registering it
+    */
+  protected[prometheus4cats] def createAndRegisterLabelledDoubleSummary[A](
+      prefix: Option[Metric.Prefix],
+      name: Summary.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name],
+      quantiles: Seq[QuantileDefinition],
+      maxAge: FiniteDuration,
+      ageBuckets: Summary.AgeBuckets
+  )(f: A => IndexedSeq[String]): F[Summary.Labelled[F, Double, A]]
+
+  /** Create and register a summary that records [[scala.Long]] values against a metrics registry
+    *
+    * @param prefix
+    *   optional [[Metric.Prefix]] to be prepended to the metric name
+    * @param name
+    *   [[Summary.Name]] metric name
+    * @param help
+    *   [[Metric.Help]] string to describe the metric
+    * @param commonLabels
+    *   [[Metric.CommonLabels]] map of common labels to be added to the metric
+    * @param labelNames
+    *   an [[scala.IndexedSeq]] of [[Label.Name]]s to annotate the metric with
+    * @param quantiles
+    *   a [[scala.Seq]] of [[Summary.QuantileDefinition]]s representing bucket values for the summary. Quantiles are
+    *   expensive to calculate, so this may be empty.
+    * @param maxAge
+    *   a [[scala.concurrent.duration.FiniteDuration]] indicating a window over which the summary should be calculate.
+    *   Typically, you don't want to have a [[Summary]] representing the entire runtime of the application, but you want
+    *   to look at a reasonable time interval. [[Summary]] metrics should implement a configurable sliding time window.
+    * @param ageBuckets
+    *   how many intervals there should be in a given time window defined by `maxAge`. For example, if a time window of
+    *   10 minutes and 5 age buckets, i.e. the time window is 10 minutes wide, and we slide it forward every 2 minutes.
+    * @param f
+    *   a function from `A` to an [[scala.IndexedSeq]] of [[java.lang.String]] that provides label values, which must be
+    *   paired with their corresponding name in the [[scala.IndexedSeq]] of [[Label.Name]]s
+    * @return
+    *   a [[Summary.Labelled]] wrapped in whatever side effect that was performed in registering it
+    */
+  protected[prometheus4cats] def createAndRegisterLabelledLongSummary[A](
+      prefix: Option[Metric.Prefix],
+      name: Summary.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name],
+      quantiles: Seq[QuantileDefinition],
+      maxAge: FiniteDuration,
+      ageBuckets: Summary.AgeBuckets
+  )(f: A => IndexedSeq[String]): F[Summary.Labelled[F, Long, A]]
+
   /** Create and register an info metric against a metrics registry
     *
     * @param prefix
@@ -438,6 +585,48 @@ object MetricRegistry {
           labelNames: IndexedSeq[Label.Name],
           buckets: NonEmptySeq[Long]
       )(f: A => IndexedSeq[String]): F[Histogram.Labelled[F, Long, A]] = F.pure(Histogram.Labelled.noop)
+
+      override protected[prometheus4cats] def createAndRegisterDoubleSummary(
+          prefix: Option[Metric.Prefix],
+          name: Summary.Name,
+          help: Metric.Help,
+          commonLabels: CommonLabels,
+          quantiles: Seq[QuantileDefinition],
+          maxAge: FiniteDuration,
+          ageBuckets: Summary.AgeBuckets
+      ): F[Summary[F, Double]] = F.pure(Summary.noop)
+
+      override protected[prometheus4cats] def createAndRegisterLongSummary(
+          prefix: Option[Metric.Prefix],
+          name: Summary.Name,
+          help: Metric.Help,
+          commonLabels: CommonLabels,
+          quantiles: Seq[QuantileDefinition],
+          maxAge: FiniteDuration,
+          ageBuckets: Summary.AgeBuckets
+      ): F[Summary[F, Long]] = F.pure(Summary.noop)
+
+      override protected[prometheus4cats] def createAndRegisterLabelledDoubleSummary[A](
+          prefix: Option[Metric.Prefix],
+          name: Summary.Name,
+          help: Metric.Help,
+          commonLabels: CommonLabels,
+          labelNames: IndexedSeq[Label.Name],
+          quantiles: Seq[QuantileDefinition],
+          maxAge: FiniteDuration,
+          ageBuckets: Summary.AgeBuckets
+      )(f: A => IndexedSeq[String]): F[Summary.Labelled[F, Double, A]] = F.pure(Summary.Labelled.noop)
+
+      override protected[prometheus4cats] def createAndRegisterLabelledLongSummary[A](
+          prefix: Option[Metric.Prefix],
+          name: Summary.Name,
+          help: Metric.Help,
+          commonLabels: CommonLabels,
+          labelNames: IndexedSeq[Label.Name],
+          quantiles: Seq[QuantileDefinition],
+          maxAge: FiniteDuration,
+          ageBuckets: Summary.AgeBuckets
+      )(f: A => IndexedSeq[String]): F[Summary.Labelled[F, Long, A]] = F.pure(Summary.Labelled.noop)
 
       override protected[prometheus4cats] def createAndRegisterInfo(
           prefix: Option[Metric.Prefix],
@@ -589,10 +778,79 @@ object MetricRegistry {
         fk(self.createAndRegisterLabelledLongHistogram(prefix, name, help, commonLabels, labelNames, buckets)(f))
           .map(_.mapK(fk))
 
+      override protected[prometheus4cats] def createAndRegisterDoubleSummary(
+          prefix: Option[Metric.Prefix],
+          name: Summary.Name,
+          help: Metric.Help,
+          commonLabels: CommonLabels,
+          quantiles: Seq[QuantileDefinition],
+          maxAge: FiniteDuration,
+          ageBuckets: Summary.AgeBuckets
+      ): G[Summary[G, Double]] = fk(
+        self.createAndRegisterDoubleSummary(prefix, name, help, commonLabels, quantiles, maxAge, ageBuckets)
+      ).map(_.mapK(fk))
+
+      override protected[prometheus4cats] def createAndRegisterLongSummary(
+          prefix: Option[Metric.Prefix],
+          name: Summary.Name,
+          help: Metric.Help,
+          commonLabels: CommonLabels,
+          quantiles: Seq[QuantileDefinition],
+          maxAge: FiniteDuration,
+          ageBuckets: Summary.AgeBuckets
+      ): G[Summary[G, Long]] = fk(
+        self.createAndRegisterLongSummary(prefix, name, help, commonLabels, quantiles, maxAge, ageBuckets)
+      ).map(_.mapK(fk))
+
+      override protected[prometheus4cats] def createAndRegisterLabelledDoubleSummary[A](
+          prefix: Option[Metric.Prefix],
+          name: Summary.Name,
+          help: Metric.Help,
+          commonLabels: CommonLabels,
+          labelNames: IndexedSeq[Label.Name],
+          quantiles: Seq[QuantileDefinition],
+          maxAge: FiniteDuration,
+          ageBuckets: Summary.AgeBuckets
+      )(f: A => IndexedSeq[String]): G[Summary.Labelled[G, Double, A]] = fk(
+        self.createAndRegisterLabelledDoubleSummary(
+          prefix,
+          name,
+          help,
+          commonLabels,
+          labelNames,
+          quantiles,
+          maxAge,
+          ageBuckets
+        )(f)
+      ).map(_.mapK(fk))
+
+      override protected[prometheus4cats] def createAndRegisterLabelledLongSummary[A](
+          prefix: Option[Metric.Prefix],
+          name: Summary.Name,
+          help: Metric.Help,
+          commonLabels: CommonLabels,
+          labelNames: IndexedSeq[Label.Name],
+          quantiles: Seq[QuantileDefinition],
+          maxAge: FiniteDuration,
+          ageBuckets: Summary.AgeBuckets
+      )(f: A => IndexedSeq[String]): G[Summary.Labelled[G, Long, A]] = fk(
+        self.createAndRegisterLabelledLongSummary(
+          prefix,
+          name,
+          help,
+          commonLabels,
+          labelNames,
+          quantiles,
+          maxAge,
+          ageBuckets
+        )(f)
+      ).map(_.mapK(fk))
+
       override protected[prometheus4cats] def createAndRegisterInfo(
           prefix: Option[Metric.Prefix],
           name: Info.Name,
           help: Metric.Help
       ): G[Info[G, Map[Label.Name, String]]] = fk(self.createAndRegisterInfo(prefix, name, help)).map(_.mapK(fk))
+
     }
 }

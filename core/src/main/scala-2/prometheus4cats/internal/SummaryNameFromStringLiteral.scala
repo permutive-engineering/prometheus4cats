@@ -16,19 +16,31 @@
 
 package prometheus4cats.internal
 
+import prometheus4cats.Summary
+
 import scala.reflect.macros.blackbox
 
-private[prometheus4cats] trait MacroUtils {
+trait SummaryNameFromStringLiteral {
 
-  val c: blackbox.Context
+  def apply(t: String): Summary.Name =
+    macro SummaryNameMacros.fromStringLiteral
 
-  import c.universe._
+  implicit def fromStringLiteral(t: String): Summary.Name =
+    macro SummaryNameMacros.fromStringLiteral
 
-  def abort(msg: String) = c.abort(c.enclosingPosition, msg)
+}
 
-  def literal[A](t: c.Expr[A], or: String): A = t.tree match {
-    case Literal(Constant(value)) => value.asInstanceOf[A]
-    case _ => abort(s"compile-time refinement only works with literals, use $or instead")
+private[prometheus4cats] class SummaryNameMacros(val c: blackbox.Context) extends MacroUtils {
+
+  def fromStringLiteral(t: c.Expr[String]): c.Expr[Summary.Name] = {
+    val string: String = literal(t, or = "Summary.Name.from({string})")
+
+    Summary.Name
+      .from(string)
+      .fold(
+        abort,
+        _ => c.universe.reify(Summary.Name.from(t.splice).toOption.get)
+      )
   }
 
 }

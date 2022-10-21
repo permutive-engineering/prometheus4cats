@@ -21,6 +21,8 @@ import cats.data.NonEmptySeq
 import cats.syntax.functor._
 import prometheus4cats._
 
+import scala.concurrent.duration.FiniteDuration
+
 trait DoubleMetricRegistry[F[_]] extends MetricRegistry[F] {
   implicit protected val F: Functor[F]
 
@@ -78,4 +80,31 @@ trait DoubleMetricRegistry[F[_]] extends MetricRegistry[F] {
       .map(
         _.contramap(_.toDouble)
       )
+
+  override protected[prometheus4cats] def createAndRegisterLongSummary(
+      prefix: Option[Metric.Prefix],
+      name: Summary.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      quantiles: Seq[Summary.QuantileDefinition],
+      maxAge: FiniteDuration,
+      ageBuckets: Summary.AgeBuckets
+  ): F[Summary[F, Long]] =
+    createAndRegisterDoubleSummary(prefix, name, help, commonLabels, quantiles, maxAge, ageBuckets).map(
+      _.contramap(_.toDouble)
+    )
+
+  override protected[prometheus4cats] def createAndRegisterLabelledLongSummary[A](
+      prefix: Option[Metric.Prefix],
+      name: Summary.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name],
+      quantiles: Seq[Summary.QuantileDefinition],
+      maxAge: FiniteDuration,
+      ageBuckets: Summary.AgeBuckets
+  )(f: A => IndexedSeq[String]): F[Summary.Labelled[F, Long, A]] =
+    createAndRegisterLabelledDoubleSummary(prefix, name, help, commonLabels, labelNames, quantiles, maxAge, ageBuckets)(
+      f
+    ).map(_.contramap(_.toDouble))
 }

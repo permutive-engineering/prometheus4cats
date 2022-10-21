@@ -21,9 +21,14 @@ import cats.effect.IO
 import cats.effect.kernel.Resource
 import munit.CatsEffectSuite
 import org.scalacheck.effect.PropF._
+import org.scalacheck.{Arbitrary, Gen}
 import prometheus4cats._
 
 trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffectSuite =>
+  implicit val quantileValuesArb: Arbitrary[Map[Summary.Quantile, Double]] = Arbitrary(
+    Gen.mapOf[Summary.Quantile, Double](Arbitrary.arbitrary[(Summary.Quantile, Double)])
+  )
+
   def callbackRegistryResource(state: State): Resource[IO, CallbackRegistry[IO]]
 
   test("register and set a counter") {
@@ -71,14 +76,9 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
                 commonLabels,
                 labels.keys.toIndexedSeq,
                 IO(value -> labels)
-              )(_.values.toIndexedSeq) >> getCounterValue(
-              state,
-              prefix,
-              name,
-              help,
-              commonLabels,
-              labels
-            ).map(res => if (value >= 0) assertEquals(res, Some(value)) else assertEquals(res, Some(0.0)))
+              )(_.values.toIndexedSeq) >> getCounterValue(state, prefix, name, help, commonLabels, labels).map(res =>
+              if (value >= 0) assertEquals(res, Some(value)) else assertEquals(res, Some(0.0))
+            )
           }
         }
     }
@@ -128,14 +128,9 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
                 commonLabels,
                 labels.keys.toIndexedSeq,
                 IO(value -> labels)
-              )(_.values.toIndexedSeq) >> getGaugeValue(
-              state,
-              prefix,
-              name,
-              help,
-              commonLabels,
-              labels
-            ).map(assertEquals(_, Some(value)))
+              )(_.values.toIndexedSeq) >> getGaugeValue(state, prefix, name, help, commonLabels, labels).map(
+              assertEquals(_, Some(value))
+            )
           }
         }
     }
@@ -171,14 +166,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
                 commonLabels,
                 buckets,
                 IO(Histogram.Value(sum, bucketValues))
-              ) >> getHistogramValue(
-              state,
-              prefix,
-              name,
-              help,
-              commonLabels,
-              buckets
-            ).map { res =>
+              ) >> getHistogramValue(state, prefix, name, help, commonLabels, buckets).map { res =>
               assertEquals(res, Some(expected))
             }
 
@@ -219,15 +207,71 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
                 labels.keys.toIndexedSeq,
                 buckets,
                 IO(Histogram.Value(sum, bucketValues) -> labels)
-              )(_.values.toIndexedSeq) >> getHistogramValue(
-              state,
-              prefix,
-              name,
-              help,
-              commonLabels,
-              buckets,
-              labels
-            ).map(res => assertEquals(res, Some(expected)))
+              )(_.values.toIndexedSeq) >> getHistogramValue(state, prefix, name, help, commonLabels, buckets, labels)
+              .map(res => assertEquals(res, Some(expected)))
+          }
+        }
+    }
+  }
+
+  test("register and set a summary") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name: Summary.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels,
+          sum: Double,
+          count: Double,
+          quantiles: Map[Summary.Quantile, Double]
+      ) =>
+        stateResource.use { state =>
+          callbackRegistryResource(state).use { reg =>
+            reg
+              .registerDoubleSummaryCallback(
+                prefix,
+                name,
+                help,
+                commonLabels,
+                IO(Summary.Value(count, sum, quantiles.map { case (q, v) => q.value -> v }))
+              ) >> getSummaryValue(state, prefix, name, help, commonLabels, Map.empty).map { case (q, c, s) =>
+              assertEquals(q, Some(quantiles.map { case (q, v) => q.value.toString -> v }))
+              assertEquals(c, Some(count))
+              assertEquals(s, Some(sum))
+            }
+          }
+        }
+    }
+  }
+
+  test("register and set a labelled summary") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name: Summary.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels,
+          labels: Map[Label.Name, String],
+          sum: Double,
+          count: Double,
+          quantiles: Map[Summary.Quantile, Double]
+      ) =>
+        stateResource.use { state =>
+          callbackRegistryResource(state).use { reg =>
+            reg
+              .registerLabelledDoubleSummaryCallback[Map[Label.Name, String]](
+                prefix,
+                name,
+                help,
+                commonLabels,
+                labels.keys.toIndexedSeq,
+                IO((Summary.Value(count, sum, quantiles.map { case (q, v) => q.value -> v }), labels))
+              )(_.values.toIndexedSeq) >> getSummaryValue(state, prefix, name, help, commonLabels, labels).map {
+              case (q, c, s) =>
+                assertEquals(q, Some(quantiles.map { case (q, v) => q.value.toString -> v }))
+                assertEquals(c, Some(count))
+                assertEquals(s, Some(sum))
+            }
           }
         }
     }

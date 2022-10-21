@@ -24,6 +24,8 @@ import org.scalacheck.{Arbitrary, Gen}
 import prometheus4cats.Metric.CommonLabels
 import prometheus4cats._
 
+import scala.concurrent.duration._
+
 trait RegistrySuite[State] extends ScalaCheckEffectSuite {
   self: CatsEffectSuite =>
 
@@ -47,19 +49,38 @@ trait RegistrySuite[State] extends ScalaCheckEffectSuite {
 
   implicit val histogramNameArb: Arbitrary[Histogram.Name] = niceStringArb(s => Histogram.Name.from(s))
 
+  implicit val summaryNameArb: Arbitrary[Summary.Name] = niceStringArb(s => Summary.Name.from(s))
+
+  implicit val maxAgeArb: Arbitrary[Summary.AgeBuckets] = Arbitrary(
+    Gen.posNum[Int].flatMap(i => Gen.oneOf(Summary.AgeBuckets.from(i).toOption))
+  )
+
+  implicit val quantileArb: Arbitrary[Summary.Quantile] = Arbitrary(
+    Gen.choose(0.0, 1.0).flatMap(d => Gen.oneOf(Summary.Quantile.from(d).toOption))
+  )
+
+  implicit val errorArb: Arbitrary[Summary.AllowedError] = Arbitrary(
+    Gen.choose(0.0, 1.0).flatMap(d => Gen.oneOf(Summary.AllowedError.from(d).toOption))
+  )
+
+  implicit val quantileDefinitionArb: Arbitrary[Summary.QuantileDefinition] = Arbitrary(for {
+    q <- quantileArb.arbitrary
+    e <- errorArb.arbitrary
+  } yield Summary.QuantileDefinition(q, e))
+
   implicit val helpArb: Arbitrary[Metric.Help] = niceStringArb(Metric.Help.from)
 
   implicit val labelArb: Arbitrary[Label.Name] = niceStringArb(Label.Name.from)
 
-  implicit val labelMapArb: Arbitrary[Map[Label.Name, String]] = Arbitrary(
-    for {
-      size <- Gen.choose(0, 10)
-      map <- Gen.mapOfN(size, Arbitrary.arbitrary[(Label.Name, String)])
-    } yield map
-  )
+  implicit val labelMapArb: Arbitrary[Map[Label.Name, String]] = Arbitrary(for {
+    size <- Gen.choose(0, 10)
+    map <- Gen.mapOfN(size, Arbitrary.arbitrary[(Label.Name, String)])
+  } yield map)
 
   implicit val commonLabelsArb: Arbitrary[Metric.CommonLabels] =
     Arbitrary(labelMapArb.arbitrary.flatMap(map => Gen.oneOf(CommonLabels.from(map).toOption)))
+
+  implicit val posFiniteDurationArb: Arbitrary[FiniteDuration] = Arbitrary(Gen.posNum[Long].map(_.nanos))
 
   def getCounterValue(
       state: State,
@@ -88,4 +109,13 @@ trait RegistrySuite[State] extends ScalaCheckEffectSuite {
       buckets: NonEmptySeq[Double],
       extraLabels: Map[Label.Name, String] = Map.empty
   ): IO[Option[Map[String, Double]]]
+
+  def getSummaryValue(
+      state: State,
+      prefix: Option[Metric.Prefix],
+      name: Summary.Name,
+      help: Metric.Help,
+      commonLabels: CommonLabels,
+      extraLabels: Map[Label.Name, String]
+  ): IO[(Option[Map[String, Double]], Option[Double], Option[Double])]
 }

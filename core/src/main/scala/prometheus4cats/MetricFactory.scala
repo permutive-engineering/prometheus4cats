@@ -18,8 +18,9 @@ package prometheus4cats
 
 import cats.{Applicative, Functor, ~>}
 import prometheus4cats.Metric.CommonLabels
-import prometheus4cats.internal.histogram.BucketDsl
 import prometheus4cats.internal._
+import prometheus4cats.internal.histogram.BucketDsl
+import prometheus4cats.internal.summary.SummaryDsl
 
 sealed abstract class MetricFactory[F[_]](
     val metricRegistry: MetricRegistry[F],
@@ -160,6 +161,58 @@ sealed abstract class MetricFactory[F[_]](
                 )(f)
             }
           )
+        )
+      )
+    )
+
+  type SummaryDslLambda[A] = HelpStep[SummaryDsl.Base[F, A]]
+
+  def summary(name: Summary.Name): TypeStep[SummaryDslLambda] =
+    new TypeStep[SummaryDslLambda](
+      new HelpStep(help =>
+        new SummaryDsl[F, Long](
+          makeSummary = (quantiles, maxAge, ageBuckets) =>
+            metricRegistry
+              .createAndRegisterLongSummary(prefix, name, help, commonLabels, quantiles, maxAge, ageBuckets),
+          makeLabelledSummary = (quantiles, maxAge, ageBuckets) =>
+            new LabelledMetricPartiallyApplied[F, Long, Summary.Labelled] {
+              override def apply[B](
+                  labels: IndexedSeq[Label.Name]
+              )(f: B => IndexedSeq[String]): F[Summary.Labelled[F, Long, B]] =
+                metricRegistry.createAndRegisterLabelledLongSummary(
+                  prefix,
+                  name,
+                  help,
+                  commonLabels,
+                  labels,
+                  quantiles,
+                  maxAge,
+                  ageBuckets
+                )(f)
+            }
+        )
+      ),
+      new HelpStep(help =>
+        new SummaryDsl[F, Double](
+          makeSummary = (quantiles, maxAge, ageBuckets) =>
+            metricRegistry
+              .createAndRegisterDoubleSummary(prefix, name, help, commonLabels, quantiles, maxAge, ageBuckets),
+          makeLabelledSummary = (quantiles, maxAge, ageBuckets) =>
+            new LabelledMetricPartiallyApplied[F, Double, Summary.Labelled] {
+              override def apply[B](
+                  labels: IndexedSeq[Label.Name]
+              )(f: B => IndexedSeq[String]): F[Summary.Labelled[F, Double, B]] =
+                metricRegistry.createAndRegisterLabelledDoubleSummary(
+                  prefix,
+                  name,
+                  help,
+                  commonLabels,
+                  labels,
+                  quantiles,
+                  maxAge,
+                  ageBuckets
+                )(f)
+            }
         )
       )
     )
@@ -403,6 +456,87 @@ object MetricFactory {
                     )
               }
             )
+          )
+        )
+      )
+
+    type SummaryCallbackDsl[A] =
+      HelpStep[SummaryDsl.WithCallbacks[F, A, Summary.Value[A]]]
+
+    override def summary(name: Summary.Name): TypeStep[SummaryCallbackDsl] =
+      new TypeStep[SummaryCallbackDsl](
+        new HelpStep(help =>
+          new SummaryDsl.WithCallbacks[F, Long, Summary.Value[Long]](
+            makeSummary = (quantiles, maxAge, ageBuckets) =>
+              metricRegistry
+                .createAndRegisterLongSummary(prefix, name, help, commonLabels, quantiles, maxAge, ageBuckets),
+            makeSummaryCallback = callbackRegistry.registerLongSummaryCallback(prefix, name, help, commonLabels, _),
+            makeLabelledSummary = (quantiles, maxAge, ageBuckets) =>
+              new LabelledMetricPartiallyApplied[F, Long, Summary.Labelled] {
+                override def apply[B](
+                    labels: IndexedSeq[Label.Name]
+                )(f: B => IndexedSeq[String]): F[Summary.Labelled[F, Long, B]] =
+                  metricRegistry.createAndRegisterLabelledLongSummary(
+                    prefix,
+                    name,
+                    help,
+                    commonLabels,
+                    labels,
+                    quantiles,
+                    maxAge,
+                    ageBuckets
+                  )(f)
+              },
+            makeLabelledSummaryCallback = new LabelledCallbackPartiallyApplied[F, Summary.Value[Long]] {
+              override def apply[B](labels: IndexedSeq[Label.Name], callback: F[(Summary.Value[Long], B)])(
+                  f: B => IndexedSeq[String]
+              ): F[Unit] =
+                callbackRegistry.registerLabelledLongSummaryCallback(
+                  prefix,
+                  name,
+                  help,
+                  commonLabels,
+                  labels,
+                  callback
+                )(f)
+            }
+          )
+        ),
+        new HelpStep(help =>
+          new SummaryDsl.WithCallbacks[F, Double, Summary.Value[Double]](
+            makeSummary = (quantiles, maxAge, ageBuckets) =>
+              metricRegistry
+                .createAndRegisterDoubleSummary(prefix, name, help, commonLabels, quantiles, maxAge, ageBuckets),
+            makeSummaryCallback = callbackRegistry.registerDoubleSummaryCallback(prefix, name, help, commonLabels, _),
+            makeLabelledSummary = (quantiles, maxAge, ageBuckets) =>
+              new LabelledMetricPartiallyApplied[F, Double, Summary.Labelled] {
+                override def apply[B](
+                    labels: IndexedSeq[Label.Name]
+                )(f: B => IndexedSeq[String]): F[Summary.Labelled[F, Double, B]] =
+                  metricRegistry.createAndRegisterLabelledDoubleSummary(
+                    prefix,
+                    name,
+                    help,
+                    commonLabels,
+                    labels,
+                    quantiles,
+                    maxAge,
+                    ageBuckets
+                  )(f)
+              },
+            makeLabelledSummaryCallback = new LabelledCallbackPartiallyApplied[F, Summary.Value[Double]] {
+              override def apply[B](labels: IndexedSeq[Label.Name], callback: F[(Summary.Value[Double], B)])(
+                  f: B => IndexedSeq[String]
+              ): F[Unit] =
+                callbackRegistry.registerLabelledDoubleSummaryCallback(
+                  prefix,
+                  name,
+                  help,
+                  commonLabels,
+                  labels,
+                  callback
+                )(f)
+            }
           )
         )
       )

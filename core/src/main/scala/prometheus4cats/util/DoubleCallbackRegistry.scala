@@ -105,4 +105,34 @@ trait DoubleCallbackRegistry[F[_]] extends CallbackRegistry[F] {
     buckets.map(_.toDouble),
     callback.map { case (v, a) => v.map(_.toDouble) -> a }
   )(f)
+
+  override protected[prometheus4cats] def registerLongSummaryCallback(
+      prefix: Option[Metric.Prefix],
+      name: Summary.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      callback: F[Summary.Value[Long]]
+  ): F[Unit] = registerDoubleSummaryCallback(
+    prefix,
+    name,
+    help,
+    commonLabels,
+    callback.map(_.map(_.toDouble))
+  )
+
+  override protected[prometheus4cats] def registerLabelledLongSummaryCallback[A](
+      prefix: Option[Metric.Prefix],
+      name: Summary.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name],
+      callback: F[(Summary.Value[Long], A)]
+  )(f: A => IndexedSeq[String]): F[Unit] = registerLabelledDoubleSummaryCallback(
+    prefix,
+    name,
+    help,
+    commonLabels,
+    labelNames,
+    callback.map { case (v, a) => v.map(_.toDouble) -> a }
+  )(f)
 }

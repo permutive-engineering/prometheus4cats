@@ -35,10 +35,12 @@ import io.prometheus.client.{
   CounterMetricFamily,
   GaugeMetricFamily,
   SimpleCollector,
+  SummaryMetricFamily,
   Counter => PCounter,
   Gauge => PGauge,
   Histogram => PHistogram,
-  Info => PInfo
+  Info => PInfo,
+  Summary => PSummary
 }
 import prometheus4cats.javasimpleclient.internal.Utils
 import prometheus4cats.javasimpleclient.models.MetricType
@@ -327,7 +329,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       prefix,
       name,
       help,
-      labelNames ++ commonLabels.value.keys.toIndexedSeq
+      labelNames ++ commonLabelNames
     ).map { histogram =>
       Histogram.Labelled.make[F, Double, A](_observe = { (d: Double, labels: A) =>
         Utils.modifyMetric[F, Histogram.Name, PHistogram.Child](
@@ -341,24 +343,122 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     }
   }
 
-  private def register[A: Show](
+  override protected[prometheus4cats] def createAndRegisterDoubleSummary(
+      prefix: Option[Metric.Prefix],
+      name: Summary.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      quantiles: Seq[Summary.QuantileDefinition],
+      maxAge: FiniteDuration,
+      ageBuckets: Summary.AgeBuckets
+  ): F[Summary[F, Double]] = {
+
+    val commonLabelNames = commonLabels.value.keys.toIndexedSeq
+    val commonLabelValues = commonLabels.value.values.toIndexedSeq
+
+    configureBuilderOrRetrieve(
+      quantiles.foldLeft(PSummary.build().ageBuckets(ageBuckets.value).maxAgeSeconds(maxAge.toSeconds))((b, q) =>
+        b.quantile(q.value.value, q.error.value)
+      ),
+      MetricType.Summary,
+      prefix,
+      name,
+      help,
+      commonLabelNames
+    ).map { summary =>
+      Summary.make[F, Double](d =>
+        Utils.modifyMetric[F, Summary.Name, PSummary.Child](
+          summary,
+          name,
+          commonLabelNames,
+          commonLabelValues,
+          _.observe(d)
+        )
+      )
+    }
+  }
+
+  override protected[prometheus4cats] def createAndRegisterLabelledDoubleSummary[A](
+      prefix: Option[Metric.Prefix],
+      name: Summary.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name],
+      quantiles: Seq[Summary.QuantileDefinition],
+      maxAge: FiniteDuration,
+      ageBuckets: Summary.AgeBuckets
+  )(f: A => IndexedSeq[String]): F[Summary.Labelled[F, Double, A]] = {
+
+    val commonLabelNames = commonLabels.value.keys.toIndexedSeq
+    val commonLabelValues = commonLabels.value.values.toIndexedSeq
+
+    configureBuilderOrRetrieve(
+      quantiles.foldLeft(PSummary.build().ageBuckets(ageBuckets.value).maxAgeSeconds(maxAge.toSeconds))((b, q) =>
+        b.quantile(q.value.value, q.error.value)
+      ),
+      MetricType.Summary,
+      prefix,
+      name,
+      help,
+      labelNames ++ commonLabelNames
+    ).map { summary =>
+      Summary.Labelled.make[F, Double, A] { case (d, labels) =>
+        Utils.modifyMetric[F, Summary.Name, PSummary.Child](
+          summary,
+          name,
+          labelNames ++ commonLabelNames,
+          f(labels) ++ commonLabelValues,
+          _.observe(d)
+        )
+      }
+    }
+  }
+
+  // The java library always appends "_info" to the metric name, so we need a special `Show` instance
+  implicit private val infoNameShow: Show[Info.Name] = Show.show(_.value.replace("_info", ""))
+
+  override protected[prometheus4cats] def createAndRegisterInfo(
+      prefix: Option[Metric.Prefix],
+      name: Info.Name,
+      help: Metric.Help
+  ): F[Info[F, Map[Label.Name, String]]] =
+    configureBuilderOrRetrieve(
+      PInfo.build(),
+      MetricType.Info,
+      prefix,
+      name,
+      help,
+      IndexedSeq.empty
+    ).map { info =>
+      Info.make[F, Map[Label.Name, String]](labels =>
+        Utils.modifyMetric[F, Info.Name, PInfo.Child](
+          info,
+          name,
+          IndexedSeq.empty,
+          IndexedSeq.empty,
+          pinfo => pinfo.info(labels.map { case (n, v) => n.value -> v }.asJava)
+        )
+      )
+    }
+
+  private def register[A: Show, B](
       metricType: MetricType,
       prefix: Option[Metric.Prefix],
       name: A,
       commonLabels: Metric.CommonLabels,
-      callback: F[Double]
+      callback: F[B]
   )(
-      makeFamily: (String, Double) => Collector.MetricFamilySamples,
-      makeLabelledFamily: (String, util.List[String], util.List[String], Double) => Collector.MetricFamilySamples
+      makeFamily: (String, B) => Collector.MetricFamilySamples,
+      makeLabelledFamily: (String, util.List[String], util.List[String], B) => Collector.MetricFamilySamples
   ): F[Unit] = {
     lazy val stringName = NameUtils.makeName(prefix, name)
 
     lazy val commonLabelNames: util.List[String] = commonLabels.value.keys.map(_.value).toList.asJava
     lazy val commonLabelValues: util.List[String] = commonLabels.value.values.toList.asJava
 
-    def runCallback: Option[Double] =
+    def runCallback: Option[B] =
       dispatcher.unsafeRunSync(callback.timeout(callbackTimeout).map(Option(_)).handleErrorWith { th =>
-        Logger[F].warn(th)(s"Could not read metric value for $stringName").as(Option.empty[Double])
+        Logger[F].warn(th)(s"Could not read metric value for $stringName").as(Option.empty[B])
       })
 
     lazy val collector = new Collector {
@@ -378,16 +478,16 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     registerCallback(metricType, prefix, name, commonLabels.value.keys.toIndexedSeq, collector)
   }
 
-  private def registerLabelled[A: Show, B](
+  private def registerLabelled[A: Show, B, C](
       metricType: MetricType,
       prefix: Option[Metric.Prefix],
       name: A,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
-      callback: F[(Double, B)]
+      callback: F[(B, C)]
   )(
-      f: B => IndexedSeq[String],
-      makeLabelledFamily: (String, util.List[String], util.List[String], Double) => Collector.MetricFamilySamples
+      f: C => IndexedSeq[String],
+      makeLabelledFamily: (String, util.List[String], util.List[String], B) => Collector.MetricFamilySamples
   ): F[Unit] = {
     lazy val stringName = NameUtils.makeName(prefix, name)
 
@@ -395,9 +495,9 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       (labelNames ++ commonLabels.value.keys.toIndexedSeq).map(_.value).asJava
     lazy val commonLabelValues: IndexedSeq[String] = commonLabels.value.values.toIndexedSeq
 
-    def runCallback: Option[(Double, B)] =
+    def runCallback: Option[(B, C)] =
       dispatcher.unsafeRunSync(callback.timeout(callbackTimeout).map(Option(_)).handleErrorWith { th =>
-        Logger[F].warn(th)(s"Could not read metric value for $stringName").as(Option.empty[(Double, B)])
+        Logger[F].warn(th)(s"Could not read metric value for $stringName").as(Option.empty[(B, C)])
       })
 
     lazy val collector = new Collector {
@@ -595,32 +695,62 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     registerCallback(MetricType.Histogram, prefix, name, labelNames ++ commonLabels.value.keys.toIndexedSeq, collector)
   }
 
-  // The java library always appends "_info" to the metric name, so we need a special `Show` instance
-  implicit private val infoNameShow: Show[Info.Name] = Show.show(_.value.replace("_info", ""))
-
-  override protected[prometheus4cats] def createAndRegisterInfo(
+  override protected[prometheus4cats] def registerDoubleSummaryCallback(
       prefix: Option[Metric.Prefix],
-      name: Info.Name,
-      help: Metric.Help
-  ): F[Info[F, Map[Label.Name, String]]] =
-    configureBuilderOrRetrieve(
-      PInfo.build(),
-      MetricType.Info,
-      prefix,
-      name,
-      help,
-      IndexedSeq.empty
-    ).map { info =>
-      Info.make[F, Map[Label.Name, String]](labels =>
-        Utils.modifyMetric[F, Info.Name, PInfo.Child](
-          info,
-          name,
-          IndexedSeq.empty,
-          IndexedSeq.empty,
-          pinfo => pinfo.info(labels.map { case (n, v) => n.value -> v }.asJava)
-        )
-      )
-    }
+      name: Summary.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      callback: F[Summary.Value[Double]]
+  ): F[Unit] =
+    register(MetricType.Summary, prefix, name, commonLabels, callback)(
+      (n, v) =>
+        if (v.quantiles.isEmpty) new SummaryMetricFamily(n, help.value, v.count, v.sum)
+        else
+          new SummaryMetricFamily(
+            n,
+            help.value,
+            List.empty[String].asJava,
+            v.quantiles.keys.toList.map(_.asInstanceOf[java.lang.Double]).asJava
+          )
+            .addMetric(
+              List.empty[String].asJava,
+              v.count,
+              v.sum,
+              v.quantiles.values.toList.map(_.asInstanceOf[java.lang.Double]).asJava
+            ),
+      (n, lns, lvs, v) =>
+        if (v.quantiles.isEmpty) new SummaryMetricFamily(n, help.value, lns).addMetric(lvs, v.count, v.sum)
+        else
+          new SummaryMetricFamily(
+            n,
+            help.value,
+            lns,
+            v.quantiles.keys.toList.map(_.asInstanceOf[java.lang.Double]).asJava
+          )
+            .addMetric(lvs, v.count, v.sum, v.quantiles.values.toList.map(_.asInstanceOf[java.lang.Double]).asJava)
+    )
+
+  override protected[prometheus4cats] def registerLabelledDoubleSummaryCallback[A](
+      prefix: Option[Metric.Prefix],
+      name: Summary.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name],
+      callback: F[(Summary.Value[Double], A)]
+  )(f: A => IndexedSeq[String]): F[Unit] =
+    registerLabelled(MetricType.Summary, prefix, name, commonLabels, labelNames, callback)(
+      f,
+      (n, lns, lvs, v) =>
+        if (v.quantiles.isEmpty) new SummaryMetricFamily(n, help.value, lns).addMetric(lvs, v.count, v.sum)
+        else
+          new SummaryMetricFamily(
+            n,
+            help.value,
+            lns,
+            v.quantiles.keys.toList.map(_.asInstanceOf[java.lang.Double]).asJava
+          )
+            .addMetric(lvs, v.count, v.sum, v.quantiles.values.toList.map(_.asInstanceOf[java.lang.Double]).asJava)
+    )
 }
 
 object JavaMetricRegistry {
