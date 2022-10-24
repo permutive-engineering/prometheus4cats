@@ -57,7 +57,10 @@ class JavaMetricRegistrySuite
   ): Option[Double] = {
     val n = NameUtils.makeName(prefix, name)
 
-    val allLabels = (commonLabels.value ++ extraLabels).map { case (n, v) => n.value -> v }
+    val allLabels = (extraLabels ++ commonLabels.value).map { case (n, v) => n.value -> v }
+
+    while (state.metricFamilySamples().asScala.isEmpty)
+      Thread.sleep(10)
 
     // the prometheus collector registry returns 0.0 when calling `getSampleValue` even if the metric is missing,
     // despite what their Javadoc says
