@@ -20,16 +20,14 @@ import java.util
 
 import cats.data.NonEmptySeq
 import cats.effect.kernel._
-import cats.effect.syntax.temporal._
 import cats.effect.std.{Dispatcher, Semaphore}
 import cats.syntax.applicativeError._
 import cats.syntax.flatMap._
 import cats.syntax.foldable._
 import cats.syntax.functor._
 import cats.syntax.show._
-import cats.syntax.apply._
 import cats.{Applicative, ApplicativeThrow, Functor, Show}
-import io.prometheus.client.Collector.{MetricFamilySamples, Type}
+import io.prometheus.client.Collector.MetricFamilySamples
 import io.prometheus.client.{
   Collector,
   CollectorRegistry,
@@ -43,22 +41,19 @@ import io.prometheus.client.{
   Info => PInfo,
   Summary => PSummary
 }
-import prometheus4cats.javasimpleclient.internal.Utils
+import org.typelevel.log4cats.Logger
+import prometheus4cats._
+import prometheus4cats.javasimpleclient.internal.{HistogramUtils, MetricCollectionProcessor, Utils}
 import prometheus4cats.javasimpleclient.models.MetricType
 import prometheus4cats.util.{DoubleCallbackRegistry, DoubleMetricRegistry, NameUtils}
-import prometheus4cats._
-import org.typelevel.log4cats.Logger
-import prometheus4cats.MetricCollection.Value
-import alleycats.std.set._
 
-import scala.collection.mutable.ListBuffer
-import java.util.concurrent.TimeoutException
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 
 class JavaMetricRegistry[F[_]: Async: Logger] private (
     registry: CollectorRegistry,
     ref: Ref[F, State],
+    metricCollectionCollector: MetricCollectionProcessor[F],
     sem: Semaphore[F],
     dispatcher: Dispatcher[F],
     callbackTimeout: FiniteDuration
@@ -72,26 +67,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
   }
 
   private def timeoutCallback[A](fa: F[A], onError: A, supplementalError: String): A =
-    dispatcher.unsafeRunSync(fa.timeout(callbackTimeout).handleErrorWith {
-      case th: TimeoutException =>
-        Logger[F]
-          .warn(th)(
-            s"Timed out running callback after $callbackTimeout.\n" +
-              "This may be due to a callback having been registered that performs some long running calculation which blocks\n" +
-              "Please review your code or raise an issue or pull request with the library from which this callback was registered\n"
-              + supplementalError
-          )
-          .as(onError)
-      case th =>
-        Logger[F]
-          .warn(th)(
-            s"Callback failed with the following exception.\n" +
-              "Callbacks that can routinely throw exceptions are strongly discouraged as this can cause performance problems when polling metrics\n" +
-              "Please review your code or raise an issue or pull request with the library from which this callback was registered\n"
-              + supplementalError
-          )
-          .as(onError)
-    })
+    Utils.timeoutCallback(dispatcher, callbackTimeout, fa, onError, supplementalError)
 
   private def configureBuilderOrRetrieve[A: Show, B <: SimpleCollector.Builder[B, C], C <: SimpleCollector[_]](
       builder: SimpleCollector.Builder[B, C],
@@ -586,60 +562,6 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       (n, lns, lvs, v) => new GaugeMetricFamily(n, help.value, lns).addMetric(lvs, v)
     )
 
-  private def histogramSamples(
-      prefix: Option[Metric.Prefix],
-      name: Histogram.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels,
-      labelNames: IndexedSeq[Label.Name],
-      buckets: NonEmptySeq[Double]
-  ): Seq[(Histogram.Value[Double], IndexedSeq[String])] => Collector.MetricFamilySamples = {
-    lazy val stringName = NameUtils.makeName(prefix, name)
-
-    lazy val allLabelNames = labelNames.map(_.value).toList ++ commonLabels.value.keys.map(_.value).toList
-
-    lazy val labelNamesJava: util.List[String] = allLabelNames.asJava
-    lazy val labelNamesWithLe: util.List[String] = ("le" :: allLabelNames).asJava
-    lazy val commonLabelValues = commonLabels.value.values.toList
-
-    lazy val bucketsWithInf = buckets.map(Collector.doubleToGoString) :+ "+Inf"
-    values => {
-      val metrics = values.flatMap { case (value, labelVs) =>
-        val labelValues = labelVs.toList ++ commonLabelValues
-        val labelValuesJava = labelValues.asJava
-
-        val bucketSamples = bucketsWithInf.zipWith(value.bucketValues) { (bucketString, bucketValue) =>
-          val allLabelValues = bucketString :: labelValues
-
-          new MetricFamilySamples.Sample(
-            s"${stringName}_bucket",
-            labelNamesWithLe,
-            allLabelValues.asJava,
-            bucketValue
-          )
-        }
-
-        bucketSamples.toSeq.toIndexedSeq ++ IndexedSeq(
-          new MetricFamilySamples.Sample(
-            s"${stringName}_count",
-            labelNamesJava,
-            labelValuesJava,
-            value.bucketValues.last
-          ),
-          new MetricFamilySamples.Sample(
-            s"${stringName}_sum",
-            labelNamesJava,
-            labelValuesJava,
-            value.sum
-          )
-        )
-
-      }
-
-      new MetricFamilySamples(stringName, "", Type.HISTOGRAM, help.value, metrics.asJava)
-    }
-  }
-
   override protected[prometheus4cats] def registerDoubleHistogramCallback(
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
@@ -653,7 +575,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     def runCallback: Option[Histogram.Value[Double]] =
       timeoutCallback(callback.map(Option(_)), None, s"Affected metric: '$stringName'")
 
-    val makeSamples = histogramSamples(prefix, name, help, commonLabels, IndexedSeq.empty, buckets)
+    val makeSamples = HistogramUtils.histogramSamples(prefix, name, help, commonLabels.value, IndexedSeq.empty, buckets)
 
     val collector = new Collector {
       override def collect(): util.List[MetricFamilySamples] =
@@ -680,7 +602,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     def runCallback: Option[(Histogram.Value[Double], A)] =
       timeoutCallback(callback.map(Option(_)), None, s"Affected metric: '$stringName'")
 
-    val makeSamples = histogramSamples(prefix, name, help, commonLabels, labelNames, buckets)
+    val makeSamples = HistogramUtils.histogramSamples(prefix, name, help, commonLabels.value, labelNames, buckets)
 
     val collector = new Collector {
       override def collect(): util.List[MetricFamilySamples] =
@@ -754,208 +676,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       prefix: Option[Metric.Prefix],
       commonLabels: Metric.CommonLabels,
       callback: F[MetricCollection]
-  ): F[Unit] = {
-    def makeName[A: Show](n: A): String = NameUtils.makeName(prefix, n)
-
-    val counterToSample: ((Counter.Name, IndexedSeq[Label.Name]), Seq[MetricCollection.Value.Counter]) => Option[
-      MetricFamilySamples
-    ] = { case ((name, labelNames), values) =>
-      lazy val allLabelNames = (labelNames ++ commonLabels.value.keys).map(_.value).asJava
-
-      values.lastOption.map { last =>
-        values.foldLeft(new CounterMetricFamily(makeName(name), last.help.value, allLabelNames)) { (sample, value) =>
-          val v = value match {
-            case v: MetricCollection.Value.LongCounter => v.value.toDouble
-            case v: MetricCollection.Value.DoubleCounter => v.value
-          }
-
-          sample.addMetric((value.labelValues.toList ++ commonLabels.value.values).asJava, v)
-        }
-      }
-    }
-
-    val gaugeToSample: ((Gauge.Name, IndexedSeq[Label.Name]), Seq[MetricCollection.Value.Gauge]) => Option[
-      MetricFamilySamples
-    ] = { case ((name, labelNames), values) =>
-      lazy val allLabelNames = (labelNames ++ commonLabels.value.keys).map(_.value).asJava
-
-      values.lastOption.map { last =>
-        values.foldLeft(new GaugeMetricFamily(makeName(name), last.help.value, allLabelNames)) { (sample, value) =>
-          val v = value match {
-            case v: MetricCollection.Value.LongGauge => v.value.toDouble
-            case v: MetricCollection.Value.DoubleGauge => v.value
-          }
-
-          sample.addMetric((value.labelValues.toList ++ commonLabels.value.values).asJava, v)
-        }
-      }
-    }
-
-    val histogramToSample: ((Histogram.Name, IndexedSeq[Label.Name]), Seq[MetricCollection.Value.Histogram]) => Option[
-      MetricFamilySamples
-    ] = { case ((name, labelNames), values) =>
-      values.lastOption.map { last =>
-        val buckets = last match {
-          case v: Value.LongHistogram => v.buckets.map(_.toDouble)
-          case v: Value.DoubleHistogram => v.buckets
-        }
-
-        histogramSamples(prefix, name, last.help, commonLabels, labelNames, buckets)(values.map {
-          case v: Value.LongHistogram => v.value.map(_.toDouble) -> v.labelValues
-          case v: Value.DoubleHistogram => v.value -> v.labelValues
-        })
-      }
-    }
-
-    val summaryToSample: ((Summary.Name, IndexedSeq[Label.Name]), Seq[MetricCollection.Value.Summary]) => Option[
-      MetricFamilySamples
-    ] = { case ((name, labelNames), values) =>
-      lazy val allLabelNames = (labelNames ++ commonLabels.value.keys).map(_.value).asJava
-
-      values.lastOption.map { last =>
-        val quantiles = last match {
-          case v: MetricCollection.Value.LongSummary =>
-            v.value.quantiles.keys.toList.map(_.asInstanceOf[java.lang.Double]).asJava
-          case v: MetricCollection.Value.DoubleSummary =>
-            v.value.quantiles.keys.toList.map(_.asInstanceOf[java.lang.Double]).asJava
-        }
-
-        if (quantiles.isEmpty)
-          values.foldLeft(new SummaryMetricFamily(makeName(name), last.help.value, allLabelNames)) { (sample, value) =>
-            value match {
-              case v: MetricCollection.Value.LongSummary =>
-                sample.addMetric(
-                  (value.labelValues.toList ++ commonLabels.value.values).asJava,
-                  v.value.count.toDouble,
-                  v.value.sum.toDouble
-                )
-              case v: MetricCollection.Value.DoubleSummary =>
-                sample.addMetric(
-                  (value.labelValues.toList ++ commonLabels.value.values).asJava,
-                  v.value.count,
-                  v.value.sum
-                )
-            }
-
-          }
-        else
-          values.foldLeft(new SummaryMetricFamily(makeName(name), last.help.value, allLabelNames, quantiles)) {
-            (sample, value) =>
-              value match {
-                case v: MetricCollection.Value.LongSummary =>
-                  sample.addMetric(
-                    (value.labelValues.toList ++ commonLabels.value.values).asJava,
-                    v.value.count.toDouble,
-                    v.value.sum.toDouble,
-                    v.value.quantiles.values.toList.map(_.toDouble.asInstanceOf[java.lang.Double]).asJava
-                  )
-                case v: MetricCollection.Value.DoubleSummary =>
-                  sample.addMetric(
-                    (value.labelValues.toList ++ commonLabels.value.values).asJava,
-                    v.value.count,
-                    v.value.sum,
-                    v.value.quantiles.values.toList.map(_.asInstanceOf[java.lang.Double]).asJava
-                  )
-              }
-          }
-      }
-    }
-
-    // TODO should this be done in the semaphore?
-    val mapped: F[util.List[MetricFamilySamples]] = (callback, ref.get).flatMapN { (values, state) =>
-      def collectMetrics[A: Show, B](
-          vs: Map[(A, IndexedSeq[Label.Name]), B],
-          f: ((A, IndexedSeq[Label.Name]), B) => Option[MetricFamilySamples]
-      ): (
-          Set[(Option[Metric.Prefix], String)],
-          Set[(Option[Metric.Prefix], String)],
-          Set[(Option[Metric.Prefix], String)],
-          ListBuffer[MetricFamilySamples]
-      ) => (
-          Set[(Option[Metric.Prefix], String)],
-          Set[(Option[Metric.Prefix], String)],
-          Set[(Option[Metric.Prefix], String)],
-          ListBuffer[MetricFamilySamples]
-      ) = { (names, duplicates, registryDuplicates, listBuffer) =>
-        vs.foldLeft(names, duplicates, registryDuplicates, listBuffer) {
-          case ((names, duplicates, registryDuplicates, samples), (x @ (name, _), v)) =>
-            val nameString = name.show
-
-            if (names.contains(prefix -> nameString))
-              (names, duplicates + (prefix -> nameString), registryDuplicates, samples)
-            else if (state.contains(prefix -> nameString))
-              (names, duplicates, registryDuplicates + (prefix -> nameString), samples)
-            else (names + (prefix -> nameString), duplicates, registryDuplicates, samples :++ f(x, v))
-        }
-      }
-
-      val (_, duplicates, registryDuplicates, samples) = List(
-        collectMetrics(values.counters, counterToSample),
-        collectMetrics(values.gauges, gaugeToSample),
-        collectMetrics(values.histograms, histogramToSample),
-        collectMetrics(values.summaries, summaryToSample)
-      ).foldLeft(
-        (
-          Set.empty[(Option[Metric.Prefix], String)],
-          Set.empty[(Option[Metric.Prefix], String)],
-          Set.empty[(Option[Metric.Prefix], String)],
-          ListBuffer.empty[MetricFamilySamples]
-        )
-      ) { case ((names, duplicates, registryDuplicates, samples), f) =>
-        f(names, duplicates, registryDuplicates, samples)
-      }
-
-      lazy val javaSamples = samples.toList.asJava
-
-      if (duplicates.isEmpty && registryDuplicates.isEmpty) Applicative[F].pure(javaSamples)
-      else {
-        lazy val common =
-          "This is due to an implementation detail in the Java Prometheus library that backs the MetricsRegistry you are using,\n" +
-            "which prevents metrics with the same name and different label sets from being added to the registry, despite this being allowed by Prometheus.\n" +
-            "See here for more details: https://github.com/prometheus/client_java/issues/696\n" +
-            "These metrics will likely have been added by a library, so you may have to log an issue or raise a pull request to rectify. A stack trace has been included to help with this.\n"
-
-        lazy val duplicatesInCollection =
-          s"The following metrics with the same name and different labels or type have been discovered in a metric collection callback: '${duplicates
-              .mkString_(",")}'.\n" + common +
-            "Because of this, only the first metric will be taken and the others ignored - this will not prevent your application from functioning.\n\n" +
-            "To mitigate this you can do the following to the metric collection:\n" +
-            "  - modify the metric name to disambiguate metric types and/or label sets\n" +
-            "  - align labels between the two metrics if they are of the same type, so that they both have the same keys,\n" +
-            "    but provide empty values for the labels which are not present on each metric"
-
-        lazy val duplicatesInRegistry =
-          s"The following metrics with the same name and different labels or type are already registered in the metrics registry and therefore have been excluded from the provided collection: '${registryDuplicates
-              .mkString_(",")}'" + common +
-            "Because of this the metric(s) in the given collection will be ignored in favour of those already registered\n" +
-            "To mitigate this, you can do the following to the metrics collection:\n" +
-            "  - modify the metric name to disambiguate metric types and/or label sets\n"
-
-        val colDupErr =
-          if (duplicates.nonEmpty) Logger[F].warn(DuplicateMetricsException(duplicates))(duplicatesInCollection)
-          else Applicative[F].unit
-
-        val regDupErr =
-          if (registryDuplicates.nonEmpty)
-            Logger[F].warn(DuplicateMetricsException(registryDuplicates))(duplicatesInRegistry)
-          else Applicative[F].unit
-
-        colDupErr >> regDupErr.as(javaSamples)
-      }
-
-    }
-
-    val collector = new Collector {
-      override def collect(): util.List[MetricFamilySamples] =
-        timeoutCallback(
-          mapped,
-          List.empty[MetricFamilySamples].asJava,
-          "This originated as a result of metric collection callback."
-        )
-    }
-
-    Sync[F].delay(registry.register(collector))
-  }
+  ): F[Unit] = metricCollectionCollector.register(prefix, commonLabels, callback)
 
 }
 
@@ -975,26 +696,40 @@ object JavaMetricRegistry {
   ): Resource[F, JavaMetricRegistry[F]] = {
     val acquire = for {
       ref <- Ref.of[F, State](Map.empty)
+      collectionCallbacksRef <- Ref.of[F, Map[Option[
+        Metric.Prefix
+      ], (Map[Label.Name, String], NonEmptySeq[F[MetricCollection]])]](Map.empty)
       sem <- Semaphore[F](1L)
       dis <- Dispatcher[F].allocated
-    } yield (ref, dis._2, new JavaMetricRegistry[F](promRegistry, ref, sem, dis._1, callbackTimeout))
+      metricCollectionProcessor = new MetricCollectionProcessor(ref, collectionCallbacksRef, dis._1, callbackTimeout)
+      _ <- Sync[F].delay(promRegistry.register(metricCollectionProcessor))
+    } yield (
+      ref,
+      dis._2,
+      metricCollectionProcessor,
+      new JavaMetricRegistry[F](promRegistry, ref, metricCollectionProcessor, sem, dis._1, callbackTimeout)
+    )
 
     Resource
-      .make(acquire) { case (ref, disRelease, _) =>
+      .make(acquire) { case (ref, disRelease, metricCollectionProcessor, _) =>
         disRelease >>
           ref.get.flatMap { metrics =>
-            if (metrics.nonEmpty)
-              metrics.values
-                .map(_._2)
-                .toList
-                .traverse_ { collector =>
-                  Sync[F].delay(promRegistry.unregister(collector.merge)).handleErrorWith { e =>
-                    Logger[F].warn(e)(s"Failed to unregister a collector on shutdown.")
-                  }
-                }
-            else Applicative[F].unit
+            (if (metrics.nonEmpty)
+               metrics.values
+                 .map(_._2)
+                 .toList
+                 .traverse_ { collector =>
+                   Sync[F].delay(promRegistry.unregister(collector.merge)).handleErrorWith { e =>
+                     Logger[F].warn(e)(s"Failed to unregister a collector on shutdown.")
+                   }
+                 }
+             else Applicative[F].unit) >> Sync[F]
+              .delay(promRegistry.unregister(metricCollectionProcessor))
+              .handleErrorWith { e =>
+                Logger[F].warn(e)(s"Failed to unregister a collector on shutdown.")
+              }
           }
       }
-      .map(_._3)
+      .map(_._4)
   }
 }

@@ -17,6 +17,7 @@
 package prometheus4cats
 
 import cats.data.NonEmptySeq
+import cats.kernel.Semigroup
 import cats.syntax.semigroup._
 
 final class MetricCollection private (
@@ -25,6 +26,13 @@ final class MetricCollection private (
     val histograms: Map[(Histogram.Name, IndexedSeq[Label.Name]), Seq[MetricCollection.Value.Histogram]],
     val summaries: Map[(Summary.Name, IndexedSeq[Label.Name]), Seq[MetricCollection.Value.Summary]]
 ) {
+
+  def ++(other: MetricCollection) = new MetricCollection(
+    counters |+| other.counters,
+    gauges |+| other.gauges,
+    histograms |+| other.histograms,
+    summaries |+| other.summaries
+  )
 
   def appendLongCounter(
       name: Counter.Name,
@@ -240,21 +248,21 @@ object MetricCollection {
   }
   object Value {
     sealed trait Counter extends Value
-    case class LongCounter private (help: Metric.Help, labelValues: IndexedSeq[String], value: Long) extends Counter
-    case class DoubleCounter private (help: Metric.Help, labelValues: IndexedSeq[String], value: Double) extends Counter
+    case class LongCounter(help: Metric.Help, labelValues: IndexedSeq[String], value: Long) extends Counter
+    case class DoubleCounter(help: Metric.Help, labelValues: IndexedSeq[String], value: Double) extends Counter
 
     sealed trait Gauge extends Value
-    case class LongGauge private (help: Metric.Help, labelValues: IndexedSeq[String], value: Long) extends Gauge
-    case class DoubleGauge private (help: Metric.Help, labelValues: IndexedSeq[String], value: Double) extends Gauge
+    case class LongGauge(help: Metric.Help, labelValues: IndexedSeq[String], value: Long) extends Gauge
+    case class DoubleGauge(help: Metric.Help, labelValues: IndexedSeq[String], value: Double) extends Gauge
 
     sealed trait Histogram extends Value
-    case class LongHistogram private (
+    case class LongHistogram(
         buckets: NonEmptySeq[Long],
         help: Metric.Help,
         labelValues: IndexedSeq[String],
         value: Histogram.Value[Long]
     ) extends Histogram
-    case class DoubleHistogram private (
+    case class DoubleHistogram(
         buckets: NonEmptySeq[Double],
         help: Metric.Help,
         labelValues: IndexedSeq[String],
@@ -262,16 +270,20 @@ object MetricCollection {
     ) extends Histogram
 
     sealed trait Summary extends Value
-    case class LongSummary private (
+    case class LongSummary(
         help: Metric.Help,
         labelValues: IndexedSeq[String],
         value: Summary.Value[Long]
     ) extends Summary
 
-    case class DoubleSummary private (
+    case class DoubleSummary(
         help: Metric.Help,
         labelValues: IndexedSeq[String],
         value: Summary.Value[Double]
     ) extends Summary
+  }
+
+  implicit val catsInstances: Semigroup[MetricCollection] = new Semigroup[MetricCollection] {
+    override def combine(x: MetricCollection, y: MetricCollection): MetricCollection = x ++ y
   }
 }
