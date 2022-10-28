@@ -546,22 +546,22 @@ object MetricFactory {
 
     /** @inheritdoc
       */
-    override def dropPrefix: MetricFactory[F] =
+    override def dropPrefix: MetricFactory.WithCallbacks[F] =
       new MetricFactory.WithCallbacks[F](metricRegistry, callbackRegistry, None, commonLabels) {}
 
     /** @inheritdoc
       */
-    override def withPrefix(prefix: Metric.Prefix): MetricFactory[F] =
+    override def withPrefix(prefix: Metric.Prefix): MetricFactory.WithCallbacks[F] =
       new MetricFactory.WithCallbacks[F](metricRegistry, callbackRegistry, Some(prefix), commonLabels) {}
 
     /** @inheritdoc
       */
-    override def dropCommonLabels: MetricFactory[F] =
+    override def dropCommonLabels: MetricFactory.WithCallbacks[F] =
       new MetricFactory.WithCallbacks[F](metricRegistry, callbackRegistry, prefix, CommonLabels.empty) {}
 
     /** @inheritdoc
       */
-    override def withCommonLabels(commonLabels: CommonLabels): MetricFactory[F] =
+    override def withCommonLabels(commonLabels: CommonLabels): MetricFactory.WithCallbacks[F] =
       new MetricFactory.WithCallbacks[F](metricRegistry, callbackRegistry, prefix, commonLabels) {}
   }
 
