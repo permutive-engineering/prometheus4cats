@@ -196,7 +196,6 @@ class MetricCollectionProcessor[F[_]: Async: Logger] private (
       }
     }
 
-    // TODO should this be done in the semaphore?
     ref.get.flatMap { state =>
       def collectMetrics[A: Show, B](
           vs: Map[(A, IndexedSeq[Label.Name]), B],
