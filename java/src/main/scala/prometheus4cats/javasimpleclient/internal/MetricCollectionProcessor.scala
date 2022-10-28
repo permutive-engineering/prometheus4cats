@@ -300,10 +300,10 @@ class MetricCollectionProcessor[F[_]: Async: Logger] private (
 }
 
 object MetricCollectionProcessor {
-  private val callbackTimerName = "prom4cats_collection_callback_duration"
+  private val callbackTimerName = "prometheus4cats_collection_callback_duration"
   private val callbackTimerHelp = "Time it takes to run the metric collection callback"
 
-  private val duplicatesGaugeName = "prom4cats_collection_callback_duplicates"
+  private val duplicatesGaugeName = "prometheus4cats_collection_callback_duplicates"
   private val duplicatesGaugeHelp =
     "Duplicate metrics with different labels or types detected in metric collections callbacks"
   private val duplicatesLabelNames = List("duplicate_type", "metric_prefix")
