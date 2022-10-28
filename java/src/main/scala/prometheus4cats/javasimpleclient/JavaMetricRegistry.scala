@@ -695,29 +695,27 @@ object JavaMetricRegistry {
       promRegistry: CollectorRegistry,
       callbackTimeout: FiniteDuration = 10.millis,
       metricCollectionCallbackTimeout: FiniteDuration = 100.millis
-  ): Resource[F, JavaMetricRegistry[F]] = {
+  ): Resource[F, JavaMetricRegistry[F]] = Dispatcher[F].flatMap { dis =>
     val acquire = for {
       ref <- Ref.of[F, State](Map.empty)
       sem <- Semaphore[F](1L)
-      dis <- Dispatcher[F].allocated
       metricCollectionProcessor <- MetricCollectionProcessor
         .create(
           ref,
-          dis._1,
+          dis,
           metricCollectionCallbackTimeout,
           promRegistry
         )
         .allocated
     } yield (
       ref,
-      dis._2,
       metricCollectionProcessor._2,
-      new JavaMetricRegistry[F](promRegistry, ref, metricCollectionProcessor._1, sem, dis._1, callbackTimeout)
+      new JavaMetricRegistry[F](promRegistry, ref, metricCollectionProcessor._1, sem, dis, callbackTimeout)
     )
 
     Resource
-      .make(acquire) { case (ref, disRelease, procRelease, _) =>
-        disRelease >> procRelease >>
+      .make(acquire) { case (ref, procRelease, _) =>
+        procRelease >>
           ref.get.flatMap { metrics =>
             if (metrics.nonEmpty)
               metrics.values
@@ -731,6 +729,6 @@ object JavaMetricRegistry {
             else Applicative[F].unit
           }
       }
-      .map(_._4)
+      .map(_._3)
   }
 }
