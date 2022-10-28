@@ -21,10 +21,10 @@ import cats.kernel.Semigroup
 import cats.syntax.semigroup._
 
 final class MetricCollection private (
-    val counters: Map[(Counter.Name, IndexedSeq[Label.Name]), Seq[MetricCollection.Value.Counter]],
-    val gauges: Map[(Gauge.Name, IndexedSeq[Label.Name]), Seq[MetricCollection.Value.Gauge]],
-    val histograms: Map[(Histogram.Name, IndexedSeq[Label.Name]), Seq[MetricCollection.Value.Histogram]],
-    val summaries: Map[(Summary.Name, IndexedSeq[Label.Name]), Seq[MetricCollection.Value.Summary]]
+    val counters: Map[(Counter.Name, IndexedSeq[Label.Name]), List[MetricCollection.Value.Counter]],
+    val gauges: Map[(Gauge.Name, IndexedSeq[Label.Name]), List[MetricCollection.Value.Gauge]],
+    val histograms: Map[(Histogram.Name, IndexedSeq[Label.Name]), List[MetricCollection.Value.Histogram]],
+    val summaries: Map[(Summary.Name, IndexedSeq[Label.Name]), List[MetricCollection.Value.Summary]]
 ) {
 
   def ++(other: MetricCollection) = new MetricCollection(
@@ -38,7 +38,7 @@ final class MetricCollection private (
       name: Counter.Name,
       help: Metric.Help,
       labelNames: IndexedSeq[Label.Name],
-      values: Seq[(Long, IndexedSeq[String])]
+      values: List[(Long, IndexedSeq[String])]
   ): MetricCollection =
     new MetricCollection(
       counters |+| Map(
@@ -57,13 +57,13 @@ final class MetricCollection private (
       labels: Map[Label.Name, String],
       value: Long
   ): MetricCollection =
-    appendLongCounter(name, help, labels.keys.toIndexedSeq, Seq(value -> labels.values.toIndexedSeq))
+    appendLongCounter(name, help, labels.keys.toIndexedSeq, List(value -> labels.values.toIndexedSeq))
 
   def appendDoubleCounter(
       name: Counter.Name,
       help: Metric.Help,
       labelNames: IndexedSeq[Label.Name],
-      values: Seq[(Double, IndexedSeq[String])]
+      values: List[(Double, IndexedSeq[String])]
   ): MetricCollection =
     new MetricCollection(
       counters |+| Map(
@@ -82,13 +82,13 @@ final class MetricCollection private (
       labels: Map[Label.Name, String],
       value: Double
   ): MetricCollection =
-    appendDoubleCounter(name, help, labels.keys.toIndexedSeq, Seq(value -> labels.values.toIndexedSeq))
+    appendDoubleCounter(name, help, labels.keys.toIndexedSeq, List(value -> labels.values.toIndexedSeq))
 
   def appendLongGauge(
       name: Gauge.Name,
       help: Metric.Help,
       labelNames: IndexedSeq[Label.Name],
-      values: Seq[(Long, IndexedSeq[String])]
+      values: List[(Long, IndexedSeq[String])]
   ): MetricCollection =
     new MetricCollection(
       counters,
@@ -104,13 +104,13 @@ final class MetricCollection private (
       help: Metric.Help,
       labels: Map[Label.Name, String],
       value: Long
-  ): MetricCollection = appendLongGauge(name, help, labels.keys.toIndexedSeq, Seq(value -> labels.values.toIndexedSeq))
+  ): MetricCollection = appendLongGauge(name, help, labels.keys.toIndexedSeq, List(value -> labels.values.toIndexedSeq))
 
   def appendDoubleGauge(
       name: Gauge.Name,
       help: Metric.Help,
       labelNames: IndexedSeq[Label.Name],
-      values: Seq[(Double, IndexedSeq[String])]
+      values: List[(Double, IndexedSeq[String])]
   ): MetricCollection =
     new MetricCollection(
       counters,
@@ -127,14 +127,14 @@ final class MetricCollection private (
       labels: Map[Label.Name, String],
       value: Double
   ): MetricCollection =
-    appendDoubleGauge(name, help, labels.keys.toIndexedSeq, Seq(value -> labels.values.toIndexedSeq))
+    appendDoubleGauge(name, help, labels.keys.toIndexedSeq, List(value -> labels.values.toIndexedSeq))
 
   def appendLongHistogram(
       name: Histogram.Name,
       help: Metric.Help,
       labelNames: IndexedSeq[Label.Name],
       buckets: NonEmptySeq[Long],
-      values: Seq[(Histogram.Value[Long], IndexedSeq[String])]
+      values: List[(Histogram.Value[Long], IndexedSeq[String])]
   ): MetricCollection =
     new MetricCollection(
       counters,
@@ -152,14 +152,14 @@ final class MetricCollection private (
       buckets: NonEmptySeq[Long],
       value: Histogram.Value[Long]
   ): MetricCollection =
-    appendLongHistogram(name, help, labels.keys.toIndexedSeq, buckets, Seq(value -> labels.values.toIndexedSeq))
+    appendLongHistogram(name, help, labels.keys.toIndexedSeq, buckets, List(value -> labels.values.toIndexedSeq))
 
   def appendDoubleHistogram(
       name: Histogram.Name,
       help: Metric.Help,
       labelNames: IndexedSeq[Label.Name],
       buckets: NonEmptySeq[Double],
-      values: Seq[(Histogram.Value[Double], IndexedSeq[String])]
+      values: List[(Histogram.Value[Double], IndexedSeq[String])]
   ): MetricCollection =
     new MetricCollection(
       counters,
@@ -177,13 +177,13 @@ final class MetricCollection private (
       buckets: NonEmptySeq[Double],
       value: Histogram.Value[Double]
   ): MetricCollection =
-    appendDoubleHistogram(name, help, labels.keys.toIndexedSeq, buckets, Seq(value -> labels.values.toIndexedSeq))
+    appendDoubleHistogram(name, help, labels.keys.toIndexedSeq, buckets, List(value -> labels.values.toIndexedSeq))
 
   def appendLongSummary(
       name: Summary.Name,
       help: Metric.Help,
       labelNames: IndexedSeq[Label.Name],
-      values: Seq[(Summary.Value[Long], IndexedSeq[String])]
+      values: List[(Summary.Value[Long], IndexedSeq[String])]
   ): MetricCollection =
     new MetricCollection(
       counters,
@@ -200,13 +200,13 @@ final class MetricCollection private (
       labels: Map[Label.Name, String],
       value: Summary.Value[Long]
   ): MetricCollection =
-    appendLongSummary(name, help, labels.keys.toIndexedSeq, Seq(value -> labels.values.toIndexedSeq))
+    appendLongSummary(name, help, labels.keys.toIndexedSeq, List(value -> labels.values.toIndexedSeq))
 
   def appendDoubleSummary(
       name: Summary.Name,
       help: Metric.Help,
       labelNames: IndexedSeq[Label.Name],
-      values: Seq[(Summary.Value[Double], IndexedSeq[String])]
+      values: List[(Summary.Value[Double], IndexedSeq[String])]
   ): MetricCollection =
     new MetricCollection(
       counters,
@@ -223,7 +223,7 @@ final class MetricCollection private (
       labels: Map[Label.Name, String],
       value: Summary.Value[Double]
   ): MetricCollection =
-    appendDoubleSummary(name, help, labels.keys.toIndexedSeq, Seq(value -> labels.values.toIndexedSeq))
+    appendDoubleSummary(name, help, labels.keys.toIndexedSeq, List(value -> labels.values.toIndexedSeq))
 
 }
 

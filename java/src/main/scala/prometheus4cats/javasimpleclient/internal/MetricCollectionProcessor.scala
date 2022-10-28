@@ -19,7 +19,7 @@ package prometheus4cats.javasimpleclient.internal
 import java.util
 
 import alleycats.std.set._
-import cats.data.NonEmptySeq
+import cats.data.NonEmptyList
 import cats.effect.kernel._
 import cats.effect.std.Dispatcher
 import cats.syntax.applicativeError._
@@ -54,7 +54,7 @@ class MetricCollectionProcessor[F[_]: Async: Logger] private (
     ref: Ref[F, State],
     collectionCallbackRef: Ref[F, Map[Option[
       Metric.Prefix
-    ], (Map[Label.Name, String], NonEmptySeq[F[MetricCollection]])]],
+    ], (Map[Label.Name, String], NonEmptyList[F[MetricCollection]])]],
     dispatcher: Dispatcher[F],
     callbackTimeout: FiniteDuration,
     callbackTimeHistogram: PHistogram,
@@ -78,8 +78,9 @@ class MetricCollectionProcessor[F[_]: Async: Logger] private (
     collectionCallbackRef.update(map =>
       map.updated(
         prefix,
-        map.get(prefix).fold(commonLabels.value -> NonEmptySeq.one(callback)) { case (currentCommonLabels, callbacks) =>
-          (currentCommonLabels ++ commonLabels.value) -> callbacks.append(callback)
+        map.get(prefix).fold(commonLabels.value -> NonEmptyList.one(callback)) {
+          case (currentCommonLabels, callbacks) =>
+            (currentCommonLabels ++ commonLabels.value) -> NonEmptyList(callback, callbacks.toList)
         }
       )
     )
@@ -88,10 +89,10 @@ class MetricCollectionProcessor[F[_]: Async: Logger] private (
       prefix: Option[Metric.Prefix],
       commonLabels: Map[Label.Name, String],
       values: MetricCollection
-  ): F[Seq[MetricFamilySamples]] = {
+  ): F[List[MetricFamilySamples]] = {
     def makeName[A: Show](n: A): String = NameUtils.makeName(prefix, n)
 
-    val counterToSample: ((Counter.Name, IndexedSeq[Label.Name]), Seq[MetricCollection.Value.Counter]) => Option[
+    val counterToSample: ((Counter.Name, IndexedSeq[Label.Name]), List[MetricCollection.Value.Counter]) => Option[
       MetricFamilySamples
     ] = { case ((name, labelNames), values) =>
       lazy val allLabelNames = (labelNames ++ commonLabels.keys).map(_.value).asJava
@@ -108,7 +109,7 @@ class MetricCollectionProcessor[F[_]: Async: Logger] private (
       }
     }
 
-    val gaugeToSample: ((Gauge.Name, IndexedSeq[Label.Name]), Seq[MetricCollection.Value.Gauge]) => Option[
+    val gaugeToSample: ((Gauge.Name, IndexedSeq[Label.Name]), List[MetricCollection.Value.Gauge]) => Option[
       MetricFamilySamples
     ] = { case ((name, labelNames), values) =>
       lazy val allLabelNames = (labelNames ++ commonLabels.keys).map(_.value).asJava
@@ -125,7 +126,7 @@ class MetricCollectionProcessor[F[_]: Async: Logger] private (
       }
     }
 
-    val histogramToSample: ((Histogram.Name, IndexedSeq[Label.Name]), Seq[MetricCollection.Value.Histogram]) => Option[
+    val histogramToSample: ((Histogram.Name, IndexedSeq[Label.Name]), List[MetricCollection.Value.Histogram]) => Option[
       MetricFamilySamples
     ] = { case ((name, labelNames), values) =>
       values.lastOption.map { last =>
@@ -141,7 +142,7 @@ class MetricCollectionProcessor[F[_]: Async: Logger] private (
       }
     }
 
-    val summaryToSample: ((Summary.Name, IndexedSeq[Label.Name]), Seq[MetricCollection.Value.Summary]) => Option[
+    val summaryToSample: ((Summary.Name, IndexedSeq[Label.Name]), List[MetricCollection.Value.Summary]) => Option[
       MetricFamilySamples
     ] = { case ((name, labelNames), values) =>
       lazy val allLabelNames = (labelNames ++ commonLabels.keys).map(_.value).asJava
@@ -211,7 +212,7 @@ class MetricCollectionProcessor[F[_]: Async: Logger] private (
           Set[(Option[Metric.Prefix], String)],
           ListBuffer[MetricFamilySamples]
       ) = { (names, duplicates, registryDuplicates, listBuffer) =>
-        vs.foldLeft(names, duplicates, registryDuplicates, listBuffer) {
+        vs.foldLeft((names, duplicates, registryDuplicates, listBuffer)) {
           case ((names, duplicates, registryDuplicates, samples), (x @ (name, _), v)) =>
             val nameString = name.show
 
@@ -219,7 +220,7 @@ class MetricCollectionProcessor[F[_]: Async: Logger] private (
               (names, duplicates + (prefix -> nameString), registryDuplicates, samples)
             else if (state.contains(prefix -> nameString))
               (names, duplicates, registryDuplicates + (prefix -> nameString), samples)
-            else (names + (prefix -> nameString), duplicates, registryDuplicates, samples :++ f(x, v))
+            else (names + (prefix -> nameString), duplicates, registryDuplicates, samples ++ f(x, v))
         }
       }
 
@@ -239,7 +240,7 @@ class MetricCollectionProcessor[F[_]: Async: Logger] private (
         f(names, duplicates, registryDuplicates, samples)
       }
 
-      if (duplicates.isEmpty && registryDuplicates.isEmpty) Applicative[F].pure(samples.toSeq)
+      if (duplicates.isEmpty && registryDuplicates.isEmpty) Applicative[F].pure(samples.toList)
       else {
         lazy val common =
           "This is due to an implementation detail in the Java Prometheus library that backs the MetricsRegistry you are using,\n" +
@@ -275,7 +276,7 @@ class MetricCollectionProcessor[F[_]: Async: Logger] private (
         colDupErr >> regDupErr >> Sync[F]
           .delay(duplicateGauge.labels("in_collection", prefix.show).set(duplicates.size.toDouble)) >> Sync[F]
           .delay(duplicateGauge.labels("in_registry", prefix.show).set(registryDuplicates.size.toDouble))
-          .as(samples.toSeq)
+          .as(samples.toList)
       }
 
     }
@@ -283,7 +284,7 @@ class MetricCollectionProcessor[F[_]: Async: Logger] private (
 
   private val evaluateCollections = Clock[F]
     .timed(collectionCallbackRef.get.flatMap { callbacks =>
-      callbacks.toSeq.flatTraverse { case (prefix, (commonLabels, callbacks)) =>
+      callbacks.toList.flatTraverse { case (prefix, (commonLabels, callbacks)) =>
         callbacks.reduceA.flatMap(convertMetrics(prefix, commonLabels, _))
       }
     })
@@ -326,7 +327,7 @@ object MetricCollectionProcessor {
       _ <- Sync[F].delay(promRegistry.register(duplicateGauge))
       collectionCallbackRef <- Ref.of[F, Map[Option[
         Metric.Prefix
-      ], (Map[Label.Name, String], NonEmptySeq[F[MetricCollection]])]](Map.empty)
+      ], (Map[Label.Name, String], NonEmptyList[F[MetricCollection]])]](Map.empty)
       proc = new MetricCollectionProcessor(
         ref,
         collectionCallbackRef,
