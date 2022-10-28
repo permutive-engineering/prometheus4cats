@@ -681,53 +681,54 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
 }
 
 object JavaMetricRegistry {
-
   def default[F[_]: Async: Logger](
-      callbackTimeout: FiniteDuration = 10.millis
+      callbackTimeout: FiniteDuration = 10.millis,
+      metricCollectionCallbackTimeout: FiniteDuration = 100.millis
   ): Resource[F, JavaMetricRegistry[F]] =
     fromSimpleClientRegistry(
       CollectorRegistry.defaultRegistry,
-      callbackTimeout
+      callbackTimeout,
+      metricCollectionCallbackTimeout
     )
 
   def fromSimpleClientRegistry[F[_]: Async: Logger](
       promRegistry: CollectorRegistry,
-      callbackTimeout: FiniteDuration = 10.millis
+      callbackTimeout: FiniteDuration = 10.millis,
+      metricCollectionCallbackTimeout: FiniteDuration = 100.millis
   ): Resource[F, JavaMetricRegistry[F]] = {
     val acquire = for {
       ref <- Ref.of[F, State](Map.empty)
-      collectionCallbacksRef <- Ref.of[F, Map[Option[
-        Metric.Prefix
-      ], (Map[Label.Name, String], NonEmptySeq[F[MetricCollection]])]](Map.empty)
       sem <- Semaphore[F](1L)
       dis <- Dispatcher[F].allocated
-      metricCollectionProcessor = new MetricCollectionProcessor(ref, collectionCallbacksRef, dis._1, callbackTimeout)
-      _ <- Sync[F].delay(promRegistry.register(metricCollectionProcessor))
+      metricCollectionProcessor <- MetricCollectionProcessor
+        .create(
+          ref,
+          dis._1,
+          metricCollectionCallbackTimeout,
+          promRegistry
+        )
+        .allocated
     } yield (
       ref,
       dis._2,
-      metricCollectionProcessor,
-      new JavaMetricRegistry[F](promRegistry, ref, metricCollectionProcessor, sem, dis._1, callbackTimeout)
+      metricCollectionProcessor._2,
+      new JavaMetricRegistry[F](promRegistry, ref, metricCollectionProcessor._1, sem, dis._1, callbackTimeout)
     )
 
     Resource
-      .make(acquire) { case (ref, disRelease, metricCollectionProcessor, _) =>
-        disRelease >>
+      .make(acquire) { case (ref, disRelease, procRelease, _) =>
+        disRelease >> procRelease >>
           ref.get.flatMap { metrics =>
-            (if (metrics.nonEmpty)
-               metrics.values
-                 .map(_._2)
-                 .toList
-                 .traverse_ { collector =>
-                   Sync[F].delay(promRegistry.unregister(collector.merge)).handleErrorWith { e =>
-                     Logger[F].warn(e)(s"Failed to unregister a collector on shutdown.")
-                   }
-                 }
-             else Applicative[F].unit) >> Sync[F]
-              .delay(promRegistry.unregister(metricCollectionProcessor))
-              .handleErrorWith { e =>
-                Logger[F].warn(e)(s"Failed to unregister a collector on shutdown.")
-              }
+            if (metrics.nonEmpty)
+              metrics.values
+                .map(_._2)
+                .toList
+                .traverse_ { collector =>
+                  Sync[F].delay(promRegistry.unregister(collector.merge)).handleErrorWith { e =>
+                    Logger[F].warn(e)(s"Failed to unregister a collector on shutdown.")
+                  }
+                }
+            else Applicative[F].unit
           }
       }
       .map(_._4)

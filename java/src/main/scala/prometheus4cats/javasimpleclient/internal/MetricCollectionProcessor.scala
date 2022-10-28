@@ -22,14 +22,24 @@ import alleycats.std.set._
 import cats.data.NonEmptySeq
 import cats.effect.kernel._
 import cats.effect.std.Dispatcher
+import cats.syntax.applicativeError._
 import cats.syntax.flatMap._
 import cats.syntax.foldable._
 import cats.syntax.functor._
+import cats.syntax.reducible._
 import cats.syntax.show._
 import cats.syntax.traverse._
 import cats.{Applicative, Show}
 import io.prometheus.client.Collector.MetricFamilySamples
-import io.prometheus.client.{Collector, CounterMetricFamily, GaugeMetricFamily, SummaryMetricFamily}
+import io.prometheus.client.{
+  Collector,
+  CollectorRegistry,
+  CounterMetricFamily,
+  GaugeMetricFamily,
+  SummaryMetricFamily,
+  Gauge => PGauge,
+  Histogram => PHistogram
+}
 import org.typelevel.log4cats.Logger
 import prometheus4cats.MetricCollection.Value
 import prometheus4cats._
@@ -40,13 +50,15 @@ import scala.collection.mutable.ListBuffer
 import scala.concurrent.duration.FiniteDuration
 import scala.jdk.CollectionConverters._
 
-class MetricCollectionProcessor[F[_]: Temporal: Logger](
+class MetricCollectionProcessor[F[_]: Async: Logger] private (
     ref: Ref[F, State],
     collectionCallbackRef: Ref[F, Map[Option[
       Metric.Prefix
     ], (Map[Label.Name, String], NonEmptySeq[F[MetricCollection]])]],
     dispatcher: Dispatcher[F],
-    callbackTimeout: FiniteDuration
+    callbackTimeout: FiniteDuration,
+    callbackTimeHistogram: PHistogram,
+    duplicateGauge: PGauge
 ) extends Collector {
 
   private def timeoutCallback[A](fa: F[A], onError: A): A =
@@ -260,21 +272,82 @@ class MetricCollectionProcessor[F[_]: Temporal: Logger](
             Logger[F].warn(DuplicateMetricsException(registryDuplicates))(duplicatesInRegistry)
           else Applicative[F].unit
 
-        colDupErr >> regDupErr.as(samples.toSeq)
+        colDupErr >> regDupErr >> Sync[F]
+          .delay(duplicateGauge.labels("in_collection", prefix.show).set(duplicates.size.toDouble)) >> Sync[F]
+          .delay(duplicateGauge.labels("in_registry", prefix.show).set(registryDuplicates.size.toDouble))
+          .as(samples.toSeq)
       }
 
     }
   }
 
-  private val evaluateCollections = collectionCallbackRef.get.flatMap { callbacks =>
-    callbacks.toSeq.flatTraverse { case (prefix, (commonLabels, callbacks)) =>
-      callbacks.toSeq.flatTraverse(_.flatMap(convertMetrics(prefix, commonLabels, _)))
-    }.map(_.asJava)
-  }
+  private val evaluateCollections = Clock[F]
+    .timed(collectionCallbackRef.get.flatMap { callbacks =>
+      callbacks.toSeq.flatTraverse { case (prefix, (commonLabels, callbacks)) =>
+        callbacks.reduceA.flatMap(convertMetrics(prefix, commonLabels, _))
+      }
+    })
+    .flatMap { case (dur, cols) =>
+      Sync[F].delay(callbackTimeHistogram.observe(dur.toSeconds.toDouble)).as(cols.asJava)
+    }
 
   override def collect(): util.List[MetricFamilySamples] = timeoutCallback(
     evaluateCollections,
     List.empty[MetricFamilySamples].asJava
   )
 
+}
+
+object MetricCollectionProcessor {
+  private val callbackTimerName = "prom4cats_collection_callback_duration"
+  private val callbackTimerHelp = "Time it takes to run the metric collection callback"
+
+  private val duplicatesGaugeName = "prom4cats_collection_callback_duplicates"
+  private val duplicatesGaugeHelp =
+    "Duplicate metrics with different labels or types detected in metric collections callbacks"
+  private val duplicatesLabelNames = List("duplicate_type", "metric_prefix")
+
+  def create[F[_]: Async: Logger](
+      ref: Ref[F, State],
+      dispatcher: Dispatcher[F],
+      callbackTimeout: FiniteDuration,
+      promRegistry: CollectorRegistry
+  ): Resource[F, MetricCollectionProcessor[F]] = {
+    val callbackHist = PHistogram
+      .build(callbackTimerName, callbackTimerHelp)
+      .buckets(0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1)
+      .create()
+
+    val duplicateGauge =
+      PGauge.build(duplicatesGaugeName, duplicatesGaugeHelp).labelNames(duplicatesLabelNames: _*).create()
+
+    val acquire = for {
+      _ <- Sync[F].delay(promRegistry.register(callbackHist))
+      _ <- Sync[F].delay(promRegistry.register(duplicateGauge))
+      collectionCallbackRef <- Ref.of[F, Map[Option[
+        Metric.Prefix
+      ], (Map[Label.Name, String], NonEmptySeq[F[MetricCollection]])]](Map.empty)
+      proc = new MetricCollectionProcessor(
+        ref,
+        collectionCallbackRef,
+        dispatcher,
+        callbackTimeout,
+        callbackHist,
+        duplicateGauge
+      )
+      _ <- Sync[F].delay(promRegistry.register(proc))
+    } yield proc
+
+    def handleError(fa: F[Unit]): F[Unit] = fa.handleErrorWith { e =>
+      Logger[F].warn(e)(s"Failed to unregister a collector on shutdown.")
+    }
+
+    Resource.make(acquire) { proc =>
+      handleError(Sync[F].delay(promRegistry.unregister(callbackHist))) >> handleError(
+        Sync[F].delay(
+          promRegistry.unregister(duplicateGauge)
+        )
+      ) >> handleError(Sync[F].delay(promRegistry.unregister(proc)))
+    }
+  }
 }
