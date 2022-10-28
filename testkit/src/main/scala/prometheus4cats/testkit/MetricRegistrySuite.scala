@@ -19,7 +19,6 @@ package prometheus4cats.testkit
 import cats.data.NonEmptySeq
 import cats.effect.IO
 import cats.effect.kernel.Resource
-import cats.effect.testkit.TestControl
 import munit.CatsEffectSuite
 import org.scalacheck.Arbitrary
 import org.scalacheck.effect.PropF._
