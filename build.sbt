@@ -99,6 +99,7 @@ lazy val java =
     .settings(
       name := "prometheus4cats-java",
       libraryDependencies ++= Seq(
+        "org.typelevel" %%% "alleycats-core" % "2.8.0",
         "org.typelevel" %% "cats-effect-std" % CatsEffect,
         "org.typelevel" %% "log4cats-core" % Log4Cats,
         "io.prometheus" % "simpleclient" % "0.16.0",
