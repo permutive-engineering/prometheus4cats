@@ -444,6 +444,12 @@ trait CallbackRegistry[F[_]] {
       callback: F[(Summary.Value[Long], A)]
   )(f: A => IndexedSeq[String]): F[Unit]
 
+  protected[prometheus4cats] def registerMetricCollectionCallback(
+      prefix: Option[Metric.Prefix],
+      commonLabels: Metric.CommonLabels,
+      callback: F[MetricCollection]
+  ): F[Unit]
+
   /** Given a natural transformation from `F` to `G` and from `G` to `F`, transforms this [[CallbackRegistry]] from
     * effect `F` to effect `G`
     */
@@ -591,6 +597,12 @@ object CallbackRegistry {
         labelNames: IndexedSeq[Label.Name],
         callback: F[(Summary.Value[Long], A)]
     )(f: A => IndexedSeq[String]): F[Unit] = F.unit
+
+    override protected[prometheus4cats] def registerMetricCollectionCallback(
+        prefix: Option[Metric.Prefix],
+        commonLabels: Metric.CommonLabels,
+        callback: F[MetricCollection]
+    ): F[Unit] = F.unit
   }
 
   def imapK[F[_], G[_]](self: CallbackRegistry[F], fk: F ~> G, gk: G ~> F): CallbackRegistry[G] =
@@ -796,5 +808,11 @@ object CallbackRegistry {
           gk(callback)
         )(f)
       )
+
+      override protected[prometheus4cats] def registerMetricCollectionCallback(
+          prefix: Option[Metric.Prefix],
+          commonLabels: Metric.CommonLabels,
+          callback: G[MetricCollection]
+      ): G[Unit] = fk(self.registerMetricCollectionCallback(prefix, commonLabels, gk(callback)))
     }
 }

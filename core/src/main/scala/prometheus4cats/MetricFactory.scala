@@ -541,6 +541,9 @@ object MetricFactory {
         )
       )
 
+    def metricCollectionCallback(collection: F[MetricCollection]): BuildStep[F, Unit] =
+      BuildStep(callbackRegistry.registerMetricCollectionCallback(prefix, commonLabels, collection))
+
     /** @inheritdoc
       */
     override def dropPrefix: MetricFactory[F] =

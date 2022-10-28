@@ -16,14 +16,19 @@
 
 package prometheus4cats.javasimpleclient.internal
 
+import java.util.concurrent.TimeoutException
+
 import cats.Show
-import cats.effect.kernel.Sync
+import cats.effect.kernel.{Sync, Temporal}
+import cats.effect.std.Dispatcher
+import cats.effect.syntax.temporal._
 import cats.syntax.all._
-import prometheus4cats.javasimpleclient.models.Exceptions._
 import io.prometheus.client.SimpleCollector
-import prometheus4cats.Label
-import prometheus4cats.javasimpleclient.models.Exceptions.PrometheusException
 import org.typelevel.log4cats.Logger
+import prometheus4cats.Label
+import prometheus4cats.javasimpleclient.models.Exceptions._
+
+import scala.concurrent.duration.FiniteDuration
 
 private[javasimpleclient] object Utils {
   def modifyMetric[F[_]: Sync: Logger, A: Show, B](
@@ -77,4 +82,31 @@ private[javasimpleclient] object Utils {
   private def classStringRep[F[_]: Sync, A](a: A): F[String] =
     Sync[F].delay(a.getClass.toString)
 
+  private[javasimpleclient] def timeoutCallback[F[_]: Temporal: Logger, A](
+      dispatcher: Dispatcher[F],
+      callbackTimeout: FiniteDuration,
+      fa: F[A],
+      onError: A,
+      supplementalError: String
+  ): A =
+    dispatcher.unsafeRunSync(fa.timeout(callbackTimeout).handleErrorWith {
+      case th: TimeoutException =>
+        Logger[F]
+          .warn(th)(
+            s"Timed out running callback after $callbackTimeout.\n" +
+              "This may be due to a callback having been registered that performs some long running calculation which blocks\n" +
+              "Please review your code or raise an issue or pull request with the library from which this callback was registered\n"
+              + supplementalError
+          )
+          .as(onError)
+      case th =>
+        Logger[F]
+          .warn(th)(
+            s"Callback failed with the following exception.\n" +
+              "Callbacks that can routinely throw exceptions are strongly discouraged as this can cause performance problems when polling metrics\n" +
+              "Please review your code or raise an issue or pull request with the library from which this callback was registered\n"
+              + supplementalError
+          )
+          .as(onError)
+    })
 }

@@ -277,4 +277,106 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
     }
   }
 
+  test("registers metric collection") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name1: Counter.Name,
+          name2: Counter.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels,
+          labels1: Map[Label.Name, String],
+          labels2: Map[Label.Name, String],
+          values: (Double, Double)
+      ) =>
+        stateResource.use { state =>
+          callbackRegistryResource(state).use { reg =>
+            reg.registerMetricCollectionCallback(
+              prefix,
+              commonLabels,
+              IO(
+                MetricCollection.empty
+                  .appendDoubleCounter(name1, help, labels1, values._1)
+                  .appendDoubleCounter(name2, help, labels2, values._2)
+              )
+            ) >> getCounterValue(
+              state,
+              prefix,
+              name1,
+              help,
+              commonLabels,
+              labels1
+            ).map(assertEquals(_, Some(values._1))) >> getCounterValue(
+              state,
+              prefix,
+              name2,
+              help,
+              commonLabels,
+              labels2
+            ).map(assertEquals(_, Some(values._2)))
+
+          }
+        }
+    }
+  }
+
+  test("registers metric collection with the same name and different labels") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name: Counter.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels,
+          labels1: Map[Label.Name, String],
+          value1: Double,
+          value2: Double
+      ) =>
+        val labels2 = labels1.map { case (n, v) => n -> s"$v+" }
+
+        stateResource.use { state =>
+          callbackRegistryResource(state).use { reg =>
+            reg.registerMetricCollectionCallback(
+              prefix,
+              commonLabels,
+              IO(
+                if (labels1.isEmpty) MetricCollection.empty.appendDoubleCounter(name, help, labels2, value2)
+                else
+                  MetricCollection.empty
+                    .appendDoubleCounter(name, help, labels1, value1)
+                    .appendDoubleCounter(name, help, labels2, value2)
+              )
+            ) >> (if (labels1.isEmpty)
+                    getCounterValue(
+                      state,
+                      prefix,
+                      name,
+                      help,
+                      commonLabels,
+                      labels1
+                    ).map(assertEquals(_, Some(value2)))
+                  else
+                    getCounterValue(
+                      state,
+                      prefix,
+                      name,
+                      help,
+                      commonLabels,
+                      labels1
+                    ).map { res =>
+                      assertEquals(res, Some(value1))
+                    } >> getCounterValue(
+                      state,
+                      prefix,
+                      name,
+                      help,
+                      commonLabels,
+                      labels2
+                    ).map { res =>
+                      assertEquals(res, Some(value2))
+                    })
+
+          }
+        }
+    }
+  }
 }

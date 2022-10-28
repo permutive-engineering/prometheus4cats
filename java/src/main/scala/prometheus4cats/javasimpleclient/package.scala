@@ -16,8 +16,10 @@
 
 package prometheus4cats
 
+import cats.Show
 import io.prometheus.client.{Collector, SimpleCollector}
 import prometheus4cats.javasimpleclient.models.MetricType
+import prometheus4cats.util.NameUtils
 
 package object javasimpleclient {
   private[javasimpleclient] type StateKey = (Option[Metric.Prefix], String) // TODO allow specific names maybe
@@ -25,4 +27,9 @@ package object javasimpleclient {
   private[javasimpleclient] type StateValue = (MetricID, Either[Collector, SimpleCollector[_]])
 
   private[javasimpleclient] type State = Map[StateKey, StateValue]
+
+  private[javasimpleclient] val duplicateShow: Show[(Option[Metric.Prefix], String)] = Show.show {
+    case (prefix, name) =>
+      NameUtils.makeName(prefix, name)
+  }
 }

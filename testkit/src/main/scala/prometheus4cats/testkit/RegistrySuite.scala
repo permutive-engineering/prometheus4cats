@@ -38,7 +38,7 @@ trait RegistrySuite[State] extends ScalaCheckEffectSuite {
   } yield s"$c1$c2$s"
 
   protected def niceStringArb[A](f: String => Either[String, A]): Arbitrary[A] = Arbitrary(
-    niceStringGen.flatMap(s => Gen.oneOf(f(s).toOption))
+    niceStringGen.flatMap(s => f(s).toOption).suchThat(_.nonEmpty).map(_.get)
   )
 
   implicit val prefixArb: Arbitrary[Metric.Prefix] = niceStringArb(Metric.Prefix.from)
@@ -52,15 +52,15 @@ trait RegistrySuite[State] extends ScalaCheckEffectSuite {
   implicit val summaryNameArb: Arbitrary[Summary.Name] = niceStringArb(s => Summary.Name.from(s))
 
   implicit val maxAgeArb: Arbitrary[Summary.AgeBuckets] = Arbitrary(
-    Gen.posNum[Int].flatMap(i => Gen.oneOf(Summary.AgeBuckets.from(i).toOption))
+    Gen.posNum[Int].flatMap(i => Summary.AgeBuckets.from(i).toOption).suchThat(_.nonEmpty).map(_.get)
   )
 
   implicit val quantileArb: Arbitrary[Summary.Quantile] = Arbitrary(
-    Gen.choose(0.0, 1.0).flatMap(d => Gen.oneOf(Summary.Quantile.from(d).toOption))
+    Gen.choose(0.0, 1.0).map(d => Summary.Quantile.from(d).toOption).suchThat(_.nonEmpty).map(_.get)
   )
 
   implicit val errorArb: Arbitrary[Summary.AllowedError] = Arbitrary(
-    Gen.choose(0.0, 1.0).flatMap(d => Gen.oneOf(Summary.AllowedError.from(d).toOption))
+    Gen.choose(0.0, 1.0).map(d => Summary.AllowedError.from(d).toOption).suchThat(_.nonEmpty).map(_.get)
   )
 
   implicit val quantileDefinitionArb: Arbitrary[Summary.QuantileDefinition] = Arbitrary(for {

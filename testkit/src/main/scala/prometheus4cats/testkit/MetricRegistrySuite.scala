@@ -19,7 +19,6 @@ package prometheus4cats.testkit
 import cats.data.NonEmptySeq
 import cats.effect.IO
 import cats.effect.kernel.Resource
-import cats.effect.testkit.TestControl
 import munit.CatsEffectSuite
 import org.scalacheck.Arbitrary
 import org.scalacheck.effect.PropF._
@@ -112,39 +111,37 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
           inc: Double,
           dec: Double
       ) =>
-        TestControl
-          .executeEmbed(stateResource.use { state =>
-            metricRegistryResource(state).use { reg =>
-              val get = getGaugeValue(
-                state,
-                prefix,
-                name,
-                help,
-                commonLabels
-              )
+        stateResource.use { state =>
+          metricRegistryResource(state).use { reg =>
+            val get = getGaugeValue(
+              state,
+              prefix,
+              name,
+              help,
+              commonLabels
+            )
 
-              for {
-                gauge <- reg.createAndRegisterDoubleGauge(prefix, name, help, commonLabels)
-                _ <- gauge.set(set)
-                setValue <- get
-                _ <- gauge.inc
-                incOneValue <- get
-                _ <- gauge.inc(inc)
-                incValue <- get
-                _ <- gauge.dec
-                decOneValue <- get
-                _ <- gauge.dec(dec)
-                decValue <- get
-              } yield (setValue, incOneValue, incValue, decOneValue, decValue)
-            }
-          })
-          .map { case (setValue, incOneValue, incValue, decOneValue, decValue) =>
-            assertEquals(setValue, Some(set))
-            assertEquals(incOneValue, setValue.map(_ + 1))
-            assertEquals(incValue, incOneValue.map(_ + inc))
-            assertEquals(decOneValue, incValue.map(_ - 1))
-            assertEquals(decValue, decOneValue.map(_ - dec))
+            for {
+              gauge <- reg.createAndRegisterDoubleGauge(prefix, name, help, commonLabels)
+              _ <- gauge.set(set)
+              setValue <- get
+              _ <- gauge.inc
+              incOneValue <- get
+              _ <- gauge.inc(inc)
+              incValue <- get
+              _ <- gauge.dec
+              decOneValue <- get
+              _ <- gauge.dec(dec)
+              decValue <- get
+            } yield (setValue, incOneValue, incValue, decOneValue, decValue)
           }
+        }.map { case (setValue, incOneValue, incValue, decOneValue, decValue) =>
+          assertEquals(setValue, Some(set))
+          assertEquals(incOneValue, setValue.map(_ + 1))
+          assertEquals(incValue, incOneValue.map(_ + inc))
+          assertEquals(decOneValue, incValue.map(_ - 1))
+          assertEquals(decValue, decOneValue.map(_ - dec))
+        }
     }
   }
 
