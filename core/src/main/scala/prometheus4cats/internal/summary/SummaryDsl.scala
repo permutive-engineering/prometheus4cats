@@ -16,6 +16,7 @@
 
 package prometheus4cats.internal.summary
 
+import cats.effect.kernel.Resource
 import prometheus4cats.Summary.QuantileDefinition
 import prometheus4cats._
 import prometheus4cats.internal._
@@ -26,7 +27,7 @@ class SummaryDsl[F[_], A] private[prometheus4cats] (
     quantiles: Seq[QuantileDefinition] = SummaryDsl.defaultQuantiles,
     maxAgeValue: FiniteDuration = SummaryDsl.defaultMaxAge,
     ageBucketsValue: Summary.AgeBuckets = Summary.AgeBuckets.Default,
-    makeSummary: (Seq[QuantileDefinition], FiniteDuration, Summary.AgeBuckets) => F[Summary[F, A]],
+    makeSummary: (Seq[QuantileDefinition], FiniteDuration, Summary.AgeBuckets) => Resource[F, Summary[F, A]],
     makeLabelledSummary: (
         Seq[QuantileDefinition],
         FiniteDuration,
@@ -78,8 +79,8 @@ object SummaryDsl {
       quantiles: Seq[QuantileDefinition] = SummaryDsl.defaultQuantiles,
       maxAgeValue: FiniteDuration = SummaryDsl.defaultMaxAge,
       ageBucketsValue: Summary.AgeBuckets = Summary.AgeBuckets.Default,
-      makeSummary: (Seq[QuantileDefinition], FiniteDuration, Summary.AgeBuckets) => F[Summary[F, A]],
-      makeSummaryCallback: F[A0] => F[Unit],
+      makeSummary: (Seq[QuantileDefinition], FiniteDuration, Summary.AgeBuckets) => Resource[F, Summary[F, A]],
+      makeSummaryCallback: F[A0] => Resource[F, Unit],
       makeLabelledSummary: (
           Seq[QuantileDefinition],
           FiniteDuration,
@@ -111,7 +112,7 @@ class AgeBucketsStep[F[_], A] private[summary] (
     quantiles: Seq[QuantileDefinition],
     maxAgeValue: FiniteDuration,
     ageBucketsValue: Summary.AgeBuckets,
-    makeSummary: (Seq[QuantileDefinition], FiniteDuration, Summary.AgeBuckets) => F[Summary[F, A]],
+    makeSummary: (Seq[QuantileDefinition], FiniteDuration, Summary.AgeBuckets) => Resource[F, Summary[F, A]],
     makeLabelledSummary: (
         Seq[QuantileDefinition],
         FiniteDuration,

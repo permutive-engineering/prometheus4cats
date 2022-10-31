@@ -18,6 +18,7 @@ package prometheus4cats.util
 
 import cats.Functor
 import cats.data.NonEmptySeq
+import cats.effect.kernel.Resource
 import cats.syntax.functor._
 import prometheus4cats._
 
@@ -30,7 +31,7 @@ trait DoubleCallbackRegistry[F[_]] extends CallbackRegistry[F] {
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       callback: F[Long]
-  ): F[Unit] = registerDoubleCounterCallback(prefix, name, help, commonLabels, callback.map(_.toDouble))
+  ): Resource[F, Unit] = registerDoubleCounterCallback(prefix, name, help, commonLabels, callback.map(_.toDouble))
 
   override protected[prometheus4cats] def registerLabelledLongCounterCallback[A](
       prefix: Option[Metric.Prefix],
@@ -39,7 +40,7 @@ trait DoubleCallbackRegistry[F[_]] extends CallbackRegistry[F] {
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
       callback: F[(Long, A)]
-  )(f: A => IndexedSeq[String]): F[Unit] = registerLabelledDoubleCounterCallback(
+  )(f: A => IndexedSeq[String]): Resource[F, Unit] = registerLabelledDoubleCounterCallback(
     prefix,
     name,
     help,
@@ -54,7 +55,7 @@ trait DoubleCallbackRegistry[F[_]] extends CallbackRegistry[F] {
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       callback: F[Long]
-  ): F[Unit] = registerDoubleGaugeCallback(prefix, name, help, commonLabels, callback.map(_.toDouble))
+  ): Resource[F, Unit] = registerDoubleGaugeCallback(prefix, name, help, commonLabels, callback.map(_.toDouble))
 
   override protected[prometheus4cats] def registerLabelledLongGaugeCallback[A](
       prefix: Option[Metric.Prefix],
@@ -63,7 +64,7 @@ trait DoubleCallbackRegistry[F[_]] extends CallbackRegistry[F] {
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
       callback: F[(Long, A)]
-  )(f: A => IndexedSeq[String]): F[Unit] = registerLabelledDoubleGaugeCallback(
+  )(f: A => IndexedSeq[String]): Resource[F, Unit] = registerLabelledDoubleGaugeCallback(
     prefix,
     name,
     help,
@@ -79,7 +80,7 @@ trait DoubleCallbackRegistry[F[_]] extends CallbackRegistry[F] {
       commonLabels: Metric.CommonLabels,
       buckets: NonEmptySeq[Long],
       callback: F[Histogram.Value[Long]]
-  ): F[Unit] = registerDoubleHistogramCallback(
+  ): Resource[F, Unit] = registerDoubleHistogramCallback(
     prefix,
     name,
     help,
@@ -96,7 +97,7 @@ trait DoubleCallbackRegistry[F[_]] extends CallbackRegistry[F] {
       labelNames: IndexedSeq[Label.Name],
       buckets: NonEmptySeq[Long],
       callback: F[(Histogram.Value[Long], A)]
-  )(f: A => IndexedSeq[String]): F[Unit] = registerLabelledDoubleHistogramCallback(
+  )(f: A => IndexedSeq[String]): Resource[F, Unit] = registerLabelledDoubleHistogramCallback(
     prefix,
     name,
     help,
@@ -112,7 +113,7 @@ trait DoubleCallbackRegistry[F[_]] extends CallbackRegistry[F] {
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       callback: F[Summary.Value[Long]]
-  ): F[Unit] = registerDoubleSummaryCallback(
+  ): Resource[F, Unit] = registerDoubleSummaryCallback(
     prefix,
     name,
     help,
@@ -127,7 +128,7 @@ trait DoubleCallbackRegistry[F[_]] extends CallbackRegistry[F] {
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
       callback: F[(Summary.Value[Long], A)]
-  )(f: A => IndexedSeq[String]): F[Unit] = registerLabelledDoubleSummaryCallback(
+  )(f: A => IndexedSeq[String]): Resource[F, Unit] = registerLabelledDoubleSummaryCallback(
     prefix,
     name,
     help,

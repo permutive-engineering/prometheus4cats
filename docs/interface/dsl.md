@@ -53,6 +53,9 @@ factory.counter("counter_total").ofDouble.help("Describe what this metric does")
 ```
 
 ### Building a Simple Metric
+Once you have specified all the parameters with which you want to create your metric you can call the `build` method.
+This will return a `cats.effect.Resource` of your desired metric, which will de-register the metric from the underlying
+[`MetricRegistry`] or [`CallbackRegistry`] upon finalization.
 
 ```scala mdoc:silent
 val simpleCounter = factory
@@ -61,7 +64,13 @@ val simpleCounter = factory
   .help("Describe what this metric does")
 
 simpleCounter.build
-simpleCounter.resource
+```
+
+While not recommended, it is possible to build the metric without a `cats.effect.Resource`, which will not de-register
+from the underlying [`MetricRegistry`]:
+
+```scala mdoc:silent
+simpleCounter.unsafeBuild
 ```
 
 ### Adding Labels
@@ -78,7 +87,7 @@ val tupleLabelledCounter = factory
   .label[String]("this_uses_show")
   .label[MyClass]("this_doesnt_use_show", _.value)
 
-tupleLabelledCounter.build.flatMap(_.inc(2.0, ("label_value", MyClass("label_value"))))
+tupleLabelledCounter.build.evalMap(_.inc(2.0, ("label_value", MyClass("label_value"))))
 ```
 
 #### Compile-Time Checked Sequence of Labels
@@ -94,7 +103,7 @@ val classLabelledCounter = factory
     Sized(x.value1, x.value2.toString)
   )
 
-classLabelledCounter.build.flatMap(_.inc(2.0, MyMultiClass("label_value", 42)))
+classLabelledCounter.build.evalMap(_.inc(2.0, MyMultiClass("label_value", 42)))
 ```
 
 #### Unchecked Sequence of Labels
@@ -107,7 +116,7 @@ val unsafeLabelledCounter = factory
   .unsafeLabels(Label.Name("label1"), Label.Name("label2"))
 
 val labels = Map(Label.Name("label1") -> "label1_value", Label.Name("label2") -> "label1_value")
-unsafeLabelledCounter.build.flatMap(_.inc(3.0, labels))
+unsafeLabelledCounter.build.evalMap(_.inc(3.0, labels))
 ```
 
 ### Contramapping a Metric Type
@@ -115,7 +124,7 @@ unsafeLabelledCounter.build.flatMap(_.inc(3.0, labels))
 #### Simple Metric
 
 ```scala mdoc:silent
-val intCounter: IO[Counter[IO, Int]] = factory
+val intCounter: Resource[IO, Counter[IO, Int]] = factory
   .counter("counter_total")
   .ofLong
   .help("Describe what this metric does")
@@ -124,13 +133,13 @@ val intCounter: IO[Counter[IO, Int]] = factory
 ```
 
 ```scala mdoc:silent
-val shortCounter: IO[Counter[IO, Short]] = intCounter.map(_.contramap[Short](_.toInt))
+val shortCounter: Resource[IO, Counter[IO, Short]] = intCounter.map(_.contramap[Short](_.toInt))
 ```
 
 #### Labelled Metric
 
 ```scala mdoc:silent
-val intLabelledCounter: IO[Counter.Labelled[IO, Int, (String, Int)]] = factory
+val intLabelledCounter: Resource[IO, Counter.Labelled[IO, Int, (String, Int)]] = factory
   .counter("counter_total")
   .ofLong
   .help("Describe what this metric does")
@@ -141,7 +150,7 @@ val intLabelledCounter: IO[Counter.Labelled[IO, Int, (String, Int)]] = factory
 ```
 
 ```scala mdoc:silent
-val shortLabelledCounter: IO[Counter.Labelled[IO, Short, (String, Int)]] =
+val shortLabelledCounter: Resource[IO, Counter.Labelled[IO, Short, (String, Int)]] =
   intLabelledCounter.map(_.contramap[Short](_.toInt))
 ```
 
@@ -153,7 +162,7 @@ This can work as a nice alternative to
 ```scala mdoc:silent
 case class LabelsClass(string: String, int: Int)
 
-val updatedLabelsCounter: IO[Counter.Labelled[IO, Long, LabelsClass]] = factory
+val updatedLabelsCounter: Resource[IO, Counter.Labelled[IO, Long, LabelsClass]] = factory
   .counter("counter_total")
   .ofLong
   .help("Describe what this metric does")
@@ -234,4 +243,5 @@ summary implementation may be configured differently.**
 [primitive]: ../metrics/primitive-metric-types.md
 [derived]: ../metrics/derived-metric-types.md
 [`MetricFactory`]: metric-factory.md
+[`MetricRegistry`]: metric-registry.md
 [`CallbackRegistry`]: callback-registry.md

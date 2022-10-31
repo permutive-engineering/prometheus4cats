@@ -23,7 +23,7 @@ import cats.effect.kernel.{Sync, Temporal}
 import cats.effect.std.Dispatcher
 import cats.effect.syntax.temporal._
 import cats.syntax.all._
-import io.prometheus.client.SimpleCollector
+import io.prometheus.client.{Collector, CollectorRegistry, SimpleCollector}
 import org.typelevel.log4cats.Logger
 import prometheus4cats.Label
 import prometheus4cats.javasimpleclient.models.Exceptions._
@@ -31,6 +31,11 @@ import prometheus4cats.javasimpleclient.models.Exceptions._
 import scala.concurrent.duration.FiniteDuration
 
 private[javasimpleclient] object Utils {
+  def unregister[F[_]: Sync: Logger](collector: Collector, registry: CollectorRegistry): F[Unit] =
+    Sync[F].delay(registry.unregister(collector)).handleErrorWith { e =>
+      Logger[F].warn(e)(s"Failed to unregister a collector: '$collector'")
+    }
+
   def modifyMetric[F[_]: Sync: Logger, A: Show, B](
       c: SimpleCollector[B],
       metricName: A,

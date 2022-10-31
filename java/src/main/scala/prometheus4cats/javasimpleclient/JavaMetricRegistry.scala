@@ -21,7 +21,6 @@ import java.util
 import cats.data.NonEmptySeq
 import cats.effect.kernel._
 import cats.effect.std.{Dispatcher, Semaphore}
-import cats.syntax.applicativeError._
 import cats.syntax.flatMap._
 import cats.syntax.foldable._
 import cats.syntax.functor._
@@ -66,8 +65,8 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     case _ => name.show
   }
 
-  private def timeoutCallback[A](fa: F[A], onError: A, supplementalError: String): A =
-    Utils.timeoutCallback(dispatcher, callbackTimeout, fa, onError, supplementalError)
+  private def timeoutCallback[A](fa: F[A], onError: A, stringName: String): A =
+    Utils.timeoutCallback(dispatcher, callbackTimeout, fa, onError, s"Affected metric: '$stringName'")
 
   private def configureBuilderOrRetrieve[A: Show, B <: SimpleCollector.Builder[B, C], C <: SimpleCollector[_]](
       builder: SimpleCollector.Builder[B, C],
@@ -77,7 +76,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       help: Metric.Help,
       labels: IndexedSeq[Label.Name],
       modifyBuilder: Option[B => B] = None
-  ): F[C] = {
+  ): Resource[F, C] = {
     lazy val n = counterName(name)
 
     lazy val metricId: MetricID = (labels, metricType)
@@ -87,7 +86,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     // the semaphore is needed here because `update` can't be used on the Ref, due to creation of the collector
     // possibly throwing and therefore needing to be wrapped in a `Sync.delay`. This would be fine, but the actual
     // state must be pure and the collector is needed for that.
-    sem.permit.surround(
+    val acquire = sem.permit.surround(
       ref.get
         .flatMap[(State, C)] { (metrics: State) =>
           metrics.get(fullName) match {
@@ -123,6 +122,12 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
         }
         .flatMap { case (state, collector) => ref.set(state).as(collector) }
     )
+
+    Resource.make(acquire) { collector =>
+      sem.permit.surround {
+        ref.update(_ - fullName) >> Utils.unregister(collector, registry)
+      }
+    }
   }
 
   // the semaphore is needed here because `update` can't be used on the Ref, due to creation of the collector
@@ -134,16 +139,16 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       name: A,
       labels: IndexedSeq[Label.Name],
       collector: Collector
-  ): F[Unit] = {
+  ): Resource[F, Unit] = {
     lazy val n = counterName(name)
 
     lazy val metricId: MetricID = (labels, metricType)
     lazy val fullName: StateKey = (metricPrefix, n)
     lazy val renderedFullName = NameUtils.makeName(metricPrefix, name)
 
-    sem.permit.surround(
+    val acquire = sem.permit.surround(
       ref.get
-        .flatMap[State] { (metrics: State) =>
+        .flatMap[(State, Collector)] { (metrics: State) =>
           metrics.get(fullName) match {
             case Some((_, collector)) =>
               val collectorType = if (collector.isRight) "metric" else "callback"
@@ -154,12 +159,22 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
                 )
               )
             case None =>
-              Sync[F].delay(registry.register(collector)).as(metrics.updated(fullName, (metricId, Left(collector))))
+              Sync[F]
+                .delay(registry.register(collector))
+                .as(metrics.updated(fullName, (metricId, Left(collector))) -> collector)
           }
 
         }
-        .flatMap(ref.set)
+        .flatMap { case (state, collector) => ref.set(state).as(collector) }
     )
+
+    Resource
+      .make(acquire) { collector =>
+        sem.permit.surround {
+          ref.update(_ - fullName) >> Utils.unregister(collector, registry)
+        }
+      }
+      .as(())
   }
 
   override protected[prometheus4cats] def createAndRegisterDoubleCounter(
@@ -167,7 +182,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       name: Counter.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels
-  ): F[Counter[F, Double]] = {
+  ): Resource[F, Counter[F, Double]] = {
     lazy val commonLabelNames = commonLabels.value.keys.toIndexedSeq
     lazy val commonLabelValues = commonLabels.value.values.toIndexedSeq
 
@@ -194,7 +209,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name]
-  )(f: A => IndexedSeq[String]): F[Counter.Labelled[F, Double, A]] = {
+  )(f: A => IndexedSeq[String]): Resource[F, Counter.Labelled[F, Double, A]] = {
     val commonLabelNames = commonLabels.value.keys.toIndexedSeq
     val commonLabelValues = commonLabels.value.values.toIndexedSeq
 
@@ -225,7 +240,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       name: Gauge.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels
-  ): F[Gauge[F, Double]] = {
+  ): Resource[F, Gauge[F, Double]] = {
     val commonLabelNames = commonLabels.value.keys.toIndexedSeq
     val commonLabelValues = commonLabels.value.values.toIndexedSeq
     configureBuilderOrRetrieve(
@@ -259,7 +274,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name]
-  )(f: A => IndexedSeq[String]): F[Gauge.Labelled[F, Double, A]] = {
+  )(f: A => IndexedSeq[String]): Resource[F, Gauge.Labelled[F, Double, A]] = {
     val commonLabelNames = commonLabels.value.keys.toIndexedSeq
     val commonLabelValues = commonLabels.value.values.toIndexedSeq
 
@@ -291,7 +306,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       buckets: NonEmptySeq[Double]
-  ): F[Histogram[F, Double]] = {
+  ): Resource[F, Histogram[F, Double]] = {
     val commonLabelNames = commonLabels.value.keys.toIndexedSeq
     val commonLabelValues = commonLabels.value.values.toIndexedSeq
 
@@ -322,7 +337,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
       buckets: NonEmptySeq[Double]
-  )(f: A => IndexedSeq[String]): F[Histogram.Labelled[F, Double, A]] = {
+  )(f: A => IndexedSeq[String]): Resource[F, Histogram.Labelled[F, Double, A]] = {
     val commonLabelNames = commonLabels.value.keys.toIndexedSeq
     val commonLabelValues = commonLabels.value.values.toIndexedSeq
 
@@ -354,7 +369,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       quantiles: Seq[Summary.QuantileDefinition],
       maxAge: FiniteDuration,
       ageBuckets: Summary.AgeBuckets
-  ): F[Summary[F, Double]] = {
+  ): Resource[F, Summary[F, Double]] = {
 
     val commonLabelNames = commonLabels.value.keys.toIndexedSeq
     val commonLabelValues = commonLabels.value.values.toIndexedSeq
@@ -390,7 +405,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       quantiles: Seq[Summary.QuantileDefinition],
       maxAge: FiniteDuration,
       ageBuckets: Summary.AgeBuckets
-  )(f: A => IndexedSeq[String]): F[Summary.Labelled[F, Double, A]] = {
+  )(f: A => IndexedSeq[String]): Resource[F, Summary.Labelled[F, Double, A]] = {
 
     val commonLabelNames = commonLabels.value.keys.toIndexedSeq
     val commonLabelValues = commonLabels.value.values.toIndexedSeq
@@ -424,7 +439,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       prefix: Option[Metric.Prefix],
       name: Info.Name,
       help: Metric.Help
-  ): F[Info[F, Map[Label.Name, String]]] =
+  ): Resource[F, Info[F, Map[Label.Name, String]]] =
     configureBuilderOrRetrieve(
       PInfo.build(),
       MetricType.Info,
@@ -453,13 +468,13 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
   )(
       makeFamily: (String, B) => Collector.MetricFamilySamples,
       makeLabelledFamily: (String, util.List[String], util.List[String], B) => Collector.MetricFamilySamples
-  ): F[Unit] = {
+  ): Resource[F, Unit] = {
     lazy val stringName = NameUtils.makeName(prefix, name)
 
     lazy val commonLabelNames: util.List[String] = commonLabels.value.keys.map(_.value).toList.asJava
     lazy val commonLabelValues: util.List[String] = commonLabels.value.values.toList.asJava
 
-    def runCallback: Option[B] = timeoutCallback(callback.map(Option(_)), None, s"Affected metric: '$stringName'")
+    def runCallback: Option[B] = timeoutCallback(callback.map(Option(_)), None, stringName)
 
     lazy val collector = new Collector {
       override def collect(): util.List[Collector.MetricFamilySamples] =
@@ -488,14 +503,14 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
   )(
       f: C => IndexedSeq[String],
       makeLabelledFamily: (String, util.List[String], util.List[String], B) => Collector.MetricFamilySamples
-  ): F[Unit] = {
+  ): Resource[F, Unit] = {
     lazy val stringName = NameUtils.makeName(prefix, name)
 
     lazy val commonLabelNames: util.List[String] =
       (labelNames ++ commonLabels.value.keys.toIndexedSeq).map(_.value).asJava
     lazy val commonLabelValues: IndexedSeq[String] = commonLabels.value.values.toIndexedSeq
 
-    def runCallback: Option[(B, C)] = timeoutCallback(callback.map(Option(_)), None, s"Affected metric: '$stringName'")
+    def runCallback: Option[(B, C)] = timeoutCallback(callback.map(Option(_)), None, stringName)
 
     lazy val collector = new Collector {
       override def collect(): util.List[Collector.MetricFamilySamples] =
@@ -519,7 +534,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       callback: F[Double]
-  ): F[Unit] =
+  ): Resource[F, Unit] =
     register(MetricType.Counter, prefix, name, commonLabels, callback)(
       (n, v) => new CounterMetricFamily(n, help.value, if (v < 0) 0 else v),
       (n, lns, lvs, v) => new CounterMetricFamily(n, help.value, lns).addMetric(lvs, if (v < 0) 0 else v)
@@ -532,7 +547,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
       callback: F[(Double, A)]
-  )(f: A => IndexedSeq[String]): F[Unit] =
+  )(f: A => IndexedSeq[String]): Resource[F, Unit] =
     registerLabelled(MetricType.Counter, prefix, name, commonLabels, labelNames, callback)(
       f,
       (n, lns, lvs, v) => new CounterMetricFamily(n, help.value, lns).addMetric(lvs, if (v < 0) 0 else v)
@@ -544,7 +559,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       callback: F[Double]
-  ): F[Unit] = register(MetricType.Gauge, prefix, name, commonLabels, callback)(
+  ): Resource[F, Unit] = register(MetricType.Gauge, prefix, name, commonLabels, callback)(
     (n, v) => new GaugeMetricFamily(n, help.value, v),
     (n, lns, lvs, v) => new GaugeMetricFamily(n, help.value, lns).addMetric(lvs, v)
   )
@@ -556,7 +571,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
       callback: F[(Double, A)]
-  )(f: A => IndexedSeq[String]): F[Unit] =
+  )(f: A => IndexedSeq[String]): Resource[F, Unit] =
     registerLabelled(MetricType.Gauge, prefix, name, commonLabels, labelNames, callback)(
       f,
       (n, lns, lvs, v) => new GaugeMetricFamily(n, help.value, lns).addMetric(lvs, v)
@@ -569,11 +584,11 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       commonLabels: Metric.CommonLabels,
       buckets: NonEmptySeq[Double],
       callback: F[Histogram.Value[Double]]
-  ): F[Unit] = {
+  ): Resource[F, Unit] = {
     lazy val stringName = NameUtils.makeName(prefix, name)
 
     def runCallback: Option[Histogram.Value[Double]] =
-      timeoutCallback(callback.map(Option(_)), None, s"Affected metric: '$stringName'")
+      timeoutCallback(callback.map(Option(_)), None, stringName)
 
     val makeSamples = HistogramUtils.histogramSamples(prefix, name, help, commonLabels.value, IndexedSeq.empty, buckets)
 
@@ -596,11 +611,11 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       labelNames: IndexedSeq[Label.Name],
       buckets: NonEmptySeq[Double],
       callback: F[(Histogram.Value[Double], A)]
-  )(f: A => IndexedSeq[String]): F[Unit] = {
+  )(f: A => IndexedSeq[String]): Resource[F, Unit] = {
     lazy val stringName = NameUtils.makeName(prefix, name)
 
     def runCallback: Option[(Histogram.Value[Double], A)] =
-      timeoutCallback(callback.map(Option(_)), None, s"Affected metric: '$stringName'")
+      timeoutCallback(callback.map(Option(_)), None, stringName)
 
     val makeSamples = HistogramUtils.histogramSamples(prefix, name, help, commonLabels.value, labelNames, buckets)
 
@@ -621,7 +636,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       callback: F[Summary.Value[Double]]
-  ): F[Unit] =
+  ): Resource[F, Unit] =
     register(MetricType.Summary, prefix, name, commonLabels, callback)(
       (n, v) =>
         if (v.quantiles.isEmpty) new SummaryMetricFamily(n, help.value, v.count, v.sum)
@@ -657,7 +672,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
       callback: F[(Summary.Value[Double], A)]
-  )(f: A => IndexedSeq[String]): F[Unit] =
+  )(f: A => IndexedSeq[String]): Resource[F, Unit] =
     registerLabelled(MetricType.Summary, prefix, name, commonLabels, labelNames, callback)(
       f,
       (n, lns, lvs, v) =>
@@ -676,7 +691,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       prefix: Option[Metric.Prefix],
       commonLabels: Metric.CommonLabels,
       callback: F[MetricCollection]
-  ): F[Unit] = metricCollectionCollector.register(prefix, commonLabels, callback)
+  ): Resource[F, Unit] = metricCollectionCollector.register(prefix, commonLabels, callback)
 
 }
 
@@ -722,9 +737,7 @@ object JavaMetricRegistry {
                 .map(_._2)
                 .toList
                 .traverse_ { collector =>
-                  Sync[F].delay(promRegistry.unregister(collector.merge)).handleErrorWith { e =>
-                    Logger[F].warn(e)(s"Failed to unregister a collector on shutdown.")
-                  }
+                  Utils.unregister(collector.merge, promRegistry)
                 }
             else Applicative[F].unit
           }
