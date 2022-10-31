@@ -1,6 +1,9 @@
 ## Metrics DSL
 
-The metrics DSL provides a fluent API for constructing [primitive] and [derived] metrics from a [`MetricFactory`].
+The metrics DSL provides a fluent API for constructing [primitive] and [derived] metrics from a [`MetricFactory`]. It
+is designed to provide _some_ compile time safety when recording metrics in terms of matching label values to label
+names. It **does not** check that a metric is unique - this is only checked at runtime, the uniqueness of a
+metric (name & labels combination) depends on the [`MetricFactory`] implementation.
 
 The examples in this section assume you have imported the following and have created a [`MetricFactory`]:
 
@@ -179,15 +182,14 @@ The callback DSL is only available with the `MetricFactory.WithCallbacks` implem
 Callbacks are useful when you have some runtime source of a metric value, like a JMX MBean, which will be loaded when
 the current values for each metric is inspected for export to Prometheus.
 
-Callbacks are both extremely powerful and dangerous, so should be used with care. Callbacks are assumed to be
+**Callbacks are both extremely powerful and dangerous, so should be used with care**. Callbacks are assumed to be
 side-effecting in that each execution of the callback may yield a different underlying value, this also means that
 the operation could take a long time to complete if there is I/O involved (this is strongly discouraged). Therefore,
 implementations of [`CallbackRegistry`] may include a timeout.
 
-Some general guidance on callbacks:
-
-- **Do not perform any complex calculations as part of the callback, such as an I/O operation**
-- **Make callback calculations CPU bound, such as accessing a concurrent value**
+> ℹ️ Some general guidance on callbacks:
+> - **Do not perform any complex calculations as part of the callback, such as an I/O operation**
+> - **Make callback calculations CPU bound, such as accessing a concurrent value**
 
 All [primitive] metric types, with exception to `Info` can be implemented as callbacks, like so for `Counter` and
 `Gauge`:
@@ -222,13 +224,13 @@ factory
   )
 ```
 
-**Note that with a histogram value there must always be one more bucket value than defined when creating the metric,
-this is to provide a value for `+Inf`.**
+> ⚠️️ Note that with a histogram value there must always be one more bucket value than defined when creating the metric,
+> this is to provide a value for `+Inf`.
 
 
 ```scala mdoc:silent
 factory
-  .summary("gauge")
+  .summary("summary")
   .ofDouble
   .help("Describe what this metric does")
   .callback(
@@ -236,9 +238,22 @@ factory
   )
 ```
 
-**Note that is you specify quantiles, max age or age buckets for the summary, you cannot register a callback. This is
-because these parameters are used when configuring a summary metric type which would be returned you, whereas the
-summary implementation may be configured differently.**
+> ⚠️️ Note that is you specify quantiles, max age or age buckets for the summary, you cannot register a callback. This is
+> because these parameters are used when configuring a summary metric type which would be returned you, whereas the
+> summary implementation may be configured differently.
+
+#### Metric Collection
+
+It is possible to submit multiple metrics in a single callback, this may be useful where the metrics available in some
+collection may not be known at compile time. As with callbacks in general, this should be used carefully to ensure that
+collisions at runtime aren't encountered, it is suggested that you use a custom prefix for all metrics in a given
+collection to avoid this.
+
+```scala mdoc:silent
+val metricCollection: IO[MetricCollection] = IO(MetricCollection.empty)
+
+factory.metricCollectionCallback(metricCollection)
+```
 
 [primitive]: ../metrics/primitive-metric-types.md
 [derived]: ../metrics/derived-metric-types.md

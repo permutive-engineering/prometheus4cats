@@ -24,7 +24,7 @@ DSL.
 Whether you are able to obtain a `MetricFactory.WithCallbacks` depends on two things:
 
 - Whether you have an implementation [`CallbackRegistry`] available
-- [How you may have transformed the effect type of `MetricsFactory.WithCallbacks`](#transforming-the-effect-type)
+- [How you may have transformed the effect type of `MetricsFactory.WithCallbacks`](#transforming-the-effect-type-mapk)
 
 ### Constructing a No-op `MetricFactory`
 
@@ -126,7 +126,7 @@ newCommonLabels.map { labels =>
 }
 ```
 
-### Transforming the Effect Type
+### Transforming the Effect Type (`mapK`)
 
 You may transform the effect type (`F`) of a `MetricsFactory` with a
 [Cats natural transformation](https://typelevel.org/cats/datatypes/functionk.html) (`~>`).
