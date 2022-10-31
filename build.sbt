@@ -25,7 +25,7 @@ ThisBuild / developers := List(
 // publish to s01.oss.sonatype.org (set to true to publish to oss.sonatype.org instead)
 ThisBuild / tlSonatypeUseLegacyHost := false
 
-val Scala213 = "2.13.8"
+val Scala213 = "2.13.10"
 
 val Cats = "2.8.0"
 
@@ -53,7 +53,7 @@ lazy val core = project
   .settings(
     name := "prometheus4cats",
     libraryDependencies ++= Seq(
-      "org.typelevel" %%% "cats-core" % "2.8.0",
+      "org.typelevel" %%% "cats-core" % Cats,
       "org.typelevel" %%% "cats-effect-kernel" % CatsEffect,
       "org.typelevel" %%% "cats-effect" % CatsEffect % Test,
       "org.typelevel" %% "cats-effect-testkit" % CatsEffect % Test,
@@ -68,7 +68,7 @@ lazy val core = project
       .condOpt(CrossVersion.partialVersion(scalaVersion.value)) { case Some((2, _)) =>
         Seq(
           "org.scala-lang" % "scala-reflect" % scalaVersion.value,
-          "com.chuusai" %% "shapeless" % "2.3.9"
+          "com.chuusai" %% "shapeless" % "2.3.10"
         )
       }
       .toList
@@ -99,7 +99,7 @@ lazy val java =
     .settings(
       name := "prometheus4cats-java",
       libraryDependencies ++= Seq(
-        "org.typelevel" %%% "alleycats-core" % "2.8.0",
+        "org.typelevel" %%% "alleycats-core" % Cats,
         "org.typelevel" %% "cats-effect-std" % CatsEffect,
         "org.typelevel" %% "log4cats-core" % Log4Cats,
         "io.prometheus" % "simpleclient" % "0.16.0",
