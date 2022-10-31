@@ -31,7 +31,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
 
   def callbackRegistryResource(state: State): Resource[IO, CallbackRegistry[IO]]
 
-  test("register and set a counter") {
+  test("register, set and de-register a counter") {
     forAllF {
       (
           prefix: Option[Metric.Prefix],
@@ -42,21 +42,26 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
       ) =>
         stateResource.use { state =>
           callbackRegistryResource(state).use { reg =>
-            reg
-              .registerDoubleCounterCallback(prefix, name, help, commonLabels, IO(value)) >> getCounterValue(
+            val get = getCounterValue(
               state,
               prefix,
               name,
               help,
               commonLabels
-            ).map(res => if (value >= 0) assertEquals(res, Some(value)) else assertEquals(res, Some(0.0)))
+            )
+
+            reg
+              .registerDoubleCounterCallback(prefix, name, help, commonLabels, IO(value))
+              .surround(
+                get.map(res => if (value >= 0) assertEquals(res, Some(value)) else assertEquals(res, Some(0.0)))
+              ) >> get.map(assertEquals(_, None))
 
           }
         }
     }
   }
 
-  test("register and set a labelled counter") {
+  test("register, set and de-register a labelled counter") {
     forAllF {
       (
           prefix: Option[Metric.Prefix],
@@ -68,6 +73,8 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
       ) =>
         stateResource.use { state =>
           callbackRegistryResource(state).use { reg =>
+            val get = getCounterValue(state, prefix, name, help, commonLabels, labels)
+
             reg
               .registerLabelledDoubleCounterCallback[Map[Label.Name, String]](
                 prefix,
@@ -76,15 +83,16 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
                 commonLabels,
                 labels.keys.toIndexedSeq,
                 IO(value -> labels)
-              )(_.values.toIndexedSeq) >> getCounterValue(state, prefix, name, help, commonLabels, labels).map(res =>
-              if (value >= 0) assertEquals(res, Some(value)) else assertEquals(res, Some(0.0))
-            )
+              )(_.values.toIndexedSeq)
+              .surround(
+                get.map(res => if (value >= 0) assertEquals(res, Some(value)) else assertEquals(res, Some(0.0)))
+              ) >> get.map(assertEquals(_, None))
           }
         }
     }
   }
 
-  test("register and set a gauge") {
+  test("register, set and de-register a gauge") {
     forAllF {
       (
           prefix: Option[Metric.Prefix],
@@ -94,21 +102,26 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
           value: Double
       ) =>
         stateResource.use { state =>
+          val get = getGaugeValue(
+            state,
+            prefix,
+            name,
+            help,
+            commonLabels
+          )
+
           callbackRegistryResource(state).use { reg =>
             reg
-              .registerDoubleGaugeCallback(prefix, name, help, commonLabels, IO(value)) >> getGaugeValue(
-              state,
-              prefix,
-              name,
-              help,
-              commonLabels
-            ).map(assertEquals(_, Some(value)))
+              .registerDoubleGaugeCallback(prefix, name, help, commonLabels, IO(value))
+              .surround(
+                get.map(assertEquals(_, Some(value)))
+              ) >> get.map(assertEquals(_, None))
           }
         }
     }
   }
 
-  test("register and set a labelled gauge") {
+  test("register, set and de-register a labelled gauge") {
     forAllF {
       (
           prefix: Option[Metric.Prefix],
@@ -120,6 +133,8 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
       ) =>
         stateResource.use { state =>
           callbackRegistryResource(state).use { reg =>
+            val get = getGaugeValue(state, prefix, name, help, commonLabels, labels)
+
             reg
               .registerLabelledDoubleGaugeCallback[Map[Label.Name, String]](
                 prefix,
@@ -128,15 +143,16 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
                 commonLabels,
                 labels.keys.toIndexedSeq,
                 IO(value -> labels)
-              )(_.values.toIndexedSeq) >> getGaugeValue(state, prefix, name, help, commonLabels, labels).map(
-              assertEquals(_, Some(value))
-            )
+              )(_.values.toIndexedSeq)
+              .surround(
+                get.map(assertEquals(_, Some(value)))
+              ) >> get.map(assertEquals(_, None))
           }
         }
     }
   }
 
-  test("register and set a histogram") {
+  test("register, set and de-register a histogram") {
     forAllF {
       (
           prefix: Option[Metric.Prefix],
@@ -157,6 +173,8 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
             val bucketValues =
               if (value > 0) NonEmptySeq.of(0.0, 1.0, 1.0)
               else NonEmptySeq.of(1.0, 1.0, 1.0)
+
+            val get = getHistogramValue(state, prefix, name, help, commonLabels, buckets)
 
             reg
               .registerDoubleHistogramCallback(
@@ -166,16 +184,17 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
                 commonLabels,
                 buckets,
                 IO(Histogram.Value(sum, bucketValues))
-              ) >> getHistogramValue(state, prefix, name, help, commonLabels, buckets).map { res =>
-              assertEquals(res, Some(expected))
-            }
+              )
+              .surround(get.map { res =>
+                assertEquals(res, Some(expected))
+              }) >> get.map(assertEquals(_, None))
 
           }
         }
     }
   }
 
-  test("register and set a labelled histogram") {
+  test("register, set and de-register a labelled histogram") {
     forAllF {
       (
           prefix: Option[Metric.Prefix],
@@ -197,6 +216,8 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
             val bucketValues =
               if (value > 0) NonEmptySeq.of(0.0, 1.0, 1.0)
               else NonEmptySeq.of(1.0, 1.0, 1.0)
+
+            val get = getHistogramValue(state, prefix, name, help, commonLabels, buckets, labels)
 
             reg
               .registerLabelledDoubleHistogramCallback[Map[Label.Name, String]](
@@ -207,14 +228,16 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
                 labels.keys.toIndexedSeq,
                 buckets,
                 IO(Histogram.Value(sum, bucketValues) -> labels)
-              )(_.values.toIndexedSeq) >> getHistogramValue(state, prefix, name, help, commonLabels, buckets, labels)
-              .map(res => assertEquals(res, Some(expected)))
+              )(_.values.toIndexedSeq)
+              .surround(
+                get.map(res => assertEquals(res, Some(expected)))
+              ) >> get.map(assertEquals(_, None))
           }
         }
     }
   }
 
-  test("register and set a summary") {
+  test("register, set and de-register a summary") {
     forAllF {
       (
           prefix: Option[Metric.Prefix],
@@ -227,6 +250,8 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
       ) =>
         stateResource.use { state =>
           callbackRegistryResource(state).use { reg =>
+            val get = getSummaryValue(state, prefix, name, help, commonLabels, Map.empty)
+
             reg
               .registerDoubleSummaryCallback(
                 prefix,
@@ -234,17 +259,22 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
                 help,
                 commonLabels,
                 IO(Summary.Value(count, sum, quantiles.map { case (q, v) => q.value -> v }))
-              ) >> getSummaryValue(state, prefix, name, help, commonLabels, Map.empty).map { case (q, c, s) =>
-              assertEquals(q, Some(quantiles.map { case (q, v) => q.value.toString -> v }))
-              assertEquals(c, Some(count))
-              assertEquals(s, Some(sum))
+              )
+              .surround(get.map { case (q, c, s) =>
+                assertEquals(q, Some(quantiles.map { case (q, v) => q.value.toString -> v }))
+                assertEquals(c, Some(count))
+                assertEquals(s, Some(sum))
+              }) >> get.map { case (q, c, s) =>
+              assertEquals(q, None)
+              assertEquals(c, None)
+              assertEquals(s, None)
             }
           }
         }
     }
   }
 
-  test("register and set a labelled summary") {
+  test("register, set and de-register a labelled summary") {
     forAllF {
       (
           prefix: Option[Metric.Prefix],
@@ -258,6 +288,8 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
       ) =>
         stateResource.use { state =>
           callbackRegistryResource(state).use { reg =>
+            val get = getSummaryValue(state, prefix, name, help, commonLabels, labels)
+
             reg
               .registerLabelledDoubleSummaryCallback[Map[Label.Name, String]](
                 prefix,
@@ -266,18 +298,22 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
                 commonLabels,
                 labels.keys.toIndexedSeq,
                 IO((Summary.Value(count, sum, quantiles.map { case (q, v) => q.value -> v }), labels))
-              )(_.values.toIndexedSeq) >> getSummaryValue(state, prefix, name, help, commonLabels, labels).map {
-              case (q, c, s) =>
+              )(_.values.toIndexedSeq)
+              .surround(get.map { case (q, c, s) =>
                 assertEquals(q, Some(quantiles.map { case (q, v) => q.value.toString -> v }))
                 assertEquals(c, Some(count))
                 assertEquals(s, Some(sum))
+              }) >> get.map { case (q, c, s) =>
+              assertEquals(q, None)
+              assertEquals(c, None)
+              assertEquals(s, None)
             }
           }
         }
     }
   }
 
-  test("registers metric collection") {
+  test("register and de-register metric collection") {
     forAllF {
       (
           prefix: Option[Metric.Prefix],
@@ -290,37 +326,45 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
           values: (Double, Double)
       ) =>
         stateResource.use { state =>
-          callbackRegistryResource(state).use { reg =>
-            reg.registerMetricCollectionCallback(
-              prefix,
-              commonLabels,
-              IO(
-                MetricCollection.empty
-                  .appendDoubleCounter(name1, help, labels1, values._1)
-                  .appendDoubleCounter(name2, help, labels2, values._2)
-              )
-            ) >> getCounterValue(
-              state,
-              prefix,
-              name1,
-              help,
-              commonLabels,
-              labels1
-            ).map(assertEquals(_, Some(values._1))) >> getCounterValue(
-              state,
-              prefix,
-              name2,
-              help,
-              commonLabels,
-              labels2
-            ).map(assertEquals(_, Some(values._2)))
+          val get1 = getCounterValue(
+            state,
+            prefix,
+            name1,
+            help,
+            commonLabels,
+            labels1
+          )
 
+          val get2 = getCounterValue(
+            state,
+            prefix,
+            name2,
+            help,
+            commonLabels,
+            labels2
+          )
+
+          callbackRegistryResource(state).use { reg =>
+            reg
+              .registerMetricCollectionCallback(
+                prefix,
+                commonLabels,
+                IO(
+                  MetricCollection.empty
+                    .appendDoubleCounter(name1, help, labels1, values._1)
+                    .appendDoubleCounter(name2, help, labels2, values._2)
+                )
+              )
+              .surround(
+                get1
+                  .map(assertEquals(_, Some(values._1))) >> get2.map(assertEquals(_, Some(values._2)))
+              ) >> get1.map(assertEquals(_, None)) >> get2.map(assertEquals(_, None))
           }
         }
     }
   }
 
-  test("registers metric collection with the same name and different labels") {
+  test("register and de-register metric collection with the same name and different labels") {
     forAllF {
       (
           prefix: Option[Metric.Prefix],
@@ -335,45 +379,46 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
 
         stateResource.use { state =>
           callbackRegistryResource(state).use { reg =>
-            reg.registerMetricCollectionCallback(
+            val get1 = getCounterValue(
+              state,
               prefix,
+              name,
+              help,
               commonLabels,
-              IO(
-                if (labels1.isEmpty) MetricCollection.empty.appendDoubleCounter(name, help, labels2, value2)
-                else
-                  MetricCollection.empty
-                    .appendDoubleCounter(name, help, labels1, value1)
-                    .appendDoubleCounter(name, help, labels2, value2)
-              )
-            ) >> (if (labels1.isEmpty)
-                    getCounterValue(
-                      state,
-                      prefix,
-                      name,
-                      help,
-                      commonLabels,
-                      labels1
-                    ).map(assertEquals(_, Some(value2)))
+              labels1
+            )
+
+            val get2 = getCounterValue(
+              state,
+              prefix,
+              name,
+              help,
+              commonLabels,
+              labels2
+            )
+
+            reg
+              .registerMetricCollectionCallback(
+                prefix,
+                commonLabels,
+                IO(
+                  if (labels1.isEmpty) MetricCollection.empty.appendDoubleCounter(name, help, labels2, value2)
                   else
-                    getCounterValue(
-                      state,
-                      prefix,
-                      name,
-                      help,
-                      commonLabels,
-                      labels1
-                    ).map { res =>
-                      assertEquals(res, Some(value1))
-                    } >> getCounterValue(
-                      state,
-                      prefix,
-                      name,
-                      help,
-                      commonLabels,
-                      labels2
-                    ).map { res =>
-                      assertEquals(res, Some(value2))
-                    })
+                    MetricCollection.empty
+                      .appendDoubleCounter(name, help, labels1, value1)
+                      .appendDoubleCounter(name, help, labels2, value2)
+                )
+              )
+              .surround(
+                if (labels1.isEmpty)
+                  get1.map(assertEquals(_, Some(value2)))
+                else
+                  get1.map { res =>
+                    assertEquals(res, Some(value1))
+                  } >> get2.map { res =>
+                    assertEquals(res, Some(value2))
+                  }
+              ) >> get1.map(assertEquals(_, None)) >> get2.map(assertEquals(_, None))
 
           }
         }

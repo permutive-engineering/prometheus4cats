@@ -17,7 +17,7 @@
 package prometheus4cats
 
 import cats.data.NonEmptySeq
-import cats.kernel.Semigroup
+import cats.kernel.Monoid
 import cats.syntax.semigroup._
 
 final class MetricCollection private (
@@ -283,7 +283,8 @@ object MetricCollection {
     ) extends Summary
   }
 
-  implicit val catsInstances: Semigroup[MetricCollection] = new Semigroup[MetricCollection] {
+  implicit val catsInstances: Monoid[MetricCollection] = new Monoid[MetricCollection] {
+    override def empty: MetricCollection = MetricCollection.empty
     override def combine(x: MetricCollection, y: MetricCollection): MetricCollection = x ++ y
   }
 }

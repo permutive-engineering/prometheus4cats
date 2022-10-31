@@ -17,8 +17,9 @@
 package prometheus4cats
 
 import cats.data.NonEmptySeq
-import cats.syntax.functor._
-import cats.{Applicative, Functor, ~>}
+import cats.effect.MonadCancel
+import cats.effect.kernel.Resource
+import cats.{Applicative, ~>}
 import prometheus4cats.Metric.CommonLabels
 import prometheus4cats.Summary.QuantileDefinition
 
@@ -47,7 +48,7 @@ trait MetricRegistry[F[_]] {
       name: Counter.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels
-  ): F[Counter[F, Double]]
+  ): Resource[F, Counter[F, Double]]
 
   /** Create and register a counter that records [[scala.Long]] values against a metrics registry
     *
@@ -67,7 +68,7 @@ trait MetricRegistry[F[_]] {
       name: Counter.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels
-  ): F[Counter[F, Long]]
+  ): Resource[F, Counter[F, Long]]
 
   /** Create and register a labelled counter that records [[scala.Double]] values against a metrics registry
     *
@@ -93,7 +94,7 @@ trait MetricRegistry[F[_]] {
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name]
-  )(f: A => IndexedSeq[String]): F[Counter.Labelled[F, Double, A]]
+  )(f: A => IndexedSeq[String]): Resource[F, Counter.Labelled[F, Double, A]]
 
   /** Create and register a labelled counter that records [[scala.Long]] values against a metrics registry
     *
@@ -119,7 +120,7 @@ trait MetricRegistry[F[_]] {
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name]
-  )(f: A => IndexedSeq[String]): F[Counter.Labelled[F, Long, A]]
+  )(f: A => IndexedSeq[String]): Resource[F, Counter.Labelled[F, Long, A]]
 
   /** Create and register a gauge that records [[scala.Double]] values against a metrics registry
     *
@@ -139,7 +140,7 @@ trait MetricRegistry[F[_]] {
       name: Gauge.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels
-  ): F[Gauge[F, Double]]
+  ): Resource[F, Gauge[F, Double]]
 
   /** Create and register a gauge that records [[scala.Long]] values against a metrics registry
     *
@@ -159,7 +160,7 @@ trait MetricRegistry[F[_]] {
       name: Gauge.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels
-  ): F[Gauge[F, Long]]
+  ): Resource[F, Gauge[F, Long]]
 
   /** Create and register a labelled gauge that records [[scala.Double]] values against a metrics registry
     *
@@ -185,7 +186,7 @@ trait MetricRegistry[F[_]] {
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name]
-  )(f: A => IndexedSeq[String]): F[Gauge.Labelled[F, Double, A]]
+  )(f: A => IndexedSeq[String]): Resource[F, Gauge.Labelled[F, Double, A]]
 
   /** Create and register a labelled gauge that records [[scala.Long]] values against a metrics registry
     *
@@ -211,7 +212,7 @@ trait MetricRegistry[F[_]] {
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name]
-  )(f: A => IndexedSeq[String]): F[Gauge.Labelled[F, Long, A]]
+  )(f: A => IndexedSeq[String]): Resource[F, Gauge.Labelled[F, Long, A]]
 
   /** Create and register a histogram that records [[scala.Double]] values against a metrics registry
     *
@@ -234,7 +235,7 @@ trait MetricRegistry[F[_]] {
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       buckets: NonEmptySeq[Double]
-  ): F[Histogram[F, Double]]
+  ): Resource[F, Histogram[F, Double]]
 
   /** Create and register a histogram that records [[scala.Long]] values against a metrics registry
     *
@@ -257,7 +258,7 @@ trait MetricRegistry[F[_]] {
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       buckets: NonEmptySeq[Long]
-  ): F[Histogram[F, Long]]
+  ): Resource[F, Histogram[F, Long]]
 
   /** Create and register a labelled histogram against a metrics registry
     *
@@ -286,7 +287,7 @@ trait MetricRegistry[F[_]] {
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
       buckets: NonEmptySeq[Double]
-  )(f: A => IndexedSeq[String]): F[Histogram.Labelled[F, Double, A]]
+  )(f: A => IndexedSeq[String]): Resource[F, Histogram.Labelled[F, Double, A]]
 
   /** Create and register a labelled histogram against a metrics registry
     *
@@ -315,7 +316,7 @@ trait MetricRegistry[F[_]] {
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
       buckets: NonEmptySeq[Long]
-  )(f: A => IndexedSeq[String]): F[Histogram.Labelled[F, Long, A]]
+  )(f: A => IndexedSeq[String]): Resource[F, Histogram.Labelled[F, Long, A]]
 
   /** Create and register a summary that records [[scala.Double]] values against a metrics registry
     *
@@ -348,7 +349,7 @@ trait MetricRegistry[F[_]] {
       quantiles: Seq[QuantileDefinition],
       maxAge: FiniteDuration,
       ageBuckets: Summary.AgeBuckets
-  ): F[Summary[F, Double]]
+  ): Resource[F, Summary[F, Double]]
 
   /** Create and register a summary that records [[scala.Long]] values against a metrics registry
     *
@@ -381,7 +382,7 @@ trait MetricRegistry[F[_]] {
       quantiles: Seq[QuantileDefinition],
       maxAge: FiniteDuration,
       ageBuckets: Summary.AgeBuckets
-  ): F[Summary[F, Long]]
+  ): Resource[F, Summary[F, Long]]
 
   /** Create and register a summary that records [[scala.Double]] values against a metrics registry
     *
@@ -420,7 +421,7 @@ trait MetricRegistry[F[_]] {
       quantiles: Seq[QuantileDefinition],
       maxAge: FiniteDuration,
       ageBuckets: Summary.AgeBuckets
-  )(f: A => IndexedSeq[String]): F[Summary.Labelled[F, Double, A]]
+  )(f: A => IndexedSeq[String]): Resource[F, Summary.Labelled[F, Double, A]]
 
   /** Create and register a summary that records [[scala.Long]] values against a metrics registry
     *
@@ -459,7 +460,7 @@ trait MetricRegistry[F[_]] {
       quantiles: Seq[QuantileDefinition],
       maxAge: FiniteDuration,
       ageBuckets: Summary.AgeBuckets
-  )(f: A => IndexedSeq[String]): F[Summary.Labelled[F, Long, A]]
+  )(f: A => IndexedSeq[String]): Resource[F, Summary.Labelled[F, Long, A]]
 
   /** Create and register an info metric against a metrics registry
     *
@@ -476,9 +477,10 @@ trait MetricRegistry[F[_]] {
       prefix: Option[Metric.Prefix],
       name: Info.Name,
       help: Metric.Help
-  ): F[Info[F, Map[Label.Name, String]]]
+  ): Resource[F, Info[F, Map[Label.Name, String]]]
 
-  final def mapK[G[_]: Functor](fk: F ~> G): MetricRegistry[G] = MetricRegistry.mapK(this, fk)
+  final def mapK[G[_]](fk: F ~> G)(implicit F: MonadCancel[F, _], G: MonadCancel[G, _]): MetricRegistry[G] =
+    MetricRegistry.mapK(this, fk)
 }
 
 object MetricRegistry {
@@ -490,7 +492,7 @@ object MetricRegistry {
           name: Counter.Name,
           help: Metric.Help,
           commonLabels: CommonLabels
-      ): F[Counter[F, Double]] = F.pure(Counter.noop)
+      ): Resource[F, Counter[F, Double]] = Resource.pure(Counter.noop)
 
       override protected[prometheus4cats] def createAndRegisterLabelledDoubleCounter[A](
           prefix: Option[Metric.Prefix],
@@ -498,24 +500,24 @@ object MetricRegistry {
           help: Metric.Help,
           commonLabels: CommonLabels,
           labelNames: IndexedSeq[Label.Name]
-      )(f: A => IndexedSeq[String]): F[Counter.Labelled[F, Double, A]] =
-        F.pure(Counter.Labelled.noop)
+      )(f: A => IndexedSeq[String]): Resource[F, Counter.Labelled[F, Double, A]] =
+        Resource.pure(Counter.Labelled.noop)
 
       override protected[prometheus4cats] def createAndRegisterDoubleGauge(
           prefix: Option[Metric.Prefix],
           name: Gauge.Name,
           help: Metric.Help,
           commonLabels: CommonLabels
-      ): F[Gauge[F, Double]] =
-        F.pure(Gauge.noop)
+      ): Resource[F, Gauge[F, Double]] =
+        Resource.pure(Gauge.noop)
 
       override protected[prometheus4cats] def createAndRegisterLongGauge(
           prefix: Option[Metric.Prefix],
           name: Gauge.Name,
           help: Metric.Help,
           commonLabels: CommonLabels
-      ): F[Gauge[F, Long]] =
-        F.pure(Gauge.noop)
+      ): Resource[F, Gauge[F, Long]] =
+        Resource.pure(Gauge.noop)
 
       override protected[prometheus4cats] def createAndRegisterLabelledDoubleGauge[A](
           prefix: Option[Metric.Prefix],
@@ -523,8 +525,8 @@ object MetricRegistry {
           help: Metric.Help,
           commonLabels: CommonLabels,
           labelNames: IndexedSeq[Label.Name]
-      )(f: A => IndexedSeq[String]): F[Gauge.Labelled[F, Double, A]] =
-        F.pure(Gauge.Labelled.noop)
+      )(f: A => IndexedSeq[String]): Resource[F, Gauge.Labelled[F, Double, A]] =
+        Resource.pure(Gauge.Labelled.noop)
 
       override protected[prometheus4cats] def createAndRegisterDoubleHistogram(
           prefix: Option[Metric.Prefix],
@@ -532,7 +534,7 @@ object MetricRegistry {
           help: Metric.Help,
           commonLabels: CommonLabels,
           buckets: NonEmptySeq[Double]
-      ): F[Histogram[F, Double]] = F.pure(Histogram.noop)
+      ): Resource[F, Histogram[F, Double]] = Resource.pure(Histogram.noop)
 
       override protected[prometheus4cats] def createAndRegisterLabelledDoubleHistogram[A](
           prefix: Option[Metric.Prefix],
@@ -541,15 +543,15 @@ object MetricRegistry {
           commonLabels: CommonLabels,
           labelNames: IndexedSeq[Label.Name],
           buckets: NonEmptySeq[Double]
-      )(f: A => IndexedSeq[String]): F[Histogram.Labelled[F, Double, A]] =
-        F.pure(Histogram.Labelled.noop)
+      )(f: A => IndexedSeq[String]): Resource[F, Histogram.Labelled[F, Double, A]] =
+        Resource.pure(Histogram.Labelled.noop)
 
       override protected[prometheus4cats] def createAndRegisterLongCounter(
           prefix: Option[Metric.Prefix],
           name: Counter.Name,
           help: Metric.Help,
           commonLabels: CommonLabels
-      ): F[Counter[F, Long]] = F.pure(Counter.noop)
+      ): Resource[F, Counter[F, Long]] = Resource.pure(Counter.noop)
 
       override protected[prometheus4cats] def createAndRegisterLabelledLongCounter[A](
           prefix: Option[Metric.Prefix],
@@ -557,8 +559,8 @@ object MetricRegistry {
           help: Metric.Help,
           commonLabels: CommonLabels,
           labelNames: IndexedSeq[Label.Name]
-      )(f: A => IndexedSeq[String]): F[Counter.Labelled[F, Long, A]] =
-        F.pure(Counter.Labelled.noop)
+      )(f: A => IndexedSeq[String]): Resource[F, Counter.Labelled[F, Long, A]] =
+        Resource.pure(Counter.Labelled.noop)
 
       override protected[prometheus4cats] def createAndRegisterLabelledLongGauge[A](
           prefix: Option[Metric.Prefix],
@@ -566,8 +568,8 @@ object MetricRegistry {
           help: Metric.Help,
           commonLabels: CommonLabels,
           labelNames: IndexedSeq[Label.Name]
-      )(f: A => IndexedSeq[String]): F[Gauge.Labelled[F, Long, A]] =
-        F.pure(Gauge.Labelled.noop)
+      )(f: A => IndexedSeq[String]): Resource[F, Gauge.Labelled[F, Long, A]] =
+        Resource.pure(Gauge.Labelled.noop)
 
       override protected[prometheus4cats] def createAndRegisterLongHistogram(
           prefix: Option[Metric.Prefix],
@@ -575,7 +577,7 @@ object MetricRegistry {
           help: Metric.Help,
           commonLabels: CommonLabels,
           buckets: NonEmptySeq[Long]
-      ): F[Histogram[F, Long]] = F.pure(Histogram.noop)
+      ): Resource[F, Histogram[F, Long]] = Resource.pure(Histogram.noop)
 
       override protected[prometheus4cats] def createAndRegisterLabelledLongHistogram[A](
           prefix: Option[Metric.Prefix],
@@ -584,7 +586,8 @@ object MetricRegistry {
           commonLabels: CommonLabels,
           labelNames: IndexedSeq[Label.Name],
           buckets: NonEmptySeq[Long]
-      )(f: A => IndexedSeq[String]): F[Histogram.Labelled[F, Long, A]] = F.pure(Histogram.Labelled.noop)
+      )(f: A => IndexedSeq[String]): Resource[F, Histogram.Labelled[F, Long, A]] =
+        Resource.pure(Histogram.Labelled.noop)
 
       override protected[prometheus4cats] def createAndRegisterDoubleSummary(
           prefix: Option[Metric.Prefix],
@@ -594,7 +597,7 @@ object MetricRegistry {
           quantiles: Seq[QuantileDefinition],
           maxAge: FiniteDuration,
           ageBuckets: Summary.AgeBuckets
-      ): F[Summary[F, Double]] = F.pure(Summary.noop)
+      ): Resource[F, Summary[F, Double]] = Resource.pure(Summary.noop)
 
       override protected[prometheus4cats] def createAndRegisterLongSummary(
           prefix: Option[Metric.Prefix],
@@ -604,7 +607,7 @@ object MetricRegistry {
           quantiles: Seq[QuantileDefinition],
           maxAge: FiniteDuration,
           ageBuckets: Summary.AgeBuckets
-      ): F[Summary[F, Long]] = F.pure(Summary.noop)
+      ): Resource[F, Summary[F, Long]] = Resource.pure(Summary.noop)
 
       override protected[prometheus4cats] def createAndRegisterLabelledDoubleSummary[A](
           prefix: Option[Metric.Prefix],
@@ -615,7 +618,7 @@ object MetricRegistry {
           quantiles: Seq[QuantileDefinition],
           maxAge: FiniteDuration,
           ageBuckets: Summary.AgeBuckets
-      )(f: A => IndexedSeq[String]): F[Summary.Labelled[F, Double, A]] = F.pure(Summary.Labelled.noop)
+      )(f: A => IndexedSeq[String]): Resource[F, Summary.Labelled[F, Double, A]] = Resource.pure(Summary.Labelled.noop)
 
       override protected[prometheus4cats] def createAndRegisterLabelledLongSummary[A](
           prefix: Option[Metric.Prefix],
@@ -626,28 +629,27 @@ object MetricRegistry {
           quantiles: Seq[QuantileDefinition],
           maxAge: FiniteDuration,
           ageBuckets: Summary.AgeBuckets
-      )(f: A => IndexedSeq[String]): F[Summary.Labelled[F, Long, A]] = F.pure(Summary.Labelled.noop)
+      )(f: A => IndexedSeq[String]): Resource[F, Summary.Labelled[F, Long, A]] = Resource.pure(Summary.Labelled.noop)
 
       override protected[prometheus4cats] def createAndRegisterInfo(
           prefix: Option[Metric.Prefix],
           name: Info.Name,
           help: Metric.Help
-      ): F[Info[F, Map[Label.Name, String]]] = F.pure(Info.noop)
+      ): Resource[F, Info[F, Map[Label.Name, String]]] = Resource.pure(Info.noop)
     }
 
-  private[prometheus4cats] def mapK[F[_], G[_]: Functor](
+  private[prometheus4cats] def mapK[F[_], G[_]](
       self: MetricRegistry[F],
       fk: F ~> G
-  ): MetricRegistry[G] =
+  )(implicit F: MonadCancel[F, _], G: MonadCancel[G, _]): MetricRegistry[G] =
     new MetricRegistry[G] {
       override protected[prometheus4cats] def createAndRegisterDoubleCounter(
           prefix: Option[Metric.Prefix],
           name: Counter.Name,
           help: Metric.Help,
           commonLabels: CommonLabels
-      ): G[Counter[G, Double]] = fk(
-        self.createAndRegisterDoubleCounter(prefix, name, help, commonLabels)
-      ).map(_.mapK(fk))
+      ): Resource[G, Counter[G, Double]] =
+        self.createAndRegisterDoubleCounter(prefix, name, help, commonLabels).mapK(fk).map(_.mapK(fk))
 
       override protected[prometheus4cats] def createAndRegisterLabelledDoubleCounter[A](
           prefix: Option[Metric.Prefix],
@@ -655,33 +657,39 @@ object MetricRegistry {
           help: Metric.Help,
           commonLabels: CommonLabels,
           labelNames: IndexedSeq[Label.Name]
-      )(f: A => IndexedSeq[String]): G[Counter.Labelled[G, Double, A]] = fk(
-        self.createAndRegisterLabelledDoubleCounter(
-          prefix,
-          name,
-          help,
-          commonLabels,
-          labelNames
-        )(f)
-      ).map(_.mapK(fk))
+      )(f: A => IndexedSeq[String]): Resource[G, Counter.Labelled[G, Double, A]] =
+        self
+          .createAndRegisterLabelledDoubleCounter(
+            prefix,
+            name,
+            help,
+            commonLabels,
+            labelNames
+          )(f)
+          .mapK(fk)
+          .map(_.mapK(fk))
 
       override protected[prometheus4cats] def createAndRegisterDoubleGauge(
           prefix: Option[Metric.Prefix],
           name: Gauge.Name,
           help: Metric.Help,
           commonLabels: CommonLabels
-      ): G[Gauge[G, Double]] = fk(
-        self.createAndRegisterDoubleGauge(prefix, name, help, commonLabels)
-      ).map(_.mapK(fk))
+      ): Resource[G, Gauge[G, Double]] =
+        self
+          .createAndRegisterDoubleGauge(prefix, name, help, commonLabels)
+          .mapK(fk)
+          .map(_.mapK(fk))
 
       override protected[prometheus4cats] def createAndRegisterLongGauge(
           prefix: Option[Metric.Prefix],
           name: Gauge.Name,
           help: Metric.Help,
           commonLabels: CommonLabels
-      ): G[Gauge[G, Long]] = fk(
-        self.createAndRegisterLongGauge(prefix, name, help, commonLabels)
-      ).map(_.mapK(fk))
+      ): Resource[G, Gauge[G, Long]] =
+        self
+          .createAndRegisterLongGauge(prefix, name, help, commonLabels)
+          .mapK(fk)
+          .map(_.mapK(fk))
 
       override protected[prometheus4cats] def createAndRegisterLabelledDoubleGauge[A](
           prefix: Option[Metric.Prefix],
@@ -689,15 +697,17 @@ object MetricRegistry {
           help: Metric.Help,
           commonLabels: CommonLabels,
           labelNames: IndexedSeq[Label.Name]
-      )(f: A => IndexedSeq[String]): G[Gauge.Labelled[G, Double, A]] = fk(
-        self.createAndRegisterLabelledDoubleGauge(
-          prefix,
-          name,
-          help,
-          commonLabels,
-          labelNames
-        )(f)
-      ).map(_.mapK(fk))
+      )(f: A => IndexedSeq[String]): Resource[G, Gauge.Labelled[G, Double, A]] =
+        self
+          .createAndRegisterLabelledDoubleGauge(
+            prefix,
+            name,
+            help,
+            commonLabels,
+            labelNames
+          )(f)
+          .mapK(fk)
+          .map(_.mapK(fk))
 
       override protected[prometheus4cats] def createAndRegisterDoubleHistogram(
           prefix: Option[Metric.Prefix],
@@ -705,15 +715,17 @@ object MetricRegistry {
           help: Metric.Help,
           commonLabels: CommonLabels,
           buckets: NonEmptySeq[Double]
-      ): G[Histogram[G, Double]] = fk(
-        self.createAndRegisterDoubleHistogram(
-          prefix,
-          name,
-          help,
-          commonLabels,
-          buckets
-        )
-      ).map(_.mapK(fk))
+      ): Resource[G, Histogram[G, Double]] =
+        self
+          .createAndRegisterDoubleHistogram(
+            prefix,
+            name,
+            help,
+            commonLabels,
+            buckets
+          )
+          .mapK(fk)
+          .map(_.mapK(fk))
 
       override protected[prometheus4cats] def createAndRegisterLabelledDoubleHistogram[A](
           prefix: Option[Metric.Prefix],
@@ -722,23 +734,26 @@ object MetricRegistry {
           commonLabels: CommonLabels,
           labelNames: IndexedSeq[Label.Name],
           buckets: NonEmptySeq[Double]
-      )(f: A => IndexedSeq[String]): G[Histogram.Labelled[G, Double, A]] = fk(
-        self.createAndRegisterLabelledDoubleHistogram(
-          prefix,
-          name,
-          help,
-          commonLabels,
-          labelNames,
-          buckets
-        )(f)
-      ).map(_.mapK(fk))
+      )(f: A => IndexedSeq[String]): Resource[G, Histogram.Labelled[G, Double, A]] =
+        self
+          .createAndRegisterLabelledDoubleHistogram(
+            prefix,
+            name,
+            help,
+            commonLabels,
+            labelNames,
+            buckets
+          )(f)
+          .mapK(fk)
+          .map(_.mapK(fk))
 
       override protected[prometheus4cats] def createAndRegisterLongCounter(
           prefix: Option[Metric.Prefix],
           name: Counter.Name,
           help: Metric.Help,
           commonLabels: CommonLabels
-      ): G[Counter[G, Long]] = fk(self.createAndRegisterLongCounter(prefix, name, help, commonLabels)).map(_.mapK(fk))
+      ): Resource[G, Counter[G, Long]] =
+        self.createAndRegisterLongCounter(prefix, name, help, commonLabels).mapK(fk).map(_.mapK(fk))
 
       override protected[prometheus4cats] def createAndRegisterLabelledLongCounter[A](
           prefix: Option[Metric.Prefix],
@@ -746,8 +761,11 @@ object MetricRegistry {
           help: Metric.Help,
           commonLabels: CommonLabels,
           labelNames: IndexedSeq[Label.Name]
-      )(f: A => IndexedSeq[String]): G[Counter.Labelled[G, Long, A]] =
-        fk(self.createAndRegisterLabelledLongCounter(prefix, name, help, commonLabels, labelNames)(f)).map(_.mapK(fk))
+      )(f: A => IndexedSeq[String]): Resource[G, Counter.Labelled[G, Long, A]] =
+        self
+          .createAndRegisterLabelledLongCounter(prefix, name, help, commonLabels, labelNames)(f)
+          .mapK(fk)
+          .map(_.mapK(fk))
 
       override protected[prometheus4cats] def createAndRegisterLabelledLongGauge[A](
           prefix: Option[Metric.Prefix],
@@ -755,8 +773,11 @@ object MetricRegistry {
           help: Metric.Help,
           commonLabels: CommonLabels,
           labelNames: IndexedSeq[Label.Name]
-      )(f: A => IndexedSeq[String]): G[Gauge.Labelled[G, Long, A]] =
-        fk(self.createAndRegisterLabelledLongGauge(prefix, name, help, commonLabels, labelNames)(f)).map(_.mapK(fk))
+      )(f: A => IndexedSeq[String]): Resource[G, Gauge.Labelled[G, Long, A]] =
+        self
+          .createAndRegisterLabelledLongGauge(prefix, name, help, commonLabels, labelNames)(f)
+          .mapK(fk)
+          .map(_.mapK(fk))
 
       override protected[prometheus4cats] def createAndRegisterLongHistogram(
           prefix: Option[Metric.Prefix],
@@ -764,8 +785,8 @@ object MetricRegistry {
           help: Metric.Help,
           commonLabels: CommonLabels,
           buckets: NonEmptySeq[Long]
-      ): G[Histogram[G, Long]] =
-        fk(self.createAndRegisterLongHistogram(prefix, name, help, commonLabels, buckets)).map(_.mapK(fk))
+      ): Resource[G, Histogram[G, Long]] =
+        self.createAndRegisterLongHistogram(prefix, name, help, commonLabels, buckets).mapK(fk).map(_.mapK(fk))
 
       override protected[prometheus4cats] def createAndRegisterLabelledLongHistogram[A](
           prefix: Option[Metric.Prefix],
@@ -774,8 +795,10 @@ object MetricRegistry {
           commonLabels: CommonLabels,
           labelNames: IndexedSeq[Label.Name],
           buckets: NonEmptySeq[Long]
-      )(f: A => IndexedSeq[String]): G[Histogram.Labelled[G, Long, A]] =
-        fk(self.createAndRegisterLabelledLongHistogram(prefix, name, help, commonLabels, labelNames, buckets)(f))
+      )(f: A => IndexedSeq[String]): Resource[G, Histogram.Labelled[G, Long, A]] =
+        self
+          .createAndRegisterLabelledLongHistogram(prefix, name, help, commonLabels, labelNames, buckets)(f)
+          .mapK(fk)
           .map(_.mapK(fk))
 
       override protected[prometheus4cats] def createAndRegisterDoubleSummary(
@@ -786,9 +809,11 @@ object MetricRegistry {
           quantiles: Seq[QuantileDefinition],
           maxAge: FiniteDuration,
           ageBuckets: Summary.AgeBuckets
-      ): G[Summary[G, Double]] = fk(
-        self.createAndRegisterDoubleSummary(prefix, name, help, commonLabels, quantiles, maxAge, ageBuckets)
-      ).map(_.mapK(fk))
+      ): Resource[G, Summary[G, Double]] =
+        self
+          .createAndRegisterDoubleSummary(prefix, name, help, commonLabels, quantiles, maxAge, ageBuckets)
+          .mapK(fk)
+          .map(_.mapK(fk))
 
       override protected[prometheus4cats] def createAndRegisterLongSummary(
           prefix: Option[Metric.Prefix],
@@ -798,9 +823,11 @@ object MetricRegistry {
           quantiles: Seq[QuantileDefinition],
           maxAge: FiniteDuration,
           ageBuckets: Summary.AgeBuckets
-      ): G[Summary[G, Long]] = fk(
-        self.createAndRegisterLongSummary(prefix, name, help, commonLabels, quantiles, maxAge, ageBuckets)
-      ).map(_.mapK(fk))
+      ): Resource[G, Summary[G, Long]] =
+        self
+          .createAndRegisterLongSummary(prefix, name, help, commonLabels, quantiles, maxAge, ageBuckets)
+          .mapK(fk)
+          .map(_.mapK(fk))
 
       override protected[prometheus4cats] def createAndRegisterLabelledDoubleSummary[A](
           prefix: Option[Metric.Prefix],
@@ -811,18 +838,20 @@ object MetricRegistry {
           quantiles: Seq[QuantileDefinition],
           maxAge: FiniteDuration,
           ageBuckets: Summary.AgeBuckets
-      )(f: A => IndexedSeq[String]): G[Summary.Labelled[G, Double, A]] = fk(
-        self.createAndRegisterLabelledDoubleSummary(
-          prefix,
-          name,
-          help,
-          commonLabels,
-          labelNames,
-          quantiles,
-          maxAge,
-          ageBuckets
-        )(f)
-      ).map(_.mapK(fk))
+      )(f: A => IndexedSeq[String]): Resource[G, Summary.Labelled[G, Double, A]] =
+        self
+          .createAndRegisterLabelledDoubleSummary(
+            prefix,
+            name,
+            help,
+            commonLabels,
+            labelNames,
+            quantiles,
+            maxAge,
+            ageBuckets
+          )(f)
+          .mapK(fk)
+          .map(_.mapK(fk))
 
       override protected[prometheus4cats] def createAndRegisterLabelledLongSummary[A](
           prefix: Option[Metric.Prefix],
@@ -833,24 +862,27 @@ object MetricRegistry {
           quantiles: Seq[QuantileDefinition],
           maxAge: FiniteDuration,
           ageBuckets: Summary.AgeBuckets
-      )(f: A => IndexedSeq[String]): G[Summary.Labelled[G, Long, A]] = fk(
-        self.createAndRegisterLabelledLongSummary(
-          prefix,
-          name,
-          help,
-          commonLabels,
-          labelNames,
-          quantiles,
-          maxAge,
-          ageBuckets
-        )(f)
-      ).map(_.mapK(fk))
+      )(f: A => IndexedSeq[String]): Resource[G, Summary.Labelled[G, Long, A]] =
+        self
+          .createAndRegisterLabelledLongSummary(
+            prefix,
+            name,
+            help,
+            commonLabels,
+            labelNames,
+            quantiles,
+            maxAge,
+            ageBuckets
+          )(f)
+          .mapK(fk)
+          .map(_.mapK(fk))
 
       override protected[prometheus4cats] def createAndRegisterInfo(
           prefix: Option[Metric.Prefix],
           name: Info.Name,
           help: Metric.Help
-      ): G[Info[G, Map[Label.Name, String]]] = fk(self.createAndRegisterInfo(prefix, name, help)).map(_.mapK(fk))
+      ): Resource[G, Info[G, Map[Label.Name, String]]] =
+        self.createAndRegisterInfo(prefix, name, help).mapK(fk).map(_.mapK(fk))
 
     }
 }

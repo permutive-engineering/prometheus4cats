@@ -21,16 +21,17 @@ import cats.data.NonEmptySeq
 import cats.effect.IO
 import cats.effect.kernel.Resource
 import cats.syntax.either._
+import cats.syntax.flatMap._
+import cats.syntax.show._
 import io.prometheus.client.CollectorRegistry
 import munit.CatsEffectSuite
-import prometheus4cats._
-import prometheus4cats.testkit.{CallbackRegistrySuite, MetricRegistrySuite}
-import prometheus4cats.util.NameUtils
 import org.scalacheck.effect.PropF._
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.noop.NoOpLogger
 import prometheus4cats.Metric.CommonLabels
-import cats.syntax.show._
+import prometheus4cats._
+import prometheus4cats.testkit.{CallbackRegistrySuite, MetricRegistrySuite}
+import prometheus4cats.util.NameUtils
 
 import scala.jdk.CollectionConverters._
 
@@ -194,10 +195,7 @@ class JavaMetricRegistrySuite
               labels.toIndexedSeq
             )(_.values.toIndexedSeq)
 
-          for {
-            _ <- metric
-            _ <- metric
-          } yield ()
+          (metric >> metric).use_
         }
     }
   }
@@ -233,10 +231,7 @@ class JavaMetricRegistrySuite
                 IO(0.0 -> Map.empty[Label.Name, String])
               )(_.values.toIndexedSeq)
 
-            for {
-              _ <- callback
-              _ <- metric
-            } yield ()
+            (callback >> metric).use_
           }
           .attempt
           .map { res =>
@@ -281,10 +276,7 @@ class JavaMetricRegistrySuite
                 IO(0.0 -> Map.empty[Label.Name, String])
               )(_.values.toIndexedSeq)
 
-            for {
-              _ <- metric
-              _ <- callback
-            } yield ()
+            (metric >> callback).use_
           }
           .attempt
           .map { res =>
@@ -320,10 +312,7 @@ class JavaMetricRegistrySuite
                 IO(0.0 -> Map.empty[Label.Name, String])
               )(_.values.toIndexedSeq)
 
-            for {
-              _ <- callback
-              _ <- callback
-            } yield ()
+            (callback >> callback).use_
           }
           .attempt
           .map { res =>
@@ -350,24 +339,21 @@ class JavaMetricRegistrySuite
         stateResource
           .flatMap(metricRegistryResource)
           .use { reg =>
-            for {
-              _ <- reg
-                .createAndRegisterLabelledDoubleCounter[Map[Label.Name, String]](
-                  prefix,
-                  name,
-                  help,
-                  commonLabels,
-                  labels.toIndexedSeq
-                )(_.values.toIndexedSeq)
-              _ <- reg
-                .createAndRegisterLabelledDoubleCounter[Map[Label.Name, String]](
-                  prefix,
-                  name,
-                  help,
-                  commonLabels,
-                  IndexedSeq(labelName2)
-                )(_.values.toIndexedSeq)
-            } yield ()
+            (reg
+              .createAndRegisterLabelledDoubleCounter[Map[Label.Name, String]](
+                prefix,
+                name,
+                help,
+                commonLabels,
+                labels.toIndexedSeq
+              )(_.values.toIndexedSeq) >> reg
+              .createAndRegisterLabelledDoubleCounter[Map[Label.Name, String]](
+                prefix,
+                name,
+                help,
+                commonLabels,
+                IndexedSeq(labelName2)
+              )(_.values.toIndexedSeq)).use_
           }
           .attempt
           .map { res =>
@@ -397,24 +383,21 @@ class JavaMetricRegistrySuite
         stateResource
           .flatMap(metricRegistryResource)
           .use { reg =>
-            for {
-              _ <- reg
-                .createAndRegisterLabelledDoubleCounter[Map[Label.Name, String]](
-                  prefix,
-                  counterName,
-                  help,
-                  commonLabels,
-                  labels.toIndexedSeq
-                )(_.values.toIndexedSeq)
-              _ <- reg
-                .createAndRegisterLabelledDoubleGauge[Map[Label.Name, String]](
-                  prefix,
-                  gaugeName,
-                  help,
-                  commonLabels,
-                  labels.toIndexedSeq
-                )(_.values.toIndexedSeq)
-            } yield ()
+            (reg
+              .createAndRegisterLabelledDoubleCounter[Map[Label.Name, String]](
+                prefix,
+                counterName,
+                help,
+                commonLabels,
+                labels.toIndexedSeq
+              )(_.values.toIndexedSeq) >> reg
+              .createAndRegisterLabelledDoubleGauge[Map[Label.Name, String]](
+                prefix,
+                gaugeName,
+                help,
+                commonLabels,
+                labels.toIndexedSeq
+              )(_.values.toIndexedSeq)).use_
           }
           .attempt
           .map { res =>

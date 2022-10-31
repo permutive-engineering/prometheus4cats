@@ -41,7 +41,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
       labels: Map[Label.Name, String]
   ): IO[Option[Double]]
 
-  test("create and increment a counter") {
+  test("create, increment and de-register a counter") {
     forAllF {
       (
           prefix: Option[Metric.Prefix],
@@ -52,22 +52,26 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
       ) =>
         stateResource.use { state =>
           metricRegistryResource(state).use { reg =>
-            reg
-              .createAndRegisterDoubleCounter(prefix, name, help, commonLabels)
-              .flatMap(_.inc(incBy)) >> getCounterValue(
+            val get = getCounterValue(
               state,
               prefix,
               name,
               help,
               commonLabels
-            ).map(res => if (incBy >= 0) assertEquals(res, Some(incBy)) else assertEquals(res, Some(0.0)))
+            )
 
+            reg
+              .createAndRegisterDoubleCounter(prefix, name, help, commonLabels)
+              .evalMap(_.inc(incBy))
+              .surround(
+                get.map(res => if (incBy >= 0) assertEquals(res, Some(incBy)) else assertEquals(res, Some(0.0)))
+              ) >> get.map(assertEquals(_, None))
           }
         }
     }
   }
 
-  test("create and increment a labelled counter") {
+  test("create, increment and de-register a labelled counter") {
     forAllF {
       (
           prefix: Option[Metric.Prefix],
@@ -79,6 +83,15 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
       ) =>
         stateResource.use { state =>
           metricRegistryResource(state).use { reg =>
+            val get = getCounterValue(
+              state,
+              prefix,
+              name,
+              help,
+              commonLabels,
+              labels
+            )
+
             reg
               .createAndRegisterLabelledDoubleCounter[Map[Label.Name, String]](
                 prefix,
@@ -87,20 +100,16 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
                 commonLabels,
                 labels.keys.toIndexedSeq
               )(_.values.toIndexedSeq)
-              .flatMap(_.inc(incBy, labels)) >> getCounterValue(
-              state,
-              prefix,
-              name,
-              help,
-              commonLabels,
-              labels
-            ).map(res => if (incBy >= 0) assertEquals(res, Some(incBy)) else assertEquals(res, Some(0.0)))
+              .evalMap(_.inc(incBy, labels))
+              .surround(
+                get.map(res => if (incBy >= 0) assertEquals(res, Some(incBy)) else assertEquals(res, Some(0.0)))
+              ) >> get.map(assertEquals(_, None))
           }
         }
     }
   }
 
-  test("create and update a gauge") {
+  test("create, update and de-register a gauge") {
     forAllF {
       (
           prefix: Option[Metric.Prefix],
@@ -121,31 +130,35 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
               commonLabels
             )
 
-            for {
-              gauge <- reg.createAndRegisterDoubleGauge(prefix, name, help, commonLabels)
-              _ <- gauge.set(set)
-              setValue <- get
-              _ <- gauge.inc
-              incOneValue <- get
-              _ <- gauge.inc(inc)
-              incValue <- get
-              _ <- gauge.dec
-              decOneValue <- get
-              _ <- gauge.dec(dec)
-              decValue <- get
-            } yield (setValue, incOneValue, incValue, decOneValue, decValue)
+            reg
+              .createAndRegisterDoubleGauge(prefix, name, help, commonLabels)
+              .use(gauge =>
+                for {
+                  _ <- gauge.set(set)
+                  setValue <- get
+                  _ <- gauge.inc
+                  incOneValue <- get
+                  _ <- gauge.inc(inc)
+                  incValue <- get
+                  _ <- gauge.dec
+                  decOneValue <- get
+                  _ <- gauge.dec(dec)
+                  decValue <- get
+                } yield (setValue, incOneValue, incValue, decOneValue, decValue)
+              )
+              .map { case (setValue, incOneValue, incValue, decOneValue, decValue) =>
+                assertEquals(setValue, Some(set))
+                assertEquals(incOneValue, setValue.map(_ + 1))
+                assertEquals(incValue, incOneValue.map(_ + inc))
+                assertEquals(decOneValue, incValue.map(_ - 1))
+                assertEquals(decValue, decOneValue.map(_ - dec))
+              } >> get.map(assertEquals(_, None))
           }
-        }.map { case (setValue, incOneValue, incValue, decOneValue, decValue) =>
-          assertEquals(setValue, Some(set))
-          assertEquals(incOneValue, setValue.map(_ + 1))
-          assertEquals(incValue, incOneValue.map(_ + inc))
-          assertEquals(decOneValue, incValue.map(_ - 1))
-          assertEquals(decValue, decOneValue.map(_ - dec))
         }
     }
   }
 
-  test("create and set a labelled gauge") {
+  test("create, update and de-register a labelled gauge") {
     forAllF {
       (
           prefix: Option[Metric.Prefix],
@@ -168,37 +181,40 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
               labels
             )
 
-            for {
-              gauge <- reg.createAndRegisterLabelledDoubleGauge[Map[Label.Name, String]](
+            reg
+              .createAndRegisterLabelledDoubleGauge[Map[Label.Name, String]](
                 prefix,
                 name,
                 help,
                 commonLabels,
                 labels.keys.toIndexedSeq
               )(_.values.toIndexedSeq)
-              _ <- gauge.set(set, labels)
-              setValue <- get
-              _ <- gauge.inc(labels = labels)
-              incOneValue <- get
-              _ <- gauge.inc(inc, labels)
-              incValue <- get
-              _ <- gauge.dec(labels = labels)
-              decOneValue <- get
-              _ <- gauge.dec(dec, labels)
-              decValue <- get
-            } yield {
-              assertEquals(setValue, Some(set))
-              assertEquals(incOneValue, setValue.map(_ + 1))
-              assertEquals(incValue, incOneValue.map(_ + inc))
-              assertEquals(decOneValue, incValue.map(_ - 1))
-              assertEquals(decValue, decOneValue.map(_ - dec))
-            }
+              .use { gauge =>
+                for {
+                  _ <- gauge.set(set, labels)
+                  setValue <- get
+                  _ <- gauge.inc(labels = labels)
+                  incOneValue <- get
+                  _ <- gauge.inc(inc, labels)
+                  incValue <- get
+                  _ <- gauge.dec(labels = labels)
+                  decOneValue <- get
+                  _ <- gauge.dec(dec, labels)
+                  decValue <- get
+                } yield {
+                  assertEquals(setValue, Some(set))
+                  assertEquals(incOneValue, setValue.map(_ + 1))
+                  assertEquals(incValue, incOneValue.map(_ + inc))
+                  assertEquals(decOneValue, incValue.map(_ - 1))
+                  assertEquals(decValue, decOneValue.map(_ - dec))
+                }
+              } >> get.map(assertEquals(_, None))
           }
         }
     }
   }
 
-  test("create and increment a histogram") {
+  test("create, increment and de-register a histogram") {
     forAllF {
       (
           prefix: Option[Metric.Prefix],
@@ -215,23 +231,28 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
               if (value > 0) Map("0.0" -> 0.0, value.toString -> 1.0, "+Inf" -> 1.0)
               else Map(value.toString -> 1.0, "0.0" -> 1.0, "+Inf" -> 1.0)
 
-            reg
-              .createAndRegisterDoubleHistogram(prefix, name, help, commonLabels, buckets)
-              .flatMap(_.observe(value)) >> getHistogramValue(
+            val get = getHistogramValue(
               state,
               prefix,
               name,
               help,
               commonLabels,
               buckets
-            ).map(res => assertEquals(res, Some(expected)))
+            )
+
+            reg
+              .createAndRegisterDoubleHistogram(prefix, name, help, commonLabels, buckets)
+              .evalMap(_.observe(value))
+              .surround(
+                get.map(res => assertEquals(res, Some(expected)))
+              ) >> get.map(assertEquals(_, None))
 
           }
         }
     }
   }
 
-  test("create and increment a labelled histogram") {
+  test("create, increment and de-register a labelled histogram") {
     forAllF {
       (
           prefix: Option[Metric.Prefix],
@@ -248,6 +269,16 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
             val expected =
               if (value > 0) Map("0.0" -> 0.0, value.toString -> 1.0, "+Inf" -> 1.0)
               else Map(value.toString -> 1.0, "0.0" -> 1.0, "+Inf" -> 1.0)
+
+            val get = getHistogramValue(
+              state,
+              prefix,
+              name,
+              help,
+              commonLabels,
+              buckets,
+              labels
+            )
 
             reg
               .createAndRegisterLabelledDoubleHistogram[Map[Label.Name, String]](
@@ -258,21 +289,16 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
                 labels.keys.toIndexedSeq,
                 buckets
               )(_.values.toIndexedSeq)
-              .flatMap(_.observe(value, labels)) >> getHistogramValue(
-              state,
-              prefix,
-              name,
-              help,
-              commonLabels,
-              buckets,
-              labels
-            ).map(res => assertEquals(res, Some(expected)))
+              .evalMap(_.observe(value, labels))
+              .surround(
+                get.map(res => assertEquals(res, Some(expected)))
+              ) >> get.map(assertEquals(_, None))
           }
         }
     }
   }
 
-  test("create and increment a summary") {
+  test("create, increment and de-register a summary") {
     forAllF {
       (
           prefix: Option[Metric.Prefix],
@@ -285,6 +311,8 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
       ) =>
         stateResource.use { state =>
           metricRegistryResource(state).use { reg =>
+            val get = getSummaryValue(state, prefix, name, help, commonLabels, Map.empty)
+
             reg
               .createAndRegisterDoubleSummary(
                 prefix,
@@ -295,19 +323,22 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
                 age._1 + 1.second,
                 age._2
               )
-              .flatMap(_.observe(value)) >> getSummaryValue(state, prefix, name, help, commonLabels, Map.empty).map {
-              case (q, count, sum) =>
+              .evalTap(_.observe(value))
+              .surround(get.map { case (q, count, sum) =>
                 assertEquals(q, Some(quantiles.map(qd => qd.value.value.toString -> value).toMap))
                 assertEquals(count, Some(1.0))
                 assertEquals(sum, Some(value))
-
+              }) >> get.map { case (q, c, s) =>
+              assertEquals(q, None)
+              assertEquals(c, None)
+              assertEquals(s, None)
             }
           }
         }
     }
   }
 
-  test("create and increment a labelled summary") {
+  test("create, increment and de-register a labelled summary") {
     forAllF {
       (
           prefix: Option[Metric.Prefix],
@@ -321,6 +352,15 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
       ) =>
         stateResource.use { state =>
           metricRegistryResource(state).use { reg =>
+            val get = getSummaryValue(
+              state,
+              prefix,
+              name,
+              help,
+              commonLabels,
+              labels
+            )
+
             reg
               .createAndRegisterLabelledDoubleSummary[Map[Label.Name, String]](
                 prefix,
@@ -332,25 +372,24 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
                 age._1 + 1.second,
                 age._2
               )(_.values.toIndexedSeq)
-              .flatMap(_.observe(value, labels)) >> getSummaryValue(
-              state,
-              prefix,
-              name,
-              help,
-              commonLabels,
-              labels
-            ).map { case (q, count, sum) =>
-              assertEquals(q, Some(quantiles.map(qd => qd.value.value.toString -> value).toMap))
-              assertEquals(count, Some(1.0))
-              assertEquals(sum, Some(value))
-
+              .evalTap(_.observe(value, labels))
+              .surround(
+                get.map { case (q, count, sum) =>
+                  assertEquals(q, Some(quantiles.map(qd => qd.value.value.toString -> value).toMap))
+                  assertEquals(count, Some(1.0))
+                  assertEquals(sum, Some(value))
+                }
+              ) >> get.map { case (q, c, s) =>
+              assertEquals(q, None)
+              assertEquals(c, None)
+              assertEquals(s, None)
             }
           }
         }
     }
   }
 
-  test("create and set info") {
+  test("create, set and de-register info") {
     forAllF {
       (
           prefix: Option[Metric.Prefix],
@@ -360,11 +399,16 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
       ) =>
         stateResource.use { state =>
           metricRegistryResource(state).use { reg =>
+            val get = getInfoValue(state, prefix, name, help, labels)
+
             reg
               .createAndRegisterInfo(prefix, name, help)
-              .flatMap(_.info(labels)) >> getInfoValue(state, prefix, name, help, labels).map(
-              assertEquals(_, Some(1.0))
-            )
+              .evalTap(_.info(labels))
+              .surround(
+                get.map(
+                  assertEquals(_, Some(1.0))
+                )
+              ) >> get.map(assertEquals(_, None))
           }
         }
     }

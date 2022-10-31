@@ -30,7 +30,6 @@ object MetricsFactoryDslTest {
 
   val doubleGaugeBuilder = gaugeBuilder.ofDouble.help("help")
   doubleGaugeBuilder.build
-  doubleGaugeBuilder.resource
   doubleGaugeBuilder.asCurrentTimeRecorder
   doubleGaugeBuilder.asCurrentTimeRecorder(_.toUnit(TimeUnit.NANOSECONDS))
   doubleGaugeBuilder.contramap[Int](_.toDouble).build
@@ -52,7 +51,6 @@ object MetricsFactoryDslTest {
 
   val longGaugeBuilder = gaugeBuilder.ofLong.help("help")
   longGaugeBuilder.build
-  longGaugeBuilder.resource
   longGaugeBuilder.asCurrentTimeRecorder
   longGaugeBuilder.asCurrentTimeRecorder(_.toDays)
   longGaugeBuilder.label[String]("label1").label[Int]("label2").label[BigInteger]("label3", _.toString).build
@@ -62,7 +60,6 @@ object MetricsFactoryDslTest {
 
   val doubleCounterBuilder = counterBuilder.ofDouble.help("help")
   doubleCounterBuilder.build
-  doubleCounterBuilder.resource
   doubleCounterBuilder.asOutcomeRecorder.build
   doubleCounterBuilder.unsafeLabels(Label.Name("label1"), Label.Name("label2")).build
 
@@ -74,7 +71,6 @@ object MetricsFactoryDslTest {
 
   val longCounterBuilder = counterBuilder.ofLong.help("help")
   longCounterBuilder.build
-  longCounterBuilder.resource
   longCounterBuilder.label[String]("label1").label[Int]("label2").label[BigInteger]("label3", _.toString).build
   longCounterBuilder.unsafeLabels(Label.Name("label1"), Label.Name("label2")).build
 
@@ -82,7 +78,6 @@ object MetricsFactoryDslTest {
 
   val doubleHistogramBuilder = histogramBuilder.ofDouble.help("help").defaultHttpBuckets
   doubleHistogramBuilder.build
-  doubleHistogramBuilder.resource
   doubleHistogramBuilder.asTimer.build
   doubleHistogramBuilder
     .label[String]("label1")
@@ -97,14 +92,12 @@ object MetricsFactoryDslTest {
 
   val longHistogramBuilder = histogramBuilder.ofLong.help("help").buckets(1, 2)
   longHistogramBuilder.build
-  longHistogramBuilder.resource
   longHistogramBuilder.label[String]("label1").label[Int]("label2").label[BigInteger]("label3", _.toString).build
   longHistogramBuilder.unsafeLabels(Label.Name("label1"), Label.Name("label2")).build
 
   val infoBuilder = factory.info("test_info").help("help")
   infoBuilder.contramap[List[(Label.Name, String)]](_.toMap)
   infoBuilder.build
-  infoBuilder.resource
 
   val doubleSummaryBuilder =
     factory

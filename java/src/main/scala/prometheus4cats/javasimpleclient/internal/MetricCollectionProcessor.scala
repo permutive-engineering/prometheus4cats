@@ -18,18 +18,16 @@ package prometheus4cats.javasimpleclient.internal
 
 import java.util
 
+import alleycats.std.iterable._
 import alleycats.std.set._
-import cats.data.NonEmptyList
 import cats.effect.kernel._
 import cats.effect.std.Dispatcher
-import cats.syntax.applicativeError._
 import cats.syntax.flatMap._
 import cats.syntax.foldable._
 import cats.syntax.functor._
-import cats.syntax.reducible._
 import cats.syntax.show._
 import cats.syntax.traverse._
-import cats.{Applicative, Show}
+import cats.{Applicative, Monoid, Show}
 import io.prometheus.client.Collector.MetricFamilySamples
 import io.prometheus.client.{
   Collector,
@@ -54,7 +52,7 @@ class MetricCollectionProcessor[F[_]: Async: Logger] private (
     ref: Ref[F, State],
     collectionCallbackRef: Ref[F, Map[Option[
       Metric.Prefix
-    ], (Map[Label.Name, String], NonEmptyList[F[MetricCollection]])]],
+    ], (Map[Label.Name, String], Map[Unique.Token, F[MetricCollection]])]],
     dispatcher: Dispatcher[F],
     callbackTimeout: FiniteDuration,
     callbackTimeHistogram: PHistogram,
@@ -74,16 +72,31 @@ class MetricCollectionProcessor[F[_]: Async: Logger] private (
       prefix: Option[Metric.Prefix],
       commonLabels: Metric.CommonLabels,
       callback: F[MetricCollection]
-  ): F[Unit] =
-    collectionCallbackRef.update(map =>
-      map.updated(
-        prefix,
-        map.get(prefix).fold(commonLabels.value -> NonEmptyList.one(callback)) {
-          case (currentCommonLabels, callbacks) =>
-            (currentCommonLabels ++ commonLabels.value) -> NonEmptyList(callback, callbacks.toList)
+  ): Resource[F, Unit] = {
+    val acquire = Unique[F].unique.flatMap { token =>
+      collectionCallbackRef
+        .update(map =>
+          map.updated(
+            prefix,
+            map.get(prefix).fold(commonLabels.value -> Map(token -> callback)) {
+              case (currentCommonLabels, callbacks) =>
+                (currentCommonLabels ++ commonLabels.value) -> callbacks.updated(token, callback)
+            }
+          )
+        )
+        .tupleRight(token)
+    }
+
+    Resource
+      .make(acquire) { case (_, token) =>
+        collectionCallbackRef.update { map =>
+          map.get(prefix).fold(map) { case (commonLabels, collections) =>
+            map.updated(prefix, commonLabels -> (collections - token))
+          }
         }
-      )
-    )
+      }
+      .as(())
+  }
 
   private def convertMetrics(
       prefix: Option[Metric.Prefix],
@@ -284,7 +297,10 @@ class MetricCollectionProcessor[F[_]: Async: Logger] private (
   private val evaluateCollections = Clock[F]
     .timed(collectionCallbackRef.get.flatMap { callbacks =>
       callbacks.toList.flatTraverse { case (prefix, (commonLabels, callbacks)) =>
-        callbacks.reduceA.flatMap(convertMetrics(prefix, commonLabels, _))
+        callbacks.values.sequence
+          .flatMap(collections =>
+            convertMetrics(prefix, commonLabels, Monoid[MetricCollection].combineAll(collections))
+          )
       }
     })
     .flatMap { case (dur, cols) =>
@@ -326,7 +342,7 @@ object MetricCollectionProcessor {
       _ <- Sync[F].delay(promRegistry.register(duplicateGauge))
       collectionCallbackRef <- Ref.of[F, Map[Option[
         Metric.Prefix
-      ], (Map[Label.Name, String], NonEmptyList[F[MetricCollection]])]](Map.empty)
+      ], (Map[Label.Name, String], Map[Unique.Token, F[MetricCollection]])]](Map.empty)
       proc = new MetricCollectionProcessor(
         ref,
         collectionCallbackRef,
@@ -338,16 +354,11 @@ object MetricCollectionProcessor {
       _ <- Sync[F].delay(promRegistry.register(proc))
     } yield proc
 
-    def handleError(fa: F[Unit]): F[Unit] = fa.handleErrorWith { e =>
-      Logger[F].warn(e)(s"Failed to unregister a collector on shutdown.")
-    }
-
     Resource.make(acquire) { proc =>
-      handleError(Sync[F].delay(promRegistry.unregister(callbackHist))) >> handleError(
-        Sync[F].delay(
-          promRegistry.unregister(duplicateGauge)
-        )
-      ) >> handleError(Sync[F].delay(promRegistry.unregister(proc)))
+      Utils.unregister(callbackHist, promRegistry) >> Utils.unregister(
+        duplicateGauge,
+        promRegistry
+      ) >> Utils.unregister(proc, promRegistry)
     }
   }
 }

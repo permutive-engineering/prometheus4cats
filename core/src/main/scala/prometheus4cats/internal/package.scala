@@ -27,20 +27,21 @@ import scala.concurrent.duration.FiniteDuration
 private[prometheus4cats] trait BuildStep[F[_], A] { self =>
 
   /** Builds the metric */
-  def build: F[A]
+  def build: Resource[F, A]
 
-  /** Builds the metric, wrapping the effect in a `Resource` */
-  def resource: Resource[F, A] = Resource.eval(build)
+  /** Unsafely builds the metric, but does not deallocate
+    */
+  def unsafeBuild(implicit F: MonadCancelThrow[F]): F[A] = build.allocated.map(_._1)
 
-  def map[B](f: A => B)(implicit F: Functor[F]): BuildStep[F, B] = new BuildStep[F, B] {
-    override def build: F[B] = self.build.map(f)
+  def map[B](f: A => B): BuildStep[F, B] = new BuildStep[F, B] {
+    override def build: Resource[F, B] = self.build.map(f)
   }
 
 }
 
 object BuildStep {
-  private[prometheus4cats] def apply[F[_], A](fa: F[A]): BuildStep[F, A] = new BuildStep[F, A] {
-    override def build: F[A] = fa
+  private[prometheus4cats] def apply[F[_], A](fa: Resource[F, A]): BuildStep[F, A] = new BuildStep[F, A] {
+    override def build: Resource[F, A] = fa
   }
 
   implicit class DoubleGaugeSyntax[F[_]: FlatMap: Clock](bs: BuildStep[F, Gauge[F, Double]]) {
@@ -106,51 +107,51 @@ object BuildStep {
 
   type Aux[F[_], M[_], A] = BuildStep[F, M[A]]
 
-  implicit def auxContravariant[F[_]: Functor, M[_]: Contravariant]: Contravariant[Aux[F, M, *]] =
+  implicit def auxContravariant[F[_], M[_]: Contravariant]: Contravariant[Aux[F, M, *]] =
     new Contravariant[Aux[F, M, *]] {
       override def contramap[A, B](fa: Aux[F, M, A])(f: B => A): Aux[F, M, B] =
         fa.map(_.contramap(f))
     }
 
-  implicit def auxLabelsContravariant[F[_]: Functor, M[_]: LabelsContravariant]: LabelsContravariant[Aux[F, M, *]] =
+  implicit def auxLabelsContravariant[F[_], M[_]: LabelsContravariant]: LabelsContravariant[Aux[F, M, *]] =
     new LabelsContravariant[Aux[F, M, *]] {
       override def contramapLabels[A, B](fa: Aux[F, M, A])(f: B => A): Aux[F, M, B] =
         fa.map(LabelsContravariant[M].contramapLabels(_)(f))
     }
 
-  implicit class ContravariantSyntax[F[_]: Functor, M[_]: Contravariant, A](bs: BuildStep[F, M[A]]) {
+  implicit class ContravariantSyntax[F[_], M[_]: Contravariant, A](bs: BuildStep[F, M[A]]) {
     def contramap[B](f: B => A): BuildStep[F, M[B]] = bs.map(_.contramap(f))
   }
 
-  implicit class LabelsContravariantSyntax[F[_]: Functor, M[_]: LabelsContravariant, A](bs: BuildStep[F, M[A]]) {
+  implicit class LabelsContravariantSyntax[F[_], M[_]: LabelsContravariant, A](bs: BuildStep[F, M[A]]) {
     def contramapLabels[B](f: B => A): BuildStep[F, M[B]] = bs.map(LabelsContravariant[M].contramapLabels(_)(f))
   }
 }
 
 trait CallbackStep[F[_], A] { self =>
-  protected def buildCallback: F[A] => F[Unit]
+  protected def buildCallback: F[A] => Resource[F, Unit]
 
   def callback(callback: F[A]): BuildStep[F, Unit] = new BuildStep[F, Unit] {
-    override def build: F[Unit] = buildCallback(callback)
+    override def build: Resource[F, Unit] = buildCallback(callback)
   }
 
   def contramapCallback[B](f: B => A)(implicit F: Functor[F]): CallbackStep[F, B] = new CallbackStep[F, B] {
-    override protected def buildCallback: F[B] => F[Unit] = fb => self.buildCallback(fb.map(f))
+    override protected def buildCallback: F[B] => Resource[F, Unit] = fb => self.buildCallback(fb.map(f))
   }
 }
 
-class CallbackBuildStep[F[_], A, B](fa: F[A], override val buildCallback: F[B] => F[Unit])
+class CallbackBuildStep[F[_], A, B](fa: Resource[F, A], override val buildCallback: F[B] => Resource[F, Unit])
     extends BuildStep[F, A]
     with CallbackStep[F, B] {
-  override def build: F[A] = fa
+  override def build: Resource[F, A] = fa
 }
 
 class MetricDsl[F[_], A, M[_[_], _], L[_[_], _, _]] private[prometheus4cats] (
-    makeMetric: F[M[F, A]],
+    makeMetric: Resource[F, M[F, A]],
     private[internal] val makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L]
 ) extends BuildStep[F, M[F, A]] {
 
-  override def build: F[M[F, A]] = makeMetric
+  override def build: Resource[F, M[F, A]] = makeMetric
 
   /** Sets the first label of the metric. Requires either a `Show` instance for the label type, or a method converting
     * the label value to a `String`.
@@ -217,13 +218,13 @@ class MetricDsl[F[_], A, M[_[_], _], L[_[_], _, _]] private[prometheus4cats] (
 
 object MetricDsl {
   class WithCallbacks[F[_], A, A0, M[_[_], _], L[_[_], _, _]](
-      makeMetric: F[M[F, A]],
-      makeCallback: F[A0] => F[Unit],
+      makeMetric: Resource[F, M[F, A]],
+      makeCallback: F[A0] => Resource[F, Unit],
       makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L],
       makeLabelledCallback: LabelledCallbackPartiallyApplied[F, A0]
   ) extends MetricDsl[F, A, M, L](makeMetric, makeLabelledMetric)
       with CallbackStep[F, A0] {
-    override protected def buildCallback: F[A0] => F[Unit] = makeCallback
+    override protected def buildCallback: F[A0] => Resource[F, Unit] = makeCallback
 
     override def unsafeLabels(
         labelNames: IndexedSeq[Label.Name]
@@ -276,15 +277,16 @@ object MetricDsl {
   }
 }
 
-abstract private[prometheus4cats] class BaseLabelsBuildStep[F[_], A, T, N <: Nat, L[_[_], _, _]](fa: F[L[F, A, T]])
-    extends BuildStep[F, L[F, A, T]] {
+abstract private[prometheus4cats] class BaseLabelsBuildStep[F[_], A, T, N <: Nat, L[_[_], _, _]](
+    fa: Resource[F, L[F, A, T]]
+) extends BuildStep[F, L[F, A, T]] {
   protected[internal] val makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L]
   protected[internal] val labelNames: Sized[IndexedSeq[Label.Name], N]
   protected[internal] val f: T => Sized[IndexedSeq[String], N]
 
   def contramapLabels[B](f: B => T): BaseLabelsBuildStep[F, A, B, N, L]
 
-  override def build: F[L[F, A, T]] = fa
+  override def build: Resource[F, L[F, A, T]] = fa
 }
 
 object BaseLabelsBuildStep {
@@ -358,7 +360,7 @@ object LabelsBuildStep {
         f
       )
       with CallbackStep[F, (A0, T)] {
-    override protected def buildCallback: F[(A0, T)] => F[Unit] = cb =>
+    override protected def buildCallback: F[(A0, T)] => Resource[F, Unit] = cb =>
       makeLabelledCallback(labelNames.unsized, cb)(f(_).unsized)
 
     override def contramapLabels[B](f0: B => T): LabelsBuildStep.WithCallbacks[F, A, A0, B, N, L] =
@@ -409,7 +411,7 @@ object LabelledMetricDsl {
   ) extends LabelledMetricDsl[F, A, T, N, L](makeLabelledMetric, labelNames, f)
       with CallbackStep[F, (A0, T)] {
 
-    override protected def buildCallback: F[(A0, T)] => F[Unit] = cb =>
+    override protected def buildCallback: F[(A0, T)] => Resource[F, Unit] = cb =>
       makeLabelledCallback.apply(labelNames.unsized, cb)(f(_).unsized)
 
     /** @inheritdoc
@@ -501,9 +503,9 @@ object LabelApply {
 }
 
 private[prometheus4cats] trait LabelledMetricPartiallyApplied[F[_], A, L[_[_], _, _]] {
-  def apply[B](labels: IndexedSeq[Label.Name])(f: B => IndexedSeq[String]): F[L[F, A, B]]
+  def apply[B](labels: IndexedSeq[Label.Name])(f: B => IndexedSeq[String]): Resource[F, L[F, A, B]]
 }
 
 private[prometheus4cats] trait LabelledCallbackPartiallyApplied[F[_], A] {
-  def apply[B](labels: IndexedSeq[Label.Name], callback: F[(A, B)])(f: B => IndexedSeq[String]): F[Unit]
+  def apply[B](labels: IndexedSeq[Label.Name], callback: F[(A, B)])(f: B => IndexedSeq[String]): Resource[F, Unit]
 }
