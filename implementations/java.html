@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="generator" content="Laika 0.18.1 + Helium Theme" />
-  <title>Metric Registry</title>
+  <title>Java Registry</title>
   
   
   <meta name="description" content="docs"/>
@@ -76,12 +76,12 @@
     <li class="level1 nav-header">design</li>
     <li class="level2"><a href="../design/design.html">Design</a></li>
     <li class="level1 nav-header">implementations</li>
-    <li class="level2"><a href="../implementations/java.html">Java Registry</a></li>
+    <li class="level2 active"><a href="#">Java Registry</a></li>
     <li class="level1 nav-header">interface</li>
-    <li class="level2"><a href="callback-registry.html">Callback Registry</a></li>
-    <li class="level2"><a href="dsl.html">Metrics DSL</a></li>
-    <li class="level2"><a href="metric-factory.html">Metric Factory</a></li>
-    <li class="level2 active"><a href="#">Metric Registry</a></li>
+    <li class="level2"><a href="../interface/callback-registry.html">Callback Registry</a></li>
+    <li class="level2"><a href="../interface/dsl.html">Metrics DSL</a></li>
+    <li class="level2"><a href="../interface/metric-factory.html">Metric Factory</a></li>
+    <li class="level2"><a href="../interface/metric-registry.html">Metric Registry</a></li>
     <li class="level1 nav-header">metrics</li>
     <li class="level2"><a href="../metrics/derived-metric-types.html">Derived Metric Types</a></li>
     <li class="level2"><a href="../metrics/primitive-metric-types.html">Primitive Metric Types</a></li>
@@ -103,7 +103,7 @@
 <div id="container">
 
   <nav id="page-nav">
-    <p class="header"><a href="#">Metric Registry</a></p>
+    <p class="header"><a href="#">Java Registry</a></p>
 
     <ul class="nav-list">
     </ul>
@@ -113,10 +113,31 @@
 
   <main class="content">
 
-    <h1 id="metric-registry" class="title">Metric Registry</h1>
-    <p>The <code>MetricRegistry</code> is an interface that may be implemented by different backends to provide concurrent access to
-    metrics. This is not designed for use by users of the API directly, they should use it with the <a href="metric-factory.html"><code>MetricFactory</code></a> to
-    create metrics using the <a href="dsl.html">DSL</a>.</p>
+    <h1 id="java-registry" class="title">Java Registry</h1>
+    <p>The Java registry implements both <a href="../interface/metric-registry.html"><code>MetricRegistry</code></a> and <a href="../interface/callback-registry.html"><code>CallbackRegistry</code></a> using the <a href="https://github.com/prometheus/client_java/">Prometheus Java library</a>. This
+    provides interoperability with anything that depends on the Java library.</p>
+    <blockquote>ℹ️ The Java Registry does add a runtime constraint that go beyond constraints that Prometheus itself imposes:
+    You cannot have two metrics of the same name with different labels.
+    <a href="https://github.com/prometheus/client_java/issues/696">This issue</a> describes the problem.</blockquote>
+    <p>See the example below on how to use the Java Registry:</p>
+    <pre><code class="nohighlight"><span class="keyword">import</span><span> </span><span class="identifier">cats</span><span>.</span><span class="identifier">effect</span><span>.</span><span class="identifier">_</span><span>
+</span><span class="keyword">import</span><span> </span><span class="identifier">io</span><span>.</span><span class="identifier">prometheus</span><span>.</span><span class="identifier">client</span><span>.</span><span class="type-name">CollectorRegistry</span><span>
+</span><span class="keyword">import</span><span> </span><span class="identifier">org</span><span>.</span><span class="identifier">typelevel</span><span>.</span><span class="identifier">log4cats</span><span>.</span><span class="identifier">noop</span><span>.</span><span class="type-name">NoOpLogger</span><span>
+</span><span class="keyword">import</span><span> </span><span class="identifier">prometheus4cats</span><span>.</span><span class="identifier">_</span><span>
+</span><span class="keyword">import</span><span> </span><span class="identifier">prometheus4cats</span><span>.</span><span class="identifier">javasimpleclient</span><span>.</span><span class="type-name">JavaMetricRegistry</span><span>
+
+</span><span class="keyword">implicit</span><span> </span><span class="keyword">val</span><span> </span><span class="identifier">logger</span><span> = </span><span class="type-name">NoOpLogger</span><span>.</span><span class="identifier">impl</span><span>[</span><span class="type-name">IO</span><span>] </span><span class="comment">// a logger is required to construct the Java registry
+</span><span>
+</span><span class="comment">// Construct a Java regisitry using the default collector registry
+</span><span class="keyword">val</span><span> </span><span class="keyword">default</span><span>: </span><span class="type-name">Resource</span><span>[</span><span class="type-name">IO</span><span>, </span><span class="type-name">JavaMetricRegistry</span><span>[</span><span class="type-name">IO</span><span>]] = </span><span class="type-name">JavaMetricRegistry</span><span>.</span><span class="keyword">default</span><span>[</span><span class="type-name">IO</span><span>]()
+
+</span><span class="comment">// Construct a Java registry using a custom collector registry
+</span><span class="keyword">val</span><span> </span><span class="identifier">custom</span><span>: </span><span class="type-name">Resource</span><span>[</span><span class="type-name">IO</span><span>, </span><span class="type-name">JavaMetricRegistry</span><span>[</span><span class="type-name">IO</span><span>]] =
+  </span><span class="type-name">JavaMetricRegistry</span><span>.</span><span class="identifier">fromSimpleClientRegistry</span><span>[</span><span class="type-name">IO</span><span>](</span><span class="keyword">new</span><span> </span><span class="type-name">CollectorRegistry</span><span>())
+
+</span><span class="comment">// Use the registry to get a factory
+</span><span class="keyword">val</span><span> </span><span class="identifier">factory</span><span>: </span><span class="type-name">Resource</span><span>[</span><span class="type-name">IO</span><span>, </span><span class="type-name">MetricFactory</span><span>.</span><span class="type-name">WithCallbacks</span><span>[</span><span class="type-name">IO</span><span>]] =
+  </span><span class="identifier">custom</span><span>.</span><span class="identifier">map</span><span>(</span><span class="type-name">MetricFactory</span><span>.</span><span class="identifier">builder</span><span>.</span><span class="identifier">build</span><span>(</span><span class="identifier">_</span><span>))</span></code></pre>
 
     <hr style="margin-top: 30px"/>
     <footer style="font-size: 90%; text-align: center">
