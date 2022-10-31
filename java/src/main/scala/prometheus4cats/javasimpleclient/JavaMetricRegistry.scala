@@ -696,6 +696,19 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
 }
 
 object JavaMetricRegistry {
+
+  /** Create a metric registry using the default `io.prometheus.client.CollectorRegistry`
+    *
+    * Note that this registry implementation introduces a runtime constraint that requires each metric must have a
+    * unique name, even if the label names are different. See this issue for more details
+    * https://github.com/prometheus/client_java/issues/696.
+    *
+    * @param callbackTimeout
+    *   How long each callback should be allowed to take before timing out. This is **per callback**.
+    * @param metricCollectionCallbackTimeout
+    *   how long the combined metric collection callback should take to time out. This is for **all metric collection
+    *   callbacks**.
+    */
   def default[F[_]: Async: Logger](
       callbackTimeout: FiniteDuration = 10.millis,
       metricCollectionCallbackTimeout: FiniteDuration = 100.millis
@@ -706,6 +719,20 @@ object JavaMetricRegistry {
       metricCollectionCallbackTimeout
     )
 
+  /** Create a metric registry using the given `io.prometheus.client.CollectorRegistry`
+    *
+    * Note that this registry implementation introduces a runtime constraint that requires each metric must have a
+    * unique name, even if the label names are different. See this issue for more details
+    * https://github.com/prometheus/client_java/issues/696.
+    *
+    * @param promRegistry
+    *   the `io.prometheus.client.CollectorRegistry` to use
+    * @param callbackTimeout
+    *   How long each callback should be allowed to take before timing out. This is **per callback**.
+    * @param metricCollectionCallbackTimeout
+    *   how long the combined metric collection callback should take to time out. This is for **all metric collection
+    *   callbacks**.
+    */
   def fromSimpleClientRegistry[F[_]: Async: Logger](
       promRegistry: CollectorRegistry,
       callbackTimeout: FiniteDuration = 10.millis,
