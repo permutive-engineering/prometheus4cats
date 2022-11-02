@@ -385,13 +385,13 @@ class LabelledMetricDsl[F[_], A, T, N <: Nat, L[_[_], _, _]] private[internal] (
   def label[B]: LabelApply[F, A, T, N, B, L] =
     new LabelApply[F, A, T, N, B, L] {
 
-      override def apply[C: InitLast.Aux[T, B, *]](
+      override def apply[C](
           name: Label.Name,
           toString: B => String
-      ): LabelledMetricDsl[F, A, C, Succ[N], L] = new LabelledMetricDsl(
+      )(implicit initLast: InitLast.Aux[T, B, C]): LabelledMetricDsl[F, A, C, Succ[N], L] = new LabelledMetricDsl(
         makeLabelledMetric,
         labelNames :+ name,
-        c => f(InitLast[T, B, C].init(c)) :+ toString(InitLast[T, B, C].last(c))
+        c => f(initLast.init(c)) :+ toString(initLast.last(c))
       )
 
     }
@@ -419,14 +419,14 @@ object LabelledMetricDsl {
     override def label[B]: LabelApply.WithCallbacks[F, A, A0, T, N, B, L] =
       new LabelApply.WithCallbacks[F, A, A0, T, N, B, L] {
 
-        override def apply[C: InitLast.Aux[T, B, *]](
+        override def apply[C](
             name: Label.Name,
             toString: B => String
-        ): WithCallbacks[F, A, A0, C, Succ[N], L] = new WithCallbacks(
+        )(implicit initLast: InitLast.Aux[T, B, C]): WithCallbacks[F, A, A0, C, Succ[N], L] = new WithCallbacks(
           makeLabelledMetric,
           makeLabelledCallback,
           labelNames :+ name,
-          c => f(InitLast[T, B, C].init(c)) :+ toString(InitLast[T, B, C].last(c))
+          c => f(initLast.init(c)) :+ toString(initLast.last(c))
         )
 
       }
@@ -476,28 +476,30 @@ class TypeStep[+D[_]] private[prometheus4cats] (long: D[Long], double: D[Double]
 
 abstract class LabelApply[F[_], A, T, N <: Nat, B, L[_[_], _, _]] {
 
-  def apply[C: InitLast.Aux[T, B, *]](name: Label.Name)(implicit
-      show: Show[B]
+  def apply[C](name: Label.Name)(implicit
+      show: Show[B],
+      initLast: InitLast.Aux[T, B, C]
   ): LabelledMetricDsl[F, A, C, Succ[N], L] = apply(name, _.show)
 
-  def apply[C: InitLast.Aux[T, B, *]](
+  def apply[C](
       name: Label.Name,
       toString: B => String
-  ): LabelledMetricDsl[F, A, C, Succ[N], L]
+  )(implicit initLast: InitLast.Aux[T, B, C]): LabelledMetricDsl[F, A, C, Succ[N], L]
 
 }
 
 object LabelApply {
   abstract class WithCallbacks[F[_], A, A0, T, N <: Nat, B, L[_[_], _, _]] extends LabelApply[F, A, T, N, B, L] {
 
-    override def apply[C: InitLast.Aux[T, B, *]](name: Label.Name)(implicit
-        show: Show[B]
+    override def apply[C](name: Label.Name)(implicit
+        show: Show[B],
+        initLast: InitLast.Aux[T, B, C]
     ): LabelledMetricDsl.WithCallbacks[F, A, A0, C, Succ[N], L] = apply(name, _.show)
 
-    override def apply[C: InitLast.Aux[T, B, *]](
+    override def apply[C](
         name: Label.Name,
         toString: B => String
-    ): LabelledMetricDsl.WithCallbacks[F, A, A0, C, Succ[N], L]
+    )(implicit initLast: InitLast.Aux[T, B, C]): LabelledMetricDsl.WithCallbacks[F, A, A0, C, Succ[N], L]
 
   }
 }

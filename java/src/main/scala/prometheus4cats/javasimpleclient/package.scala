@@ -32,4 +32,5 @@ package object javasimpleclient {
     case (prefix, name) =>
       NameUtils.makeName(prefix, name)
   }
+
 }
