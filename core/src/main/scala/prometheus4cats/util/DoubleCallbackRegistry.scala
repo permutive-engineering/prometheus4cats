@@ -17,7 +17,7 @@
 package prometheus4cats.util
 
 import cats.Functor
-import cats.data.NonEmptySeq
+import cats.data.{NonEmptyList, NonEmptySeq}
 import cats.effect.kernel.Resource
 import cats.syntax.functor._
 import prometheus4cats._
@@ -39,14 +39,14 @@ trait DoubleCallbackRegistry[F[_]] extends CallbackRegistry[F] {
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
-      callback: F[(Long, A)]
+      callback: F[NonEmptyList[(Long, A)]]
   )(f: A => IndexedSeq[String]): Resource[F, Unit] = registerLabelledDoubleCounterCallback(
     prefix,
     name,
     help,
     commonLabels,
     labelNames,
-    callback.map { case (v, a) => v.toDouble -> a }
+    callback.map(_.map { case (v, a) => v.toDouble -> a })
   )(f)
 
   override protected[prometheus4cats] def registerLongGaugeCallback(
@@ -63,14 +63,14 @@ trait DoubleCallbackRegistry[F[_]] extends CallbackRegistry[F] {
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
-      callback: F[(Long, A)]
+      callback: F[NonEmptyList[(Long, A)]]
   )(f: A => IndexedSeq[String]): Resource[F, Unit] = registerLabelledDoubleGaugeCallback(
     prefix,
     name,
     help,
     commonLabels,
     labelNames,
-    callback.map { case (v, a) => v.toDouble -> a }
+    callback.map(_.map { case (v, a) => v.toDouble -> a })
   )(f)
 
   override protected[prometheus4cats] def registerLongHistogramCallback(
@@ -96,7 +96,7 @@ trait DoubleCallbackRegistry[F[_]] extends CallbackRegistry[F] {
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
       buckets: NonEmptySeq[Long],
-      callback: F[(Histogram.Value[Long], A)]
+      callback: F[NonEmptyList[(Histogram.Value[Long], A)]]
   )(f: A => IndexedSeq[String]): Resource[F, Unit] = registerLabelledDoubleHistogramCallback(
     prefix,
     name,
@@ -104,7 +104,7 @@ trait DoubleCallbackRegistry[F[_]] extends CallbackRegistry[F] {
     commonLabels,
     labelNames,
     buckets.map(_.toDouble),
-    callback.map { case (v, a) => v.map(_.toDouble) -> a }
+    callback.map(_.map { case (v, a) => v.map(_.toDouble) -> a })
   )(f)
 
   override protected[prometheus4cats] def registerLongSummaryCallback(
@@ -127,13 +127,13 @@ trait DoubleCallbackRegistry[F[_]] extends CallbackRegistry[F] {
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
-      callback: F[(Summary.Value[Long], A)]
+      callback: F[NonEmptyList[(Summary.Value[Long], A)]]
   )(f: A => IndexedSeq[String]): Resource[F, Unit] = registerLabelledDoubleSummaryCallback(
     prefix,
     name,
     help,
     commonLabels,
     labelNames,
-    callback.map { case (v, a) => v.map(_.toDouble) -> a }
+    callback.map(_.map { case (v, a) => v.map(_.toDouble) -> a })
   )(f)
 }

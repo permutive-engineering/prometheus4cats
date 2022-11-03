@@ -18,7 +18,7 @@ package prometheus4cats.javasimpleclient
 
 import java.util
 
-import cats.data.NonEmptySeq
+import cats.data.{NonEmptyList, NonEmptySeq}
 import cats.effect.kernel._
 import cats.effect.std.{Dispatcher, Semaphore}
 import cats.syntax.flatMap._
@@ -499,7 +499,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       name: A,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
-      callback: F[(B, C)]
+      callback: F[NonEmptyList[(B, C)]]
   )(
       f: C => IndexedSeq[String],
       makeLabelledFamily: (String, util.List[String], util.List[String], B) => Collector.MetricFamilySamples
@@ -510,16 +510,17 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       (labelNames ++ commonLabels.value.keys.toIndexedSeq).map(_.value).asJava
     lazy val commonLabelValues: IndexedSeq[String] = commonLabels.value.values.toIndexedSeq
 
-    def runCallback: Option[(B, C)] = timeoutCallback(callback.map(Option(_)), None, stringName)
+    def runCallback: Option[NonEmptyList[(B, C)]] = timeoutCallback(callback.map(Option(_)), None, stringName)
 
     lazy val collector = new Collector {
       override def collect(): util.List[Collector.MetricFamilySamples] =
         runCallback match {
-          case Some((value, labels)) =>
-            val metrics =
-              List(makeLabelledFamily(stringName, commonLabelNames, (f(labels) ++ commonLabelValues).asJava, value))
+          case Some(nel) =>
+            val metrics = nel.map { case (value, labels) =>
+              makeLabelledFamily(stringName, commonLabelNames, (f(labels) ++ commonLabelValues).asJava, value)
+            }
 
-            metrics.asJava
+            metrics.toList.asJava
           case None => List.empty[Collector.MetricFamilySamples].asJava
         }
 
@@ -546,7 +547,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
-      callback: F[(Double, A)]
+      callback: F[NonEmptyList[(Double, A)]]
   )(f: A => IndexedSeq[String]): Resource[F, Unit] =
     registerLabelled(MetricType.Counter, prefix, name, commonLabels, labelNames, callback)(
       f,
@@ -570,7 +571,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
-      callback: F[(Double, A)]
+      callback: F[NonEmptyList[(Double, A)]]
   )(f: A => IndexedSeq[String]): Resource[F, Unit] =
     registerLabelled(MetricType.Gauge, prefix, name, commonLabels, labelNames, callback)(
       f,
@@ -610,11 +611,11 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
       buckets: NonEmptySeq[Double],
-      callback: F[(Histogram.Value[Double], A)]
+      callback: F[NonEmptyList[(Histogram.Value[Double], A)]]
   )(f: A => IndexedSeq[String]): Resource[F, Unit] = {
     lazy val stringName = NameUtils.makeName(prefix, name)
 
-    def runCallback: Option[(Histogram.Value[Double], A)] =
+    def runCallback: Option[NonEmptyList[(Histogram.Value[Double], A)]] =
       timeoutCallback(callback.map(Option(_)), None, stringName)
 
     val makeSamples = HistogramUtils.histogramSamples(prefix, name, help, commonLabels.value, labelNames, buckets)
@@ -622,7 +623,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     val collector = new Collector {
       override def collect(): util.List[MetricFamilySamples] =
         runCallback match {
-          case Some((value, labels)) => List(makeSamples(Seq(value -> f(labels)))).asJava
+          case Some(vs) => vs.map { case (value, labels) => makeSamples(Seq(value -> f(labels))) }.toList.asJava
           case None => List.empty[Collector.MetricFamilySamples].asJava
         }
     }
@@ -671,7 +672,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
-      callback: F[(Summary.Value[Double], A)]
+      callback: F[NonEmptyList[(Summary.Value[Double], A)]]
   )(f: A => IndexedSeq[String]): Resource[F, Unit] =
     registerLabelled(MetricType.Summary, prefix, name, commonLabels, labelNames, callback)(
       f,
