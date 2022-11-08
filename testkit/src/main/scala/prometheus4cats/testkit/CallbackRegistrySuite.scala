@@ -16,7 +16,7 @@
 
 package prometheus4cats.testkit
 
-import cats.data.NonEmptySeq
+import cats.data.{NonEmptyList, NonEmptySeq}
 import cats.effect.IO
 import cats.effect.kernel.Resource
 import munit.CatsEffectSuite
@@ -82,7 +82,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
                 help,
                 commonLabels,
                 labels.keys.toIndexedSeq,
-                IO(value -> labels)
+                IO(NonEmptyList.one(value -> labels))
               )(_.values.toIndexedSeq)
               .surround(
                 get.map(res => if (value >= 0) assertEquals(res, Some(value)) else assertEquals(res, Some(0.0)))
@@ -142,7 +142,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
                 help,
                 commonLabels,
                 labels.keys.toIndexedSeq,
-                IO(value -> labels)
+                IO(NonEmptyList.one(value -> labels))
               )(_.values.toIndexedSeq)
               .surround(
                 get.map(assertEquals(_, Some(value)))
@@ -227,7 +227,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
                 commonLabels,
                 labels.keys.toIndexedSeq,
                 buckets,
-                IO(Histogram.Value(sum, bucketValues) -> labels)
+                IO(NonEmptyList.one(Histogram.Value(sum, bucketValues) -> labels))
               )(_.values.toIndexedSeq)
               .surround(
                 get.map(res => assertEquals(res, Some(expected)))
@@ -297,7 +297,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
                 help,
                 commonLabels,
                 labels.keys.toIndexedSeq,
-                IO((Summary.Value(count, sum, quantiles.map { case (q, v) => q.value -> v }), labels))
+                IO(NonEmptyList.one(Summary.Value(count, sum, quantiles.map { case (q, v) => q.value -> v }) -> labels))
               )(_.values.toIndexedSeq)
               .surround(get.map { case (q, c, s) =>
                 assertEquals(q, Some(quantiles.map { case (q, v) => q.value.toString -> v }))

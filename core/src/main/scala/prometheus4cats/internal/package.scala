@@ -16,6 +16,7 @@
 
 package prometheus4cats.internal
 
+import cats.data.NonEmptyList
 import cats.effect.kernel.{Clock, MonadCancelThrow, Resource}
 import cats.syntax.all._
 import cats.{Contravariant, FlatMap, Functor, MonadThrow, Show}
@@ -228,17 +229,18 @@ object MetricDsl {
 
     override def unsafeLabels(
         labelNames: IndexedSeq[Label.Name]
-    ): CallbackBuildStep[F, L[F, A, Map[Label.Name, String]], (A0, Map[Label.Name, String])] =
-      new CallbackBuildStep[F, L[F, A, Map[Label.Name, String]], (A0, Map[Label.Name, String])](
+    ): CallbackBuildStep[F, L[F, A, Map[Label.Name, String]], NonEmptyList[(A0, Map[Label.Name, String])]] =
+      new CallbackBuildStep[F, L[F, A, Map[Label.Name, String]], NonEmptyList[(A0, Map[Label.Name, String])]](
         makeLabelledMetric(labelNames)(labels => labelNames.flatMap(labels.get)),
         cb => makeLabelledCallback(labelNames, cb)(labels => labelNames.flatMap(labels.get))
       )
 
     override def unsafeLabels(
         labelNames: Label.Name*
-    ): CallbackBuildStep[F, L[F, A, Map[Label.Name, String]], (A0, Map[Label.Name, String])] = unsafeLabels(
-      labelNames.toIndexedSeq
-    )
+    ): CallbackBuildStep[F, L[F, A, Map[Label.Name, String]], NonEmptyList[(A0, Map[Label.Name, String])]] =
+      unsafeLabels(
+        labelNames.toIndexedSeq
+      )
 
     override def labels[B, N <: Nat](labelNames: Sized[IndexedSeq[Label.Name], N])(
         f: B => Sized[IndexedSeq[String], N]
@@ -359,8 +361,8 @@ object LabelsBuildStep {
         labelNames,
         f
       )
-      with CallbackStep[F, (A0, T)] {
-    override protected def buildCallback: F[(A0, T)] => Resource[F, Unit] = cb =>
+      with CallbackStep[F, NonEmptyList[(A0, T)]] {
+    override protected def buildCallback: F[NonEmptyList[(A0, T)]] => Resource[F, Unit] = cb =>
       makeLabelledCallback(labelNames.unsized, cb)(f(_).unsized)
 
     override def contramapLabels[B](f0: B => T): LabelsBuildStep.WithCallbacks[F, A, A0, B, N, L] =
@@ -409,9 +411,9 @@ object LabelledMetricDsl {
       labelNames: Sized[IndexedSeq[Label.Name], N],
       f: T => Sized[IndexedSeq[String], N]
   ) extends LabelledMetricDsl[F, A, T, N, L](makeLabelledMetric, labelNames, f)
-      with CallbackStep[F, (A0, T)] {
+      with CallbackStep[F, NonEmptyList[(A0, T)]] {
 
-    override protected def buildCallback: F[(A0, T)] => Resource[F, Unit] = cb =>
+    override protected def buildCallback: F[NonEmptyList[(A0, T)]] => Resource[F, Unit] = cb =>
       makeLabelledCallback.apply(labelNames.unsized, cb)(f(_).unsized)
 
     /** @inheritdoc
@@ -509,5 +511,7 @@ private[prometheus4cats] trait LabelledMetricPartiallyApplied[F[_], A, L[_[_], _
 }
 
 private[prometheus4cats] trait LabelledCallbackPartiallyApplied[F[_], A] {
-  def apply[B](labels: IndexedSeq[Label.Name], callback: F[(A, B)])(f: B => IndexedSeq[String]): Resource[F, Unit]
+  def apply[B](labels: IndexedSeq[Label.Name], callback: F[NonEmptyList[(A, B)]])(
+      f: B => IndexedSeq[String]
+  ): Resource[F, Unit]
 }

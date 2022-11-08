@@ -16,7 +16,7 @@
 
 package prometheus4cats
 
-import cats.data.NonEmptySeq
+import cats.data.{NonEmptyList, NonEmptySeq}
 import cats.effect.MonadCancel
 import cats.effect.kernel.Resource
 import cats.~>
@@ -88,7 +88,7 @@ trait CallbackRegistry[F[_]] {
     *   a function from `A` to an [[scala.IndexedSeq]] of [[java.lang.String]] that provides label values, which must be
     *   paired with their corresponding name in the [[scala.IndexedSeq]] of [[Label.Name]]s
     * @param callback
-    *   Some effectful operation that returns a [[scala.Long]]
+    *   Some effectful operation that returns a [[cats.data.NonEmptyList]] of [[scala.Double]] and label value tuples
     * @return
     *   An empty side effect to indicate that the callback has been registered
     */
@@ -98,7 +98,7 @@ trait CallbackRegistry[F[_]] {
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
-      callback: F[(Double, A)]
+      callback: F[NonEmptyList[(Double, A)]]
   )(f: A => IndexedSeq[String]): Resource[F, Unit]
 
   /** Register a labelled counter value that records [[scala.Long]] values against a metrics registry
@@ -117,7 +117,7 @@ trait CallbackRegistry[F[_]] {
     *   a function from `A` to an [[scala.IndexedSeq]] of [[java.lang.String]] that provides label values, which must be
     *   paired with their corresponding name in the [[scala.IndexedSeq]] of [[Label.Name]]s
     * @param callback
-    *   Some effectful operation that returns a [[scala.Double]]
+    *   Some effectful operation that returns a [[cats.data.NonEmptyList]] of [[scala.Long]] and label value tuples
     * @return
     *   An empty side effect to indicate that the callback has been registered
     */
@@ -127,7 +127,7 @@ trait CallbackRegistry[F[_]] {
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
-      callback: F[(Long, A)]
+      callback: F[NonEmptyList[(Long, A)]]
   )(f: A => IndexedSeq[String]): Resource[F, Unit]
 
   /** Register a gauge value that records [[scala.Double]] values against a callback registry
@@ -192,7 +192,7 @@ trait CallbackRegistry[F[_]] {
     *   a function from `A` to an [[scala.IndexedSeq]] of [[java.lang.String]] that provides label values, which must be
     *   paired with their corresponding name in the [[scala.IndexedSeq]] of [[Label.Name]]s
     * @param callback
-    *   Some effectful operation that returns a [[scala.Double]]
+    *   Some effectful operation that returns a [[cats.data.NonEmptyList]] of [[scala.Double]] and label value tuples
     * @return
     *   An empty side effect to indicate that the callback has been registered
     */
@@ -202,7 +202,7 @@ trait CallbackRegistry[F[_]] {
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
-      callback: F[(Double, A)]
+      callback: F[NonEmptyList[(Double, A)]]
   )(f: A => IndexedSeq[String]): Resource[F, Unit]
 
   /** Register a labelled gauge value that records [[scala.Long]] values against a metrics registry
@@ -221,7 +221,7 @@ trait CallbackRegistry[F[_]] {
     *   a function from `A` to an [[scala.IndexedSeq]] of [[java.lang.String]] that provides label values, which must be
     *   paired with their corresponding name in the [[scala.IndexedSeq]] of [[Label.Name]]s
     * @param callback
-    *   Some effectful operation that returns a [[scala.Long]]
+    *   Some effectful operation that returns a [[cats.data.NonEmptyList]] of [[scala.Long]] and label value tuples
     * @return
     *   An empty side effect to indicate that the callback has been registered
     */
@@ -231,7 +231,7 @@ trait CallbackRegistry[F[_]] {
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
-      callback: F[(Long, A)]
+      callback: F[NonEmptyList[(Long, A)]]
   )(f: A => IndexedSeq[String]): Resource[F, Unit]
 
   /** Register a histogram value that records [[scala.Double]] values against a callback registry
@@ -298,7 +298,8 @@ trait CallbackRegistry[F[_]] {
     *   a function from `A` to an [[scala.IndexedSeq]] of [[java.lang.String]] that provides label values, which must be
     *   paired with their corresponding name in the [[scala.IndexedSeq]] of [[Label.Name]]s
     * @param callback
-    *   Some effectful operation that returns a [[Histogram.Value]] parameterised with [[scala.Double]]
+    *   Some effectful operation that returns a [[cats.data.NonEmptyList]] of [[Histogram.Value]] parameterised with
+    *   [[scala.Double]] and label value tuples
     * @return
     *   An empty side effect to indicate that the callback has been registered
     */
@@ -309,7 +310,7 @@ trait CallbackRegistry[F[_]] {
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
       buckets: NonEmptySeq[Double],
-      callback: F[(Histogram.Value[Double], A)]
+      callback: F[NonEmptyList[(Histogram.Value[Double], A)]]
   )(f: A => IndexedSeq[String]): Resource[F, Unit]
 
   /** Register a labelled histogram value that records [[scala.Long]] values against a metrics registry
@@ -328,7 +329,8 @@ trait CallbackRegistry[F[_]] {
     *   a function from `A` to an [[scala.IndexedSeq]] of [[java.lang.String]] that provides label values, which must be
     *   paired with their corresponding name in the [[scala.IndexedSeq]] of [[Label.Name]]s
     * @param callback
-    *   Some effectful operation that returns a [[Histogram.Value]] parameterised with [[scala.Long]]
+    *   Some effectful operation that returns a [[cats.data.NonEmptyList]] of [[Histogram.Value]] parameterised with
+    *   [[scala.Long]] and label value tuples
     * @return
     *   An empty side effect to indicate that the callback has been registered
     */
@@ -339,7 +341,7 @@ trait CallbackRegistry[F[_]] {
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
       buckets: NonEmptySeq[Long],
-      callback: F[(Histogram.Value[Long], A)]
+      callback: F[NonEmptyList[(Histogram.Value[Long], A)]]
   )(f: A => IndexedSeq[String]): Resource[F, Unit]
 
   /** Register a summary value that records [[scala.Double]] values against a metrics registry
@@ -401,7 +403,8 @@ trait CallbackRegistry[F[_]] {
     * @param labelNames
     *   an [[scala.IndexedSeq]] of [[Label.Name]]s to annotate the metric with
     * @param callback
-    *   Some effectful operation that returns a [[Summary.Value]] parameterised with [[scala.Double]]
+    *   Some effectful operation that returns a [[cats.data.NonEmptyList]] of [[Summary.Value]] parameterised with
+    *   [[scala.Double]] and label value tuples
     * @param f
     *   a function from `A` to an [[scala.IndexedSeq]] of [[java.lang.String]] that provides label values, which must be
     *   paired with their corresponding name in the [[scala.IndexedSeq]] of [[Label.Name]]s
@@ -414,7 +417,7 @@ trait CallbackRegistry[F[_]] {
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
-      callback: F[(Summary.Value[Double], A)]
+      callback: F[NonEmptyList[(Summary.Value[Double], A)]]
   )(f: A => IndexedSeq[String]): Resource[F, Unit]
 
   /** Register a labelled summary value that records [[scala.Long]] values against a metrics registry
@@ -430,7 +433,8 @@ trait CallbackRegistry[F[_]] {
     * @param labelNames
     *   an [[scala.IndexedSeq]] of [[Label.Name]]s to annotate the metric with
     * @param callback
-    *   Some effectful operation that returns a [[Summary.Value]] parameterised with [[scala.Long]]
+    *   Some effectful operation that returns a [[cats.data.NonEmptyList]] of [[Summary.Value]] parameterised with
+    *   [[scala.Long]] and label value tuples
     * @param f
     *   a function from `A` to an [[scala.IndexedSeq]] of [[java.lang.String]] that provides label values, which must be
     *   paired with their corresponding name in the [[scala.IndexedSeq]] of [[Label.Name]]s
@@ -443,7 +447,7 @@ trait CallbackRegistry[F[_]] {
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
-      callback: F[(Summary.Value[Long], A)]
+      callback: F[NonEmptyList[(Summary.Value[Long], A)]]
   )(f: A => IndexedSeq[String]): Resource[F, Unit]
 
   protected[prometheus4cats] def registerMetricCollectionCallback(
@@ -485,7 +489,7 @@ object CallbackRegistry {
         help: Metric.Help,
         commonLabels: Metric.CommonLabels,
         labelNames: IndexedSeq[Label.Name],
-        callback: F[(Double, A)]
+        callback: F[NonEmptyList[(Double, A)]]
     )(f: A => IndexedSeq[String]): Resource[F, Unit] = Resource.unit
 
     override protected[prometheus4cats] def registerLabelledLongCounterCallback[A](
@@ -494,7 +498,7 @@ object CallbackRegistry {
         help: Metric.Help,
         commonLabels: Metric.CommonLabels,
         labelNames: IndexedSeq[Label.Name],
-        callback: F[(Long, A)]
+        callback: F[NonEmptyList[(Long, A)]]
     )(f: A => IndexedSeq[String]): Resource[F, Unit] = Resource.unit
 
     override protected[prometheus4cats] def registerDoubleGaugeCallback(
@@ -519,7 +523,7 @@ object CallbackRegistry {
         help: Metric.Help,
         commonLabels: Metric.CommonLabels,
         labelNames: IndexedSeq[Label.Name],
-        callback: F[(Double, A)]
+        callback: F[NonEmptyList[(Double, A)]]
     )(f: A => IndexedSeq[String]): Resource[F, Unit] = Resource.unit
 
     override protected[prometheus4cats] def registerLabelledLongGaugeCallback[A](
@@ -528,7 +532,7 @@ object CallbackRegistry {
         help: Metric.Help,
         commonLabels: Metric.CommonLabels,
         labelNames: IndexedSeq[Label.Name],
-        callback: F[(Long, A)]
+        callback: F[NonEmptyList[(Long, A)]]
     )(f: A => IndexedSeq[String]): Resource[F, Unit] = Resource.unit
 
     override protected[prometheus4cats] def registerDoubleHistogramCallback(
@@ -556,7 +560,7 @@ object CallbackRegistry {
         commonLabels: Metric.CommonLabels,
         labelNames: IndexedSeq[Label.Name],
         buckets: NonEmptySeq[Double],
-        callback: F[(Histogram.Value[Double], A)]
+        callback: F[NonEmptyList[(Histogram.Value[Double], A)]]
     )(f: A => IndexedSeq[String]): Resource[F, Unit] = Resource.unit
 
     override protected[prometheus4cats] def registerLabelledLongHistogramCallback[A](
@@ -566,7 +570,7 @@ object CallbackRegistry {
         commonLabels: Metric.CommonLabels,
         labelNames: IndexedSeq[Label.Name],
         buckets: NonEmptySeq[Long],
-        callback: F[(Histogram.Value[Long], A)]
+        callback: F[NonEmptyList[(Histogram.Value[Long], A)]]
     )(f: A => IndexedSeq[String]): Resource[F, Unit] = Resource.unit
 
     override protected[prometheus4cats] def registerDoubleSummaryCallback(
@@ -591,7 +595,7 @@ object CallbackRegistry {
         help: Metric.Help,
         commonLabels: Metric.CommonLabels,
         labelNames: IndexedSeq[Label.Name],
-        callback: F[(Summary.Value[Double], A)]
+        callback: F[NonEmptyList[(Summary.Value[Double], A)]]
     )(f: A => IndexedSeq[String]): Resource[F, Unit] = Resource.unit
 
     override protected[prometheus4cats] def registerLabelledLongSummaryCallback[A](
@@ -600,7 +604,7 @@ object CallbackRegistry {
         help: Metric.Help,
         commonLabels: Metric.CommonLabels,
         labelNames: IndexedSeq[Label.Name],
-        callback: F[(Summary.Value[Long], A)]
+        callback: F[NonEmptyList[(Summary.Value[Long], A)]]
     )(f: A => IndexedSeq[String]): Resource[F, Unit] = Resource.unit
 
     override protected[prometheus4cats] def registerMetricCollectionCallback(
@@ -638,7 +642,7 @@ object CallbackRegistry {
           help: Metric.Help,
           commonLabels: Metric.CommonLabels,
           labelNames: IndexedSeq[Label.Name],
-          callback: G[(Double, A)]
+          callback: G[NonEmptyList[(Double, A)]]
       )(f: A => IndexedSeq[String]): Resource[G, Unit] = self
         .registerLabelledDoubleCounterCallback(prefix, name, help, commonLabels, labelNames, gk(callback))(f)
         .mapK(fk)
@@ -649,7 +653,7 @@ object CallbackRegistry {
           help: Metric.Help,
           commonLabels: Metric.CommonLabels,
           labelNames: IndexedSeq[Label.Name],
-          callback: G[(Long, A)]
+          callback: G[NonEmptyList[(Long, A)]]
       )(f: A => IndexedSeq[String]): Resource[G, Unit] =
         self.registerLabelledLongCounterCallback(prefix, name, help, commonLabels, labelNames, gk(callback))(f).mapK(fk)
 
@@ -675,7 +679,7 @@ object CallbackRegistry {
           help: Metric.Help,
           commonLabels: Metric.CommonLabels,
           labelNames: IndexedSeq[Label.Name],
-          callback: G[(Double, A)]
+          callback: G[NonEmptyList[(Double, A)]]
       )(f: A => IndexedSeq[String]): Resource[G, Unit] =
         self.registerLabelledDoubleGaugeCallback(prefix, name, help, commonLabels, labelNames, gk(callback))(f).mapK(fk)
 
@@ -685,7 +689,7 @@ object CallbackRegistry {
           help: Metric.Help,
           commonLabels: Metric.CommonLabels,
           labelNames: IndexedSeq[Label.Name],
-          callback: G[(Long, A)]
+          callback: G[NonEmptyList[(Long, A)]]
       )(f: A => IndexedSeq[String]): Resource[G, Unit] =
         self.registerLabelledLongGaugeCallback(prefix, name, help, commonLabels, labelNames, gk(callback))(f).mapK(fk)
 
@@ -716,7 +720,7 @@ object CallbackRegistry {
           commonLabels: Metric.CommonLabels,
           labelNames: IndexedSeq[Label.Name],
           buckets: NonEmptySeq[Double],
-          callback: G[(Histogram.Value[Double], A)]
+          callback: G[NonEmptyList[(Histogram.Value[Double], A)]]
       )(f: A => IndexedSeq[String]): Resource[G, Unit] =
         self
           .registerLabelledDoubleHistogramCallback(
@@ -737,7 +741,7 @@ object CallbackRegistry {
           commonLabels: Metric.CommonLabels,
           labelNames: IndexedSeq[Label.Name],
           buckets: NonEmptySeq[Long],
-          callback: G[(Histogram.Value[Long], A)]
+          callback: G[NonEmptyList[(Histogram.Value[Long], A)]]
       )(f: A => IndexedSeq[String]): Resource[G, Unit] =
         self
           .registerLabelledLongHistogramCallback(
@@ -791,7 +795,7 @@ object CallbackRegistry {
           help: Metric.Help,
           commonLabels: Metric.CommonLabels,
           labelNames: IndexedSeq[Label.Name],
-          callback: G[(Summary.Value[Double], A)]
+          callback: G[NonEmptyList[(Summary.Value[Double], A)]]
       )(f: A => IndexedSeq[String]): Resource[G, Unit] =
         self
           .registerLabelledDoubleSummaryCallback(
@@ -810,7 +814,7 @@ object CallbackRegistry {
           help: Metric.Help,
           commonLabels: Metric.CommonLabels,
           labelNames: IndexedSeq[Label.Name],
-          callback: G[(Summary.Value[Long], A)]
+          callback: G[NonEmptyList[(Summary.Value[Long], A)]]
       )(f: A => IndexedSeq[String]): Resource[G, Unit] =
         self
           .registerLabelledLongSummaryCallback(

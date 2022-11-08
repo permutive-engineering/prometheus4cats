@@ -17,7 +17,7 @@
 package prometheus4cats.javasimpleclient
 
 import cats.Show
-import cats.data.NonEmptySeq
+import cats.data.{NonEmptyList, NonEmptySeq}
 import cats.effect.IO
 import cats.effect.kernel.Resource
 import cats.syntax.either._
@@ -228,7 +228,7 @@ class JavaMetricRegistrySuite
                 help,
                 commonLabels,
                 labels.toIndexedSeq,
-                IO(0.0 -> Map.empty[Label.Name, String])
+                IO(NonEmptyList.one(0.0 -> Map.empty[Label.Name, String]))
               )(_.values.toIndexedSeq)
 
             (callback >> metric).use_
@@ -273,7 +273,7 @@ class JavaMetricRegistrySuite
                 help,
                 commonLabels,
                 labels.toIndexedSeq,
-                IO(0.0 -> Map.empty[Label.Name, String])
+                IO(NonEmptyList.one(0.0 -> Map.empty[Label.Name, String]))
               )(_.values.toIndexedSeq)
 
             (metric >> callback).use_
@@ -309,7 +309,7 @@ class JavaMetricRegistrySuite
                 help,
                 commonLabels,
                 labels.toIndexedSeq,
-                IO(0.0 -> Map.empty[Label.Name, String])
+                IO(NonEmptyList.one(0.0 -> Map.empty[Label.Name, String]))
               )(_.values.toIndexedSeq)
 
             (callback >> callback).use_
