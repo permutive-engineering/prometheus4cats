@@ -198,5 +198,8 @@ lazy val unidocs = project
   .enablePlugins(TypelevelUnidocPlugin) // also enables the ScalaUnidocPlugin
   .settings(
     name := "prometheus4cats-docs",
-    ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(core, testkit, java)
+    ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(
+      core,
+      testkit
+    ) // TODO add java back when the typelevel unidoc plugin is fixed
   )
