@@ -738,7 +738,7 @@ object JavaMetricRegistry {
       promRegistry: CollectorRegistry,
       callbackTimeout: FiniteDuration = 10.millis,
       metricCollectionCallbackTimeout: FiniteDuration = 100.millis
-  ): Resource[F, JavaMetricRegistry[F]] = Dispatcher[F].flatMap { dis =>
+  ): Resource[F, JavaMetricRegistry[F]] = Dispatcher.sequential[F].flatMap { dis =>
     val acquire = for {
       ref <- Ref.of[F, State](Map.empty)
       sem <- Semaphore[F](1L)

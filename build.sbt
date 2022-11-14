@@ -29,7 +29,7 @@ val Scala213 = "2.13.10"
 
 val Cats = "2.8.0"
 
-val CatsEffect = "3.3.14"
+val CatsEffect = "3.4.0"
 
 val Log4Cats = "2.5.0"
 
@@ -198,5 +198,8 @@ lazy val unidocs = project
   .enablePlugins(TypelevelUnidocPlugin) // also enables the ScalaUnidocPlugin
   .settings(
     name := "prometheus4cats-docs",
-    ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(core, testkit, java)
+    ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(
+      core,
+      testkit
+    ) // TODO add java back when the typelevel unidoc plugin is fixed
   )
