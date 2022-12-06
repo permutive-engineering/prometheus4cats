@@ -7,11 +7,43 @@ import cats.effect.kernel._
 import cats.effect.std.MapRef
 import cats.data.NonEmptySeq
 import scala.concurrent.duration.FiniteDuration
+import TestingMetricRegistry._
 
 class TestingMetricRegistry[F[_]](
-    private val counters: MapRef[F, (Counter.Name, Metric.CommonLabels), Option[(Int, Counter[F, Double])]]
+    private val store: MapRef[F, (String, List[String]), Option[(Int, MetricType, Metric[Double])]]
 )(implicit F: Concurrent[F])
     extends DoubleMetricRegistry[F] {
+
+  private def store[M <: Metric[Double]](
+      name: String,
+      labels: List[String],
+      tpe: MetricType,
+      create: Ref[F, Double] => M
+  ): Resource[F, M] =
+    Resource
+      .eval(F.ref(0.0).flatMap { ref =>
+        val release =
+          store(name -> labels).update {
+            case None => throw new RuntimeException("This should be unreachable - our reference counting has a bug")
+            case Some((n, t, c)) => if (n == 1) None else Some((n - 1, t, c))
+          }
+
+        store(name -> labels).modify {
+          case None =>
+            val m = create(ref)
+            Some((1, tpe, m)) -> F.pure(
+              Resource.make(F.pure(m))(_ => release)
+            )
+          case Some((n, t, c)) =>
+            Some((n + 1, t, c)) -> F.pure(
+              Resource.make(
+                // Cast safe by construction
+                F.pure(c.asInstanceOf[M])
+              )(_ => release)
+            )
+        }.flatten
+      })
+      .flatten
 
   override protected[prometheus4cats] def createAndRegisterDoubleCounter(
       prefix: Option[Metric.Prefix],
@@ -19,25 +51,32 @@ class TestingMetricRegistry[F[_]](
       help: Metric.Help,
       commonLabels: Metric.CommonLabels
   ): Resource[F, Counter[F, Double]] =
-    Resource
-      .eval(F.ref(0.0).flatMap { ref =>
-        val release =
-          counters(name -> commonLabels).update {
-            case None => throw new RuntimeException("This should be unreachable - our reference counting has a bug")
-            case Some((n, c)) => if (n == 1) None else Some(n - 1 -> c)
-          }
+    store(
+      name.value,
+      commonLabels.value.values.toList,
+      MetricType.Counter,
+      ref => Counter.make[F, Double](d => ref.set(d))
+    )
+  // Resource
+  //   .eval(F.ref(0.0).flatMap { ref =>
+  //     val labels = commonLabels.value.values.toList
+  //     val release =
+  //       store(name.value -> labels).update {
+  //         case None => throw new RuntimeException("This should be unreachable - our reference counting has a bug")
+  //         case Some((n, t, c)) => if (n == 1) None else Some((n - 1, t, c))
+  //       }
 
-        counters(name -> commonLabels).modify {
-          case None =>
-            val counter = Counter.make[F, Double](d => ref.set(d))
-            Some(1 -> counter) -> F.pure(
-              Resource.make(F.pure(counter))(_ => release)
-            )
-          // TODO do we need to check if we have already registered with the same name but different labels or type?
-          case Some((n, c)) => Some(n + 1 -> c) -> F.pure(Resource.make(F.pure(c))(_ => release))
-        }.flatten
-      })
-      .flatten
+  //     store(name.value -> labels).modify {
+  //       case None =>
+  //         val counter = Counter.make[F, Double](d => ref.set(d))
+  //         Some((1, CounterType, counter)) -> F.pure(
+  //           Resource.make(F.pure(counter))(_ => release)
+  //         )
+  //       case Some((n, t, c)) =>
+  //         Some((n + 1, t, c)) -> F.pure(Resource.make(F.pure(c.asInstanceOf[Counter[F, Double]]))(_ => release))
+  //     }.flatten
+  //   })
+  //   .flatten
 
   override protected[prometheus4cats] def createAndRegisterLabelledDoubleCounter[A](
       prefix: Option[Metric.Prefix],
@@ -106,4 +145,12 @@ class TestingMetricRegistry[F[_]](
       help: Metric.Help
   ): Resource[F, Info[F, Map[Label.Name, String]]] = ???
 
+}
+
+object TestingMetricRegistry {
+  sealed private trait MetricType
+  private object MetricType {
+    case object Counter extends MetricType
+    case object Gauge extends MetricType
+  }
 }
