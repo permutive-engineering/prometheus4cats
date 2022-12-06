@@ -57,26 +57,6 @@ class TestingMetricRegistry[F[_]](
       MetricType.Counter,
       ref => Counter.make[F, Double](d => ref.set(d))
     )
-  // Resource
-  //   .eval(F.ref(0.0).flatMap { ref =>
-  //     val labels = commonLabels.value.values.toList
-  //     val release =
-  //       store(name.value -> labels).update {
-  //         case None => throw new RuntimeException("This should be unreachable - our reference counting has a bug")
-  //         case Some((n, t, c)) => if (n == 1) None else Some((n - 1, t, c))
-  //       }
-
-  //     store(name.value -> labels).modify {
-  //       case None =>
-  //         val counter = Counter.make[F, Double](d => ref.set(d))
-  //         Some((1, CounterType, counter)) -> F.pure(
-  //           Resource.make(F.pure(counter))(_ => release)
-  //         )
-  //       case Some((n, t, c)) =>
-  //         Some((n + 1, t, c)) -> F.pure(Resource.make(F.pure(c.asInstanceOf[Counter[F, Double]]))(_ => release))
-  //     }.flatten
-  //   })
-  //   .flatten
 
   override protected[prometheus4cats] def createAndRegisterLabelledDoubleCounter[A](
       prefix: Option[Metric.Prefix],
@@ -84,7 +64,13 @@ class TestingMetricRegistry[F[_]](
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name]
-  )(f: A => IndexedSeq[String]): Resource[F, Counter.Labelled[F, Double, A]] = ???
+  )(f: A => IndexedSeq[String]): Resource[F, Counter.Labelled[F, Double, A]] =
+    store(
+      name.value,
+      (commonLabels.value.values ++ labelNames.map(_.value)).toList,
+      MetricType.Counter,
+      ref => Counter.Labelled.make[F, Double, A]((d: Double, _: A) => ref.set(d))
+    )
 
   override protected[prometheus4cats] def createAndRegisterDoubleGauge(
       prefix: Option[Metric.Prefix],
