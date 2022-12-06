@@ -33,6 +33,7 @@ class TestingMetricRegistry[F[_]](
             Some(1 -> counter) -> F.pure(
               Resource.make(F.pure(counter))(_ => release)
             )
+          // TODO do we need to check if we have already registered with the same name but different labels or type?
           case Some((n, c)) => Some(n + 1 -> c) -> F.pure(Resource.make(F.pure(c))(_ => release))
         }.flatten
       })
