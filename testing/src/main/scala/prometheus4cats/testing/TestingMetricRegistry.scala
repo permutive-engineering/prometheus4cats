@@ -2,10 +2,11 @@ package prometheus4cats
 package testing
 
 import cats.syntax.all._
-import prometheus4cats.util.DoubleMetricRegistry
+import cats.data.Chain
 import cats.effect.kernel._
 import cats.effect.std.MapRef
 import cats.data.NonEmptySeq
+import prometheus4cats.util.DoubleMetricRegistry
 import scala.concurrent.duration.FiniteDuration
 import TestingMetricRegistry._
 
@@ -121,7 +122,14 @@ class TestingMetricRegistry[F[_]](
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       buckets: NonEmptySeq[Double]
-  ): Resource[F, Histogram[F, Double]] = ???
+  ): Resource[F, Histogram[F, Double]] =
+    store(
+      name.value,
+      commonLabels.value.values.toList,
+      MetricType.Histogram,
+      (ref: Ref[F, Chain[Double]]) => Histogram.make[F, Double]((d: Double) => ref.update(_.append(d))),
+      Chain.nil
+    )
 
   override protected[prometheus4cats] def createAndRegisterLabelledDoubleHistogram[A](
       prefix: Option[Metric.Prefix],
@@ -130,7 +138,15 @@ class TestingMetricRegistry[F[_]](
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
       buckets: NonEmptySeq[Double]
-  )(f: A => IndexedSeq[String]): Resource[F, Histogram.Labelled[F, Double, A]] = ???
+  )(f: A => IndexedSeq[String]): Resource[F, Histogram.Labelled[F, Double, A]] =
+    store(
+      name.value,
+      (commonLabels.value.values ++ labelNames.map(_.value)).toList,
+      MetricType.Histogram,
+      (ref: Ref[F, Chain[Double]]) =>
+        Histogram.Labelled.make[F, Double, A]((d: Double, _: A) => ref.update(_.append(d))),
+      Chain.nil
+    )
 
   override protected[prometheus4cats] def createAndRegisterDoubleSummary(
       prefix: Option[Metric.Prefix],
@@ -166,5 +182,7 @@ object TestingMetricRegistry {
   private object MetricType {
     case object Counter extends MetricType
     case object Gauge extends MetricType
+    case object Histogram extends MetricType
+    case object Summary extends MetricType
   }
 }
