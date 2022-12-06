@@ -156,7 +156,14 @@ class TestingMetricRegistry[F[_]](
       quantiles: Seq[Summary.QuantileDefinition],
       maxAge: FiniteDuration,
       ageBuckets: Summary.AgeBuckets
-  ): Resource[F, Summary[F, Double]] = ???
+  ): Resource[F, Summary[F, Double]] =
+    store(
+      name.value,
+      commonLabels.value.values.toList,
+      MetricType.Summary,
+      (ref: Ref[F, Chain[Double]]) => Summary.make[F, Double]((d: Double) => ref.update(_.append(d))),
+      Chain.nil
+    )
 
   override protected[prometheus4cats] def createAndRegisterLabelledDoubleSummary[A](
       prefix: Option[Metric.Prefix],
@@ -167,7 +174,14 @@ class TestingMetricRegistry[F[_]](
       quantiles: Seq[Summary.QuantileDefinition],
       maxAge: FiniteDuration,
       ageBuckets: Summary.AgeBuckets
-  )(f: A => IndexedSeq[String]): Resource[F, Summary.Labelled[F, Double, A]] = ???
+  )(f: A => IndexedSeq[String]): Resource[F, Summary.Labelled[F, Double, A]] =
+    store(
+      name.value,
+      (commonLabels.value.values ++ labelNames.map(_.value)).toList,
+      MetricType.Summary,
+      (ref: Ref[F, Chain[Double]]) => Summary.Labelled.make[F, Double, A]((d: Double, _: A) => ref.update(_.append(d))),
+      Chain.nil
+    )
 
   override protected[prometheus4cats] def createAndRegisterInfo(
       prefix: Option[Metric.Prefix],
