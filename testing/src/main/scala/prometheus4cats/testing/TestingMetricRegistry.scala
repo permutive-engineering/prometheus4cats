@@ -55,7 +55,7 @@ class TestingMetricRegistry[F[_]](
       name.value,
       commonLabels.value.values.toList,
       MetricType.Counter,
-      ref => Counter.make[F, Double](d => ref.set(d))
+      ref => Counter.make[F, Double]((d: Double) => ref.update(_ + d))
     )
 
   override protected[prometheus4cats] def createAndRegisterLabelledDoubleCounter[A](
@@ -69,7 +69,7 @@ class TestingMetricRegistry[F[_]](
       name.value,
       (commonLabels.value.values ++ labelNames.map(_.value)).toList,
       MetricType.Counter,
-      ref => Counter.Labelled.make[F, Double, A]((d: Double, _: A) => ref.set(d))
+      ref => Counter.Labelled.make[F, Double, A]((d: Double, _: A) => ref.update(_ + d))
     )
 
   override protected[prometheus4cats] def createAndRegisterDoubleGauge(
@@ -78,6 +78,12 @@ class TestingMetricRegistry[F[_]](
       help: Metric.Help,
       commonLabels: Metric.CommonLabels
   ): Resource[F, Gauge[F, Double]] = ???
+  // store(
+  //   name.value,
+  //   commonLabels.value.values.toList,
+  //   MetricType.Gauge,
+  //   ref => Gauge.make[F, Double](d => ref.set(d))
+  // )
 
   override protected[prometheus4cats] def createAndRegisterLabelledDoubleGauge[A](
       prefix: Option[Metric.Prefix],
