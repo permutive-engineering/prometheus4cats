@@ -14,14 +14,15 @@ class TestingMetricRegistry[F[_]](
 )(implicit F: Concurrent[F])
     extends DoubleMetricRegistry[F] {
 
-  private def store[M <: Metric[Double]](
+  private def store[M <: Metric[Double], State](
       name: String,
       labels: List[String],
       tpe: MetricType,
-      create: Ref[F, Double] => M
+      create: Ref[F, State] => M,
+      initial: State
   ): Resource[F, M] =
     Resource
-      .eval(F.ref(0.0).flatMap { ref =>
+      .eval(F.ref(initial).flatMap { ref =>
         val release =
           store(name -> labels).update {
             case None => throw new RuntimeException("This should be unreachable - our reference counting has a bug")
@@ -55,7 +56,8 @@ class TestingMetricRegistry[F[_]](
       name.value,
       commonLabels.value.values.toList,
       MetricType.Counter,
-      ref => Counter.make[F, Double]((d: Double) => ref.update(_ + d))
+      (ref: Ref[F, Double]) => Counter.make[F, Double]((d: Double) => ref.update(_ + d)),
+      0.0
     )
 
   override protected[prometheus4cats] def createAndRegisterLabelledDoubleCounter[A](
@@ -69,9 +71,11 @@ class TestingMetricRegistry[F[_]](
       name.value,
       (commonLabels.value.values ++ labelNames.map(_.value)).toList,
       MetricType.Counter,
-      ref => Counter.Labelled.make[F, Double, A]((d: Double, _: A) => ref.update(_ + d))
+      (ref: Ref[F, Double]) => Counter.Labelled.make[F, Double, A]((d: Double, _: A) => ref.update(_ + d)),
+      0.0
     )
 
+  // TODO handle prefix
   override protected[prometheus4cats] def createAndRegisterDoubleGauge(
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
@@ -82,12 +86,13 @@ class TestingMetricRegistry[F[_]](
       name.value,
       commonLabels.value.values.toList,
       MetricType.Gauge,
-      ref =>
+      (ref: Ref[F, Double]) =>
         Gauge.make[F, Double](
           (d: Double) => ref.update(_ + d),
           (d: Double) => ref.update(_ - d),
           (d: Double) => ref.set(d)
-        )
+        ),
+      0.0
     )
 
   override protected[prometheus4cats] def createAndRegisterLabelledDoubleGauge[A](
@@ -101,12 +106,13 @@ class TestingMetricRegistry[F[_]](
       name.value,
       (commonLabels.value.values ++ labelNames.map(_.value)).toList,
       MetricType.Gauge,
-      ref =>
+      (ref: Ref[F, Double]) =>
         Gauge.Labelled.make[F, Double, A](
           (d: Double, _: A) => ref.update(_ + d),
           (d: Double, _: A) => ref.update(_ - d),
           (d: Double, _: A) => ref.set(d)
-        )
+        ),
+      0.0
     )
 
   override protected[prometheus4cats] def createAndRegisterDoubleHistogram(
