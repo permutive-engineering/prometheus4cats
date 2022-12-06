@@ -77,13 +77,18 @@ class TestingMetricRegistry[F[_]](
       name: Gauge.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels
-  ): Resource[F, Gauge[F, Double]] = ???
-  // store(
-  //   name.value,
-  //   commonLabels.value.values.toList,
-  //   MetricType.Gauge,
-  //   ref => Gauge.make[F, Double](d => ref.set(d))
-  // )
+  ): Resource[F, Gauge[F, Double]] =
+    store(
+      name.value,
+      commonLabels.value.values.toList,
+      MetricType.Gauge,
+      ref =>
+        Gauge.make[F, Double](
+          (d: Double) => ref.update(_ + d),
+          (d: Double) => ref.update(_ - d),
+          (d: Double) => ref.set(d)
+        )
+    )
 
   override protected[prometheus4cats] def createAndRegisterLabelledDoubleGauge[A](
       prefix: Option[Metric.Prefix],
@@ -91,7 +96,18 @@ class TestingMetricRegistry[F[_]](
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name]
-  )(f: A => IndexedSeq[String]): Resource[F, Gauge.Labelled[F, Double, A]] = ???
+  )(f: A => IndexedSeq[String]): Resource[F, Gauge.Labelled[F, Double, A]] =
+    store(
+      name.value,
+      (commonLabels.value.values ++ labelNames.map(_.value)).toList,
+      MetricType.Gauge,
+      ref =>
+        Gauge.Labelled.make[F, Double, A](
+          (d: Double, _: A) => ref.update(_ + d),
+          (d: Double, _: A) => ref.update(_ - d),
+          (d: Double, _: A) => ref.set(d)
+        )
+    )
 
   override protected[prometheus4cats] def createAndRegisterDoubleHistogram(
       prefix: Option[Metric.Prefix],
