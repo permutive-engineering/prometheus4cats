@@ -22,6 +22,8 @@ import munit.CatsEffectSuite
 import prometheus4cats._
 import scala.concurrent.duration._
 
+//TODO test same labels, different values
+//TODO test resource lifetimes with multiple references
 class TestingMetricRegistrySuite extends CatsEffectSuite {
 
   test("Counter history") {
