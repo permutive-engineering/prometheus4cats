@@ -220,13 +220,21 @@ class TestingMetricRegistry[F[_]](
             Some((1, tpe, m, ref.get)) -> F.pure(
               Resource.make(F.pure(m))(_ => release)
             )
-          case Some((n, t, c, h)) =>
-            Some((n + 1, t, c, h)) -> F.pure(
-              Resource.make(
-                // Cast safe by construction
-                F.pure(c.asInstanceOf[M])
-              )(_ => release)
-            )
+          case curr @ Some((n, t, c, h)) =>
+            if (t == tpe)
+              Some((n + 1, t, c, h)) ->
+                F.pure(
+                  Resource.make(
+                    // Cast safe by construction
+                    F.pure(c.asInstanceOf[M])
+                  )(_ => release)
+                )
+            else
+              curr -> F.raiseError[Resource[F, M]](
+                new RuntimeException(
+                  s"Cannot create metric of type $tpe as metric of type $t alreasy exists with the same name and labels"
+                )
+              )
         }.flatten
       })
       .flatten
