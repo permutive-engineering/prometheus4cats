@@ -252,6 +252,11 @@ class TestingMetricRegistry[F[_]](
 }
 
 object TestingMetricRegistry {
+
+  def apply[F[_]: Concurrent]: F[TestingMetricRegistry[F]] = MapRef
+    .ofShardedImmutableMap[F, (String, List[String]), (Int, MetricType, Metric[Double], F[Chain[Double]])](256)
+    .map(m => new TestingMetricRegistry(m))
+
   sealed private trait MetricType
   private object MetricType {
     case object Counter extends MetricType
