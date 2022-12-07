@@ -11,33 +11,33 @@ import scala.concurrent.duration.FiniteDuration
 import TestingMetricRegistry._
 
 class TestingMetricRegistry[F[_]](
-    private val store: MapRef[F, (String, List[String]), Option[(Int, MetricType, Metric[Double])]]
+    private val store: MapRef[F, (String, List[String]), Option[(Int, MetricType, Metric[Double], F[Chain[Double]])]]
 )(implicit F: Concurrent[F])
     extends DoubleMetricRegistry[F] {
 
-  private def store[M <: Metric[Double], State](
+  private def store[M <: Metric[Double]](
       name: String,
       labels: List[String],
       tpe: MetricType,
-      create: Ref[F, State] => M,
-      initial: State
+      create: Ref[F, Chain[Double]] => M,
+      initial: Chain[Double]
   ): Resource[F, M] =
     Resource
       .eval(F.ref(initial).flatMap { ref =>
         val release =
           store(name -> labels).update {
             case None => throw new RuntimeException("This should be unreachable - our reference counting has a bug")
-            case Some((n, t, c)) => if (n == 1) None else Some((n - 1, t, c))
+            case Some((n, t, c, h)) => if (n == 1) None else Some((n - 1, t, c, h))
           }
 
         store(name -> labels).modify {
           case None =>
             val m = create(ref)
-            Some((1, tpe, m)) -> F.pure(
+            Some((1, tpe, m, ref.get)) -> F.pure(
               Resource.make(F.pure(m))(_ => release)
             )
-          case Some((n, t, c)) =>
-            Some((n + 1, t, c)) -> F.pure(
+          case Some((n, t, c, h)) =>
+            Some((n + 1, t, c, h)) -> F.pure(
               Resource.make(
                 // Cast safe by construction
                 F.pure(c.asInstanceOf[M])
@@ -46,6 +46,11 @@ class TestingMetricRegistry[F[_]](
         }.flatten
       })
       .flatten
+
+  // def metricHistory(name: Counter.Name, labels: Metric.CommonLabels): F[Option[Chain[Double]]] =
+  //   store(name -> labels.value.values.toList).get.map(_.flatMap { case (_, MetricType.Counter, c) =>
+  //     c.asInstanceOf[]
+  //   })
 
   override protected[prometheus4cats] def createAndRegisterDoubleCounter(
       prefix: Option[Metric.Prefix],
@@ -57,8 +62,9 @@ class TestingMetricRegistry[F[_]](
       name.value,
       commonLabels.value.values.toList,
       MetricType.Counter,
-      (ref: Ref[F, Double]) => Counter.make[F, Double]((d: Double) => ref.update(_ + d)),
-      0.0
+      (ref: Ref[F, Chain[Double]]) =>
+        Counter.make[F, Double]((d: Double) => ref.update(c => c.append(c.lastOption.get + d))),
+      Chain.one(0.0)
     )
 
   override protected[prometheus4cats] def createAndRegisterLabelledDoubleCounter[A](
@@ -72,8 +78,9 @@ class TestingMetricRegistry[F[_]](
       name.value,
       (commonLabels.value.values ++ labelNames.map(_.value)).toList,
       MetricType.Counter,
-      (ref: Ref[F, Double]) => Counter.Labelled.make[F, Double, A]((d: Double, _: A) => ref.update(_ + d)),
-      0.0
+      (ref: Ref[F, Chain[Double]]) =>
+        Counter.Labelled.make[F, Double, A]((d: Double, _: A) => ref.update(c => c.append(c.lastOption.get + d))),
+      Chain.one(0.0)
     )
 
   // TODO handle prefix
@@ -87,13 +94,13 @@ class TestingMetricRegistry[F[_]](
       name.value,
       commonLabels.value.values.toList,
       MetricType.Gauge,
-      (ref: Ref[F, Double]) =>
+      (ref: Ref[F, Chain[Double]]) =>
         Gauge.make[F, Double](
-          (d: Double) => ref.update(_ + d),
-          (d: Double) => ref.update(_ - d),
-          (d: Double) => ref.set(d)
+          (d: Double) => ref.update(c => c.append(c.lastOption.get + d)),
+          (d: Double) => ref.update(c => c.append(c.lastOption.get - d)),
+          (d: Double) => ref.update(_.append(d))
         ),
-      0.0
+      Chain.one(0.0)
     )
 
   override protected[prometheus4cats] def createAndRegisterLabelledDoubleGauge[A](
@@ -107,13 +114,13 @@ class TestingMetricRegistry[F[_]](
       name.value,
       (commonLabels.value.values ++ labelNames.map(_.value)).toList,
       MetricType.Gauge,
-      (ref: Ref[F, Double]) =>
+      (ref: Ref[F, Chain[Double]]) =>
         Gauge.Labelled.make[F, Double, A](
-          (d: Double, _: A) => ref.update(_ + d),
-          (d: Double, _: A) => ref.update(_ - d),
-          (d: Double, _: A) => ref.set(d)
+          (d: Double, _: A) => ref.update(c => c.append(c.lastOption.get + d)),
+          (d: Double, _: A) => ref.update(c => c.append(c.lastOption.get - d)),
+          (d: Double, _: A) => ref.update(_.append(d))
         ),
-      0.0
+      Chain.one(0.0)
     )
 
   override protected[prometheus4cats] def createAndRegisterDoubleHistogram(
