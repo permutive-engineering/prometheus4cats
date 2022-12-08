@@ -43,6 +43,23 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
     }
   }
 
+  test("Counter - prefixed history") {
+    TestingMetricRegistry[IO].flatMap { reg =>
+      reg
+        .createAndRegisterDoubleCounter(
+          Some(Metric.Prefix("permutive")),
+          Counter.Name("test_total"),
+          Metric.Help("help"),
+          Metric.CommonLabels.empty
+        )
+        .use { c =>
+          c.inc >> c.inc(2.0) >> reg
+            .counterHistory(Some(Metric.Prefix("permutive")), Counter.Name("test_total"), Metric.CommonLabels.empty)
+            .assertEquals(Some(Chain(0.0, 1.0, 3.0)))
+        }
+    }
+  }
+
   test("Counter - labelled history") {
     TestingMetricRegistry[IO].flatMap { reg =>
       reg
@@ -87,6 +104,24 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
           g.inc >> g.dec >> g.inc(2.0) >> g.dec(2.0) >> g.set(-1.0) >> g.reset >>
             reg
               .gaugeHistory(Gauge.Name("test_total"), Metric.CommonLabels.empty)
+              .assertEquals(Some(Chain(0.0, 1.0, 0.0, 2.0, 0.0, -1.0, 0.0)))
+        }
+    }
+  }
+
+  test("Gauge - prefixed history") {
+    TestingMetricRegistry[IO].flatMap { reg =>
+      reg
+        .createAndRegisterDoubleGauge(
+          Some(Metric.Prefix("permutive")),
+          Gauge.Name("test_total"),
+          Metric.Help("help"),
+          Metric.CommonLabels.empty
+        )
+        .use { g =>
+          g.inc >> g.dec >> g.inc(2.0) >> g.dec(2.0) >> g.set(-1.0) >> g.reset >>
+            reg
+              .gaugeHistory(Some(Metric.Prefix("permutive")), Gauge.Name("test_total"), Metric.CommonLabels.empty)
               .assertEquals(Some(Chain(0.0, 1.0, 0.0, 2.0, 0.0, -1.0, 0.0)))
         }
     }
@@ -142,6 +177,29 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
     }
   }
 
+  test("Histogram - prefixed history") {
+    TestingMetricRegistry[IO].flatMap { reg =>
+      reg
+        .createAndRegisterDoubleHistogram(
+          Some(Metric.Prefix("permutive")),
+          Histogram.Name("test_total"),
+          Metric.Help("help"),
+          Metric.CommonLabels.empty,
+          NonEmptySeq(0.0, Seq(5.0, 10.0))
+        )
+        .use { h =>
+          h.observe(1.0) >> h.observe(2.0) >> h.observe(3.0) >>
+            reg
+              .histogramHistory(
+                Some(Metric.Prefix("permutive")),
+                Histogram.Name("test_total"),
+                Metric.CommonLabels.empty
+              )
+              .assertEquals(Some(Chain(1.0, 2.0, 3.0)))
+        }
+    }
+  }
+
   test("Histogram - labelled history") {
     TestingMetricRegistry[IO].flatMap { reg =>
       reg
@@ -190,6 +248,27 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
           s.observe(1.0) >> s.observe(2.0) >> s.observe(3.0) >>
             reg
               .summaryHistory(Summary.Name("test_total"), Metric.CommonLabels.empty)
+              .assertEquals(Some(Chain(1.0, 2.0, 3.0)))
+        }
+    }
+  }
+
+  test("Summary - prefixed history") {
+    TestingMetricRegistry[IO].flatMap { reg =>
+      reg
+        .createAndRegisterDoubleSummary(
+          Some(Metric.Prefix("permutive")),
+          Summary.Name("test_total"),
+          Metric.Help("help"),
+          Metric.CommonLabels.empty,
+          Seq(Summary.QuantileDefinition(Summary.Quantile(0.5), Summary.AllowedError(0.1))),
+          5.seconds,
+          Summary.AgeBuckets(5)
+        )
+        .use { s =>
+          s.observe(1.0) >> s.observe(2.0) >> s.observe(3.0) >>
+            reg
+              .summaryHistory(Some(Metric.Prefix("permutive")), Summary.Name("test_total"), Metric.CommonLabels.empty)
               .assertEquals(Some(Chain(1.0, 2.0, 3.0)))
         }
     }
