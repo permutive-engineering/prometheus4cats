@@ -22,7 +22,6 @@ import munit.CatsEffectSuite
 import prometheus4cats._
 import scala.concurrent.duration._
 
-//TODO test same labels, different values
 //TODO test resource lifetimes with multiple references
 class TestingMetricRegistrySuite extends CatsEffectSuite {
 
@@ -89,6 +88,35 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
 
         }
     }
+  }
+
+  test("Counter - resource lifecycle") {
+    TestingMetricRegistry[IO].flatMap { reg =>
+      IO.deferred[Unit].flatMap { wait =>
+        val counter = reg
+          .createAndRegisterDoubleCounter(
+            None,
+            Counter.Name("test_total"),
+            Metric.Help("help"),
+            Metric.CommonLabels.empty
+          )
+        counter.use { c =>
+          // Wait for other fiber to use and release counter
+          wait.get >>
+            // Counter should still be valid as we still have a reference to it
+            c.inc >> reg
+              .counterHistory(Counter.Name("test_total"), Metric.CommonLabels.empty)
+              .assertEquals(Some(Chain(0.0, 1.0)))
+        }.start.flatMap { fiber =>
+          counter.use_ >> wait.complete(()) >> fiber.joinWithNever
+        }
+      } >> reg
+        .counterHistory(Counter.Name("test_total"), Metric.CommonLabels.empty)
+        // All scopes which reference coutner have closed so it should be removed from registry
+        .assertEquals(None)
+
+    }
+
   }
 
   test("Gauge - history") {
