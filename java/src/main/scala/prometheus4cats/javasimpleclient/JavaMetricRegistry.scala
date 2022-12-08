@@ -150,14 +150,16 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       ref.get
         .flatMap[(State, Collector)] { (metrics: State) =>
           metrics.get(fullName) match {
-            case Some((_, collector)) =>
-              val collectorType = if (collector.isRight) "metric" else "callback"
+            case Some((_, Right(collector))) =>
+//              val collectorType = if (collector.isRight) "metric" else "callback"
 
               ApplicativeThrow[F].raiseError(
                 new RuntimeException(
-                  s"A $collectorType with the same name as '$renderedFullName' is already registered with different labels and/or type"
+                  s"A metric with the same name as '$renderedFullName' is already registered with different labels and/or type"
                 )
               )
+            case Some((_, Left(_))) =>
+              ???
             case None =>
               Sync[F]
                 .delay(registry.register(collector))
