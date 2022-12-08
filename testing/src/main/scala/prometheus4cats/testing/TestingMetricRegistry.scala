@@ -27,49 +27,60 @@ import scala.concurrent.duration.FiniteDuration
 import TestingMetricRegistry._
 
 class TestingMetricRegistry[F[_]](
-    private val store: MapRef[F, (String, List[String]), Option[(Int, MetricType, Metric[Double], F[Chain[Double]])]]
+    private val underlying: MapRef[F, (String, List[String]), Option[
+      (Int, MetricType, Metric[Double], MapRef[F, List[String], Chain[Double]])
+    ]]
 )(implicit F: Concurrent[F])
     extends DoubleMetricRegistry[F] {
 
   def counterHistory(name: Counter.Name, commonLabels: Metric.CommonLabels): F[Option[Chain[Double]]] =
-    metricHistory(name.value, commonLabels.value.values.toList, MetricType.Counter)
+    metricHistory(
+      name.value,
+      names(commonLabels),
+      values(commonLabels),
+      MetricType.Counter
+    )
 
   def counterHistory(
       name: Counter.Name,
       commonLabels: Metric.CommonLabels,
-      labelNames: IndexedSeq[Label.Name]
+      labelNames: IndexedSeq[Label.Name],
+      labelValues: IndexedSeq[String]
   ): F[Option[Chain[Double]]] =
-    metricHistory(name.value, labels(commonLabels, labelNames), MetricType.Counter)
+    metricHistory(name.value, names(commonLabels, labelNames), values(commonLabels, labelValues), MetricType.Counter)
 
   def gaugeHistory(name: Gauge.Name, commonLabels: Metric.CommonLabels): F[Option[Chain[Double]]] =
-    metricHistory(name.value, commonLabels.value.values.toList, MetricType.Gauge)
+    metricHistory(name.value, names(commonLabels), values(commonLabels), MetricType.Gauge)
 
   def gaugeHistory(
       name: Gauge.Name,
       commonLabels: Metric.CommonLabels,
-      labelNames: IndexedSeq[Label.Name]
+      labelNames: IndexedSeq[Label.Name],
+      labelValues: IndexedSeq[String]
   ): F[Option[Chain[Double]]] =
-    metricHistory(name.value, labels(commonLabels, labelNames), MetricType.Gauge)
+    metricHistory(name.value, names(commonLabels, labelNames), values(commonLabels, labelValues), MetricType.Gauge)
 
   def histogramHistory(name: Histogram.Name, commonLabels: Metric.CommonLabels): F[Option[Chain[Double]]] =
-    metricHistory(name.value, commonLabels.value.values.toList, MetricType.Histogram)
+    metricHistory(name.value, names(commonLabels), values(commonLabels), MetricType.Histogram)
 
   def histogramHistory(
       name: Histogram.Name,
       commonLabels: Metric.CommonLabels,
-      labelNames: IndexedSeq[Label.Name]
+      labelNames: IndexedSeq[Label.Name],
+      labelValues: IndexedSeq[String]
   ): F[Option[Chain[Double]]] =
-    metricHistory(name.value, labels(commonLabels, labelNames), MetricType.Histogram)
+    metricHistory(name.value, names(commonLabels, labelNames), values(commonLabels, labelValues), MetricType.Histogram)
 
   def summaryHistory(name: Summary.Name, commonLabels: Metric.CommonLabels): F[Option[Chain[Double]]] =
-    metricHistory(name.value, commonLabels.value.values.toList, MetricType.Summary)
+    metricHistory(name.value, names(commonLabels), values(commonLabels), MetricType.Summary)
 
   def summaryHistory(
       name: Summary.Name,
       commonLabels: Metric.CommonLabels,
-      labelNames: IndexedSeq[Label.Name]
+      labelNames: IndexedSeq[Label.Name],
+      labelValues: IndexedSeq[String]
   ): F[Option[Chain[Double]]] =
-    metricHistory(name.value, labels(commonLabels, labelNames), MetricType.Summary)
+    metricHistory(name.value, names(commonLabels, labelNames), values(commonLabels, labelValues), MetricType.Summary)
 
   override protected[prometheus4cats] def createAndRegisterDoubleCounter(
       prefix: Option[Metric.Prefix],
@@ -79,10 +90,10 @@ class TestingMetricRegistry[F[_]](
   ): Resource[F, Counter[F, Double]] =
     store(
       name.value,
-      commonLabels.value.values.toList,
+      names(commonLabels),
       MetricType.Counter,
-      (ref: Ref[F, Chain[Double]]) =>
-        Counter.make[F, Double]((d: Double) => ref.update(c => c.append(c.lastOption.get + d))),
+      (ref: MapRef[F, List[String], Chain[Double]]) =>
+        Counter.make[F, Double]((d: Double) => ref(values(commonLabels)).update(c => c.append(c.lastOption.get + d))),
       Chain.one(0.0)
     )
 
@@ -95,10 +106,12 @@ class TestingMetricRegistry[F[_]](
   )(f: A => IndexedSeq[String]): Resource[F, Counter.Labelled[F, Double, A]] =
     store(
       name.value,
-      labels(commonLabels, labelNames),
+      names(commonLabels, labelNames),
       MetricType.Counter,
-      (ref: Ref[F, Chain[Double]]) =>
-        Counter.Labelled.make[F, Double, A]((d: Double, _: A) => ref.update(c => c.append(c.lastOption.get + d))),
+      (ref: MapRef[F, List[String], Chain[Double]]) =>
+        Counter.Labelled.make[F, Double, A]((d: Double, a: A) =>
+          ref(values(commonLabels, f(a))).update(c => c.append(c.lastOption.get + d))
+        ),
       Chain.one(0.0)
     )
 
@@ -111,13 +124,13 @@ class TestingMetricRegistry[F[_]](
   ): Resource[F, Gauge[F, Double]] =
     store(
       name.value,
-      commonLabels.value.values.toList,
+      names(commonLabels),
       MetricType.Gauge,
-      (ref: Ref[F, Chain[Double]]) =>
+      (ref: MapRef[F, List[String], Chain[Double]]) =>
         Gauge.make[F, Double](
-          (d: Double) => ref.update(c => c.append(c.lastOption.get + d)),
-          (d: Double) => ref.update(c => c.append(c.lastOption.get - d)),
-          (d: Double) => ref.update(_.append(d))
+          (d: Double) => ref(values(commonLabels)).update(c => c.append(c.lastOption.get + d)),
+          (d: Double) => ref(values(commonLabels)).update(c => c.append(c.lastOption.get - d)),
+          (d: Double) => ref(values(commonLabels)).update(_.append(d))
         ),
       Chain.one(0.0)
     )
@@ -131,13 +144,13 @@ class TestingMetricRegistry[F[_]](
   )(f: A => IndexedSeq[String]): Resource[F, Gauge.Labelled[F, Double, A]] =
     store(
       name.value,
-      labels(commonLabels, labelNames),
+      names(commonLabels, labelNames),
       MetricType.Gauge,
-      (ref: Ref[F, Chain[Double]]) =>
+      (ref: MapRef[F, List[String], Chain[Double]]) =>
         Gauge.Labelled.make[F, Double, A](
-          (d: Double, _: A) => ref.update(c => c.append(c.lastOption.get + d)),
-          (d: Double, _: A) => ref.update(c => c.append(c.lastOption.get - d)),
-          (d: Double, _: A) => ref.update(_.append(d))
+          (d: Double, a: A) => ref(values(commonLabels, f(a))).update(c => c.append(c.lastOption.get + d)),
+          (d: Double, a: A) => ref(values(commonLabels, f(a))).update(c => c.append(c.lastOption.get - d)),
+          (d: Double, a: A) => ref(values(commonLabels, f(a))).update(_.append(d))
         ),
       Chain.one(0.0)
     )
@@ -151,9 +164,10 @@ class TestingMetricRegistry[F[_]](
   ): Resource[F, Histogram[F, Double]] =
     store(
       name.value,
-      commonLabels.value.values.toList,
+      names(commonLabels),
       MetricType.Histogram,
-      (ref: Ref[F, Chain[Double]]) => Histogram.make[F, Double]((d: Double) => ref.update(_.append(d))),
+      (ref: MapRef[F, List[String], Chain[Double]]) =>
+        Histogram.make[F, Double]((d: Double) => ref(values(commonLabels)).update(_.append(d))),
       Chain.nil
     )
 
@@ -167,10 +181,10 @@ class TestingMetricRegistry[F[_]](
   )(f: A => IndexedSeq[String]): Resource[F, Histogram.Labelled[F, Double, A]] =
     store(
       name.value,
-      labels(commonLabels, labelNames),
+      names(commonLabels, labelNames),
       MetricType.Histogram,
-      (ref: Ref[F, Chain[Double]]) =>
-        Histogram.Labelled.make[F, Double, A]((d: Double, _: A) => ref.update(_.append(d))),
+      (ref: MapRef[F, List[String], Chain[Double]]) =>
+        Histogram.Labelled.make[F, Double, A]((d: Double, a: A) => ref(values(commonLabels, f(a))).update(_.append(d))),
       Chain.nil
     )
 
@@ -185,9 +199,10 @@ class TestingMetricRegistry[F[_]](
   ): Resource[F, Summary[F, Double]] =
     store(
       name.value,
-      commonLabels.value.values.toList,
+      names(commonLabels),
       MetricType.Summary,
-      (ref: Ref[F, Chain[Double]]) => Summary.make[F, Double]((d: Double) => ref.update(_.append(d))),
+      (ref: MapRef[F, List[String], Chain[Double]]) =>
+        Summary.make[F, Double]((d: Double) => ref(values(commonLabels)).update(_.append(d))),
       Chain.nil
     )
 
@@ -203,9 +218,10 @@ class TestingMetricRegistry[F[_]](
   )(f: A => IndexedSeq[String]): Resource[F, Summary.Labelled[F, Double, A]] =
     store(
       name.value,
-      labels(commonLabels, labelNames),
+      names(commonLabels, labelNames),
       MetricType.Summary,
-      (ref: Ref[F, Chain[Double]]) => Summary.Labelled.make[F, Double, A]((d: Double, _: A) => ref.update(_.append(d))),
+      (ref: MapRef[F, List[String], Chain[Double]]) =>
+        Summary.Labelled.make[F, Double, A]((d: Double, a: A) => ref(values(commonLabels, f(a))).update(_.append(d))),
       Chain.nil
     )
 
@@ -219,58 +235,80 @@ class TestingMetricRegistry[F[_]](
       name: String,
       labels: List[String],
       tpe: MetricType,
-      create: Ref[F, Chain[Double]] => M,
+      create: MapRef[F, List[String], Chain[Double]] => M,
       initial: Chain[Double]
   ): Resource[F, M] =
     Resource
-      .eval(F.ref(initial).flatMap { ref =>
-        val release =
-          store(name -> labels).update {
-            case None => throw new RuntimeException("This should be unreachable - our reference counting has a bug")
-            case Some((n, t, c, h)) => if (n == 1) None else Some((n - 1, t, c, h))
-          }
+      .eval(
+        MapRef
+          .ofShardedImmutableMap[F, List[String], Chain[Double]](32)
+          .map(r => MapRef.defaultedMapRef[F, List[String], Chain[Double]](r, initial))
+          .flatMap { ref =>
+            val release =
+              underlying(name -> labels).update {
+                case None => throw new RuntimeException("This should be unreachable - our reference counting has a bug")
+                case Some((n, t, c, h)) => if (n == 1) None else Some((n - 1, t, c, h))
+              }
 
-        store(name -> labels).modify {
-          case None =>
-            val m = create(ref)
-            Some((1, tpe, m, ref.get)) -> F.pure(
-              Resource.make(F.pure(m))(_ => release)
-            )
-          case curr @ Some((n, t, c, h)) =>
-            if (t == tpe)
-              Some((n + 1, t, c, h)) ->
-                F.pure(
-                  Resource.make(
-                    // Cast safe by construction
-                    F.pure(c.asInstanceOf[M])
-                  )(_ => release)
+            underlying(name -> labels).modify {
+              case None =>
+                val m = create(ref)
+                Some((1, tpe, m, ref)) -> F.pure(
+                  Resource.make(F.pure(m))(_ => release)
                 )
-            else
-              curr -> F.raiseError[Resource[F, M]](
-                new RuntimeException(
-                  s"Cannot create metric of type $tpe as metric of type $t alreasy exists with the same name and labels"
-                )
-              )
-        }.flatten
-      })
+              case curr @ Some((n, t, m, h)) =>
+                if (t == tpe)
+                  Some((n + 1, t, m, h)) ->
+                    F.pure(
+                      Resource.make(
+                        // Cast safe by construction
+                        F.pure(m.asInstanceOf[M])
+                      )(_ => release)
+                    )
+                else
+                  curr -> F.raiseError[Resource[F, M]](
+                    new RuntimeException(
+                      s"Cannot create metric of type $tpe as metric of type $t alreasy exists with the same name and labels"
+                    )
+                  )
+            }.flatten
+          }
+      )
       .flatten
 
-  def metricHistory(name: String, labels: List[String], tpe: MetricType): F[Option[Chain[Double]]] =
-    store(name -> labels).get.flatMap(_.flatMap {
-      case (_, t, _, h) if t == tpe =>
-        Some(h)
-      case _ => None
-    }.sequence)
+  def metricHistory(
+      name: String,
+      labelNames: List[String],
+      labelValues: List[String],
+      tpe: MetricType
+  ): F[Option[Chain[Double]]] =
+    underlying(name -> labelNames).get.flatMap(_.traverse {
+      case (_, t, _, r) if t == tpe =>
+        r(labelValues).get
+    })
 
-  private def labels(comonLabels: Metric.CommonLabels, labels: IndexedSeq[Label.Name]): List[String] =
-    (comonLabels.value.values ++ labels.map(_.value)).toList
+  private def names(commonLabels: Metric.CommonLabels): List[String] =
+    commonLabels.value.keys.map(_.value).toList
+
+  private def names(commonLabels: Metric.CommonLabels, labels: IndexedSeq[Label.Name]): List[String] =
+    names(commonLabels) ++ labels.map(_.value)
+
+  private def values(commonLabels: Metric.CommonLabels): List[String] =
+    commonLabels.value.values.toList
+
+  private def values(comonLabels: Metric.CommonLabels, labels: IndexedSeq[String]): List[String] =
+    values(comonLabels) ++ labels
 
 }
 
 object TestingMetricRegistry {
 
   def apply[F[_]: Concurrent]: F[TestingMetricRegistry[F]] = MapRef
-    .ofShardedImmutableMap[F, (String, List[String]), (Int, MetricType, Metric[Double], F[Chain[Double]])](256)
+    .ofShardedImmutableMap[
+      F,
+      (String, List[String]),
+      (Int, MetricType, Metric[Double], MapRef[F, List[String], Chain[Double]])
+    ](256)
     .map(m => new TestingMetricRegistry(m))
 
   sealed private trait MetricType
