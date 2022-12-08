@@ -26,7 +26,7 @@ import scala.concurrent.duration._
 //TODO test resource lifetimes with multiple references
 class TestingMetricRegistrySuite extends CatsEffectSuite {
 
-  test("Counter history") {
+  test("Counter - history") {
     TestingMetricRegistry[IO].flatMap { reg =>
       reg
         .createAndRegisterDoubleCounter(
@@ -43,7 +43,38 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
     }
   }
 
-  test("Gauge history") {
+  test("Counter - labelled history") {
+    TestingMetricRegistry[IO].flatMap { reg =>
+      reg
+        .createAndRegisterLabelledDoubleCounter(
+          None,
+          Counter.Name("test_total"),
+          Metric.Help("help"),
+          Metric.CommonLabels.empty,
+          IndexedSeq(Label.Name("status"))
+        )((s: String) => IndexedSeq(s))
+        .use { case c =>
+          c.inc("success") >> c.inc(2.0, "failure") >> reg
+            .counterHistory(
+              Counter.Name("test_total"),
+              Metric.CommonLabels.empty,
+              IndexedSeq(Label.Name("status")),
+              IndexedSeq("success")
+            )
+            .assertEquals(Some(Chain(0.0, 1.0))) >> reg
+            .counterHistory(
+              Counter.Name("test_total"),
+              Metric.CommonLabels.empty,
+              IndexedSeq(Label.Name("status")),
+              IndexedSeq("failure")
+            )
+            .assertEquals(Some(Chain(0.0, 2.0)))
+
+        }
+    }
+  }
+
+  test("Gauge - history") {
     TestingMetricRegistry[IO].flatMap { reg =>
       reg
         .createAndRegisterDoubleGauge(
@@ -61,7 +92,38 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
     }
   }
 
-  test("Histogram history") {
+  test("Gauge - labelled history") {
+    TestingMetricRegistry[IO].flatMap { reg =>
+      reg
+        .createAndRegisterLabelledDoubleGauge(
+          None,
+          Gauge.Name("test_total"),
+          Metric.Help("help"),
+          Metric.CommonLabels.empty,
+          IndexedSeq(Label.Name("status"))
+        )((s: String) => IndexedSeq(s))
+        .use { case c =>
+          c.inc("success") >> c.inc(2.0, "failure") >> reg
+            .gaugeHistory(
+              Gauge.Name("test_total"),
+              Metric.CommonLabels.empty,
+              IndexedSeq(Label.Name("status")),
+              IndexedSeq("success")
+            )
+            .assertEquals(Some(Chain(0.0, 1.0))) >> reg
+            .gaugeHistory(
+              Gauge.Name("test_total"),
+              Metric.CommonLabels.empty,
+              IndexedSeq(Label.Name("status")),
+              IndexedSeq("failure")
+            )
+            .assertEquals(Some(Chain(0.0, 2.0)))
+
+        }
+    }
+  }
+
+  test("Histogram - history") {
     TestingMetricRegistry[IO].flatMap { reg =>
       reg
         .createAndRegisterDoubleHistogram(
@@ -80,7 +142,39 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
     }
   }
 
-  test("Summary history") {
+  test("Histogram - labelled history") {
+    TestingMetricRegistry[IO].flatMap { reg =>
+      reg
+        .createAndRegisterLabelledDoubleHistogram(
+          None,
+          Histogram.Name("test_total"),
+          Metric.Help("help"),
+          Metric.CommonLabels.empty,
+          IndexedSeq(Label.Name("status")),
+          NonEmptySeq(0.0, Seq(5.0, 10.0))
+        )((s: String) => IndexedSeq(s))
+        .use { case h =>
+          h.observe(1.0, "success") >> h.observe(2.0, "failure") >> reg
+            .histogramHistory(
+              Histogram.Name("test_total"),
+              Metric.CommonLabels.empty,
+              IndexedSeq(Label.Name("status")),
+              IndexedSeq("success")
+            )
+            .assertEquals(Some(Chain(1.0))) >> reg
+            .histogramHistory(
+              Histogram.Name("test_total"),
+              Metric.CommonLabels.empty,
+              IndexedSeq(Label.Name("status")),
+              IndexedSeq("failure")
+            )
+            .assertEquals(Some(Chain(2.0)))
+
+        }
+    }
+  }
+
+  test("Summary - history") {
     TestingMetricRegistry[IO].flatMap { reg =>
       reg
         .createAndRegisterDoubleSummary(
@@ -97,6 +191,40 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
             reg
               .summaryHistory(Summary.Name("test_total"), Metric.CommonLabels.empty)
               .assertEquals(Some(Chain(1.0, 2.0, 3.0)))
+        }
+    }
+  }
+
+  test("Summary - labelled history") {
+    TestingMetricRegistry[IO].flatMap { reg =>
+      reg
+        .createAndRegisterLabelledDoubleSummary(
+          None,
+          Summary.Name("test_total"),
+          Metric.Help("help"),
+          Metric.CommonLabels.empty,
+          IndexedSeq(Label.Name("status")),
+          Seq(Summary.QuantileDefinition(Summary.Quantile(0.5), Summary.AllowedError(0.1))),
+          5.seconds,
+          Summary.AgeBuckets(5)
+        )((s: String) => IndexedSeq(s))
+        .use { case s =>
+          s.observe(1.0, "success") >> s.observe(2.0, "failure") >> reg
+            .summaryHistory(
+              Summary.Name("test_total"),
+              Metric.CommonLabels.empty,
+              IndexedSeq(Label.Name("status")),
+              IndexedSeq("success")
+            )
+            .assertEquals(Some(Chain(1.0))) >> reg
+            .summaryHistory(
+              Summary.Name("test_total"),
+              Metric.CommonLabels.empty,
+              IndexedSeq(Label.Name("status")),
+              IndexedSeq("failure")
+            )
+            .assertEquals(Some(Chain(2.0)))
+
         }
     }
   }
