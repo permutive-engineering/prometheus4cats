@@ -112,7 +112,7 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
         }
       } >> reg
         .counterHistory(Counter.Name("test_total"), Metric.CommonLabels.empty)
-        // All scopes which reference coutner have closed so it should be removed from registry
+        // All scopes which reference counter have closed so it should be removed from registry
         .assertEquals(None)
 
     }
