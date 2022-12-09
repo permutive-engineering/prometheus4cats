@@ -46,12 +46,15 @@ import prometheus4cats.javasimpleclient.internal.{HistogramUtils, MetricCollecti
 import prometheus4cats.javasimpleclient.models.MetricType
 import prometheus4cats.util.{DoubleCallbackRegistry, DoubleMetricRegistry, NameUtils}
 
+import scala.collection.immutable
+import scala.collection.immutable.{AbstractMap, SeqMap, SortedMap}
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 
 class JavaMetricRegistry[F[_]: Async: Logger] private (
     registry: CollectorRegistry,
     ref: Ref[F, State],
+    callbackState: Ref[F, CallbackState[F]],
     metricCollectionCollector: MetricCollectionProcessor[F],
     sem: Semaphore[F],
     dispatcher: Dispatcher[F],
@@ -90,8 +93,11 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       ref.get
         .flatMap[(State, C)] { (metrics: State) =>
           metrics.get(fullName) match {
-            case Some((expected, Right(collector))) =>
-              if (metricId == expected) Applicative[F].pure(metrics -> collector.asInstanceOf[C])
+            case Some((expected, Right((collector, references)))) =>
+              if (metricId == expected)
+                Applicative[F].pure(
+                  metrics.updated(fullName, (expected, Right((collector, references + 1)))) -> collector.asInstanceOf[C]
+                )
               else
                 ApplicativeThrow[F].raiseError(
                   new RuntimeException(
@@ -116,7 +122,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
 
                 b.register(registry)
               }.map { collector =>
-                metrics.updated(fullName, (metricId, Right(collector))) -> collector
+                metrics.updated(fullName, (metricId, Right(collector -> 1))) -> collector
               }
           }
         }
@@ -125,7 +131,15 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
 
     Resource.make(acquire) { collector =>
       sem.permit.surround {
-        ref.update(_ - fullName) >> Utils.unregister(collector, registry)
+        ref.get.flatMap { metrics =>
+          metrics.get(fullName) match {
+            case Some((`metricId`, Right((_, 1)))) =>
+              ref.set(metrics - fullName) >> Utils.unregister(collector, registry)
+            case Some((`metricId`, Right((collector, references)))) =>
+              ref.set(metrics.updated(fullName, (metricId, Right(collector, references - 1))))
+            case _ => Applicative[F].unit
+          }
+        }
       }
     }
   }
@@ -150,20 +164,27 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       ref.get
         .flatMap[(State, Collector)] { (metrics: State) =>
           metrics.get(fullName) match {
-            case Some((_, Right(collector))) =>
-//              val collectorType = if (collector.isRight) "metric" else "callback"
-
+            case Some((_, Right(_))) =>
               ApplicativeThrow[F].raiseError(
                 new RuntimeException(
                   s"A metric with the same name as '$renderedFullName' is already registered with different labels and/or type"
                 )
               )
-            case Some((_, Left(_))) =>
-              ???
+            case Some(((_, mt), _)) if mt != metricType =>
+              ApplicativeThrow[F].raiseError(
+                new RuntimeException(
+                  s"A callback with the type '$mt' named '$renderedFullName' is already registered, cannot register with the type '$metricType'"
+                )
+              )
+            case Some((_, Left(collectors))) =>
+              Sync[F]
+                .delay(registry.register(collector))
+                .as(metrics.updated(fullName, (metricId, Left(collectors + collector))) -> collector)
             case None =>
               Sync[F]
                 .delay(registry.register(collector))
-                .as(metrics.updated(fullName, (metricId, Left(collector))) -> collector)
+                .as(metrics.updated(fullName, (metricId, Left(Set(collector)))) -> collector)
+
           }
 
         }
@@ -173,7 +194,19 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     Resource
       .make(acquire) { collector =>
         sem.permit.surround {
-          ref.update(_ - fullName) >> Utils.unregister(collector, registry)
+          ref.get.flatMap { metrics =>
+            metrics.get(fullName) match {
+              case Some((`metricId`, Left(collectors))) =>
+                if (collectors.size == 1)
+                  ref.set(metrics - fullName) >> Utils.unregister(collector, registry)
+                else
+                  ref.set(metrics.updated(fullName, (metricId, Left(collectors - collector)))) >> Utils.unregister(
+                    collector,
+                    registry
+                  )
+              case _ => Applicative[F].unit
+            }
+          }
         }
       }
       .as(())
@@ -470,31 +503,99 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
   )(
       makeFamily: (String, B) => Collector.MetricFamilySamples,
       makeLabelledFamily: (String, util.List[String], util.List[String], B) => Collector.MetricFamilySamples
-  ): Resource[F, Unit] = {
-    lazy val stringName = NameUtils.makeName(prefix, name)
+  ): Resource[F, Unit] = registerLabelled[A, B, Unit](
+    metricType,
+    prefix,
+    name,
+    commonLabels,
+    IndexedSeq.empty,
+    callback.map(b => NonEmptyList.one(b -> ()))
+  )(
+    _ => IndexedSeq.empty,
+    (name, labelNames, labelValues, b) =>
+      if (labelNames.isEmpty) makeFamily(name, b)
+      else makeLabelledFamily(name, labelNames, labelValues, b)
+  )
 
-    lazy val commonLabelNames: util.List[String] = commonLabels.value.keys.map(_.value).toList.asJava
-    lazy val commonLabelValues: util.List[String] = commonLabels.value.values.toList.asJava
+  def registerCallback2[A: Show](
+      metricType: MetricType,
+      metricPrefix: Option[Metric.Prefix],
+      name: A,
+      callback: F[NonEmptyList[Collector.MetricFamilySamples]]
+  ) = {
+    lazy val n = counterName(name)
 
-    def runCallback: Option[B] = timeoutCallback(callback.map(Option(_)), None, stringName)
+    lazy val fullName: StateKey = (metricPrefix, n)
+    lazy val renderedFullName = NameUtils.makeName(metricPrefix, name)
 
-    lazy val collector = new Collector {
-      override def collect(): util.List[Collector.MetricFamilySamples] =
-        runCallback match {
-          case Some(value) =>
-            val metrics =
-              if (commonLabels.value.isEmpty) List[Collector.MetricFamilySamples](makeFamily(stringName, value))
-              else List(makeLabelledFamily(stringName, commonLabelNames, commonLabelValues, value))
+    def makeCollector(callbacks: Ref[F, Map[Unique.Token, F[NonEmptyList[Collector.MetricFamilySamples]]]]): Collector =
+      new Collector {
+        override def collect(): util.List[MetricFamilySamples] =
+          dispatcher.unsafeRunSync(callbacks.get.as(util.List.of[Collector.MetricFamilySamples]()))
 
-            metrics.asJava
-          case None => List.empty[Collector.MetricFamilySamples].asJava
+//          timeoutCallback[util.List[MetricFamilySamples]](
+//          callbacks.get.as(util.List.of[Collector.MetricFamilySamples]()),
+//          util.List.of[Collector.MetricFamilySamples](),
+//          n
+//        )
+
+//        timeoutCallback[util.List[MetricFamilySamples]](
+//        callbackState.get.map { callbacks =>
+//          val x =
+//            callbacks.get(fullName).fold(Map.empty[Unique.Token, F[NonEmptyList[Collector.MetricFamilySamples]]])(_._2)
+//
+//          x.flatMap { case (_, cb) => timeoutCallback(cb.map(_.toList), List.empty, n) }.toList.asJava
+//        },
+//        util.List.of[Collector.MetricFamilySamples](),
+//        n
+//      )
+      }
+
+    val acquire = sem.permit.surround(
+      callbackState.get
+        .flatMap[Unique.Token] { (callbacks: CallbackState[F]) =>
+          callbacks.get(fullName) match {
+
+            case Some((`metricType`, states, _)) =>
+              Unique[F].unique.flatMap { token =>
+                states.update(_.updated(token, callback)).as(token)
+              }
+            case Some(_) =>
+              ApplicativeThrow[F].raiseError(
+                new RuntimeException(
+                  s"A callback with the same name as '$renderedFullName' is already registered with different type"
+                )
+              )
+            case None =>
+              for {
+                token <- Unique[F].unique
+                ref <- Ref
+                  .of[F, Map[Unique.Token, F[NonEmptyList[Collector.MetricFamilySamples]]]](Map(token -> callback))
+                _ <- callbackState.set(callbacks.updated(fullName, (metricType, ref, makeCollector(ref))))
+              } yield token
+          }
+
         }
+    )
 
-    }
+    Resource
+      .make(acquire) { token =>
+        sem.permit.surround(callbackState.get.flatMap { state =>
+          state.get(fullName) match {
+            case Some((_, callbacks, collector)) =>
+              callbacks.get.flatMap { cbs =>
+                val newCallbacks = cbs - token
 
-    registerCallback(metricType, prefix, name, commonLabels.value.keys.toIndexedSeq, collector)
+                if (newCallbacks.isEmpty)
+                  callbackState.set(state - fullName) >> Utils.unregister(collector, registry)
+                else callbacks.set(newCallbacks)
+              }
+            case None => Applicative[F].unit
+          }
+        })
+      }
+      .void
   }
-
   private def registerLabelled[A: Show, B, C](
       metricType: MetricType,
       prefix: Option[Metric.Prefix],
@@ -512,23 +613,11 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       (labelNames ++ commonLabels.value.keys.toIndexedSeq).map(_.value).asJava
     lazy val commonLabelValues: IndexedSeq[String] = commonLabels.value.values.toIndexedSeq
 
-    def runCallback: Option[NonEmptyList[(B, C)]] = timeoutCallback(callback.map(Option(_)), None, stringName)
+    val x: F[NonEmptyList[MetricFamilySamples]] = callback.map(_.map { case (value, labels) =>
+      makeLabelledFamily(stringName, commonLabelNames, (f(labels) ++ commonLabelValues).asJava, value)
+    })
 
-    lazy val collector = new Collector {
-      override def collect(): util.List[Collector.MetricFamilySamples] =
-        runCallback match {
-          case Some(nel) =>
-            val metrics = nel.map { case (value, labels) =>
-              makeLabelledFamily(stringName, commonLabelNames, (f(labels) ++ commonLabelValues).asJava, value)
-            }
-
-            metrics.toList.asJava
-          case None => List.empty[Collector.MetricFamilySamples].asJava
-        }
-
-    }
-
-    registerCallback(metricType, prefix, name, labelNames ++ commonLabels.value.keys.toIndexedSeq, collector)
+    registerCallback2(metricType, prefix, name, x)
   }
 
   override protected[prometheus4cats] def registerDoubleCounterCallback(
@@ -743,10 +832,12 @@ object JavaMetricRegistry {
   ): Resource[F, JavaMetricRegistry[F]] = Dispatcher.sequential[F].flatMap { dis =>
     val acquire = for {
       ref <- Ref.of[F, State](Map.empty)
+      callbackState <- Ref.of[F, CallbackState[F]](Map.empty)
       sem <- Semaphore[F](1L)
       metricCollectionProcessor <- MetricCollectionProcessor
         .create(
           ref,
+          // TODO callabck statee
           dis,
           metricCollectionCallbackTimeout,
           promRegistry
@@ -755,7 +846,15 @@ object JavaMetricRegistry {
     } yield (
       ref,
       metricCollectionProcessor._2,
-      new JavaMetricRegistry[F](promRegistry, ref, metricCollectionProcessor._1, sem, dis, callbackTimeout)
+      new JavaMetricRegistry[F](
+        promRegistry,
+        ref,
+        callbackState,
+        metricCollectionProcessor._1,
+        sem,
+        dis,
+        callbackTimeout
+      )
     )
 
     Resource
@@ -766,8 +865,9 @@ object JavaMetricRegistry {
               metrics.values
                 .map(_._2)
                 .toList
-                .traverse_ { collector =>
-                  Utils.unregister(collector.merge, promRegistry)
+                .traverse_ {
+                  case Right((collector, _)) => Utils.unregister(collector, promRegistry)
+                  case Left(collectors) => collectors.toList.traverse_(Utils.unregister(_, promRegistry))
                 }
             else Applicative[F].unit
           }
