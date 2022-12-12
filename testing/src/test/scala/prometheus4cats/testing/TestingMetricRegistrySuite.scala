@@ -379,7 +379,7 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
         (
           reg.createAndRegisterDoubleCounter(None, Counter.Name("test_total"), Metric.Help("help"), labels),
           reg.createAndRegisterDoubleGauge(None, Gauge.Name("test_total"), Metric.Help("help"), labels)
-            //TODO improve assertion when we have a common interface across registry implementations for this error
+          // TODO improve assertion when we have a common interface across registry implementations for this error
         ).parTupled.use_.intercept[RuntimeException]
       }
     }
