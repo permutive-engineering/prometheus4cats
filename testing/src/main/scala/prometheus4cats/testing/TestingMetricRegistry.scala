@@ -195,7 +195,6 @@ class TestingMetricRegistry[F[_]](
       Chain.one(0.0)
     )
 
-  // TODO handle prefix
   override protected[prometheus4cats] def createAndRegisterDoubleGauge(
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
@@ -362,10 +361,11 @@ class TestingMetricRegistry[F[_]](
       labelValues: List[String],
       tpe: MetricType
   ): F[Option[Chain[Double]]] =
-    underlying(name -> labelNames).get.flatMap(_.traverse {
+    underlying(name -> labelNames).get.flatMap(_.flatTraverse {
       case (_, t, _, r) if t == tpe =>
         // TODO this pattern isn't exhaustive
-        r(labelValues).get
+        r(labelValues).get.map(_.some)
+      case _ => Option.empty[Chain[Double]].pure[F]
     })
 
   private def prefixedName(prefix: Option[Metric.Prefix], name: String): String = prefix.fold(name)(p => s"${p}_$name")
