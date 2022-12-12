@@ -107,6 +107,52 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
     ) => reg.gaugeHistory(prefix, Gauge.Name.unsafeFrom(name), commonLabels, labelNames, labelValues)
   )
 
+  suite[Histogram[IO, Double]]("Histogram")(
+    (reg: TestingMetricRegistry[IO], prefix: Option[Metric.Prefix], name: String, commonLabels: Metric.CommonLabels) =>
+      reg.createAndRegisterDoubleHistogram(
+        prefix,
+        Histogram.Name.unsafeFrom(name),
+        Metric.Help("help"),
+        commonLabels,
+        NonEmptySeq(0.0, Seq(5.0, 10.0))
+      ),
+    (h: Histogram[IO, Double], _: Metric.CommonLabels) =>
+      (h.observe(1.0) >> h.observe(2.0) >> h.observe(3.0), Chain(1.0, 2.0, 3.0)),
+    (reg: TestingMetricRegistry[IO], prefix: Option[Metric.Prefix], name: String, commonLabels: Metric.CommonLabels) =>
+      reg.histogramHistory(prefix, Histogram.Name.unsafeFrom(name), commonLabels)
+  )
+
+  labelledSuite[Histogram.Labelled[IO, Double, IndexedSeq[String]]]("Histogram")(
+    (
+        reg: TestingMetricRegistry[IO],
+        prefix: Option[Metric.Prefix],
+        name: String,
+        commonLabels: Metric.CommonLabels,
+        labels: IndexedSeq[Label.Name]
+    ) =>
+      reg.createAndRegisterLabelledDoubleHistogram(
+        prefix,
+        Histogram.Name.unsafeFrom(name),
+        Metric.Help("help"),
+        commonLabels,
+        labels,
+        NonEmptySeq(0.0, Seq(5.0, 10.0))
+      )(identity[IndexedSeq[String]]),
+    (
+        h: Histogram.Labelled[IO, Double, IndexedSeq[String]],
+        _: Metric.CommonLabels,
+        labels: IndexedSeq[String]
+    ) => (h.observe(1.0, labels) >> h.observe(2.0, labels) >> h.observe(3.0, labels), Chain(1.0, 2.0, 3.0)),
+    (
+        reg: TestingMetricRegistry[IO],
+        prefix: Option[Metric.Prefix],
+        name: String,
+        commonLabels: Metric.CommonLabels,
+        labelNames: IndexedSeq[Label.Name],
+        labelValues: IndexedSeq[String]
+    ) => reg.histogramHistory(prefix, Histogram.Name.unsafeFrom(name), commonLabels, labelNames, labelValues)
+  )
+
   def suite[M <: Metric[Double]](name: String)(
       create: (TestingMetricRegistry[IO], Option[Metric.Prefix], String, Metric.CommonLabels) => Resource[IO, M],
       use: (
@@ -221,80 +267,6 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
         }
       }
     }
-
-  test("Histogram - history") {
-    TestingMetricRegistry[IO].flatMap { reg =>
-      reg
-        .createAndRegisterDoubleHistogram(
-          None,
-          Histogram.Name("test_total"),
-          Metric.Help("help"),
-          Metric.CommonLabels.empty,
-          NonEmptySeq(0.0, Seq(5.0, 10.0))
-        )
-        .use { h =>
-          h.observe(1.0) >> h.observe(2.0) >> h.observe(3.0) >>
-            reg
-              .histogramHistory(Histogram.Name("test_total"), Metric.CommonLabels.empty)
-              .assertEquals(Some(Chain(1.0, 2.0, 3.0)))
-        }
-    }
-  }
-
-  test("Histogram - prefixed history") {
-    TestingMetricRegistry[IO].flatMap { reg =>
-      reg
-        .createAndRegisterDoubleHistogram(
-          Some(Metric.Prefix("permutive")),
-          Histogram.Name("test_total"),
-          Metric.Help("help"),
-          Metric.CommonLabels.empty,
-          NonEmptySeq(0.0, Seq(5.0, 10.0))
-        )
-        .use { h =>
-          h.observe(1.0) >> h.observe(2.0) >> h.observe(3.0) >>
-            reg
-              .histogramHistory(
-                Some(Metric.Prefix("permutive")),
-                Histogram.Name("test_total"),
-                Metric.CommonLabels.empty
-              )
-              .assertEquals(Some(Chain(1.0, 2.0, 3.0)))
-        }
-    }
-  }
-
-  test("Histogram - labelled history") {
-    TestingMetricRegistry[IO].flatMap { reg =>
-      reg
-        .createAndRegisterLabelledDoubleHistogram(
-          None,
-          Histogram.Name("test_total"),
-          Metric.Help("help"),
-          Metric.CommonLabels.empty,
-          IndexedSeq(Label.Name("status")),
-          NonEmptySeq(0.0, Seq(5.0, 10.0))
-        )((s: String) => IndexedSeq(s))
-        .use { case h =>
-          h.observe(1.0, "success") >> h.observe(2.0, "failure") >> reg
-            .histogramHistory(
-              Histogram.Name("test_total"),
-              Metric.CommonLabels.empty,
-              IndexedSeq(Label.Name("status")),
-              IndexedSeq("success")
-            )
-            .assertEquals(Some(Chain(1.0))) >> reg
-            .histogramHistory(
-              Histogram.Name("test_total"),
-              Metric.CommonLabels.empty,
-              IndexedSeq(Label.Name("status")),
-              IndexedSeq("failure")
-            )
-            .assertEquals(Some(Chain(2.0)))
-
-        }
-    }
-  }
 
   test("Summary - history") {
     TestingMetricRegistry[IO].flatMap { reg =>
