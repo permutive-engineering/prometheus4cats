@@ -27,7 +27,7 @@ import scala.concurrent.duration.FiniteDuration
 import TestingMetricRegistry._
 
 class TestingMetricRegistry[F[_]](
-    private val underlying: MapRef[F, (String, List[String]), Option[
+    val underlying: MapRef[F, (String, List[String]), Option[
       (Int, MetricType, Metric[Double], MapRef[F, List[String], Chain[Double]])
     ]]
 )(implicit F: Concurrent[F])
@@ -394,8 +394,8 @@ object TestingMetricRegistry {
     ](256)
     .map(m => new TestingMetricRegistry(m))
 
-  sealed private trait MetricType
-  private object MetricType {
+  sealed trait MetricType
+  object MetricType {
     case object Counter extends MetricType
     case object Gauge extends MetricType
     case object Histogram extends MetricType
