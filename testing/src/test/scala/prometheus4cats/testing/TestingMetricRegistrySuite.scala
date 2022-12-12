@@ -153,6 +153,56 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
     ) => reg.histogramHistory(prefix, Histogram.Name.unsafeFrom(name), commonLabels, labelNames, labelValues)
   )
 
+  suite[Summary[IO, Double]]("Summary")(
+    (reg: TestingMetricRegistry[IO], prefix: Option[Metric.Prefix], name: String, commonLabels: Metric.CommonLabels) =>
+      reg.createAndRegisterDoubleSummary(
+        prefix,
+        Summary.Name.unsafeFrom(name),
+        Metric.Help("help"),
+        commonLabels,
+        Seq(Summary.QuantileDefinition(Summary.Quantile(0.5), Summary.AllowedError(0.1))),
+        5.seconds,
+        Summary.AgeBuckets(5)
+      ),
+    (s: Summary[IO, Double], _: Metric.CommonLabels) =>
+      (s.observe(1.0) >> s.observe(2.0) >> s.observe(3.0), Chain(1.0, 2.0, 3.0)),
+    (reg: TestingMetricRegistry[IO], prefix: Option[Metric.Prefix], name: String, commonLabels: Metric.CommonLabels) =>
+      reg.summaryHistory(prefix, Summary.Name.unsafeFrom(name), commonLabels)
+  )
+
+  labelledSuite[Summary.Labelled[IO, Double, IndexedSeq[String]]]("Summary")(
+    (
+        reg: TestingMetricRegistry[IO],
+        prefix: Option[Metric.Prefix],
+        name: String,
+        commonLabels: Metric.CommonLabels,
+        labels: IndexedSeq[Label.Name]
+    ) =>
+      reg.createAndRegisterLabelledDoubleSummary(
+        prefix,
+        Summary.Name.unsafeFrom(name),
+        Metric.Help("help"),
+        commonLabels,
+        labels,
+        Seq(Summary.QuantileDefinition(Summary.Quantile(0.5), Summary.AllowedError(0.1))),
+        5.seconds,
+        Summary.AgeBuckets(5)
+      )(identity[IndexedSeq[String]]),
+    (
+        s: Summary.Labelled[IO, Double, IndexedSeq[String]],
+        _: Metric.CommonLabels,
+        labels: IndexedSeq[String]
+    ) => (s.observe(1.0, labels) >> s.observe(2.0, labels) >> s.observe(3.0, labels), Chain(1.0, 2.0, 3.0)),
+    (
+        reg: TestingMetricRegistry[IO],
+        prefix: Option[Metric.Prefix],
+        name: String,
+        commonLabels: Metric.CommonLabels,
+        labelNames: IndexedSeq[Label.Name],
+        labelValues: IndexedSeq[String]
+    ) => reg.summaryHistory(prefix, Summary.Name.unsafeFrom(name), commonLabels, labelNames, labelValues)
+  )
+
   def suite[M <: Metric[Double]](name: String)(
       create: (TestingMetricRegistry[IO], Option[Metric.Prefix], String, Metric.CommonLabels) => Resource[IO, M],
       use: (
@@ -267,81 +317,5 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
         }
       }
     }
-
-  test("Summary - history") {
-    TestingMetricRegistry[IO].flatMap { reg =>
-      reg
-        .createAndRegisterDoubleSummary(
-          None,
-          Summary.Name("test_total"),
-          Metric.Help("help"),
-          Metric.CommonLabels.empty,
-          Seq(Summary.QuantileDefinition(Summary.Quantile(0.5), Summary.AllowedError(0.1))),
-          5.seconds,
-          Summary.AgeBuckets(5)
-        )
-        .use { s =>
-          s.observe(1.0) >> s.observe(2.0) >> s.observe(3.0) >>
-            reg
-              .summaryHistory(Summary.Name("test_total"), Metric.CommonLabels.empty)
-              .assertEquals(Some(Chain(1.0, 2.0, 3.0)))
-        }
-    }
-  }
-
-  test("Summary - prefixed history") {
-    TestingMetricRegistry[IO].flatMap { reg =>
-      reg
-        .createAndRegisterDoubleSummary(
-          Some(Metric.Prefix("permutive")),
-          Summary.Name("test_total"),
-          Metric.Help("help"),
-          Metric.CommonLabels.empty,
-          Seq(Summary.QuantileDefinition(Summary.Quantile(0.5), Summary.AllowedError(0.1))),
-          5.seconds,
-          Summary.AgeBuckets(5)
-        )
-        .use { s =>
-          s.observe(1.0) >> s.observe(2.0) >> s.observe(3.0) >>
-            reg
-              .summaryHistory(Some(Metric.Prefix("permutive")), Summary.Name("test_total"), Metric.CommonLabels.empty)
-              .assertEquals(Some(Chain(1.0, 2.0, 3.0)))
-        }
-    }
-  }
-
-  test("Summary - labelled history") {
-    TestingMetricRegistry[IO].flatMap { reg =>
-      reg
-        .createAndRegisterLabelledDoubleSummary(
-          None,
-          Summary.Name("test_total"),
-          Metric.Help("help"),
-          Metric.CommonLabels.empty,
-          IndexedSeq(Label.Name("status")),
-          Seq(Summary.QuantileDefinition(Summary.Quantile(0.5), Summary.AllowedError(0.1))),
-          5.seconds,
-          Summary.AgeBuckets(5)
-        )((s: String) => IndexedSeq(s))
-        .use { case s =>
-          s.observe(1.0, "success") >> s.observe(2.0, "failure") >> reg
-            .summaryHistory(
-              Summary.Name("test_total"),
-              Metric.CommonLabels.empty,
-              IndexedSeq(Label.Name("status")),
-              IndexedSeq("success")
-            )
-            .assertEquals(Some(Chain(1.0))) >> reg
-            .summaryHistory(
-              Summary.Name("test_total"),
-              Metric.CommonLabels.empty,
-              IndexedSeq(Label.Name("status")),
-              IndexedSeq("failure")
-            )
-            .assertEquals(Some(Chain(2.0)))
-
-        }
-    }
-  }
 
 }
