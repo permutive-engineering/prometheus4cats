@@ -264,7 +264,7 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
           run >>
             m.use_ >>
             extract(reg, None, "test_total", Metric.CommonLabels.empty).assertEquals(Some(expected))
-        }
+        } >> extract(reg, None, "test_total", Metric.CommonLabels.empty).assertEquals(None)
       }
     }
 
@@ -317,5 +317,58 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
         }
       }
     }
+
+  test("Info - value") {
+    TestingMetricRegistry[IO].flatMap { reg =>
+      reg.createAndRegisterInfo(None, "test_info", Metric.Help("help")).use { _ =>
+        reg.infoValue(None, "test_info").assertEquals(Some(1.0))
+      } >> reg.infoValue(None, "test_info").assertEquals(None)
+    }
+  }
+
+  test("Info - prefixed value") {
+    TestingMetricRegistry[IO].flatMap { reg =>
+      reg.createAndRegisterInfo(Some(Metric.Prefix("permutive")), "test_info", Metric.Help("help")).use { _ =>
+        reg.infoValue(Some(Metric.Prefix("permutive")), "test_info").assertEquals(Some(1.0))
+      } >> reg.infoValue(Some(Metric.Prefix("permutive")), "test_info").assertEquals(None)
+    }
+  }
+
+  test("Info - concurrent resource lifecycle") {
+    TestingMetricRegistry[IO].flatMap { reg =>
+      IO.deferred[Unit].flatMap { wait =>
+        val m = reg.createAndRegisterInfo(Some(Metric.Prefix("permutive")), "test_info", Metric.Help("help"))
+        m.use { i =>
+          // Wait for other fiber to use and release counter
+          wait.get >>
+            // metric should still be valid as we still have a reference to it
+            i.info(Map.empty) >> reg.infoValue(Some(Metric.Prefix("permutive")), "test_info").assertEquals(Some(1.0))
+        }.start.flatMap { fiber =>
+          m.use_ >> wait.complete(()) >> fiber.joinWithNever
+        }
+      } >> reg
+        .infoValue(Some(Metric.Prefix("permutive")), "test_info")
+        // All scopes which reference metric have closed so it should be removed from registry
+        .assertEquals(None)
+
+    }
+
+  }
+
+  test("Info - nested resource lifecycle") {}
+  TestingMetricRegistry[IO].flatMap { reg =>
+    val m = reg.createAndRegisterInfo(Some(Metric.Prefix("permutive")), "test_info", Metric.Help("help"))
+    m.use { c =>
+      // Metric should still be valid as we still have a reference to it
+      c.info(Map.empty) >>
+        m.use_ >>
+        reg.infoValue(None, "test_info").assertEquals(Some(1.0))
+
+    } >> reg
+      .infoValue(None, "test_info")
+      // All scopes which reference metric have closed so it should be removed from registry
+      .assertEquals(None)
+
+  }
 
 }

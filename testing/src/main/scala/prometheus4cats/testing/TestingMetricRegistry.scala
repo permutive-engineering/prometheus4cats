@@ -29,7 +29,8 @@ import TestingMetricRegistry._
 class TestingMetricRegistry[F[_]](
     val underlying: MapRef[F, (String, List[String]), Option[
       (Int, MetricType, Metric[Double], MapRef[F, List[String], Chain[Double]])
-    ]]
+    ]],
+    val info: MapRef[F, String, Option[(Int, Info[F, Map[Label.Name, String]])]]
 )(implicit F: Concurrent[F])
     extends DoubleMetricRegistry[F] {
 
@@ -161,6 +162,11 @@ class TestingMetricRegistry[F[_]](
       values(commonLabels, labelValues),
       MetricType.Summary
     )
+
+  def infoValue(
+      prefix: Option[Metric.Prefix],
+      name: Summary.Name
+  ): F[Option[Double]] = info(prefixedName(prefix, name.value)).get.map(_.as(1.0))
 
   override protected[prometheus4cats] def createAndRegisterDoubleCounter(
       prefix: Option[Metric.Prefix],
@@ -308,7 +314,21 @@ class TestingMetricRegistry[F[_]](
       prefix: Option[Metric.Prefix],
       name: Info.Name,
       help: Metric.Help
-  ): Resource[F, Info[F, Map[Label.Name, String]]] = ???
+  ): Resource[F, Info[F, Map[Label.Name, String]]] = {
+    val release = info(prefixedName(prefix, name.value)).update {
+      case None => throw new RuntimeException("This should be unreachable - our reference counting has a bug")
+      case Some((n, i)) => if (n == 1) None else Some(n - 1 -> i)
+
+    }
+    Resource.make(
+      info(prefixedName(prefix, name.value)).modify {
+        case None =>
+          val i = Info.make[F, Map[Label.Name, String]]((_: Map[Label.Name, String]) => F.unit)
+          Some(1 -> i) -> i
+        case Some((n, i)) => Some(n + 1 -> i) -> i
+      }
+    )(_ => release)
+  }
 
   private def store[M <: Metric[Double]](
       name: String,
@@ -363,7 +383,6 @@ class TestingMetricRegistry[F[_]](
   ): F[Option[Chain[Double]]] =
     underlying(name -> labelNames).get.flatMap(_.flatTraverse {
       case (_, t, _, r) if t == tpe =>
-        // TODO this pattern isn't exhaustive
         r(labelValues).get.map(_.some)
       case _ => Option.empty[Chain[Double]].pure[F]
     })
@@ -386,13 +405,15 @@ class TestingMetricRegistry[F[_]](
 
 object TestingMetricRegistry {
 
-  def apply[F[_]: Concurrent]: F[TestingMetricRegistry[F]] = MapRef
-    .ofShardedImmutableMap[
-      F,
-      (String, List[String]),
-      (Int, MetricType, Metric[Double], MapRef[F, List[String], Chain[Double]])
-    ](256)
-    .map(m => new TestingMetricRegistry(m))
+  def apply[F[_]: Concurrent]: F[TestingMetricRegistry[F]] = (
+    MapRef
+      .ofShardedImmutableMap[
+        F,
+        (String, List[String]),
+        (Int, MetricType, Metric[Double], MapRef[F, List[String], Chain[Double]])
+      ](256),
+    MapRef.ofShardedImmutableMap[F, String, (Int, Info[F, Map[Label.Name, String]])](64)
+  ).mapN { case (m, i) => new TestingMetricRegistry(m, i) }
 
   sealed trait MetricType
   object MetricType {
@@ -400,5 +421,6 @@ object TestingMetricRegistry {
     case object Gauge extends MetricType
     case object Histogram extends MetricType
     case object Summary extends MetricType
+    case object Info extends MetricType
   }
 }
