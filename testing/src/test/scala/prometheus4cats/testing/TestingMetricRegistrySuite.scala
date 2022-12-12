@@ -46,7 +46,7 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
         Metric.Help("help"),
         commonLabels,
         labels
-      )(identity[IndexedSeq[String]]),
+      )(identity[IndexedSeq[String]](_)),
     (
         c: Counter.Labelled[IO, Double, IndexedSeq[String]],
         _: Metric.CommonLabels,
@@ -85,7 +85,7 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
         Metric.Help("help"),
         commonLabels,
         labels
-      )(identity[IndexedSeq[String]]),
+      )(identity[IndexedSeq[String]](_)),
     (
         g: Gauge.Labelled[IO, Double, IndexedSeq[String]],
         _: Metric.CommonLabels,
@@ -114,7 +114,7 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
         Histogram.Name.unsafeFrom(name),
         Metric.Help("help"),
         commonLabels,
-        NonEmptySeq(0.0, Seq(5.0, 10.0))
+        NonEmptySeq.of(0.0, 5.0, 10.0)
       ),
     (h: Histogram[IO, Double], _: Metric.CommonLabels) =>
       (h.observe(1.0) >> h.observe(2.0) >> h.observe(3.0), Chain(1.0, 2.0, 3.0)),
@@ -136,8 +136,8 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
         Metric.Help("help"),
         commonLabels,
         labels,
-        NonEmptySeq(0.0, Seq(5.0, 10.0))
-      )(identity[IndexedSeq[String]]),
+        NonEmptySeq.of(0.0, 5.0, 10.0)
+      )(identity[IndexedSeq[String]](_)),
     (
         h: Histogram.Labelled[IO, Double, IndexedSeq[String]],
         _: Metric.CommonLabels,
@@ -187,7 +187,7 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
         Seq(Summary.QuantileDefinition(Summary.Quantile(0.5), Summary.AllowedError(0.1))),
         5.seconds,
         Summary.AgeBuckets(5)
-      )(identity[IndexedSeq[String]]),
+      )(identity[IndexedSeq[String]](_)),
     (
         s: Summary.Labelled[IO, Double, IndexedSeq[String]],
         _: Metric.CommonLabels,
@@ -203,7 +203,7 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
     ) => reg.summaryHistory(prefix, Summary.Name.unsafeFrom(name), commonLabels, labelNames, labelValues)
   )
 
-  def suite[M <: Metric[Double]](name: String)(
+  private def suite[M <: Metric[Double]](name: String)(
       create: (TestingMetricRegistry[IO], Option[Metric.Prefix], String, Metric.CommonLabels) => Resource[IO, M],
       use: (
           M,
@@ -270,7 +270,7 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
 
   }
 
-  def labelledSuite[M <: Metric[Double] with Metric.Labelled[IndexedSeq[String]]](name: String)(
+  private def labelledSuite[M <: Metric[Double] with Metric.Labelled[IndexedSeq[String]]](name: String)(
       create: (
           TestingMetricRegistry[IO],
           Option[Metric.Prefix],
