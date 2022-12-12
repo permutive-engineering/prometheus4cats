@@ -16,6 +16,7 @@
 
 package prometheus4cats.testing
 
+import cats.syntax.all._
 import cats.data.{Chain, NonEmptySeq}
 import cats.effect._
 import munit.CatsEffectSuite
@@ -369,6 +370,19 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
       // All scopes which reference metric have closed so it should be removed from registry
       .assertEquals(None)
 
+  }
+
+  test("Error if registering same name and labels but different type") {
+    val Right(labels) = Metric.CommonLabels.of(Label.Name("one") -> "one", Label.Name("two") -> "two")
+    List.range(0, 100).traverse { _ =>
+      TestingMetricRegistry[IO].flatMap { reg =>
+        (
+          reg.createAndRegisterDoubleCounter(None, Counter.Name("test_total"), Metric.Help("help"), labels),
+          reg.createAndRegisterDoubleGauge(None, Gauge.Name("test_total"), Metric.Help("help"), labels)
+            //TODO improve assertion when we have a common interface across registry implementations for this error
+        ).parTupled.use_.intercept[RuntimeException]
+      }
+    }
   }
 
 }
