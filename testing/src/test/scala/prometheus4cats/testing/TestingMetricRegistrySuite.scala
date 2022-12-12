@@ -49,7 +49,7 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
       )(identity[IndexedSeq[String]]),
     (
         c: Counter.Labelled[IO, Double, IndexedSeq[String]],
-        commonLabels: Metric.CommonLabels,
+        _: Metric.CommonLabels,
         labels: IndexedSeq[String]
     ) => (c.inc(labels) >> c.inc(2.0, labels), Chain(0.0, 1.0, 3.0)),
     (
@@ -60,6 +60,51 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
         labelNames: IndexedSeq[Label.Name],
         labelValues: IndexedSeq[String]
     ) => reg.counterHistory(prefix, Counter.Name.unsafeFrom(name), commonLabels, labelNames, labelValues)
+  )
+
+  suite[Gauge[IO, Double]]("Gauge")(
+    (reg: TestingMetricRegistry[IO], prefix: Option[Metric.Prefix], name: String, commonLabels: Metric.CommonLabels) =>
+      reg.createAndRegisterDoubleGauge(prefix, Gauge.Name.unsafeFrom(name), Metric.Help("help"), commonLabels),
+    (g: Gauge[IO, Double], _: Metric.CommonLabels) =>
+      (g.inc >> g.dec >> g.inc(2.0) >> g.dec(2.0) >> g.set(-1.0) >> g.reset, Chain(0.0, 1.0, 0.0, 2.0, 0.0, -1.0, 0.0)),
+    (reg: TestingMetricRegistry[IO], prefix: Option[Metric.Prefix], name: String, commonLabels: Metric.CommonLabels) =>
+      reg.gaugeHistory(prefix, Gauge.Name.unsafeFrom(name), commonLabels)
+  )
+
+  labelledSuite[Gauge.Labelled[IO, Double, IndexedSeq[String]]]("Gauge")(
+    (
+        reg: TestingMetricRegistry[IO],
+        prefix: Option[Metric.Prefix],
+        name: String,
+        commonLabels: Metric.CommonLabels,
+        labels: IndexedSeq[Label.Name]
+    ) =>
+      reg.createAndRegisterLabelledDoubleGauge(
+        prefix,
+        Gauge.Name.unsafeFrom(name),
+        Metric.Help("help"),
+        commonLabels,
+        labels
+      )(identity[IndexedSeq[String]]),
+    (
+        g: Gauge.Labelled[IO, Double, IndexedSeq[String]],
+        _: Metric.CommonLabels,
+        labels: IndexedSeq[String]
+    ) =>
+      (
+        g.inc(labels) >> g.dec(labels) >> g.inc(2.0, labels) >> g.dec(2.0, labels) >> g.set(-1.0, labels) >> g.reset(
+          labels
+        ),
+        Chain(0.0, 1.0, 0.0, 2.0, 0.0, -1.0, 0.0)
+      ),
+    (
+        reg: TestingMetricRegistry[IO],
+        prefix: Option[Metric.Prefix],
+        name: String,
+        commonLabels: Metric.CommonLabels,
+        labelNames: IndexedSeq[Label.Name],
+        labelValues: IndexedSeq[String]
+    ) => reg.gaugeHistory(prefix, Gauge.Name.unsafeFrom(name), commonLabels, labelNames, labelValues)
   )
 
   def suite[M <: Metric[Double]](name: String)(
@@ -176,186 +221,6 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
         }
       }
     }
-
-  test("Counter - history") {
-    TestingMetricRegistry[IO].flatMap { reg =>
-      reg
-        .createAndRegisterDoubleCounter(
-          None,
-          Counter.Name("test_total"),
-          Metric.Help("help"),
-          Metric.CommonLabels.empty
-        )
-        .use { c =>
-          c.inc >> c.inc(2.0) >> reg
-            .counterHistory(Counter.Name("test_total"), Metric.CommonLabels.empty)
-            .assertEquals(Some(Chain(0.0, 1.0, 3.0)))
-        }
-    }
-  }
-
-  test("Counter - prefixed history") {
-    TestingMetricRegistry[IO].flatMap { reg =>
-      reg
-        .createAndRegisterDoubleCounter(
-          Some(Metric.Prefix("permutive")),
-          Counter.Name("test_total"),
-          Metric.Help("help"),
-          Metric.CommonLabels.empty
-        )
-        .use { c =>
-          c.inc >> c.inc(2.0) >> reg
-            .counterHistory(Some(Metric.Prefix("permutive")), Counter.Name("test_total"), Metric.CommonLabels.empty)
-            .assertEquals(Some(Chain(0.0, 1.0, 3.0)))
-        }
-    }
-  }
-
-  test("Counter - labelled history") {
-    TestingMetricRegistry[IO].flatMap { reg =>
-      reg
-        .createAndRegisterLabelledDoubleCounter(
-          None,
-          Counter.Name("test_total"),
-          Metric.Help("help"),
-          Metric.CommonLabels.empty,
-          IndexedSeq(Label.Name("status"))
-        )((s: String) => IndexedSeq(s))
-        .use { case c =>
-          c.inc("success") >> c.inc(2.0, "failure") >> reg
-            .counterHistory(
-              Counter.Name("test_total"),
-              Metric.CommonLabels.empty,
-              IndexedSeq(Label.Name("status")),
-              IndexedSeq("success")
-            )
-            .assertEquals(Some(Chain(0.0, 1.0))) >> reg
-            .counterHistory(
-              Counter.Name("test_total"),
-              Metric.CommonLabels.empty,
-              IndexedSeq(Label.Name("status")),
-              IndexedSeq("failure")
-            )
-            .assertEquals(Some(Chain(0.0, 2.0)))
-
-        }
-    }
-  }
-
-  test("Counter - concurrent resource lifecycle") {
-    TestingMetricRegistry[IO].flatMap { reg =>
-      IO.deferred[Unit].flatMap { wait =>
-        val counter = reg
-          .createAndRegisterDoubleCounter(
-            None,
-            Counter.Name("test_total"),
-            Metric.Help("help"),
-            Metric.CommonLabels.empty
-          )
-        counter.use { c =>
-          // Wait for other fiber to use and release counter
-          wait.get >>
-            // Counter should still be valid as we still have a reference to it
-            c.inc >> reg
-              .counterHistory(Counter.Name("test_total"), Metric.CommonLabels.empty)
-              .assertEquals(Some(Chain(0.0, 1.0)))
-        }.start.flatMap { fiber =>
-          counter.use_ >> wait.complete(()) >> fiber.joinWithNever
-        }
-      } >> reg
-        .counterHistory(Counter.Name("test_total"), Metric.CommonLabels.empty)
-        // All scopes which reference counter have closed so it should be removed from registry
-        .assertEquals(None)
-    }
-
-  }
-
-  test("Counter - nested resource lifecycle") {
-    TestingMetricRegistry[IO].flatMap { reg =>
-      val counter = reg
-        .createAndRegisterDoubleCounter(
-          None,
-          Counter.Name("test_total"),
-          Metric.Help("help"),
-          Metric.CommonLabels.empty
-        )
-      counter.use { c =>
-        // Counter should still be valid as we still have a reference to it
-        c.inc >>
-          counter.use_ >>
-          reg
-            .counterHistory(Counter.Name("test_total"), Metric.CommonLabels.empty)
-            .assertEquals(Some(Chain(0.0, 1.0)))
-      }
-    }
-  }
-
-  test("Gauge - history") {
-    TestingMetricRegistry[IO].flatMap { reg =>
-      reg
-        .createAndRegisterDoubleGauge(
-          None,
-          Gauge.Name("test_total"),
-          Metric.Help("help"),
-          Metric.CommonLabels.empty
-        )
-        .use { g =>
-          g.inc >> g.dec >> g.inc(2.0) >> g.dec(2.0) >> g.set(-1.0) >> g.reset >>
-            reg
-              .gaugeHistory(Gauge.Name("test_total"), Metric.CommonLabels.empty)
-              .assertEquals(Some(Chain(0.0, 1.0, 0.0, 2.0, 0.0, -1.0, 0.0)))
-        }
-    }
-  }
-
-  test("Gauge - prefixed history") {
-    TestingMetricRegistry[IO].flatMap { reg =>
-      reg
-        .createAndRegisterDoubleGauge(
-          Some(Metric.Prefix("permutive")),
-          Gauge.Name("test_total"),
-          Metric.Help("help"),
-          Metric.CommonLabels.empty
-        )
-        .use { g =>
-          g.inc >> g.dec >> g.inc(2.0) >> g.dec(2.0) >> g.set(-1.0) >> g.reset >>
-            reg
-              .gaugeHistory(Some(Metric.Prefix("permutive")), Gauge.Name("test_total"), Metric.CommonLabels.empty)
-              .assertEquals(Some(Chain(0.0, 1.0, 0.0, 2.0, 0.0, -1.0, 0.0)))
-        }
-    }
-  }
-
-  test("Gauge - labelled history") {
-    TestingMetricRegistry[IO].flatMap { reg =>
-      reg
-        .createAndRegisterLabelledDoubleGauge(
-          None,
-          Gauge.Name("test_total"),
-          Metric.Help("help"),
-          Metric.CommonLabels.empty,
-          IndexedSeq(Label.Name("status"))
-        )((s: String) => IndexedSeq(s))
-        .use { case c =>
-          c.inc("success") >> c.inc(2.0, "failure") >> reg
-            .gaugeHistory(
-              Gauge.Name("test_total"),
-              Metric.CommonLabels.empty,
-              IndexedSeq(Label.Name("status")),
-              IndexedSeq("success")
-            )
-            .assertEquals(Some(Chain(0.0, 1.0))) >> reg
-            .gaugeHistory(
-              Gauge.Name("test_total"),
-              Metric.CommonLabels.empty,
-              IndexedSeq(Label.Name("status")),
-              IndexedSeq("failure")
-            )
-            .assertEquals(Some(Chain(0.0, 2.0)))
-
-        }
-    }
-  }
 
   test("Histogram - history") {
     TestingMetricRegistry[IO].flatMap { reg =>
