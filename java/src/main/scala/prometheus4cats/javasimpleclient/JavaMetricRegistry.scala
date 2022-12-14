@@ -24,6 +24,7 @@ import cats.effect.std.{Dispatcher, Semaphore}
 import cats.syntax.flatMap._
 import cats.syntax.foldable._
 import cats.syntax.functor._
+import cats.syntax.traverse._
 import cats.syntax.show._
 import cats.{Applicative, ApplicativeThrow, Functor, Show}
 import io.prometheus.client.Collector.MetricFamilySamples
@@ -531,24 +532,12 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     def makeCollector(callbacks: Ref[F, Map[Unique.Token, F[NonEmptyList[Collector.MetricFamilySamples]]]]): Collector =
       new Collector {
         override def collect(): util.List[MetricFamilySamples] =
-          dispatcher.unsafeRunSync(callbacks.get.as(util.List.of[Collector.MetricFamilySamples]()))
+          timeoutCallback(
+            callbacks.get.flatMap(_.toList.flatTraverse { case (_, cb) => cb.map(_.toList) }.map(_.asJava)),
+            util.List.of[Collector.MetricFamilySamples](),
+            n
+          )
 
-//          timeoutCallback[util.List[MetricFamilySamples]](
-//          callbacks.get.as(util.List.of[Collector.MetricFamilySamples]()),
-//          util.List.of[Collector.MetricFamilySamples](),
-//          n
-//        )
-
-//        timeoutCallback[util.List[MetricFamilySamples]](
-//        callbackState.get.map { callbacks =>
-//          val x =
-//            callbacks.get(fullName).fold(Map.empty[Unique.Token, F[NonEmptyList[Collector.MetricFamilySamples]]])(_._2)
-//
-//          x.flatMap { case (_, cb) => timeoutCallback(cb.map(_.toList), List.empty, n) }.toList.asJava
-//        },
-//        util.List.of[Collector.MetricFamilySamples](),
-//        n
-//      )
       }
 
     val acquire = sem.permit.surround(
@@ -571,7 +560,9 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
                 token <- Unique[F].unique
                 ref <- Ref
                   .of[F, Map[Unique.Token, F[NonEmptyList[Collector.MetricFamilySamples]]]](Map(token -> callback))
-                _ <- callbackState.set(callbacks.updated(fullName, (metricType, ref, makeCollector(ref))))
+                collector = makeCollector(ref)
+                _ <- Sync[F].delay(registry.register(collector))
+                _ <- callbackState.set(callbacks.updated(fullName, (metricType, ref, collector)))
               } yield token
           }
 
