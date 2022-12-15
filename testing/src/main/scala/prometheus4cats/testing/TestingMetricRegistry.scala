@@ -26,7 +26,7 @@ import prometheus4cats.util.{DoubleMetricRegistry, NameUtils}
 import scala.concurrent.duration.FiniteDuration
 import TestingMetricRegistry._
 
-class TestingMetricRegistry[F[_]] private(
+class TestingMetricRegistry[F[_]] private (
     private val underlying: MapRef[F, (String, List[String]), Option[
       (Int, MetricType, Metric[Double], MapRef[F, List[String], Chain[Double]])
     ]],
@@ -372,7 +372,7 @@ class TestingMetricRegistry[F[_]] private(
                 else
                   curr -> F.raiseError[Resource[F, M]](
                     new RuntimeException(
-                      s"Cannot create metric of type $tpe as metric of type $t alreasy exists with the same name and labels"
+                      s"Cannot create metric of type $tpe as metric of type $t already exists with the same name and labels"
                     )
                   )
             }.flatten
