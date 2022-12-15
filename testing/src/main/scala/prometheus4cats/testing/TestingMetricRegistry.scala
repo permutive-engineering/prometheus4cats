@@ -26,11 +26,11 @@ import prometheus4cats.util.{DoubleMetricRegistry, NameUtils}
 import scala.concurrent.duration.FiniteDuration
 import TestingMetricRegistry._
 
-class TestingMetricRegistry[F[_]](
-    val underlying: MapRef[F, (String, List[String]), Option[
+class TestingMetricRegistry[F[_]] private(
+    private val underlying: MapRef[F, (String, List[String]), Option[
       (Int, MetricType, Metric[Double], MapRef[F, List[String], Chain[Double]])
     ]],
-    val info: MapRef[F, String, Option[(Int, Info[F, Map[Label.Name, String]])]]
+    private val info: MapRef[F, String, Option[(Int, Info[F, Map[Label.Name, String]])]]
 )(implicit F: Concurrent[F])
     extends DoubleMetricRegistry[F] {
 
