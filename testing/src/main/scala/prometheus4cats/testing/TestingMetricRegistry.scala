@@ -26,7 +26,7 @@ import prometheus4cats.util.{DoubleMetricRegistry, NameUtils}
 import scala.concurrent.duration.FiniteDuration
 import TestingMetricRegistry._
 
-class TestingMetricRegistry[F[_]] private (
+sealed abstract class TestingMetricRegistry[F[_]] private (
     private val underlying: MapRef[F, (String, List[String]), Option[
       (Int, MetricType, Metric[Double], MapRef[F, List[String], Chain[Double]])
     ]],
@@ -416,7 +416,7 @@ object TestingMetricRegistry {
         (Int, MetricType, Metric[Double], MapRef[F, List[String], Chain[Double]])
       ](256),
     MapRef.ofShardedImmutableMap[F, String, (Int, Info[F, Map[Label.Name, String]])](64)
-  ).mapN { case (m, i) => new TestingMetricRegistry(m, i) }
+  ).mapN { case (m, i) => new TestingMetricRegistry(m, i) {} }
 
   sealed trait MetricType
   object MetricType {
