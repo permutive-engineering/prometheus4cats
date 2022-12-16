@@ -89,37 +89,48 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     // possibly throwing and therefore needing to be wrapped in a `Sync.delay`. This would be fine, but the actual
     // state must be pure and the collector is needed for that.
     val acquire = sem.permit.surround(
-      ref.get
-        .flatMap[(State, C)] { (metrics: State) =>
-          metrics.get(fullName) match {
-            case Some((expected, (collector, references))) =>
-              if (metricId == expected)
-                Applicative[F].pure(
-                  metrics.updated(fullName, (expected, (collector, references + 1))) -> collector.asInstanceOf[C]
-                )
-              else
-                ApplicativeThrow[F].raiseError(
-                  new RuntimeException(
-                    s"A metric with the same name as '$renderedFullName' is already registered with different labels and/or type"
-                  )
-                )
-            case None =>
-              Sync[F].delay {
-                val b: B =
-                  builder
-                    .name(NameUtils.makeName(metricPrefix, name))
-                    .help(help.value)
-                    .labelNames(labels.map(_.value): _*)
-
-                modifyBuilder.foreach(f => f(b))
-
-                b.register(registry)
-              }.map { collector =>
-                metrics.updated(fullName, (metricId, collector -> 1)) -> collector
-              }
-          }
+      callbackState.get.flatMap(st =>
+        st.get(fullName) match {
+          case None => Applicative[F].unit
+          case Some(_) =>
+            ApplicativeThrow[F].raiseError[Unit](
+              new RuntimeException(
+                s"A callback with the same name as '$renderedFullName' is already registered with different labels and/or type"
+              )
+            )
         }
-        .flatMap { case (state, collector) => ref.set(state).as(collector) }
+      ) >>
+        ref.get
+          .flatMap[(State, C)] { (metrics: State) =>
+            metrics.get(fullName) match {
+              case Some((expected, (collector, references))) =>
+                if (metricId == expected)
+                  Applicative[F].pure(
+                    metrics.updated(fullName, (expected, (collector, references + 1))) -> collector.asInstanceOf[C]
+                  )
+                else
+                  ApplicativeThrow[F].raiseError(
+                    new RuntimeException(
+                      s"A metric with the same name as '$renderedFullName' is already registered with different labels and/or type"
+                    )
+                  )
+              case None =>
+                Sync[F].delay {
+                  val b: B =
+                    builder
+                      .name(NameUtils.makeName(metricPrefix, name))
+                      .help(help.value)
+                      .labelNames(labels.map(_.value): _*)
+
+                  modifyBuilder.foreach(f => f(b))
+
+                  b.register(registry)
+                }.map { collector =>
+                  metrics.updated(fullName, (metricId, collector -> 1)) -> collector
+                }
+            }
+          }
+          .flatMap { case (state, collector) => ref.set(state).as(collector) }
     )
 
     Resource.make(acquire) { collector =>
@@ -465,32 +476,43 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       }
 
     val acquire = sem.permit.surround(
-      callbackState.get
-        .flatMap[Unique.Token] { (callbacks: CallbackState[F]) =>
-          callbacks.get(fullName) match {
-
-            case Some((`metricType`, states, _)) =>
-              Unique[F].unique.flatMap { token =>
-                states.update(_.updated(token, callback)).as(token)
-              }
-            case Some(_) =>
-              ApplicativeThrow[F].raiseError(
-                new RuntimeException(
-                  s"A callback with the same name as '$renderedFullName' is already registered with different type"
-                )
+      ref.get.flatMap(r =>
+        r.get(fullName) match {
+          case None => Applicative[F].unit
+          case Some(_) =>
+            ApplicativeThrow[F].raiseError[Unit](
+              new RuntimeException(
+                s"A callback with the same name as '$renderedFullName' is already registered with different labels and/or type"
               )
-            case None =>
-              for {
-                token <- Unique[F].unique
-                ref <- Ref
-                  .of[F, Map[Unique.Token, F[NonEmptyList[Collector.MetricFamilySamples]]]](Map(token -> callback))
-                collector = makeCollector(ref)
-                _ <- Sync[F].delay(registry.register(collector))
-                _ <- callbackState.set(callbacks.updated(fullName, (metricType, ref, collector)))
-              } yield token
-          }
-
+            )
         }
+      ) >>
+        callbackState.get
+          .flatMap[Unique.Token] { (callbacks: CallbackState[F]) =>
+            callbacks.get(fullName) match {
+
+              case Some((`metricType`, states, _)) =>
+                Unique[F].unique.flatMap { token =>
+                  states.update(_.updated(token, callback)).as(token)
+                }
+              case Some(_) =>
+                ApplicativeThrow[F].raiseError(
+                  new RuntimeException(
+                    s"A callback with the same name as '$renderedFullName' is already registered with different type"
+                  )
+                )
+              case None =>
+                for {
+                  token <- Unique[F].unique
+                  ref <- Ref
+                    .of[F, Map[Unique.Token, F[NonEmptyList[Collector.MetricFamilySamples]]]](Map(token -> callback))
+                  collector = makeCollector(ref)
+                  _ <- Sync[F].delay(registry.register(collector))
+                  _ <- callbackState.set(callbacks.updated(fullName, (metricType, ref, collector)))
+                } yield token
+            }
+
+          }
     )
 
     Resource
