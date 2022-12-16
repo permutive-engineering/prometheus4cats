@@ -18,21 +18,23 @@ package prometheus4cats
 package testing
 
 import cats.syntax.all._
-import cats.data.Chain
+import cats.data.{Chain, NonEmptyList}
 import cats.effect.kernel._
 import cats.effect.std.MapRef
 import cats.data.NonEmptySeq
 import prometheus4cats.util.{DoubleMetricRegistry, NameUtils}
 import scala.concurrent.duration.FiniteDuration
 import TestingMetricRegistry._
+import prometheus4cats.util.DoubleCallbackRegistry
 
 sealed abstract class TestingMetricRegistry[F[_]] private (
     private val underlying: MapRef[F, (String, List[String]), Option[
       (Int, MetricType, Metric[Double], MapRef[F, List[String], Chain[Double]])
     ]],
     private val info: MapRef[F, String, Option[(Int, Info[F, Map[Label.Name, String]])]]
-)(implicit F: Concurrent[F])
-    extends DoubleMetricRegistry[F] {
+)(implicit override val F: Concurrent[F])
+    extends DoubleMetricRegistry[F]
+    with DoubleCallbackRegistry[F] {
 
   def counterHistory(name: Counter.Name, commonLabels: Metric.CommonLabels): F[Option[Chain[Double]]] =
     counterHistory(None, name, commonLabels)
@@ -334,6 +336,82 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       }
     )(_ => release)
   }
+
+  override protected[prometheus4cats] def registerDoubleCounterCallback(
+      prefix: Option[Metric.Prefix],
+      name: Counter.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      callback: F[Double]
+  ): Resource[F, Unit] = Resource.unit
+
+  override protected[prometheus4cats] def registerLabelledDoubleCounterCallback[A](
+      prefix: Option[Metric.Prefix],
+      name: Counter.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name],
+      callback: F[NonEmptyList[(Double, A)]]
+  )(f: A => IndexedSeq[String]): Resource[F, Unit] = Resource.unit
+
+  override protected[prometheus4cats] def registerDoubleGaugeCallback(
+      prefix: Option[Metric.Prefix],
+      name: Gauge.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      callback: F[Double]
+  ): Resource[F, Unit] = Resource.unit
+
+  override protected[prometheus4cats] def registerLabelledDoubleGaugeCallback[A](
+      prefix: Option[Metric.Prefix],
+      name: Gauge.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name],
+      callback: F[NonEmptyList[(Double, A)]]
+  )(f: A => IndexedSeq[String]): Resource[F, Unit] = Resource.unit
+
+  override protected[prometheus4cats] def registerDoubleHistogramCallback(
+      prefix: Option[Metric.Prefix],
+      name: Histogram.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      buckets: NonEmptySeq[Double],
+      callback: F[Histogram.Value[Double]]
+  ): Resource[F, Unit] = Resource.unit
+
+  override protected[prometheus4cats] def registerLabelledDoubleHistogramCallback[A](
+      prefix: Option[Metric.Prefix],
+      name: Histogram.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name],
+      buckets: NonEmptySeq[Double],
+      callback: F[NonEmptyList[(Histogram.Value[Double], A)]]
+  )(f: A => IndexedSeq[String]): Resource[F, Unit] = Resource.unit
+
+  override protected[prometheus4cats] def registerDoubleSummaryCallback(
+      prefix: Option[Metric.Prefix],
+      name: Summary.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      callback: F[Summary.Value[Double]]
+  ): Resource[F, Unit] = Resource.unit
+
+  override protected[prometheus4cats] def registerLabelledDoubleSummaryCallback[A](
+      prefix: Option[Metric.Prefix],
+      name: Summary.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name],
+      callback: F[NonEmptyList[(Summary.Value[Double], A)]]
+  )(f: A => IndexedSeq[String]): Resource[F, Unit] = Resource.unit
+
+  override protected[prometheus4cats] def registerMetricCollectionCallback(
+      prefix: Option[Metric.Prefix],
+      commonLabels: Metric.CommonLabels,
+      callback: F[MetricCollection]
+  ): Resource[F, Unit] = Resource.unit
 
   private def store[M <: Metric[Double]](
       name: String,
