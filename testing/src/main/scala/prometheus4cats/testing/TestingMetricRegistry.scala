@@ -18,7 +18,7 @@ package prometheus4cats
 package testing
 
 import cats.syntax.all._
-import cats.data.Chain
+import cats.data.{Chain, NonEmptyList}
 import cats.effect.kernel._
 import cats.effect.std.MapRef
 import cats.data.NonEmptySeq
@@ -26,7 +26,6 @@ import prometheus4cats.util.{DoubleMetricRegistry, NameUtils}
 import scala.concurrent.duration.FiniteDuration
 import TestingMetricRegistry._
 import prometheus4cats.util.DoubleCallbackRegistry
-import cats.data.NonEmptyList
 
 sealed abstract class TestingMetricRegistry[F[_]] private (
     private val underlying: MapRef[F, (String, List[String]), Option[
