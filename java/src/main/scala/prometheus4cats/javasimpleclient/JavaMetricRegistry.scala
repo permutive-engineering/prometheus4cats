@@ -482,7 +482,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
           case Some(_) =>
             ApplicativeThrow[F].raiseError[Unit](
               new RuntimeException(
-                s"A callback with the same name as '$renderedFullName' is already registered with different labels and/or type"
+                s"A metric with the same name as '$renderedFullName' is already registered with different labels and/or type"
               )
             )
         }
