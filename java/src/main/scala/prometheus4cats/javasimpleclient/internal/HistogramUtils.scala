@@ -80,4 +80,44 @@ object HistogramUtils {
       new MetricFamilySamples(stringName, "", Type.HISTOGRAM, help.value, metrics.asJava)
     }
   }
+
+  private[javasimpleclient] def labelledHistogramSamples(
+      help: Metric.Help,
+      buckets: NonEmptySeq[Double]
+  ): (String, util.List[String], util.List[String], Histogram.Value[Double]) => Collector.MetricFamilySamples = {
+    case (name, labelNames, labelValues, value) =>
+      labelNames.add(0, "le")
+
+      lazy val bucketsWithInf = buckets.map(Collector.doubleToGoString) :+ "+Inf"
+      val metrics = {
+        val bucketSamples = bucketsWithInf.zipWith(value.bucketValues) { (bucketString, bucketValue) =>
+          labelValues.add(0, bucketString)
+
+          new MetricFamilySamples.Sample(
+            s"${name}_bucket",
+            labelNames,
+            labelValues,
+            bucketValue
+          )
+        }
+
+        bucketSamples.toSeq.toIndexedSeq ++ IndexedSeq(
+          new MetricFamilySamples.Sample(
+            s"${name}_count",
+            labelNames,
+            labelValues,
+            value.bucketValues.last
+          ),
+          new MetricFamilySamples.Sample(
+            s"${name}_sum",
+            labelNames,
+            labelValues,
+            value.sum
+          )
+        )
+
+      }
+
+      new MetricFamilySamples(name, "", Type.HISTOGRAM, help.value, metrics.asJava)
+  }
 }
