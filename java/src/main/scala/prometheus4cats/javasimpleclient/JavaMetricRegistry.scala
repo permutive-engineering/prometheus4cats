@@ -21,11 +21,7 @@ import java.util
 import cats.data.{NonEmptyList, NonEmptySeq}
 import cats.effect.kernel._
 import cats.effect.std.{Dispatcher, Semaphore}
-import cats.syntax.flatMap._
-import cats.syntax.foldable._
-import cats.syntax.functor._
-import cats.syntax.traverse._
-import cats.syntax.show._
+import cats.syntax.all._
 import cats.{Applicative, ApplicativeThrow, Functor, Show}
 import io.prometheus.client.Collector.MetricFamilySamples
 import io.prometheus.client.{
@@ -89,7 +85,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     // possibly throwing and therefore needing to be wrapped in a `Sync.delay`. This would be fine, but the actual
     // state must be pure and the collector is needed for that.
     val acquire = sem.permit.surround(
-      callbackState.get.flatMap(st =>
+      callbackState.get.flatMap{st =>
         st.get(fullName) match {
           case None => Applicative[F].unit
           case Some(_) =>
@@ -99,7 +95,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
               )
             )
         }
-      ) >>
+      } >>
         ref.get
           .flatMap[(State, C)] { (metrics: State) =>
             metrics.get(fullName) match {
@@ -438,7 +434,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       callback: F[B]
   )(
       makeFamily: (String, B) => Collector.MetricFamilySamples,
-      makeLabelledFamily: (String, util.List[String], util.List[String], B) => Collector.MetricFamilySamples
+      makeLabelledFamily: (String, List[String], List[String], B) => Collector.MetricFamilySamples
   ): Resource[F, Unit] = registerLabelled[A, B, Unit](
     metricType,
     prefix,
@@ -453,7 +449,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       else makeLabelledFamily(name, labelNames, labelValues, b)
   )
 
-  def registerCallback2[A: Show](
+  private def registerCallback2[A: Show](
       metricType: MetricType,
       metricPrefix: Option[Metric.Prefix],
       name: A,
@@ -515,6 +511,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
           }
     )
 
+
     Resource
       .make(acquire) { token =>
         sem.permit.surround(callbackState.get.flatMap { state =>
@@ -543,16 +540,16 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       callback: F[NonEmptyList[(B, C)]]
   )(
       f: C => IndexedSeq[String],
-      makeLabelledFamily: (String, util.List[String], util.List[String], B) => Collector.MetricFamilySamples
+      makeLabelledFamily: (String, List[String], List[String], B) => Collector.MetricFamilySamples
   ): Resource[F, Unit] = {
     lazy val stringName = NameUtils.makeName(prefix, name)
 
-    lazy val commonLabelNames: util.List[String] =
-      (labelNames ++ commonLabels.value.keys.toIndexedSeq).map(_.value).asJava
+    lazy val commonLabelNames: List[String] =
+      (labelNames ++ commonLabels.value.keys.toIndexedSeq).map(_.value).toList
     lazy val commonLabelValues: IndexedSeq[String] = commonLabels.value.values.toIndexedSeq
 
     val x: F[NonEmptyList[MetricFamilySamples]] = callback.map(_.map { case (value, labels) =>
-      makeLabelledFamily(stringName, commonLabelNames, (f(labels) ++ commonLabelValues).asJava, value)
+      makeLabelledFamily(stringName, commonLabelNames, (f(labels) ++ commonLabelValues).toList, value)
     })
 
     registerCallback2(metricType, prefix, name, x)
@@ -567,7 +564,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
   ): Resource[F, Unit] =
     register(MetricType.Counter, prefix, name, commonLabels, callback)(
       (n, v) => new CounterMetricFamily(n, help.value, if (v < 0) 0 else v),
-      (n, lns, lvs, v) => new CounterMetricFamily(n, help.value, lns).addMetric(lvs, if (v < 0) 0 else v)
+      (n, lns, lvs, v) => new CounterMetricFamily(n, help.value, lns.asJava).addMetric(lvs.asJava, if (v < 0) 0 else v)
     )
 
   override protected[prometheus4cats] def registerLabelledDoubleCounterCallback[A](
@@ -580,7 +577,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
   )(f: A => IndexedSeq[String]): Resource[F, Unit] =
     registerLabelled(MetricType.Counter, prefix, name, commonLabels, labelNames, callback)(
       f,
-      (n, lns, lvs, v) => new CounterMetricFamily(n, help.value, lns).addMetric(lvs, if (v < 0) 0 else v)
+      (n, lns, lvs, v) => new CounterMetricFamily(n, help.value, lns.asJava).addMetric(lvs.asJava, if (v < 0) 0 else v)
     )
 
   override protected[prometheus4cats] def registerDoubleGaugeCallback(
@@ -591,7 +588,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       callback: F[Double]
   ): Resource[F, Unit] = register(MetricType.Gauge, prefix, name, commonLabels, callback)(
     (n, v) => new GaugeMetricFamily(n, help.value, v),
-    (n, lns, lvs, v) => new GaugeMetricFamily(n, help.value, lns).addMetric(lvs, v)
+    (n, lns, lvs, v) => new GaugeMetricFamily(n, help.value, lns.asJava).addMetric(lvs.asJava, v)
   )
 
   override protected[prometheus4cats] def registerLabelledDoubleGaugeCallback[A](
@@ -604,7 +601,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
   )(f: A => IndexedSeq[String]): Resource[F, Unit] =
     registerLabelled(MetricType.Gauge, prefix, name, commonLabels, labelNames, callback)(
       f,
-      (n, lns, lvs, v) => new GaugeMetricFamily(n, help.value, lns).addMetric(lvs, v)
+      (n, lns, lvs, v) => new GaugeMetricFamily(n, help.value, lns.asJava).addMetric(lvs.asJava, v)
     )
 
   override protected[prometheus4cats] def registerDoubleHistogramCallback(
@@ -617,7 +614,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
   ): Resource[F, Unit] = {
     val makeLabelledSamples = HistogramUtils.labelledHistogramSamples(help, buckets)
 
-    registerLabelled(
+    Resource.eval(callback.flatMap(x => Async[F].delay(println(x)))) >> registerLabelled(
       MetricType.Histogram,
       prefix,
       name,
@@ -672,15 +669,15 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
               v.quantiles.values.toList.map(_.asInstanceOf[java.lang.Double]).asJava
             ),
       (n, lns, lvs, v) =>
-        if (v.quantiles.isEmpty) new SummaryMetricFamily(n, help.value, lns).addMetric(lvs, v.count, v.sum)
+        if (v.quantiles.isEmpty) new SummaryMetricFamily(n, help.value, lns.asJava).addMetric(lvs.asJava, v.count, v.sum)
         else
           new SummaryMetricFamily(
             n,
             help.value,
-            lns,
+            lns.asJava,
             v.quantiles.keys.toList.map(_.asInstanceOf[java.lang.Double]).asJava
           )
-            .addMetric(lvs, v.count, v.sum, v.quantiles.values.toList.map(_.asInstanceOf[java.lang.Double]).asJava)
+            .addMetric(lvs.asJava, v.count, v.sum, v.quantiles.values.toList.map(_.asInstanceOf[java.lang.Double]).asJava)
     )
 
   override protected[prometheus4cats] def registerLabelledDoubleSummaryCallback[A](
@@ -694,15 +691,15 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     registerLabelled(MetricType.Summary, prefix, name, commonLabels, labelNames, callback)(
       f,
       (n, lns, lvs, v) =>
-        if (v.quantiles.isEmpty) new SummaryMetricFamily(n, help.value, lns).addMetric(lvs, v.count, v.sum)
+        if (v.quantiles.isEmpty) new SummaryMetricFamily(n, help.value, lns.asJava).addMetric(lvs.asJava, v.count, v.sum)
         else
           new SummaryMetricFamily(
             n,
             help.value,
-            lns,
+            lns.asJava,
             v.quantiles.keys.toList.map(_.asInstanceOf[java.lang.Double]).asJava
           )
-            .addMetric(lvs, v.count, v.sum, v.quantiles.values.toList.map(_.asInstanceOf[java.lang.Double]).asJava)
+            .addMetric(lvs.asJava, v.count, v.sum, v.quantiles.values.toList.map(_.asInstanceOf[java.lang.Double]).asJava)
     )
 
   override protected[prometheus4cats] def registerMetricCollectionCallback(

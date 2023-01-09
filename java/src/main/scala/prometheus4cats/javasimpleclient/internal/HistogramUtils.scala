@@ -81,22 +81,23 @@ object HistogramUtils {
     }
   }
 
+  //TODO unify this with the above
   private[javasimpleclient] def labelledHistogramSamples(
       help: Metric.Help,
       buckets: NonEmptySeq[Double]
-  ): (String, util.List[String], util.List[String], Histogram.Value[Double]) => Collector.MetricFamilySamples = {
+  ): (String, List[String], List[String], Histogram.Value[Double]) => Collector.MetricFamilySamples = {
     case (name, labelNames, labelValues, value) =>
-      labelNames.add(0, "le")
+      val enhancedLabelNames = "le" :: labelNames
 
       lazy val bucketsWithInf = buckets.map(Collector.doubleToGoString) :+ "+Inf"
       val metrics = {
         val bucketSamples = bucketsWithInf.zipWith(value.bucketValues) { (bucketString, bucketValue) =>
-          labelValues.add(0, bucketString)
+          val enhancedLabelValues = bucketString :: labelValues
 
           new MetricFamilySamples.Sample(
             s"${name}_bucket",
-            labelNames,
-            labelValues,
+            enhancedLabelNames.asJava,
+            enhancedLabelValues.asJava,
             bucketValue
           )
         }
@@ -104,14 +105,14 @@ object HistogramUtils {
         bucketSamples.toSeq.toIndexedSeq ++ IndexedSeq(
           new MetricFamilySamples.Sample(
             s"${name}_count",
-            labelNames,
-            labelValues,
+            labelNames.asJava,
+            labelValues.asJava,
             value.bucketValues.last
           ),
           new MetricFamilySamples.Sample(
             s"${name}_sum",
-            labelNames,
-            labelValues,
+            labelNames.asJava,
+            labelValues.asJava,
             value.sum
           )
         )
