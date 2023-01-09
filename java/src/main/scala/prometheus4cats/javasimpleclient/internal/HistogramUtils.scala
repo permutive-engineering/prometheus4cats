@@ -81,7 +81,7 @@ object HistogramUtils {
     }
   }
 
-  //TODO unify this with the above
+  // TODO unify this with the above
   private[javasimpleclient] def labelledHistogramSamples(
       help: Metric.Help,
       buckets: NonEmptySeq[Double]

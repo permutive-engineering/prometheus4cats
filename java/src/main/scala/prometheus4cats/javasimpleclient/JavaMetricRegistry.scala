@@ -85,7 +85,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     // possibly throwing and therefore needing to be wrapped in a `Sync.delay`. This would be fine, but the actual
     // state must be pure and the collector is needed for that.
     val acquire = sem.permit.surround(
-      callbackState.get.flatMap{st =>
+      callbackState.get.flatMap { st =>
         st.get(fullName) match {
           case None => Applicative[F].unit
           case Some(_) =>
@@ -511,7 +511,6 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
           }
     )
 
-
     Resource
       .make(acquire) { token =>
         sem.permit.surround(callbackState.get.flatMap { state =>
@@ -614,7 +613,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
   ): Resource[F, Unit] = {
     val makeLabelledSamples = HistogramUtils.labelledHistogramSamples(help, buckets)
 
-    Resource.eval(callback.flatMap(x => Async[F].delay(println(x)))) >> registerLabelled(
+    registerLabelled(
       MetricType.Histogram,
       prefix,
       name,
@@ -669,7 +668,8 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
               v.quantiles.values.toList.map(_.asInstanceOf[java.lang.Double]).asJava
             ),
       (n, lns, lvs, v) =>
-        if (v.quantiles.isEmpty) new SummaryMetricFamily(n, help.value, lns.asJava).addMetric(lvs.asJava, v.count, v.sum)
+        if (v.quantiles.isEmpty)
+          new SummaryMetricFamily(n, help.value, lns.asJava).addMetric(lvs.asJava, v.count, v.sum)
         else
           new SummaryMetricFamily(
             n,
@@ -677,7 +677,12 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
             lns.asJava,
             v.quantiles.keys.toList.map(_.asInstanceOf[java.lang.Double]).asJava
           )
-            .addMetric(lvs.asJava, v.count, v.sum, v.quantiles.values.toList.map(_.asInstanceOf[java.lang.Double]).asJava)
+            .addMetric(
+              lvs.asJava,
+              v.count,
+              v.sum,
+              v.quantiles.values.toList.map(_.asInstanceOf[java.lang.Double]).asJava
+            )
     )
 
   override protected[prometheus4cats] def registerLabelledDoubleSummaryCallback[A](
@@ -691,7 +696,8 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     registerLabelled(MetricType.Summary, prefix, name, commonLabels, labelNames, callback)(
       f,
       (n, lns, lvs, v) =>
-        if (v.quantiles.isEmpty) new SummaryMetricFamily(n, help.value, lns.asJava).addMetric(lvs.asJava, v.count, v.sum)
+        if (v.quantiles.isEmpty)
+          new SummaryMetricFamily(n, help.value, lns.asJava).addMetric(lvs.asJava, v.count, v.sum)
         else
           new SummaryMetricFamily(
             n,
@@ -699,7 +705,12 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
             lns.asJava,
             v.quantiles.keys.toList.map(_.asInstanceOf[java.lang.Double]).asJava
           )
-            .addMetric(lvs.asJava, v.count, v.sum, v.quantiles.values.toList.map(_.asInstanceOf[java.lang.Double]).asJava)
+            .addMetric(
+              lvs.asJava,
+              v.count,
+              v.sum,
+              v.quantiles.values.toList.map(_.asInstanceOf[java.lang.Double]).asJava
+            )
     )
 
   override protected[prometheus4cats] def registerMetricCollectionCallback(
