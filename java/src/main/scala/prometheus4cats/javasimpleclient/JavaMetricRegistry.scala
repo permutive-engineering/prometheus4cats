@@ -465,7 +465,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
         override def collect(): util.List[MetricFamilySamples] =
           timeoutCallback(
             callbacks.get.flatMap(_.toList.flatTraverse { case (_, cb) => cb.map(_.toList) }.map(_.asJava)),
-            util.List.of[Collector.MetricFamilySamples](),
+            util.Collections.emptyList[Collector.MetricFamilySamples](),
             n
           )
 
