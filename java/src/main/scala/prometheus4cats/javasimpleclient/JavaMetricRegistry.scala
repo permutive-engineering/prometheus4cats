@@ -441,7 +441,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     name,
     commonLabels,
     IndexedSeq.empty,
-    callback.map(b => NonEmptyList.one(b -> ()))
+    callback.map[NonEmptyList[(B, Unit)]](b => NonEmptyList.one((b, ())))
   )(
     _ => IndexedSeq.empty,
     (name, labelNames, labelValues, b) =>
@@ -619,7 +619,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       name,
       commonLabels,
       IndexedSeq.empty,
-      callback.map(b => NonEmptyList.one(b -> ()))
+      callback.map[NonEmptyList[(Histogram.Value[Double], Unit)]](b => NonEmptyList.one((b, ())))
     )(_ => IndexedSeq.empty, makeLabelledSamples)
   }
 
