@@ -39,6 +39,7 @@ class JavaMetricRegistrySuite
     extends CatsEffectSuite
     with MetricRegistrySuite[CollectorRegistry]
     with CallbackRegistrySuite[CollectorRegistry] {
+
   implicit val logger: Logger[IO] = NoOpLogger.impl
 
   override val stateResource: Resource[IO, CollectorRegistry] = Resource.eval(IO.delay(new CollectorRegistry()))

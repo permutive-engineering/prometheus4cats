@@ -799,9 +799,8 @@ object JavaMetricRegistry {
               metrics.values
                 .map(_._2)
                 .toList
-                .traverse_ {
-                  // TODO unregister callbacks
-                  case (collector, _) => Utils.unregister(collector, promRegistry)
+                .traverse_ { case (collector, _) =>
+                  Utils.unregister(collector, promRegistry)
                 }
             else Applicative[F].unit
           }
