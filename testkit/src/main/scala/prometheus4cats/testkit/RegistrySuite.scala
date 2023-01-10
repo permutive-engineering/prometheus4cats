@@ -31,15 +31,16 @@ trait RegistrySuite[State] extends ScalaCheckEffectSuite {
 
   def stateResource: Resource[IO, State]
 
-  private val niceStringGen: Gen[String] = for {
-    c1 <- Gen.alphaChar
+  private def niceStringGen(initialChar: Option[Gen[Char]] = None): Gen[String] = for {
+    c1 <- initialChar.getOrElse(Gen.alphaChar)
     c2 <- Gen.alphaChar
     s <- Gen.alphaNumStr
   } yield s"$c1$c2$s"
 
-  protected def niceStringArb[A](f: String => Either[String, A]): Arbitrary[A] = Arbitrary(
-    niceStringGen.flatMap(s => f(s).toOption).suchThat(_.nonEmpty).map(_.get)
-  )
+  protected def niceStringArb[A](f: String => Either[String, A], initialChar: Option[Gen[Char]] = None): Arbitrary[A] =
+    Arbitrary(
+      niceStringGen(initialChar).flatMap(s => f(s).toOption).suchThat(_.nonEmpty).map(_.get)
+    )
 
   implicit val prefixArb: Arbitrary[Metric.Prefix] = niceStringArb(Metric.Prefix.from)
 
@@ -72,13 +73,17 @@ trait RegistrySuite[State] extends ScalaCheckEffectSuite {
 
   implicit val labelArb: Arbitrary[Label.Name] = niceStringArb(Label.Name.from)
 
-  implicit val labelMapArb: Arbitrary[Map[Label.Name, String]] = Arbitrary(for {
+  def prefixedLabelMapArb(initialChar: Gen[Char]): Arbitrary[Map[Label.Name, String]] = Arbitrary(for {
     size <- Gen.choose(0, 10)
-    map <- Gen.mapOfN(size, Arbitrary.arbitrary[(Label.Name, String)])
+    map <- Gen.mapOfN(size, Gen.zip(niceStringArb(Label.Name.from, Some(initialChar)).arbitrary, niceStringGen()))
   } yield map)
 
+  implicit val labelMapArb: Arbitrary[Map[Label.Name, String]] = prefixedLabelMapArb(Gen.oneOf('a', 'b', 'c'))
+
   implicit val commonLabelsArb: Arbitrary[Metric.CommonLabels] =
-    Arbitrary(labelMapArb.arbitrary.flatMap(map => Gen.oneOf(CommonLabels.from(map).toOption)))
+    Arbitrary(
+      prefixedLabelMapArb(Gen.oneOf('n', 'o', 'p')).arbitrary.flatMap(map => Gen.oneOf(CommonLabels.from(map).toOption))
+    )
 
   implicit val posFiniteDurationArb: Arbitrary[FiniteDuration] = Arbitrary(Gen.posNum[Long].map(_.nanos))
 
