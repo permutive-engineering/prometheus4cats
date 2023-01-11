@@ -46,7 +46,7 @@ ThisBuild / tlSitePublishBranch := Some("main")
 
 ThisBuild / tlSonatypeUseLegacyHost := true
 
-lazy val root = tlCrossRootProject.aggregate(core, testkit, java, unidocs)
+lazy val root = tlCrossRootProject.aggregate(core, testkit, testing, java, unidocs)
 
 lazy val core = project
   .in(file("core"))
@@ -83,6 +83,20 @@ lazy val testkit = project
   .in(file("testkit"))
   .settings(
     name := "prometheus4cats-testkit",
+    libraryDependencies ++= Seq(
+      "org.typelevel" %% "cats-effect-testkit" % CatsEffect,
+      "org.scalameta" %% "munit" % Munit,
+      "org.typelevel" %% "munit-cats-effect-3" % MunitCe3,
+      "org.scalameta" %% "munit-scalacheck" % Munit,
+      "org.typelevel" %% "scalacheck-effect-munit" % ScalacheckEffect
+    )
+  )
+  .dependsOn(core)
+
+lazy val testing = project
+  .in(file("testing"))
+  .settings(
+    name := "prometheus4cats-testing",
     libraryDependencies ++= Seq(
       "org.typelevel" %% "cats-effect-testkit" % CatsEffect,
       "org.scalameta" %% "munit" % Munit,
