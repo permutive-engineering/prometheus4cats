@@ -17,8 +17,7 @@
 package prometheus4cats
 
 import cats.data.{NonEmptyList, NonEmptySeq}
-import cats.effect.MonadCancel
-import cats.effect.kernel.Resource
+import cats.effect.kernel.{MonadCancel, Resource}
 import cats.~>
 
 /** Trait for registering callbacks against different backends. May be implemented by anyone for use with
