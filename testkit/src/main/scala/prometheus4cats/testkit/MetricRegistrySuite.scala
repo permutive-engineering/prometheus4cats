@@ -413,4 +413,149 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
         }
     }
   }
+
+  test("nested counter resource usage") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name: Counter.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels
+      ) =>
+        stateResource.use { state =>
+          metricRegistryResource(state).use { reg =>
+            val get = getCounterValue(
+              state,
+              prefix,
+              name,
+              help,
+              commonLabels
+            )
+
+            val create = reg.createAndRegisterDoubleCounter(prefix, name, help, commonLabels)
+
+            create.use { c =>
+              c.inc(1.0) >> create.use_ >> get.map(_.isDefined).assert
+            } >> get.assertEquals(None)
+          }
+        }
+    }
+  }
+
+  test("nested gauge resource usage") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name: Gauge.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels
+      ) =>
+        stateResource.use { state =>
+          metricRegistryResource(state).use { reg =>
+            val get = getGaugeValue(
+              state,
+              prefix,
+              name,
+              help,
+              commonLabels
+            )
+
+            val create = reg.createAndRegisterDoubleGauge(prefix, name, help, commonLabels)
+
+            create.use { g =>
+              g.set(1.0) >> create.use_ >> get.map(_.isDefined).assert
+            } >> get.assertEquals(None)
+          }
+        }
+    }
+  }
+
+  test("nested histogram resource usage") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name: Histogram.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels,
+          value: Double
+      ) =>
+        stateResource.use { state =>
+          metricRegistryResource(state).use { reg =>
+            val buckets = NonEmptySeq.of[Double](0, value).sorted
+
+            val get = getHistogramValue(
+              state,
+              prefix,
+              name,
+              help,
+              commonLabels,
+              buckets
+            )
+
+            val create = reg .createAndRegisterDoubleHistogram(prefix, name, help, commonLabels, buckets)
+
+            create.use { h =>
+              h.observe(value) >> create.use_ >> get.map(_.isDefined).assert
+            } >> get.assertEquals(None)
+          }
+        }
+    }
+  }
+
+  test("nested summary resource usage") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name: Summary.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels,
+          value: Double,
+          quantiles: Seq[QuantileDefinition],
+          age: (FiniteDuration, Summary.AgeBuckets)
+      ) =>
+        stateResource.use { state =>
+          metricRegistryResource(state).use { reg =>
+            val get = getSummaryValue(state, prefix, name, help, commonLabels, Map.empty)
+
+            val create = reg
+              .createAndRegisterDoubleSummary(
+                prefix,
+                name,
+                help,
+                commonLabels,
+                quantiles,
+                age._1 + 1.second,
+                age._2
+              )
+
+            create.use { s =>
+              s.observe(value) >> create.use_ >> get.map(_._2.isDefined) assert
+            } >> get.assertEquals((None, None, None))
+          }
+        }
+    }
+  }
+
+  test("nested info resource usage") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name: Info.Name,
+          help: Metric.Help,
+          labels: Map[Label.Name, String]
+      ) =>
+        stateResource.use { state =>
+          metricRegistryResource(state).use { reg =>
+            val get = getInfoValue(state, prefix, name, help, labels)
+
+            val create = reg.createAndRegisterInfo(prefix, name, help)
+
+            create.use { c =>
+              c.info(labels) >> create.use_ >> get.assertEquals(Some(1.0))
+            } >> get.assertEquals(None)
+          }
+        }
+    }
+  }
+
 }
