@@ -34,6 +34,7 @@ import prometheus4cats.testkit.{CallbackRegistrySuite, MetricRegistrySuite}
 import prometheus4cats.util.NameUtils
 
 import scala.jdk.CollectionConverters._
+import scala.concurrent.duration._
 
 class JavaMetricRegistrySuite
     extends CatsEffectSuite
@@ -48,7 +49,7 @@ class JavaMetricRegistrySuite
     JavaMetricRegistry.fromSimpleClientRegistry[IO](state)
 
   override def callbackRegistryResource(state: CollectorRegistry): Resource[IO, CallbackRegistry[IO]] =
-    JavaMetricRegistry.fromSimpleClientRegistry[IO](state)
+    JavaMetricRegistry.fromSimpleClientRegistry[IO](state, callbackTimeout = 100.millis)
 
   def getMetricValue[A: Show](
       state: CollectorRegistry,
