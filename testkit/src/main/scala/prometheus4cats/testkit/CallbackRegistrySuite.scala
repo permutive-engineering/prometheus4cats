@@ -43,7 +43,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
       ) =>
         stateResource.use { state =>
           callbackRegistryResource(state).use { reg =>
-            val get = getCounterValue(
+            val get = IO.cede >> getCounterValue(
               state,
               prefix,
               name,
@@ -74,7 +74,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
       ) =>
         stateResource.use { state =>
           callbackRegistryResource(state).use { reg =>
-            val get = getCounterValue(state, prefix, name, help, commonLabels, labels)
+            val get = IO.cede >> getCounterValue(state, prefix, name, help, commonLabels, labels)
 
             reg
               .registerLabelledDoubleCounterCallback[Map[Label.Name, String]](
@@ -103,7 +103,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
           value: Double
       ) =>
         stateResource.use { state =>
-          val get = getGaugeValue(
+          val get = IO.cede >> getGaugeValue(
             state,
             prefix,
             name,
@@ -134,7 +134,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
       ) =>
         stateResource.use { state =>
           callbackRegistryResource(state).use { reg =>
-            val get = getGaugeValue(state, prefix, name, help, commonLabels, labels)
+            val get = IO.cede >> getGaugeValue(state, prefix, name, help, commonLabels, labels)
 
             reg
               .registerLabelledDoubleGaugeCallback[Map[Label.Name, String]](
@@ -175,7 +175,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
               if (value > 0) NonEmptySeq.of(0.0, 1.0, 1.0)
               else NonEmptySeq.of(1.0, 1.0, 1.0)
 
-            val get = getHistogramValue(state, prefix, name, help, commonLabels, buckets)
+            val get = IO.cede >> getHistogramValue(state, prefix, name, help, commonLabels, buckets)
 
             reg
               .registerDoubleHistogramCallback(
@@ -218,7 +218,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
               if (value > 0) NonEmptySeq.of(0.0, 1.0, 1.0)
               else NonEmptySeq.of(1.0, 1.0, 1.0)
 
-            val get = getHistogramValue(state, prefix, name, help, commonLabels, buckets, labels)
+            val get = IO.cede >> getHistogramValue(state, prefix, name, help, commonLabels, buckets, labels)
 
             reg
               .registerLabelledDoubleHistogramCallback[Map[Label.Name, String]](
@@ -251,7 +251,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
       ) =>
         stateResource.use { state =>
           callbackRegistryResource(state).use { reg =>
-            val get = getSummaryValue(state, prefix, name, help, commonLabels, Map.empty)
+            val get = IO.cede >> getSummaryValue(state, prefix, name, help, commonLabels, Map.empty)
 
             reg
               .registerDoubleSummaryCallback(
@@ -289,7 +289,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
       ) =>
         stateResource.use { state =>
           callbackRegistryResource(state).use { reg =>
-            val get = getSummaryValue(state, prefix, name, help, commonLabels, labels)
+            val get = IO.cede >> getSummaryValue(state, prefix, name, help, commonLabels, labels)
 
             reg
               .registerLabelledDoubleSummaryCallback[Map[Label.Name, String]](
