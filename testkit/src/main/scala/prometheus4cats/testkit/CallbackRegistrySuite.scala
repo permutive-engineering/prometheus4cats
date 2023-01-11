@@ -44,7 +44,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
       ) =>
         stateResource.use { state =>
           callbackRegistryResource(state).use { reg =>
-            val get = IO.cede >> getCounterValue(
+            val get = getCounterValue(
               state,
               prefix,
               name,
@@ -75,7 +75,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
       ) =>
         stateResource.use { state =>
           callbackRegistryResource(state).use { reg =>
-            val get = IO.cede >> getCounterValue(state, prefix, name, help, commonLabels, labels)
+            val get = getCounterValue(state, prefix, name, help, commonLabels, labels)
 
             reg
               .registerLabelledDoubleCounterCallback[Map[Label.Name, String]](
@@ -104,7 +104,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
           value: Double
       ) =>
         stateResource.use { state =>
-          val get = IO.cede >> getGaugeValue(
+          val get = getGaugeValue(
             state,
             prefix,
             name,
@@ -135,7 +135,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
       ) =>
         stateResource.use { state =>
           callbackRegistryResource(state).use { reg =>
-            val get = IO.cede >> getGaugeValue(state, prefix, name, help, commonLabels, labels)
+            val get = getGaugeValue(state, prefix, name, help, commonLabels, labels)
 
             reg
               .registerLabelledDoubleGaugeCallback[Map[Label.Name, String]](
@@ -176,7 +176,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
               if (value > 0) NonEmptySeq.of(0.0, 1.0, 1.0)
               else NonEmptySeq.of(1.0, 1.0, 1.0)
 
-            val get = IO.cede >> getHistogramValue(state, prefix, name, help, commonLabels, buckets)
+            val get = getHistogramValue(state, prefix, name, help, commonLabels, buckets)
 
             reg
               .registerDoubleHistogramCallback(
@@ -219,7 +219,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
               if (value > 0) NonEmptySeq.of(0.0, 1.0, 1.0)
               else NonEmptySeq.of(1.0, 1.0, 1.0)
 
-            val get = IO.cede >> getHistogramValue(state, prefix, name, help, commonLabels, buckets, labels)
+            val get = getHistogramValue(state, prefix, name, help, commonLabels, buckets, labels)
 
             reg
               .registerLabelledDoubleHistogramCallback[Map[Label.Name, String]](
@@ -252,7 +252,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
       ) =>
         stateResource.use { state =>
           callbackRegistryResource(state).use { reg =>
-            val get = IO.cede >> getSummaryValue(state, prefix, name, help, commonLabels, Map.empty)
+            val get = getSummaryValue(state, prefix, name, help, commonLabels, Map.empty)
 
             reg
               .registerDoubleSummaryCallback(
@@ -290,7 +290,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
       ) =>
         stateResource.use { state =>
           callbackRegistryResource(state).use { reg =>
-            val get = IO.cede >> getSummaryValue(state, prefix, name, help, commonLabels, labels)
+            val get = getSummaryValue(state, prefix, name, help, commonLabels, labels)
 
             reg
               .registerLabelledDoubleSummaryCallback[Map[Label.Name, String]](
@@ -475,7 +475,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
               )(_.values.toIndexedSeq)
 
             callback.use { _ =>
-              def get(label: String) = IO.cede >> getCounterValue(
+              def get(label: String) = getCounterValue(
                 state,
                 prefix,
                 name,
@@ -523,7 +523,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
               )(_.values.toIndexedSeq)
 
             (callback1 >> callback2).use { _ =>
-              def get(label: String) = IO.cede >> getCounterValue(
+              def get(label: String) = getCounterValue(
                 state,
                 prefix,
                 name,
