@@ -59,7 +59,7 @@ lazy val core = project
       "org.typelevel" %% "cats-effect-testkit" % CatsEffect % Test,
       "org.typelevel" %%% "cats-laws" % Cats,
       "org.scalameta" %%% "munit" % Munit % Test,
-      "org.typelevel" %% "munit-cats-effect-3" % MunitCe3,
+      "org.typelevel" %% "munit-cats-effect-3" % MunitCe3 % Test,
       "org.typelevel" %%% "discipline-munit" % "1.0.9" % Test,
       "org.scalameta" %% "munit-scalacheck" % Munit % Test,
       "org.typelevel" %% "scalacheck-effect-munit" % ScalacheckEffect % Test
