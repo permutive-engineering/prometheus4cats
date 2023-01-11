@@ -492,7 +492,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
               buckets
             )
 
-            val create = reg .createAndRegisterDoubleHistogram(prefix, name, help, commonLabels, buckets)
+            val create = reg.createAndRegisterDoubleHistogram(prefix, name, help, commonLabels, buckets)
 
             create.use { h =>
               h.observe(value) >> create.use_ >> get.map(_.isDefined).assert
@@ -553,6 +553,190 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
             create.use { c =>
               c.info(labels) >> create.use_ >> get.assertEquals(Some(1.0))
             } >> get.assertEquals(None)
+          }
+        }
+    }
+  }
+
+  test("concurrent counter resource usage") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name: Counter.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels
+      ) =>
+        stateResource.use { state =>
+          metricRegistryResource(state).use { reg =>
+            val get = getCounterValue(
+              state,
+              prefix,
+              name,
+              help,
+              commonLabels
+            )
+
+            val create = reg.createAndRegisterDoubleCounter(prefix, name, help, commonLabels)
+
+            IO.deferred[Unit].flatMap { wait =>
+              create.use { c =>
+                wait.get >>
+                  c.inc(1.0) >> get.map(_.isDefined).assert
+              }.start.flatMap(fiber =>
+                create.use_ >> wait.complete(()) >>
+                  fiber.joinWithNever
+              ) >> get.assertEquals(
+                None
+              )
+            }
+          }
+        }
+    }
+  }
+
+  test("concurrent gauge resource usage") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name: Gauge.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels
+      ) =>
+        stateResource.use { state =>
+          metricRegistryResource(state).use { reg =>
+            val get = getGaugeValue(
+              state,
+              prefix,
+              name,
+              help,
+              commonLabels
+            )
+
+            val create = reg.createAndRegisterDoubleGauge(prefix, name, help, commonLabels)
+
+            IO.deferred[Unit].flatMap { wait =>
+              create.use { g =>
+                wait.get >>
+                  g.set(1.0) >> get.map(_.isDefined).assert
+              }.start.flatMap(fiber =>
+                create.use_ >> wait.complete(()) >>
+                  fiber.joinWithNever
+              ) >> get.assertEquals(
+                None
+              )
+            }
+          }
+        }
+    }
+  }
+
+  test("concurrent histogram resource usage") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name: Histogram.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels,
+          value: Double
+      ) =>
+        stateResource.use { state =>
+          metricRegistryResource(state).use { reg =>
+            val buckets = NonEmptySeq.of[Double](0, value).sorted
+
+            val get = getHistogramValue(
+              state,
+              prefix,
+              name,
+              help,
+              commonLabels,
+              buckets
+            )
+
+            val create = reg.createAndRegisterDoubleHistogram(prefix, name, help, commonLabels, buckets)
+
+            IO.deferred[Unit].flatMap { wait =>
+              create.use { h =>
+                wait.get >>
+                  h.observe(value) >> get.map(_.isDefined).assert
+              }.start.flatMap(fiber =>
+                create.use_ >> wait.complete(()) >>
+                  fiber.joinWithNever
+              ) >> get.assertEquals(
+                None
+              )
+            }
+          }
+        }
+    }
+  }
+
+  test("concurrent summary resource usage") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name: Summary.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels,
+          value: Double,
+          quantiles: Seq[QuantileDefinition],
+          age: (FiniteDuration, Summary.AgeBuckets)
+      ) =>
+        stateResource.use { state =>
+          metricRegistryResource(state).use { reg =>
+            val get = getSummaryValue(state, prefix, name, help, commonLabels, Map.empty)
+
+            val create = reg
+              .createAndRegisterDoubleSummary(
+                prefix,
+                name,
+                help,
+                commonLabels,
+                quantiles,
+                age._1 + 1.second,
+                age._2
+              )
+
+            IO.deferred[Unit].flatMap { wait =>
+              create.use { s =>
+                wait.get >>
+                  s.observe(value) >> get.map(_._2.isDefined).assert
+              }.start.flatMap(fiber =>
+                create.use_ >> wait.complete(()) >>
+                  fiber.joinWithNever
+              ) >> get.assertEquals(
+                (None, None, None)
+              )
+            }
+          }
+        }
+    }
+  }
+
+  test("concurrent info resource usage") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name: Info.Name,
+          help: Metric.Help,
+          labels: Map[Label.Name, String]
+      ) =>
+        stateResource.use { state =>
+          metricRegistryResource(state).use { reg =>
+            val get = getInfoValue(state, prefix, name, help, labels)
+
+            val create = reg.createAndRegisterInfo(prefix, name, help)
+
+            IO.deferred[Unit].flatMap { wait =>
+              create.use { i =>
+                wait.get >>
+                  i.info(labels) >> get.map(_.isDefined).assert
+              }.start.flatMap(fiber =>
+                create.use_ >> wait.complete(()) >>
+                  fiber.joinWithNever
+              ) >> get.assertEquals(
+                None
+              )
+            }
           }
         }
     }
