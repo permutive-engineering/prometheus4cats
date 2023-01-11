@@ -17,6 +17,7 @@
 package prometheus4cats.testkit
 
 import cats.data.{NonEmptyList, NonEmptySeq}
+import cats.syntax.all._
 import cats.effect.IO
 import cats.effect.kernel.Resource
 import munit.CatsEffectSuite
@@ -425,4 +426,32 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
         }
     }
   }
+
+  test("allows building a callback when a callback of the same name exists") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name: Counter.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels,
+          labels: Set[Label.Name]
+      ) =>
+        stateResource
+          .flatMap(callbackRegistryResource(_))
+          .use { reg =>
+            val callback = reg
+              .registerLabelledDoubleCounterCallback[Map[Label.Name, String]](
+                prefix,
+                name,
+                help,
+                commonLabels,
+                labels.toIndexedSeq,
+                IO(NonEmptyList.one(0.0 -> Map.empty[Label.Name, String]))
+              )(_.values.toIndexedSeq)
+
+            (callback >> callback).use_
+          }
+    }
+  }
+
 }
