@@ -454,4 +454,90 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
     }
   }
 
+  test("allows building a callback with multiple label values") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name: Counter.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels
+      ) =>
+        stateResource.use { state =>
+          callbackRegistryResource(state).use { reg =>
+            val callback = reg
+              .registerLabelledDoubleCounterCallback[Map[Label.Name, String]](
+                prefix,
+                name,
+                help,
+                commonLabels,
+                Set(Label.Name("label")).toIndexedSeq,
+                IO(NonEmptyList.of(0.0 -> Map(Label.Name("label") -> "one"), 1.0 -> Map(Label.Name("label") -> "two")))
+              )(_.values.toIndexedSeq)
+
+            callback.use { _ =>
+              def get(label: String) = IO.cede >> getCounterValue(
+                state,
+                prefix,
+                name,
+                help,
+                commonLabels,
+                Map(Label.Name("label") -> label)
+              )
+
+              get("one").assertEquals(Some(0.0)) >> get("two").assertEquals(Some(1.0))
+            }
+
+          }
+        }
+    }
+  }
+
+  test("allows building a callback with different label values when a callback of the same name exists") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name: Counter.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels
+      ) =>
+        stateResource.use { state =>
+          callbackRegistryResource(state).use { reg =>
+            val callback1 = reg
+              .registerLabelledDoubleCounterCallback[Map[Label.Name, String]](
+                prefix,
+                name,
+                help,
+                commonLabels,
+                Set(Label.Name("label")).toIndexedSeq,
+                IO(NonEmptyList.one(0.0 -> Map(Label.Name("label") -> "one")))
+              )(_.values.toIndexedSeq)
+
+            val callback2 = reg
+              .registerLabelledDoubleCounterCallback[Map[Label.Name, String]](
+                prefix,
+                name,
+                help,
+                commonLabels,
+                Set(Label.Name("label")).toIndexedSeq,
+                IO(NonEmptyList.one(1.0 -> Map(Label.Name("label") -> "two")))
+              )(_.values.toIndexedSeq)
+
+            (callback1 >> callback2).use { _ =>
+              def get(label: String) = IO.cede >> getCounterValue(
+                state,
+                prefix,
+                name,
+                help,
+                commonLabels,
+                Map(Label.Name("label") -> label)
+              )
+
+              get("one").assertEquals(Some(0.0)) >> get("two").assertEquals(Some(1.0))
+            }
+
+          }
+        }
+    }
+  }
+
 }
