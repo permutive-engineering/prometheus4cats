@@ -529,7 +529,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
               )
 
             create.use { s =>
-              s.observe(value) >> create.use_ >> get.map(_._2.isDefined) assert
+              s.observe(value) >> create.use_ >> get.map(_._2.isDefined).assert
             } >> get.assertEquals((None, None, None))
           }
         }
