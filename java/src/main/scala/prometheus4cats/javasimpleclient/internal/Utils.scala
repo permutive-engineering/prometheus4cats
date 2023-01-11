@@ -21,7 +21,6 @@ import java.util.concurrent.TimeoutException
 import cats.Show
 import cats.effect.kernel.{Sync, Temporal}
 import cats.effect.std.Dispatcher
-import cats.effect.syntax.temporal._
 import cats.syntax.all._
 import io.prometheus.client.{Collector, CollectorRegistry, SimpleCollector}
 import org.typelevel.log4cats.Logger
@@ -94,7 +93,7 @@ private[javasimpleclient] object Utils {
       onError: A,
       supplementalError: String
   ): A =
-    dispatcher.unsafeRunSync(fa.timeout(callbackTimeout).handleErrorWith {
+    dispatcher.unsafeRunSync(Temporal[F].timeout(fa, callbackTimeout).handleErrorWith {
       case th: TimeoutException =>
         Logger[F]
           .warn(th)(

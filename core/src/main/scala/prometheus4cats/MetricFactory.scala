@@ -17,8 +17,7 @@
 package prometheus4cats
 
 import cats.data.NonEmptyList
-import cats.effect.MonadCancel
-import cats.effect.kernel.Resource
+import cats.effect.kernel.{MonadCancel, Resource}
 import cats.{Applicative, ~>}
 import prometheus4cats.Metric.CommonLabels
 import prometheus4cats.internal._
