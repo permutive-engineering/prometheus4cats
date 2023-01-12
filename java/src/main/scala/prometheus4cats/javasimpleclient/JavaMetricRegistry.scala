@@ -449,7 +449,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       else makeLabelledFamily(name, labelNames, labelValues, b)
   )
 
-  private def registerCallback2[A: Show](
+  private def registerCallback[A: Show](
       metricType: MetricType,
       metricPrefix: Option[Metric.Prefix],
       name: A,
@@ -547,11 +547,11 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       (labelNames ++ commonLabels.value.keys.toIndexedSeq).map(_.value).toList
     lazy val commonLabelValues: IndexedSeq[String] = commonLabels.value.values.toIndexedSeq
 
-    val x: F[NonEmptyList[MetricFamilySamples]] = callback.map(_.map { case (value, labels) =>
+    val samples: F[NonEmptyList[MetricFamilySamples]] = callback.map(_.map { case (value, labels) =>
       makeLabelledFamily(stringName, commonLabelNames, (f(labels) ++ commonLabelValues).toList, value)
     })
 
-    registerCallback2(metricType, prefix, name, x)
+    registerCallback(metricType, prefix, name, samples)
   }
 
   override protected[prometheus4cats] def registerDoubleCounterCallback(
