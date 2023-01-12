@@ -540,7 +540,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
     }
   }
 
-  test("allows building a callback with different labels but the same name") {
+  test("allows building a callback with different labels names but the same name") {
     forAllF {
       (
           prefix: Option[Metric.Prefix],
@@ -586,6 +586,56 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
           }
         }
     }
+
   }
 
+  test("allows building a callback with different number labels but the same name") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name: Counter.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels
+      ) =>
+        stateResource.use { state =>
+          callbackRegistryResource(state).use { reg =>
+            val callback1 = reg
+              .registerLabelledDoubleCounterCallback[Map[Label.Name, String]](
+                prefix,
+                name,
+                help,
+                commonLabels,
+                Set(Label.Name("label1")).toIndexedSeq,
+                IO(NonEmptyList.one(0.0 -> Map(Label.Name("label1") -> "one")))
+              )(_.values.toIndexedSeq)
+
+            val callback2 = reg
+              .registerLabelledDoubleCounterCallback[Map[Label.Name, String]](
+                prefix,
+                name,
+                help,
+                commonLabels,
+                Set(Label.Name("label1"), Label.Name("label2")).toIndexedSeq,
+                IO(NonEmptyList.one(1.0 -> Map(Label.Name("label1") -> "two", Label.Name("label2") -> "two")))
+              )(_.values.toIndexedSeq)
+
+            (callback1 >> callback2).use { _ =>
+              def get(labels: Map[Label.Name, String]) = getCounterValue(
+                state,
+                prefix,
+                name,
+                help,
+                commonLabels,
+                labels
+              )
+
+              get(Map(Label.Name("label1") -> "one")).assertEquals(Some(0.0)) >> get(
+                Map(Label.Name("label1") -> "two", Label.Name("label2") -> "two")
+              ).assertEquals(Some(1.0))
+            }
+
+          }
+        }
+    }
+  }
 }

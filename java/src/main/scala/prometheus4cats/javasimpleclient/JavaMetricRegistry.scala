@@ -454,7 +454,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       metricPrefix: Option[Metric.Prefix],
       name: A,
       callback: F[NonEmptyList[Collector.MetricFamilySamples]]
-  ) = {
+  ): Resource[F, Unit] = {
     lazy val n = counterName(name)
 
     lazy val fullName: StateKey = (metricPrefix, n)
