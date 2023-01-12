@@ -540,4 +540,52 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
     }
   }
 
+  test("allows building a callback with different labels but the same name") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name: Counter.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels
+      ) =>
+        stateResource.use { state =>
+          callbackRegistryResource(state).use { reg =>
+            val callback1 = reg
+              .registerLabelledDoubleCounterCallback[Map[Label.Name, String]](
+                prefix,
+                name,
+                help,
+                commonLabels,
+                Set(Label.Name("label1")).toIndexedSeq,
+                IO(NonEmptyList.one(0.0 -> Map(Label.Name("label") -> "one")))
+              )(_.values.toIndexedSeq)
+
+            val callback2 = reg
+              .registerLabelledDoubleCounterCallback[Map[Label.Name, String]](
+                prefix,
+                name,
+                help,
+                commonLabels,
+                Set(Label.Name("label2")).toIndexedSeq,
+                IO(NonEmptyList.one(1.0 -> Map(Label.Name("label") -> "two")))
+              )(_.values.toIndexedSeq)
+
+            (callback1 >> callback2).use { _ =>
+              def get(labelName: String, labelValue: String) = getCounterValue(
+                state,
+                prefix,
+                name,
+                help,
+                commonLabels,
+                Map(Label.Name.unsafeFrom(labelName) -> labelValue)
+              )
+
+              get("label1", "one").assertEquals(Some(0.0)) >> get("label2", "two").assertEquals(Some(1.0))
+            }
+
+          }
+        }
+    }
+  }
+
 }
