@@ -21,10 +21,7 @@ import java.util
 import cats.data.{NonEmptyList, NonEmptySeq}
 import cats.effect.kernel._
 import cats.effect.std.{Dispatcher, Semaphore}
-import cats.syntax.flatMap._
-import cats.syntax.foldable._
-import cats.syntax.functor._
-import cats.syntax.show._
+import cats.syntax.all._
 import cats.{Applicative, ApplicativeThrow, Functor, Show}
 import io.prometheus.client.Collector.MetricFamilySamples
 import io.prometheus.client.{
@@ -50,12 +47,13 @@ import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 
 class JavaMetricRegistry[F[_]: Async: Logger] private (
-    registry: CollectorRegistry,
-    ref: Ref[F, State],
-    metricCollectionCollector: MetricCollectionProcessor[F],
-    sem: Semaphore[F],
-    dispatcher: Dispatcher[F],
-    callbackTimeout: FiniteDuration
+    private val registry: CollectorRegistry,
+    private val ref: Ref[F, State],
+    private val callbackState: Ref[F, CallbackState[F]],
+    private val metricCollectionCollector: MetricCollectionProcessor[F],
+    private val sem: Semaphore[F],
+    private val dispatcher: Dispatcher[F],
+    private val callbackTimeout: FiniteDuration
 ) extends DoubleMetricRegistry[F]
     with DoubleCallbackRegistry[F] {
   override protected val F: Functor[F] = implicitly
@@ -87,94 +85,63 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     // possibly throwing and therefore needing to be wrapped in a `Sync.delay`. This would be fine, but the actual
     // state must be pure and the collector is needed for that.
     val acquire = sem.permit.surround(
-      ref.get
-        .flatMap[(State, C)] { (metrics: State) =>
-          metrics.get(fullName) match {
-            case Some((expected, Right(collector))) =>
-              if (metricId == expected) Applicative[F].pure(metrics -> collector.asInstanceOf[C])
-              else
-                ApplicativeThrow[F].raiseError(
-                  new RuntimeException(
-                    s"A metric with the same name as '$renderedFullName' is already registered with different labels and/or type"
-                  )
-                )
-            case Some((_, Left(_))) =>
-              ApplicativeThrow[F].raiseError(
-                new RuntimeException(
-                  s"A callback with the same name as '$renderedFullName' is already registered with different labels and/or type"
-                )
+      callbackState.get.flatMap { st =>
+        st.get(fullName) match {
+          case None => Applicative[F].unit
+          case Some(_) =>
+            ApplicativeThrow[F].raiseError[Unit](
+              new RuntimeException(
+                s"A callback with the same name as '$renderedFullName' is already registered with different labels and/or type"
               )
-            case None =>
-              Sync[F].delay {
-                val b: B =
-                  builder
-                    .name(NameUtils.makeName(metricPrefix, name))
-                    .help(help.value)
-                    .labelNames(labels.map(_.value): _*)
-
-                modifyBuilder.foreach(f => f(b))
-
-                b.register(registry)
-              }.map { collector =>
-                metrics.updated(fullName, (metricId, Right(collector))) -> collector
-              }
-          }
+            )
         }
-        .flatMap { case (state, collector) => ref.set(state).as(collector) }
+      } >>
+        ref.get
+          .flatMap[(State, C)] { (metrics: State) =>
+            metrics.get(fullName) match {
+              case Some((expected, (collector, references))) =>
+                if (metricId == expected)
+                  Applicative[F].pure(
+                    metrics.updated(fullName, (expected, (collector, references + 1))) -> collector.asInstanceOf[C]
+                  )
+                else
+                  ApplicativeThrow[F].raiseError(
+                    new RuntimeException(
+                      s"A metric with the same name as '$renderedFullName' is already registered with different labels and/or type"
+                    )
+                  )
+              case None =>
+                Sync[F].delay {
+                  val b: B =
+                    builder
+                      .name(NameUtils.makeName(metricPrefix, name))
+                      .help(help.value)
+                      .labelNames(labels.map(_.value): _*)
+
+                  modifyBuilder.foreach(f => f(b))
+
+                  b.register(registry)
+                }.map { collector =>
+                  metrics.updated(fullName, (metricId, collector -> 1)) -> collector
+                }
+            }
+          }
+          .flatMap { case (state, collector) => ref.set(state).as(collector) }
     )
 
     Resource.make(acquire) { collector =>
       sem.permit.surround {
-        ref.update(_ - fullName) >> Utils.unregister(collector, registry)
+        ref.get.flatMap { metrics =>
+          metrics.get(fullName) match {
+            case Some((`metricId`, (_, 1))) =>
+              ref.set(metrics - fullName) >> Utils.unregister(collector, registry)
+            case Some((`metricId`, (collector, references))) =>
+              ref.set(metrics.updated(fullName, (metricId, collector -> (references - 1))))
+            case _ => Applicative[F].unit
+          }
+        }
       }
     }
-  }
-
-  // the semaphore is needed here because `update` can't be used on the Ref, due to creation of the collector
-  // possibly throwing and therefore needing to be wrapped in a `Sync.delay`. This would be fine, but the actual
-  // state must be pure and the collector is needed for that.
-  private def registerCallback[A: Show](
-      metricType: MetricType,
-      metricPrefix: Option[Metric.Prefix],
-      name: A,
-      labels: IndexedSeq[Label.Name],
-      collector: Collector
-  ): Resource[F, Unit] = {
-    lazy val n = counterName(name)
-
-    lazy val metricId: MetricID = (labels, metricType)
-    lazy val fullName: StateKey = (metricPrefix, n)
-    lazy val renderedFullName = NameUtils.makeName(metricPrefix, name)
-
-    val acquire = sem.permit.surround(
-      ref.get
-        .flatMap[(State, Collector)] { (metrics: State) =>
-          metrics.get(fullName) match {
-            case Some((_, collector)) =>
-              val collectorType = if (collector.isRight) "metric" else "callback"
-
-              ApplicativeThrow[F].raiseError(
-                new RuntimeException(
-                  s"A $collectorType with the same name as '$renderedFullName' is already registered with different labels and/or type"
-                )
-              )
-            case None =>
-              Sync[F]
-                .delay(registry.register(collector))
-                .as(metrics.updated(fullName, (metricId, Left(collector))) -> collector)
-          }
-
-        }
-        .flatMap { case (state, collector) => ref.set(state).as(collector) }
-    )
-
-    Resource
-      .make(acquire) { collector =>
-        sem.permit.surround {
-          ref.update(_ - fullName) >> Utils.unregister(collector, registry)
-        }
-      }
-      .as(())
   }
 
   override protected[prometheus4cats] def createAndRegisterDoubleCounter(
@@ -467,30 +434,100 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       callback: F[B]
   )(
       makeFamily: (String, B) => Collector.MetricFamilySamples,
-      makeLabelledFamily: (String, util.List[String], util.List[String], B) => Collector.MetricFamilySamples
+      makeLabelledFamily: (String, List[String], List[String], B) => Collector.MetricFamilySamples
+  ): Resource[F, Unit] = registerLabelled[A, B, Unit](
+    metricType,
+    prefix,
+    name,
+    commonLabels,
+    IndexedSeq.empty,
+    callback.map[NonEmptyList[(B, Unit)]](b => NonEmptyList.one((b, ())))
+  )(
+    _ => IndexedSeq.empty,
+    (name, labelNames, labelValues, b) =>
+      if (labelNames.isEmpty) makeFamily(name, b)
+      else makeLabelledFamily(name, labelNames, labelValues, b)
+  )
+
+  private def registerCallback[A: Show](
+      metricType: MetricType,
+      metricPrefix: Option[Metric.Prefix],
+      name: A,
+      callback: F[NonEmptyList[Collector.MetricFamilySamples]]
   ): Resource[F, Unit] = {
-    lazy val stringName = NameUtils.makeName(prefix, name)
+    lazy val n = counterName(name)
 
-    lazy val commonLabelNames: util.List[String] = commonLabels.value.keys.map(_.value).toList.asJava
-    lazy val commonLabelValues: util.List[String] = commonLabels.value.values.toList.asJava
+    lazy val fullName: StateKey = (metricPrefix, n)
+    lazy val renderedFullName = NameUtils.makeName(metricPrefix, name)
 
-    def runCallback: Option[B] = timeoutCallback(callback.map(Option(_)), None, stringName)
+    def makeCollector(callbacks: Ref[F, Map[Unique.Token, F[NonEmptyList[Collector.MetricFamilySamples]]]]): Collector =
+      new Collector {
+        override def collect(): util.List[MetricFamilySamples] =
+          timeoutCallback(
+            callbacks.get.flatMap(_.toList.flatTraverse { case (_, cb) => cb.map(_.toList) }.map(_.asJava)),
+            util.Collections.emptyList[Collector.MetricFamilySamples](),
+            n
+          )
 
-    lazy val collector = new Collector {
-      override def collect(): util.List[Collector.MetricFamilySamples] =
-        runCallback match {
-          case Some(value) =>
-            val metrics =
-              if (commonLabels.value.isEmpty) List[Collector.MetricFamilySamples](makeFamily(stringName, value))
-              else List(makeLabelledFamily(stringName, commonLabelNames, commonLabelValues, value))
+      }
 
-            metrics.asJava
-          case None => List.empty[Collector.MetricFamilySamples].asJava
+    val acquire = sem.permit.surround(
+      ref.get.flatMap(r =>
+        r.get(fullName) match {
+          case None => Applicative[F].unit
+          case Some(_) =>
+            ApplicativeThrow[F].raiseError[Unit](
+              new RuntimeException(
+                s"A metric with the same name as '$renderedFullName' is already registered with different labels and/or type"
+              )
+            )
         }
+      ) >>
+        callbackState.get
+          .flatMap[Unique.Token] { (callbacks: CallbackState[F]) =>
+            callbacks.get(fullName) match {
 
-    }
+              case Some((`metricType`, states, _)) =>
+                Unique[F].unique.flatMap { token =>
+                  states.update(_.updated(token, callback)).as(token)
+                }
+              case Some(_) =>
+                ApplicativeThrow[F].raiseError(
+                  new RuntimeException(
+                    s"A callback with the same name as '$renderedFullName' is already registered with different type"
+                  )
+                )
+              case None =>
+                for {
+                  token <- Unique[F].unique
+                  ref <- Ref
+                    .of[F, Map[Unique.Token, F[NonEmptyList[Collector.MetricFamilySamples]]]](Map(token -> callback))
+                  collector = makeCollector(ref)
+                  _ <- Sync[F].delay(registry.register(collector))
+                  _ <- callbackState.set(callbacks.updated(fullName, (metricType, ref, collector)))
+                } yield token
+            }
 
-    registerCallback(metricType, prefix, name, commonLabels.value.keys.toIndexedSeq, collector)
+          }
+    )
+
+    Resource
+      .make(acquire) { token =>
+        sem.permit.surround(callbackState.get.flatMap { state =>
+          state.get(fullName) match {
+            case Some((_, callbacks, collector)) =>
+              callbacks.get.flatMap { cbs =>
+                val newCallbacks = cbs - token
+
+                if (newCallbacks.isEmpty)
+                  callbackState.set(state - fullName) >> Utils.unregister(collector, registry)
+                else callbacks.set(newCallbacks)
+              }
+            case None => Applicative[F].unit
+          }
+        })
+      }
+      .void
   }
 
   private def registerLabelled[A: Show, B, C](
@@ -502,31 +539,19 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       callback: F[NonEmptyList[(B, C)]]
   )(
       f: C => IndexedSeq[String],
-      makeLabelledFamily: (String, util.List[String], util.List[String], B) => Collector.MetricFamilySamples
+      makeLabelledFamily: (String, List[String], List[String], B) => Collector.MetricFamilySamples
   ): Resource[F, Unit] = {
     lazy val stringName = NameUtils.makeName(prefix, name)
 
-    lazy val commonLabelNames: util.List[String] =
-      (labelNames ++ commonLabels.value.keys.toIndexedSeq).map(_.value).asJava
+    lazy val commonLabelNames: List[String] =
+      (labelNames ++ commonLabels.value.keys.toIndexedSeq).map(_.value).toList
     lazy val commonLabelValues: IndexedSeq[String] = commonLabels.value.values.toIndexedSeq
 
-    def runCallback: Option[NonEmptyList[(B, C)]] = timeoutCallback(callback.map(Option(_)), None, stringName)
+    val samples: F[NonEmptyList[MetricFamilySamples]] = callback.map(_.map { case (value, labels) =>
+      makeLabelledFamily(stringName, commonLabelNames, (f(labels) ++ commonLabelValues).toList, value)
+    })
 
-    lazy val collector = new Collector {
-      override def collect(): util.List[Collector.MetricFamilySamples] =
-        runCallback match {
-          case Some(nel) =>
-            val metrics = nel.map { case (value, labels) =>
-              makeLabelledFamily(stringName, commonLabelNames, (f(labels) ++ commonLabelValues).asJava, value)
-            }
-
-            metrics.toList.asJava
-          case None => List.empty[Collector.MetricFamilySamples].asJava
-        }
-
-    }
-
-    registerCallback(metricType, prefix, name, labelNames ++ commonLabels.value.keys.toIndexedSeq, collector)
+    registerCallback(metricType, prefix, name, samples)
   }
 
   override protected[prometheus4cats] def registerDoubleCounterCallback(
@@ -538,7 +563,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
   ): Resource[F, Unit] =
     register(MetricType.Counter, prefix, name, commonLabels, callback)(
       (n, v) => new CounterMetricFamily(n, help.value, if (v < 0) 0 else v),
-      (n, lns, lvs, v) => new CounterMetricFamily(n, help.value, lns).addMetric(lvs, if (v < 0) 0 else v)
+      (n, lns, lvs, v) => new CounterMetricFamily(n, help.value, lns.asJava).addMetric(lvs.asJava, if (v < 0) 0 else v)
     )
 
   override protected[prometheus4cats] def registerLabelledDoubleCounterCallback[A](
@@ -551,7 +576,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
   )(f: A => IndexedSeq[String]): Resource[F, Unit] =
     registerLabelled(MetricType.Counter, prefix, name, commonLabels, labelNames, callback)(
       f,
-      (n, lns, lvs, v) => new CounterMetricFamily(n, help.value, lns).addMetric(lvs, if (v < 0) 0 else v)
+      (n, lns, lvs, v) => new CounterMetricFamily(n, help.value, lns.asJava).addMetric(lvs.asJava, if (v < 0) 0 else v)
     )
 
   override protected[prometheus4cats] def registerDoubleGaugeCallback(
@@ -562,7 +587,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       callback: F[Double]
   ): Resource[F, Unit] = register(MetricType.Gauge, prefix, name, commonLabels, callback)(
     (n, v) => new GaugeMetricFamily(n, help.value, v),
-    (n, lns, lvs, v) => new GaugeMetricFamily(n, help.value, lns).addMetric(lvs, v)
+    (n, lns, lvs, v) => new GaugeMetricFamily(n, help.value, lns.asJava).addMetric(lvs.asJava, v)
   )
 
   override protected[prometheus4cats] def registerLabelledDoubleGaugeCallback[A](
@@ -575,7 +600,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
   )(f: A => IndexedSeq[String]): Resource[F, Unit] =
     registerLabelled(MetricType.Gauge, prefix, name, commonLabels, labelNames, callback)(
       f,
-      (n, lns, lvs, v) => new GaugeMetricFamily(n, help.value, lns).addMetric(lvs, v)
+      (n, lns, lvs, v) => new GaugeMetricFamily(n, help.value, lns.asJava).addMetric(lvs.asJava, v)
     )
 
   override protected[prometheus4cats] def registerDoubleHistogramCallback(
@@ -586,22 +611,16 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       buckets: NonEmptySeq[Double],
       callback: F[Histogram.Value[Double]]
   ): Resource[F, Unit] = {
-    lazy val stringName = NameUtils.makeName(prefix, name)
+    val makeLabelledSamples = HistogramUtils.labelledHistogramSamples(help, buckets)
 
-    def runCallback: Option[Histogram.Value[Double]] =
-      timeoutCallback(callback.map(Option(_)), None, stringName)
-
-    val makeSamples = HistogramUtils.histogramSamples(prefix, name, help, commonLabels.value, IndexedSeq.empty, buckets)
-
-    val collector = new Collector {
-      override def collect(): util.List[MetricFamilySamples] =
-        runCallback match {
-          case Some(value) => List(makeSamples(Seq(value -> IndexedSeq.empty[String]))).asJava
-          case None => List.empty[Collector.MetricFamilySamples].asJava
-        }
-    }
-
-    registerCallback(MetricType.Histogram, prefix, name, commonLabels.value.keys.toIndexedSeq, collector)
+    registerLabelled(
+      MetricType.Histogram,
+      prefix,
+      name,
+      commonLabels,
+      IndexedSeq.empty,
+      callback.map[NonEmptyList[(Histogram.Value[Double], Unit)]](b => NonEmptyList.one((b, ())))
+    )(_ => IndexedSeq.empty, makeLabelledSamples)
   }
 
   override protected[prometheus4cats] def registerLabelledDoubleHistogramCallback[A](
@@ -613,22 +632,16 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       buckets: NonEmptySeq[Double],
       callback: F[NonEmptyList[(Histogram.Value[Double], A)]]
   )(f: A => IndexedSeq[String]): Resource[F, Unit] = {
-    lazy val stringName = NameUtils.makeName(prefix, name)
+    val makeLabelledSamples = HistogramUtils.labelledHistogramSamples(help, buckets)
 
-    def runCallback: Option[NonEmptyList[(Histogram.Value[Double], A)]] =
-      timeoutCallback(callback.map(Option(_)), None, stringName)
-
-    val makeSamples = HistogramUtils.histogramSamples(prefix, name, help, commonLabels.value, labelNames, buckets)
-
-    val collector = new Collector {
-      override def collect(): util.List[MetricFamilySamples] =
-        runCallback match {
-          case Some(vs) => vs.map { case (value, labels) => makeSamples(Seq(value -> f(labels))) }.toList.asJava
-          case None => List.empty[Collector.MetricFamilySamples].asJava
-        }
-    }
-
-    registerCallback(MetricType.Histogram, prefix, name, labelNames ++ commonLabels.value.keys.toIndexedSeq, collector)
+    registerLabelled(
+      MetricType.Histogram,
+      prefix,
+      name,
+      commonLabels,
+      labelNames,
+      callback
+    )(f, makeLabelledSamples)
   }
 
   override protected[prometheus4cats] def registerDoubleSummaryCallback(
@@ -655,15 +668,21 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
               v.quantiles.values.toList.map(_.asInstanceOf[java.lang.Double]).asJava
             ),
       (n, lns, lvs, v) =>
-        if (v.quantiles.isEmpty) new SummaryMetricFamily(n, help.value, lns).addMetric(lvs, v.count, v.sum)
+        if (v.quantiles.isEmpty)
+          new SummaryMetricFamily(n, help.value, lns.asJava).addMetric(lvs.asJava, v.count, v.sum)
         else
           new SummaryMetricFamily(
             n,
             help.value,
-            lns,
+            lns.asJava,
             v.quantiles.keys.toList.map(_.asInstanceOf[java.lang.Double]).asJava
           )
-            .addMetric(lvs, v.count, v.sum, v.quantiles.values.toList.map(_.asInstanceOf[java.lang.Double]).asJava)
+            .addMetric(
+              lvs.asJava,
+              v.count,
+              v.sum,
+              v.quantiles.values.toList.map(_.asInstanceOf[java.lang.Double]).asJava
+            )
     )
 
   override protected[prometheus4cats] def registerLabelledDoubleSummaryCallback[A](
@@ -677,15 +696,21 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     registerLabelled(MetricType.Summary, prefix, name, commonLabels, labelNames, callback)(
       f,
       (n, lns, lvs, v) =>
-        if (v.quantiles.isEmpty) new SummaryMetricFamily(n, help.value, lns).addMetric(lvs, v.count, v.sum)
+        if (v.quantiles.isEmpty)
+          new SummaryMetricFamily(n, help.value, lns.asJava).addMetric(lvs.asJava, v.count, v.sum)
         else
           new SummaryMetricFamily(
             n,
             help.value,
-            lns,
+            lns.asJava,
             v.quantiles.keys.toList.map(_.asInstanceOf[java.lang.Double]).asJava
           )
-            .addMetric(lvs, v.count, v.sum, v.quantiles.values.toList.map(_.asInstanceOf[java.lang.Double]).asJava)
+            .addMetric(
+              lvs.asJava,
+              v.count,
+              v.sum,
+              v.quantiles.values.toList.map(_.asInstanceOf[java.lang.Double]).asJava
+            )
     )
 
   override protected[prometheus4cats] def registerMetricCollectionCallback(
@@ -741,10 +766,12 @@ object JavaMetricRegistry {
   ): Resource[F, JavaMetricRegistry[F]] = Dispatcher.sequential[F].flatMap { dis =>
     val acquire = for {
       ref <- Ref.of[F, State](Map.empty)
+      callbackState <- Ref.of[F, CallbackState[F]](Map.empty)
       sem <- Semaphore[F](1L)
       metricCollectionProcessor <- MetricCollectionProcessor
         .create(
           ref,
+          // TODO callabck statee
           dis,
           metricCollectionCallbackTimeout,
           promRegistry
@@ -753,7 +780,15 @@ object JavaMetricRegistry {
     } yield (
       ref,
       metricCollectionProcessor._2,
-      new JavaMetricRegistry[F](promRegistry, ref, metricCollectionProcessor._1, sem, dis, callbackTimeout)
+      new JavaMetricRegistry[F](
+        promRegistry,
+        ref,
+        callbackState,
+        metricCollectionProcessor._1,
+        sem,
+        dis,
+        callbackTimeout
+      )
     )
 
     Resource
@@ -764,8 +799,8 @@ object JavaMetricRegistry {
               metrics.values
                 .map(_._2)
                 .toList
-                .traverse_ { collector =>
-                  Utils.unregister(collector.merge, promRegistry)
+                .traverse_ { case (collector, _) =>
+                  Utils.unregister(collector, promRegistry)
                 }
             else Applicative[F].unit
           }

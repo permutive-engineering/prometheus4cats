@@ -16,8 +16,6 @@
 
 package prometheus4cats.javasimpleclient.internal
 
-import java.util
-
 import cats.data.NonEmptySeq
 import io.prometheus.client.Collector
 import io.prometheus.client.Collector.{MetricFamilySamples, Type}
@@ -36,48 +34,59 @@ object HistogramUtils {
       buckets: NonEmptySeq[Double]
   ): Seq[(Histogram.Value[Double], IndexedSeq[String])] => Collector.MetricFamilySamples = {
     lazy val stringName = NameUtils.makeName(prefix, name)
-
     lazy val allLabelNames = labelNames.map(_.value).toList ++ commonLabels.keys.map(_.value).toList
-
-    lazy val labelNamesJava: util.List[String] = allLabelNames.asJava
-    lazy val labelNamesWithLe: util.List[String] = ("le" :: allLabelNames).asJava
-    lazy val commonLabelValues = commonLabels.values.toList
-
-    lazy val bucketsWithInf = buckets.map(Collector.doubleToGoString) :+ "+Inf"
     values => {
-      val metrics = values.flatMap { case (value, labelVs) =>
-        val labelValues = labelVs.toList ++ commonLabelValues
-        val labelValuesJava = labelValues.asJava
-
-        val bucketSamples = bucketsWithInf.zipWith(value.bucketValues) { (bucketString, bucketValue) =>
-          val allLabelValues = bucketString :: labelValues
-
-          new MetricFamilySamples.Sample(
-            s"${stringName}_bucket",
-            labelNamesWithLe,
-            allLabelValues.asJava,
-            bucketValue
-          )
-        }
-
-        bucketSamples.toSeq.toIndexedSeq ++ IndexedSeq(
-          new MetricFamilySamples.Sample(
-            s"${stringName}_count",
-            labelNamesJava,
-            labelValuesJava,
-            value.bucketValues.last
-          ),
-          new MetricFamilySamples.Sample(
-            s"${stringName}_sum",
-            labelNamesJava,
-            labelValuesJava,
-            value.sum
-          )
-        )
-
+      val samples = values.flatMap { case (value, labelValues) =>
+        metricSamples(buckets, stringName, allLabelNames, labelValues.toList, value)
       }
-
-      new MetricFamilySamples(stringName, "", Type.HISTOGRAM, help.value, metrics.asJava)
+      new MetricFamilySamples(stringName, "", Type.HISTOGRAM, help.value, samples.asJava)
     }
+  }
+
+  private[javasimpleclient] def labelledHistogramSamples(
+      help: Metric.Help,
+      buckets: NonEmptySeq[Double]
+  ): (String, List[String], List[String], Histogram.Value[Double]) => Collector.MetricFamilySamples = {
+    case (name, labelNames, labelValues, value) =>
+      val samples = metricSamples(buckets, name, labelNames, labelValues, value)
+      new MetricFamilySamples(name, "", Type.HISTOGRAM, help.value, samples.asJava)
+  }
+
+  private def metricSamples(
+      buckets: NonEmptySeq[Double],
+      name: String,
+      labelNames: List[String],
+      labelValues: List[String],
+      value: Histogram.Value[Double]
+  ): List[MetricFamilySamples.Sample] = {
+    val enhancedLabelNames = "le" :: labelNames
+
+    val bucketsWithInf = buckets.map(Collector.doubleToGoString) :+ "+Inf"
+    val bucketSamples = bucketsWithInf.zipWith(value.bucketValues) { (bucketString, bucketValue) =>
+      val enhancedLabelValues = bucketString :: labelValues
+
+      new MetricFamilySamples.Sample(
+        s"${name}_bucket",
+        enhancedLabelNames.asJava,
+        enhancedLabelValues.asJava,
+        bucketValue
+      )
+    }
+
+    (bucketSamples.toSeq ++ List(
+      new MetricFamilySamples.Sample(
+        s"${name}_count",
+        labelNames.asJava,
+        labelValues.asJava,
+        value.bucketValues.last
+      ),
+      new MetricFamilySamples.Sample(
+        s"${name}_sum",
+        labelNames.asJava,
+        labelValues.asJava,
+        value.sum
+      )
+    )).toList
+
   }
 }

@@ -34,11 +34,13 @@ import prometheus4cats.testkit.{CallbackRegistrySuite, MetricRegistrySuite}
 import prometheus4cats.util.NameUtils
 
 import scala.jdk.CollectionConverters._
+import scala.concurrent.duration._
 
 class JavaMetricRegistrySuite
     extends CatsEffectSuite
     with MetricRegistrySuite[CollectorRegistry]
     with CallbackRegistrySuite[CollectorRegistry] {
+
   implicit val logger: Logger[IO] = NoOpLogger.impl
 
   override val stateResource: Resource[IO, CollectorRegistry] = Resource.eval(IO.delay(new CollectorRegistry()))
@@ -47,7 +49,7 @@ class JavaMetricRegistrySuite
     JavaMetricRegistry.fromSimpleClientRegistry[IO](state)
 
   override def callbackRegistryResource(state: CollectorRegistry): Resource[IO, CallbackRegistry[IO]] =
-    JavaMetricRegistry.fromSimpleClientRegistry[IO](state)
+    JavaMetricRegistry.fromSimpleClientRegistry[IO](state, callbackTimeout = 100.millis)
 
   def getMetricValue[A: Show](
       state: CollectorRegistry,
@@ -284,42 +286,6 @@ class JavaMetricRegistrySuite
               res.leftMap(_.getMessage),
               Left(
                 s"A metric with the same name as '${NameUtils.makeName(prefix, name)}' is already registered with different labels and/or type"
-              )
-            )
-          }
-    }
-  }
-
-  test("fails to build a callback when a callback of the same name exists") {
-    forAllF {
-      (
-          prefix: Option[Metric.Prefix],
-          name: Counter.Name,
-          help: Metric.Help,
-          commonLabels: Metric.CommonLabels,
-          labels: Set[Label.Name]
-      ) =>
-        stateResource
-          .flatMap(JavaMetricRegistry.fromSimpleClientRegistry(_))
-          .use { reg =>
-            val callback = reg
-              .registerLabelledDoubleCounterCallback[Map[Label.Name, String]](
-                prefix,
-                name,
-                help,
-                commonLabels,
-                labels.toIndexedSeq,
-                IO(NonEmptyList.one(0.0 -> Map.empty[Label.Name, String]))
-              )(_.values.toIndexedSeq)
-
-            (callback >> callback).use_
-          }
-          .attempt
-          .map { res =>
-            assertEquals(
-              res.leftMap(_.getMessage),
-              Left(
-                s"A callback with the same name as '${NameUtils.makeName(prefix, name)}' is already registered with different labels and/or type"
               )
             )
           }

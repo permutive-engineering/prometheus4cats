@@ -17,6 +17,7 @@
 package prometheus4cats.testkit
 
 import cats.data.{NonEmptyList, NonEmptySeq}
+import cats.syntax.all._
 import cats.effect.IO
 import cats.effect.kernel.Resource
 import munit.CatsEffectSuite
@@ -25,6 +26,7 @@ import org.scalacheck.{Arbitrary, Gen}
 import prometheus4cats._
 
 trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffectSuite =>
+
   implicit val quantileValuesArb: Arbitrary[Map[Summary.Quantile, Double]] = Arbitrary(
     Gen.mapOf[Summary.Quantile, Double](Arbitrary.arbitrary[(Summary.Quantile, Double)])
   )
@@ -419,6 +421,218 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
                     assertEquals(res, Some(value2))
                   }
               ) >> get1.map(assertEquals(_, None)) >> get2.map(assertEquals(_, None))
+
+          }
+        }
+    }
+  }
+
+  test("allows building a callback when a callback of the same name exists") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name: Counter.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels,
+          labels: Set[Label.Name]
+      ) =>
+        stateResource
+          .flatMap(callbackRegistryResource(_))
+          .use { reg =>
+            val callback = reg
+              .registerLabelledDoubleCounterCallback[Map[Label.Name, String]](
+                prefix,
+                name,
+                help,
+                commonLabels,
+                labels.toIndexedSeq,
+                IO(NonEmptyList.one(0.0 -> Map.empty[Label.Name, String]))
+              )(_.values.toIndexedSeq)
+
+            (callback >> callback).use_
+          }
+    }
+  }
+
+  test("allows building a callback with multiple label values") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name: Counter.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels
+      ) =>
+        stateResource.use { state =>
+          callbackRegistryResource(state).use { reg =>
+            val callback = reg
+              .registerLabelledDoubleCounterCallback[Map[Label.Name, String]](
+                prefix,
+                name,
+                help,
+                commonLabels,
+                Set(Label.Name("label")).toIndexedSeq,
+                IO(NonEmptyList.of(0.0 -> Map(Label.Name("label") -> "one"), 1.0 -> Map(Label.Name("label") -> "two")))
+              )(_.values.toIndexedSeq)
+
+            callback.use { _ =>
+              def get(label: String) = getCounterValue(
+                state,
+                prefix,
+                name,
+                help,
+                commonLabels,
+                Map(Label.Name("label") -> label)
+              )
+
+              get("one").assertEquals(Some(0.0)) >> get("two").assertEquals(Some(1.0))
+            }
+
+          }
+        }
+    }
+  }
+
+  test("allows building a callback with different label values when a callback of the same name exists") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name: Counter.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels
+      ) =>
+        stateResource.use { state =>
+          callbackRegistryResource(state).use { reg =>
+            val callback1 = reg
+              .registerLabelledDoubleCounterCallback[Map[Label.Name, String]](
+                prefix,
+                name,
+                help,
+                commonLabels,
+                Set(Label.Name("label")).toIndexedSeq,
+                IO(NonEmptyList.one(0.0 -> Map(Label.Name("label") -> "one")))
+              )(_.values.toIndexedSeq)
+
+            val callback2 = reg
+              .registerLabelledDoubleCounterCallback[Map[Label.Name, String]](
+                prefix,
+                name,
+                help,
+                commonLabels,
+                Set(Label.Name("label")).toIndexedSeq,
+                IO(NonEmptyList.one(1.0 -> Map(Label.Name("label") -> "two")))
+              )(_.values.toIndexedSeq)
+
+            (callback1 >> callback2).use { _ =>
+              def get(label: String) = getCounterValue(
+                state,
+                prefix,
+                name,
+                help,
+                commonLabels,
+                Map(Label.Name("label") -> label)
+              )
+
+              get("one").assertEquals(Some(0.0)) >> get("two").assertEquals(Some(1.0))
+            }
+
+          }
+        }
+    }
+  }
+
+  test("allows building a callback with different labels names but the same name") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name: Counter.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels
+      ) =>
+        stateResource.use { state =>
+          callbackRegistryResource(state).use { reg =>
+            val callback1 = reg
+              .registerLabelledDoubleCounterCallback[Map[Label.Name, String]](
+                prefix,
+                name,
+                help,
+                commonLabels,
+                Set(Label.Name("label1")).toIndexedSeq,
+                IO(NonEmptyList.one(0.0 -> Map(Label.Name("label") -> "one")))
+              )(_.values.toIndexedSeq)
+
+            val callback2 = reg
+              .registerLabelledDoubleCounterCallback[Map[Label.Name, String]](
+                prefix,
+                name,
+                help,
+                commonLabels,
+                Set(Label.Name("label2")).toIndexedSeq,
+                IO(NonEmptyList.one(1.0 -> Map(Label.Name("label") -> "two")))
+              )(_.values.toIndexedSeq)
+
+            (callback1 >> callback2).use { _ =>
+              def get(labelName: String, labelValue: String) = getCounterValue(
+                state,
+                prefix,
+                name,
+                help,
+                commonLabels,
+                Map(Label.Name.unsafeFrom(labelName) -> labelValue)
+              )
+
+              get("label1", "one").assertEquals(Some(0.0)) >> get("label2", "two").assertEquals(Some(1.0))
+            }
+
+          }
+        }
+    }
+
+  }
+
+  test("allows building a callback with different number labels but the same name") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name: Counter.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels
+      ) =>
+        stateResource.use { state =>
+          callbackRegistryResource(state).use { reg =>
+            val callback1 = reg
+              .registerLabelledDoubleCounterCallback[Map[Label.Name, String]](
+                prefix,
+                name,
+                help,
+                commonLabels,
+                Set(Label.Name("label1")).toIndexedSeq,
+                IO(NonEmptyList.one(0.0 -> Map(Label.Name("label1") -> "one")))
+              )(_.values.toIndexedSeq)
+
+            val callback2 = reg
+              .registerLabelledDoubleCounterCallback[Map[Label.Name, String]](
+                prefix,
+                name,
+                help,
+                commonLabels,
+                Set(Label.Name("label1"), Label.Name("label2")).toIndexedSeq,
+                IO(NonEmptyList.one(1.0 -> Map(Label.Name("label1") -> "two", Label.Name("label2") -> "two")))
+              )(_.values.toIndexedSeq)
+
+            (callback1 >> callback2).use { _ =>
+              def get(labels: Map[Label.Name, String]) = getCounterValue(
+                state,
+                prefix,
+                name,
+                help,
+                commonLabels,
+                labels
+              )
+
+              get(Map(Label.Name("label1") -> "one")).assertEquals(Some(0.0)) >> get(
+                Map(Label.Name("label1") -> "two", Label.Name("label2") -> "two")
+              ).assertEquals(Some(1.0))
+            }
 
           }
         }
