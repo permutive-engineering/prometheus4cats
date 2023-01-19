@@ -20,6 +20,7 @@ import java.util
 
 import alleycats.std.iterable._
 import alleycats.std.set._
+import cats.syntax.apply._
 import cats.effect.kernel._
 import cats.effect.std.Dispatcher
 import cats.syntax.flatMap._
@@ -41,7 +42,7 @@ import io.prometheus.client.{
 import org.typelevel.log4cats.Logger
 import prometheus4cats.MetricCollection.Value
 import prometheus4cats._
-import prometheus4cats.javasimpleclient.{DuplicateMetricsException, State}
+import prometheus4cats.javasimpleclient.{CallbackState, DuplicateMetricsException, State}
 import prometheus4cats.util.NameUtils
 
 import scala.collection.mutable.ListBuffer
@@ -50,6 +51,7 @@ import scala.jdk.CollectionConverters._
 
 class MetricCollectionProcessor[F[_]: Async: Logger] private (
     ref: Ref[F, State],
+    callbacks: Ref[F, CallbackState[F]],
     collectionCallbackRef: Ref[F, Map[Option[
       Metric.Prefix
     ], (Map[Label.Name, String], Map[Unique.Token, F[MetricCollection]])]],
@@ -209,34 +211,30 @@ class MetricCollectionProcessor[F[_]: Async: Logger] private (
       }
     }
 
-    ref.get.flatMap { state =>
+    (ref.get, callbacks.get).flatMapN { (state, callbackState) =>
       def collectMetrics[A: Show, B](
           vs: Map[(A, IndexedSeq[Label.Name]), B],
           f: ((A, IndexedSeq[Label.Name]), B) => Option[MetricFamilySamples]
       ): (
           Set[(Option[Metric.Prefix], String)],
           Set[(Option[Metric.Prefix], String)],
-          Set[(Option[Metric.Prefix], String)],
           ListBuffer[MetricFamilySamples]
       ) => (
           Set[(Option[Metric.Prefix], String)],
           Set[(Option[Metric.Prefix], String)],
-          Set[(Option[Metric.Prefix], String)],
           ListBuffer[MetricFamilySamples]
-      ) = { (names, duplicates, registryDuplicates, listBuffer) =>
-        vs.foldLeft((names, duplicates, registryDuplicates, listBuffer)) {
-          case ((names, duplicates, registryDuplicates, samples), (x @ (name, _), v)) =>
+      ) = { (names, registryDuplicates, listBuffer) =>
+        vs.foldLeft((names, registryDuplicates, listBuffer)) {
+          case ((names, registryDuplicates, samples), (x @ (name, _), v)) =>
             val nameString = name.show
 
-            if (names.contains(prefix -> nameString))
-              (names, duplicates + (prefix -> nameString), registryDuplicates, samples)
-            else if (state.contains(prefix -> nameString))
-              (names, duplicates, registryDuplicates + (prefix -> nameString), samples)
-            else (names + (prefix -> nameString), duplicates, registryDuplicates, samples ++ f(x, v))
+            if (state.contains(prefix -> nameString) || callbackState.contains(prefix -> nameString))
+              (names, registryDuplicates + (prefix -> nameString), samples)
+            else (names + (prefix -> nameString), registryDuplicates, samples ++ f(x, v))
         }
       }
 
-      val (_, duplicates, registryDuplicates, samples) = List(
+      val (_, registryDuplicates, samples) = List(
         collectMetrics(values.counters, counterToSample),
         collectMetrics(values.gauges, gaugeToSample),
         collectMetrics(values.histograms, histogramToSample),
@@ -245,48 +243,27 @@ class MetricCollectionProcessor[F[_]: Async: Logger] private (
         (
           Set.empty[(Option[Metric.Prefix], String)],
           Set.empty[(Option[Metric.Prefix], String)],
-          Set.empty[(Option[Metric.Prefix], String)],
           ListBuffer.empty[MetricFamilySamples]
         )
-      ) { case ((names, duplicates, registryDuplicates, samples), f) =>
-        f(names, duplicates, registryDuplicates, samples)
+      ) { case ((names, registryDuplicates, samples), f) =>
+        f(names, registryDuplicates, samples)
       }
 
-      if (duplicates.isEmpty && registryDuplicates.isEmpty) Applicative[F].pure(samples.toList)
+      if (registryDuplicates.isEmpty) Applicative[F].pure(samples.toList)
       else {
-        lazy val common =
-          "This is due to an implementation detail in the Java Prometheus library that backs the MetricsRegistry you are using,\n" +
-            "which prevents metrics with the same name and different label sets from being added to the registry, despite this being allowed by Prometheus.\n" +
-            "See here for more details: https://github.com/prometheus/client_java/issues/696\n" +
-            "These metrics will likely have been added by a library, so you may have to log an issue or raise a pull request to rectify. A stack trace has been included to help with this.\n"
-
-        lazy val duplicatesInCollection =
-          s"The following metrics with the same name and different labels or type have been discovered in a metric collection callback: '${duplicates
-              .mkString_(",")}'.\n" + common +
-            "Because of this, only the first metric will be taken and the others ignored - this will not prevent your application from functioning.\n\n" +
-            "To mitigate this you can do the following to the metric collection:\n" +
-            "  - modify the metric name to disambiguate metric types and/or label sets\n" +
-            "  - align labels between the two metrics if they are of the same type, so that they both have the same keys,\n" +
-            "    but provide empty values for the labels which are not present on each metric"
-
         lazy val duplicatesInRegistry =
-          s"The following metrics with the same name and different labels or type are already registered in the metrics registry and therefore have been excluded from the provided collection: '${registryDuplicates
-              .mkString_(",")}'" + common +
+          s"The following metrics or callbacks with the same name are already registered in the metrics registry and therefore have been excluded from the provided collection: '${registryDuplicates
+              .mkString_(",")}'. " +
             "Because of this the metric(s) in the given collection will be ignored in favour of those already registered\n" +
             "To mitigate this, you can do the following to the metrics collection:\n" +
             "  - modify the metric name to disambiguate metric types and/or label sets\n"
-
-        val colDupErr =
-          if (duplicates.nonEmpty) Logger[F].warn(DuplicateMetricsException(duplicates))(duplicatesInCollection)
-          else Applicative[F].unit
 
         val regDupErr =
           if (registryDuplicates.nonEmpty)
             Logger[F].warn(DuplicateMetricsException(registryDuplicates))(duplicatesInRegistry)
           else Applicative[F].unit
 
-        colDupErr >> regDupErr >> Sync[F]
-          .delay(duplicateGauge.labels("in_collection", prefix.show).set(duplicates.size.toDouble)) >> Sync[F]
+        regDupErr >> Sync[F]
           .delay(duplicateGauge.labels("in_registry", prefix.show).set(registryDuplicates.size.toDouble))
           .as(samples.toList)
       }
@@ -325,6 +302,7 @@ object MetricCollectionProcessor {
 
   def create[F[_]: Async: Logger](
       ref: Ref[F, State],
+      callbacks: Ref[F, CallbackState[F]],
       dispatcher: Dispatcher[F],
       callbackTimeout: FiniteDuration,
       promRegistry: CollectorRegistry
@@ -345,6 +323,7 @@ object MetricCollectionProcessor {
       ], (Map[Label.Name, String], Map[Unique.Token, F[MetricCollection]])]](Map.empty)
       proc = new MetricCollectionProcessor(
         ref,
+        callbacks,
         collectionCallbackRef,
         dispatcher,
         callbackTimeout,

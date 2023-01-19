@@ -771,7 +771,7 @@ object JavaMetricRegistry {
       metricCollectionProcessor <- MetricCollectionProcessor
         .create(
           ref,
-          // TODO callabck statee
+          callbackState,
           dis,
           metricCollectionCallbackTimeout,
           promRegistry
