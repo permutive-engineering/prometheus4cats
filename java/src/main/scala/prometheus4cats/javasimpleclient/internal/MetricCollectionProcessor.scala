@@ -50,6 +50,8 @@ import scala.collection.mutable.ListBuffer
 import scala.concurrent.duration.FiniteDuration
 import scala.jdk.CollectionConverters._
 
+import cats.effect.syntax.monadCancel._
+
 class MetricCollectionProcessor[F[_]: Async: Logger] private (
     ref: Ref[F, State],
     callbacks: Ref[F, CallbackState[F]],
@@ -75,8 +77,8 @@ class MetricCollectionProcessor[F[_]: Async: Logger] private (
     Sync[F].delay(callbackErrorCounter.labels(reason).inc())
 
   private def timeoutCallback[A](fa: F[A], empty: A): A = {
-    lazy val incTimeout = incErrorCounter("timeout").as(empty)
-    lazy val incError = incErrorCounter("error").as(empty)
+    def incTimeout = incErrorCounter("timeout")
+    def incError = incErrorCounter("error")
 
     Utils.timeoutCallback(
       dispatcher,
@@ -85,19 +87,22 @@ class MetricCollectionProcessor[F[_]: Async: Logger] private (
       th =>
         trackHasErrored(
           callbackHasTimedOut,
-          incTimeout,
-          Logger[F].warn(th)(
-            s"Timed out running callback for metric collection after $callbackTimeout.\n" +
-              "This may be due to a callback having been registered that performs some long running calculation which blocks\n" +
-              "Please review your code or raise an issue or pull request with the library from which this callback was registered.\n" +
-              s"This warning will only be shown once after process start. The counter '${MetricCollectionProcessor.callbackErrorCounterName}'" +
-              "tracks the number of times this occurs."
-          ) >> incTimeout
+          incTimeout.as(empty),
+          Logger[F]
+            .warn(th)(
+              s"Timed out running callback for metric collection after $callbackTimeout.\n" +
+                "This may be due to a callback having been registered that performs some long running calculation which blocks\n" +
+                "Please review your code or raise an issue or pull request with the library from which this callback was registered.\n" +
+                s"This warning will only be shown once after process start. The counter '${MetricCollectionProcessor.callbackErrorCounterName}'" +
+                "tracks the number of times this occurs."
+            )
+            .guarantee(incTimeout)
+            .as(empty)
         ),
       th =>
         trackHasErrored(
           callbackHasErrored,
-          incError,
+          incError.as(empty),
           Logger[F]
             .warn(th)(
               s"Executing callbacks for metric collection failed with the following exception.\n" +
@@ -105,7 +110,9 @@ class MetricCollectionProcessor[F[_]: Async: Logger] private (
                 "Please review your code or raise an issue or pull request with the library from which this callback was registered.\n" +
                 s"This warning will only be shown once after process start. The counter '${MetricCollectionProcessor.callbackErrorCounterName}'" +
                 "tracks the number of times this occurs."
-            ) >> incError
+            )
+            .guarantee(incError)
+            .as(empty)
         )
     )
   }
@@ -309,8 +316,11 @@ class MetricCollectionProcessor[F[_]: Async: Logger] private (
             }.flatten
           else Applicative[F].unit
 
-        regDupErr >> Sync[F]
-          .delay(duplicateGauge.labels("in_registry", prefix.show).set(registryDuplicates.size.toDouble))
+        regDupErr
+          .guarantee(
+            Sync[F]
+              .delay(duplicateGauge.labels("in_registry", prefix.show).set(registryDuplicates.size.toDouble))
+          )
           .as(samples.toList)
       }
 

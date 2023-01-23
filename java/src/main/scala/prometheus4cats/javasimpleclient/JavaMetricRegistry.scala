@@ -46,6 +46,8 @@ import prometheus4cats.util.{DoubleCallbackRegistry, DoubleMetricRegistry, NameU
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 
+import cats.effect.syntax.monadCancel._
+
 class JavaMetricRegistry[F[_]: Async: Logger] private (
     private val registry: CollectorRegistry,
     private val ref: Ref[F, State],
@@ -75,8 +77,8 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     Sync[F].delay(callbackErrorCounter.labels(stringName, reason).inc())
 
   private def timeoutCallback[A](fa: F[A], empty: A, stringName: String): A = {
-    lazy val incTimeout = incErrorCounter(stringName, "timeout").as(empty)
-    lazy val incError = incErrorCounter(stringName, "error").as(empty)
+    def incTimeout = incErrorCounter(stringName, "timeout")
+    def incError = incErrorCounter(stringName, "error")
 
     Utils.timeoutCallback(
       dispatcher,
@@ -86,20 +88,23 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
         trackErrors(
           callbackTimeoutState,
           stringName,
-          incTimeout,
-          Logger[F].warn(th)(
-            s"Timed out running callback for metric '$stringName' after $callbackTimeout.\n" +
-              "This may be due to a callback having been registered that performs some long running calculation which blocks\n" +
-              "Please review your code or raise an issue or pull request with the library from which this callback was registered.\n" +
-              s"This warning will only be shown once for each metric after process start. The counter '${JavaMetricRegistry.callbackErrorCounterName}'" +
-              "tracks the number of times this occurs per metric name."
-          ) >> incTimeout
+          incTimeout.as(empty),
+          Logger[F]
+            .warn(th)(
+              s"Timed out running callback for metric '$stringName' after $callbackTimeout.\n" +
+                "This may be due to a callback having been registered that performs some long running calculation which blocks\n" +
+                "Please review your code or raise an issue or pull request with the library from which this callback was registered.\n" +
+                s"This warning will only be shown once for each metric after process start. The counter '${JavaMetricRegistry.callbackErrorCounterName}'" +
+                "tracks the number of times this occurs per metric name."
+            )
+            .guarantee(incTimeout)
+            .as(empty)
         ),
       th =>
         trackErrors(
           callbackErrorState,
           stringName,
-          incError,
+          incError.as(empty),
           Logger[F]
             .warn(th)(
               s"Callback for metric '$stringName' failed with the following exception.\n" +
@@ -107,7 +112,9 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
                 "Please review your code or raise an issue or pull request with the library from which this callback was registered.\n" +
                 s"This warning will only be shown once for each metric after process start. The counter '${JavaMetricRegistry.callbackErrorCounterName}'" +
                 "tracks the number of times this occurs per metric name."
-            ) >> incError
+            )
+            .guarantee(incError)
+            .as(empty)
         )
     )
   }
