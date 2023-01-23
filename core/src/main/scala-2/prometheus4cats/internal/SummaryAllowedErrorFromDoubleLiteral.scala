@@ -20,7 +20,7 @@ import prometheus4cats.Summary
 
 import scala.reflect.macros.blackbox
 
-trait SummaryAllowedErrorFromDoubleLiteral {
+private[prometheus4cats] trait SummaryAllowedErrorFromDoubleLiteral {
 
   def apply(t: Double): Summary.AllowedError =
     macro SummaryAllowedErrorMacros.fromDoubleLiteral

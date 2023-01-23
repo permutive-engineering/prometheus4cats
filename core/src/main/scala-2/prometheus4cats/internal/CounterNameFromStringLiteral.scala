@@ -20,7 +20,7 @@ import prometheus4cats.Counter
 
 import scala.reflect.macros.blackbox
 
-trait CounterNameFromStringLiteral {
+private[prometheus4cats] trait CounterNameFromStringLiteral {
 
   def apply(t: String): Counter.Name =
     macro CounterNameMacros.fromStringLiteral

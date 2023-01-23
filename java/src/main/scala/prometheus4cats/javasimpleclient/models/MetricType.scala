@@ -16,8 +16,8 @@
 
 package prometheus4cats.javasimpleclient.models
 
-sealed trait MetricType
-object MetricType {
+sealed private[javasimpleclient] trait MetricType
+private[javasimpleclient] object MetricType {
   case object Counter extends MetricType
   case object Gauge extends MetricType
   case object Histogram extends MetricType

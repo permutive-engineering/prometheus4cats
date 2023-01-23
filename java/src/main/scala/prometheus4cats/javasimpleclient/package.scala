@@ -35,7 +35,7 @@ package object javasimpleclient {
       NameUtils.makeName(prefix, name)
   }
 
-  type CallbackState[F[_]] =
+  private[javasimpleclient] type CallbackState[F[_]] =
     Map[StateKey, (MetricType, Ref[F, Map[Unique.Token, F[NonEmptyList[Collector.MetricFamilySamples]]]], Collector)]
 
 }

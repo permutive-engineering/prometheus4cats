@@ -20,7 +20,7 @@ import prometheus4cats._
 
 import scala.quoted.*
 
-trait MetricPrefixFromStringLiteral {
+private[prometheus4cats] trait MetricPrefixFromStringLiteral {
 
   inline def apply(inline t: String): Metric.Prefix = ${
     MetricPrefixFromStringLiteral.nameLiteral('t)
@@ -32,7 +32,7 @@ trait MetricPrefixFromStringLiteral {
 
 }
 
-object MetricPrefixFromStringLiteral extends MacroUtils {
+private[prometheus4cats] object MetricPrefixFromStringLiteral extends MacroUtils {
   def nameLiteral(s: Expr[String])(using q: Quotes): Expr[Metric.Prefix] =
     s.value match {
       case Some(string) =>

@@ -23,7 +23,7 @@ import prometheus4cats.internal._
 
 import scala.concurrent.duration._
 
-class SummaryDsl[F[_], A] private[prometheus4cats] (
+final class SummaryDsl[F[_], A] private[prometheus4cats] (
     quantiles: Seq[QuantileDefinition] = SummaryDsl.defaultQuantiles,
     maxAgeValue: FiniteDuration = SummaryDsl.defaultMaxAge,
     ageBucketsValue: Summary.AgeBuckets = Summary.AgeBuckets.Default,
@@ -52,7 +52,8 @@ class SummaryDsl[F[_], A] private[prometheus4cats] (
 }
 
 object SummaryDsl {
-  trait Base[F[_], A] extends BuildStep[F, Summary[F, A]] { self: MetricDsl[F, A, Summary, Summary.Labelled] =>
+  trait Base[F[_], A] extends BuildStep[F, Summary[F, A]] {
+    self: MetricDsl[F, A, Summary, Summary.Labelled] =>
     def quantile(quantile: Summary.Quantile, error: Summary.AllowedError): SummaryDsl[F, A]
     def maxAge(age: FiniteDuration): AgeBucketsStep[F, A]
 
@@ -75,7 +76,7 @@ object SummaryDsl {
 
   private val defaultMaxAge: FiniteDuration = 10.minutes
 
-  class WithCallbacks[F[_], A, A0](
+  final class WithCallbacks[F[_], A, A0](
       quantiles: Seq[QuantileDefinition] = SummaryDsl.defaultQuantiles,
       maxAgeValue: FiniteDuration = SummaryDsl.defaultMaxAge,
       ageBucketsValue: Summary.AgeBuckets = Summary.AgeBuckets.Default,
@@ -108,7 +109,7 @@ object SummaryDsl {
   }
 }
 
-class AgeBucketsStep[F[_], A] private[summary] (
+final class AgeBucketsStep[F[_], A] private[summary] (
     quantiles: Seq[QuantileDefinition],
     maxAgeValue: FiniteDuration,
     ageBucketsValue: Summary.AgeBuckets,

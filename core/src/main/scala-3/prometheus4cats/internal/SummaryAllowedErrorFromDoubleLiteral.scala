@@ -20,7 +20,7 @@ import prometheus4cats._
 
 import scala.quoted.*
 
-trait SummaryAllowedErrorFromDoubleLiteral {
+private[prometheus4cats] trait SummaryAllowedErrorFromDoubleLiteral {
 
   inline def apply(inline t: Double): Summary.AllowedError = ${
     SummaryAllowedErrorFromDoubleLiteral.quantileLiteral('t)
@@ -32,7 +32,7 @@ trait SummaryAllowedErrorFromDoubleLiteral {
 
 }
 
-object SummaryAllowedErrorFromDoubleLiteral extends MacroUtils {
+private[prometheus4cats] object SummaryAllowedErrorFromDoubleLiteral extends MacroUtils {
   def quantileLiteral(d: Expr[Double])(using q: Quotes): Expr[Summary.AllowedError] =
     d.value match {
       case Some(int) =>

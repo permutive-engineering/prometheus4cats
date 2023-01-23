@@ -20,7 +20,7 @@ import prometheus4cats._
 
 import scala.quoted.*
 
-trait MetricHelpFromStringLiteral {
+private[prometheus4cats] trait MetricHelpFromStringLiteral {
 
   inline def apply(inline t: String): Metric.Help = ${
     MetricHelpFromStringLiteral.nameLiteral('t)

@@ -16,7 +16,7 @@
 
 package prometheus4cats.internal
 
-trait ShapelessPolyfill {
+private[prometheus4cats] trait ShapelessPolyfill {
 
   type Nat = shapeless.Nat
   object Nat {

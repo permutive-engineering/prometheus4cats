@@ -25,7 +25,7 @@ import prometheus4cats._
 
 import scala.concurrent.duration.FiniteDuration
 
-private[prometheus4cats] trait BuildStep[F[_], A] { self =>
+trait BuildStep[F[_], A] { self =>
 
   /** Builds the metric */
   def build: Resource[F, A]
@@ -150,7 +150,7 @@ object BuildStep {
   }
 }
 
-trait CallbackStep[F[_], A] { self =>
+sealed trait CallbackStep[F[_], A] { self =>
   protected def buildCallback: F[A] => Resource[F, Unit]
 
   def callback(callback: F[A]): BuildStep[F, Unit] = new BuildStep[F, Unit] {
@@ -162,8 +162,10 @@ trait CallbackStep[F[_], A] { self =>
   }
 }
 
-class CallbackBuildStep[F[_], A, B](fa: Resource[F, A], override val buildCallback: F[B] => Resource[F, Unit])
-    extends BuildStep[F, A]
+class CallbackBuildStep[F[_], A, B] private[internal] (
+    fa: Resource[F, A],
+    override val buildCallback: F[B] => Resource[F, Unit]
+) extends BuildStep[F, A]
     with CallbackStep[F, B] {
   override def build: Resource[F, A] = fa
 }
@@ -302,7 +304,7 @@ object MetricDsl {
   }
 }
 
-abstract private[prometheus4cats] class BaseLabelsBuildStep[F[_], A, T, N <: Nat, L[_[_], _, _]](
+abstract class BaseLabelsBuildStep[F[_], A, T, N <: Nat, L[_[_], _, _]](
     fa: Resource[F, L[F, A, T]]
 ) extends BuildStep[F, L[F, A, T]] {
   protected[internal] val makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L]
@@ -315,7 +317,7 @@ abstract private[prometheus4cats] class BaseLabelsBuildStep[F[_], A, T, N <: Nat
 }
 
 object BaseLabelsBuildStep {
-  implicit class CounterSyntax[F[_], A, T, N <: Nat](
+  implicit final class CounterSyntax[F[_], A, T, N <: Nat](
       dsl: BaseLabelsBuildStep[F, A, T, N, Counter.Labelled]
   ) {
     def asOutcomeRecorder(implicit
@@ -331,7 +333,7 @@ object BaseLabelsBuildStep {
     def contramap[B](f: B => A): BuildStep[F, Counter.Labelled[F, B, T]] = dsl.map(_.contramap(f))
   }
 
-  implicit class GaugeSyntax[F[_], A, T, N <: Nat](
+  implicit final class GaugeSyntax[F[_], A, T, N <: Nat](
       dsl: BaseLabelsBuildStep[F, A, T, N, Gauge.Labelled]
   ) {
     def asOutcomeRecorder(implicit
@@ -347,13 +349,13 @@ object BaseLabelsBuildStep {
     def contramap[B](f: B => A): BuildStep[F, Gauge.Labelled[F, B, T]] = dsl.map(_.contramap(f))
   }
 
-  implicit class HistogramSyntax[F[_], A, T, N <: Nat](
+  implicit final class HistogramSyntax[F[_], A, T, N <: Nat](
       dsl: BaseLabelsBuildStep[F, A, T, N, Histogram.Labelled]
   ) {
     def contramap[B](f: B => A): BuildStep[F, Histogram.Labelled[F, B, T]] = dsl.map(_.contramap(f))
   }
 
-  implicit class SummarySyntax[F[_], A, T, N <: Nat](
+  implicit final class SummarySyntax[F[_], A, T, N <: Nat](
       dsl: BaseLabelsBuildStep[F, A, T, N, Summary.Labelled]
   ) {
     def contramap[B](f: B => A): BuildStep[F, Summary.Labelled[F, B, T]] = dsl.map(_.contramap(f))
@@ -378,7 +380,7 @@ class LabelsBuildStep[F[_], A, T, N <: Nat, L[_[_], _, _]] private[internal] (
 }
 
 object LabelsBuildStep {
-  class WithCallbacks[F[_], A, A0, T, N <: Nat, L[_[_], _, _]] private[internal] (
+  final class WithCallbacks[F[_], A, A0, T, N <: Nat, L[_[_], _, _]] private[internal] (
       makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L],
       makeLabelledCallback: LabelledCallbackPartiallyApplied[F, A0],
       labelNames: Sized[IndexedSeq[Label.Name], N],
@@ -465,7 +467,7 @@ object LabelledMetricDsl {
   }
 }
 
-abstract class FirstLabelApply[F[_], A, B, L[_[_], _, _]] {
+abstract private[internal] class FirstLabelApply[F[_], A, B, L[_[_], _, _]] {
 
   def apply(name: Label.Name)(implicit show: Show[B]): LabelledMetricDsl[F, A, B, Nat._1, L] =
     apply(name, _.show)
@@ -476,7 +478,7 @@ abstract class FirstLabelApply[F[_], A, B, L[_[_], _, _]] {
 
 object FirstLabelApply {
 
-  abstract class WithCallbacks[F[_], A, A0, B, L[_[_], _, _]] extends FirstLabelApply[F, A, B, L] {
+  abstract private[internal] class WithCallbacks[F[_], A, A0, B, L[_[_], _, _]] extends FirstLabelApply[F, A, B, L] {
 
     override def apply(name: Label.Name)(implicit
         show: Show[B]
@@ -533,11 +535,11 @@ object LabelApply {
   }
 }
 
-private[prometheus4cats] trait LabelledMetricPartiallyApplied[F[_], A, L[_[_], _, _]] {
+trait LabelledMetricPartiallyApplied[F[_], A, L[_[_], _, _]] {
   def apply[B](labels: IndexedSeq[Label.Name])(f: B => IndexedSeq[String]): Resource[F, L[F, A, B]]
 }
 
-private[prometheus4cats] trait LabelledCallbackPartiallyApplied[F[_], A] {
+trait LabelledCallbackPartiallyApplied[F[_], A] {
   def apply[B](labels: IndexedSeq[Label.Name], callback: F[NonEmptyList[(A, B)]])(
       f: B => IndexedSeq[String]
   ): Resource[F, Unit]

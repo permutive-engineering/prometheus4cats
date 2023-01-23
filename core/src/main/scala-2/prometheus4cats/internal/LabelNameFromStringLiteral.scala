@@ -20,7 +20,7 @@ import prometheus4cats.Label
 
 import scala.reflect.macros.blackbox
 
-trait LabelNameFromStringLiteral {
+private[prometheus4cats] trait LabelNameFromStringLiteral {
 
   def apply(t: String): Label.Name =
     macro LabelNameMacros.fromStringLiteral

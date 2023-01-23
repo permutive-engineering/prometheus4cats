@@ -20,7 +20,7 @@ import prometheus4cats._
 
 import scala.quoted.*
 
-trait GaugeNameFromStringLiteral {
+private[prometheus4cats] trait GaugeNameFromStringLiteral {
 
   inline def apply(inline t: String): Gauge.Name = ${
     GaugeNameFromStringLiteral.nameLiteral('t)
@@ -32,7 +32,7 @@ trait GaugeNameFromStringLiteral {
 
 }
 
-object GaugeNameFromStringLiteral extends MacroUtils {
+private[prometheus4cats] object GaugeNameFromStringLiteral extends MacroUtils {
   def nameLiteral(s: Expr[String])(using q: Quotes): Expr[Gauge.Name] =
     s.value match {
       case Some(string) =>

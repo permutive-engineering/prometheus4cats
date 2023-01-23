@@ -20,7 +20,7 @@ import prometheus4cats.Summary
 
 import scala.reflect.macros.blackbox
 
-trait SummaryAgeBucketsFromIntLiteral {
+private[prometheus4cats] trait SummaryAgeBucketsFromIntLiteral {
 
   def apply(t: Int): Summary.AgeBuckets =
     macro SummaryAgeBucketsMacros.fromIntLiteral
