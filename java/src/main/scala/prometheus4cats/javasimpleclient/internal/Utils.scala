@@ -19,9 +19,9 @@ package prometheus4cats.javasimpleclient.internal
 import java.util.concurrent.TimeoutException
 
 import cats.Show
+import cats.effect.kernel.syntax.temporal._
 import cats.effect.kernel.{Sync, Temporal}
 import cats.effect.std.Dispatcher
-import cats.effect.syntax.temporal._
 import cats.syntax.all._
 import io.prometheus.client.{Collector, CollectorRegistry, SimpleCollector}
 import org.typelevel.log4cats.Logger
