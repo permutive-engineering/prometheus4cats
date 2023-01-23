@@ -20,23 +20,12 @@ import java.util
 
 import cats.data.{NonEmptyList, NonEmptySeq}
 import cats.effect.kernel._
+import cats.effect.kernel.syntax.monadCancel._
 import cats.effect.std.{Dispatcher, Semaphore}
 import cats.syntax.all._
 import cats.{Applicative, ApplicativeThrow, Functor, Show}
 import io.prometheus.client.Collector.MetricFamilySamples
-import io.prometheus.client.{
-  Collector,
-  CollectorRegistry,
-  CounterMetricFamily,
-  GaugeMetricFamily,
-  SimpleCollector,
-  SummaryMetricFamily,
-  Counter => PCounter,
-  Gauge => PGauge,
-  Histogram => PHistogram,
-  Info => PInfo,
-  Summary => PSummary
-}
+import io.prometheus.client.{Collector, CollectorRegistry, CounterMetricFamily, GaugeMetricFamily, SimpleCollector, SummaryMetricFamily, Counter => PCounter, Gauge => PGauge, Histogram => PHistogram, Info => PInfo, Summary => PSummary}
 import org.typelevel.log4cats.Logger
 import prometheus4cats._
 import prometheus4cats.javasimpleclient.internal.{HistogramUtils, MetricCollectionProcessor, Utils}
@@ -45,8 +34,6 @@ import prometheus4cats.util.{DoubleCallbackRegistry, DoubleMetricRegistry, NameU
 
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
-
-import cats.effect.syntax.monadCancel._
 
 class JavaMetricRegistry[F[_]: Async: Logger] private (
     private val registry: CollectorRegistry,

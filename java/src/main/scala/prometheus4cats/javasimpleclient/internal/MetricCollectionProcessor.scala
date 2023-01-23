@@ -20,9 +20,10 @@ import java.util
 
 import alleycats.std.iterable._
 import alleycats.std.set._
-import cats.syntax.apply._
 import cats.effect.kernel._
+import cats.effect.kernel.syntax.monadCancel._
 import cats.effect.std.Dispatcher
+import cats.syntax.apply._
 import cats.syntax.flatMap._
 import cats.syntax.foldable._
 import cats.syntax.functor._
@@ -30,16 +31,7 @@ import cats.syntax.show._
 import cats.syntax.traverse._
 import cats.{Applicative, Monoid, Show}
 import io.prometheus.client.Collector.MetricFamilySamples
-import io.prometheus.client.{
-  Collector,
-  CollectorRegistry,
-  CounterMetricFamily,
-  GaugeMetricFamily,
-  SummaryMetricFamily,
-  Gauge => PGauge,
-  Histogram => PHistogram,
-  Counter => PCounter
-}
+import io.prometheus.client.{Collector, CollectorRegistry, CounterMetricFamily, GaugeMetricFamily, SummaryMetricFamily, Counter => PCounter, Gauge => PGauge, Histogram => PHistogram}
 import org.typelevel.log4cats.Logger
 import prometheus4cats.MetricCollection.Value
 import prometheus4cats._
@@ -49,8 +41,6 @@ import prometheus4cats.util.NameUtils
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.duration.FiniteDuration
 import scala.jdk.CollectionConverters._
-
-import cats.effect.syntax.monadCancel._
 
 class MetricCollectionProcessor[F[_]: Async: Logger] private (
     ref: Ref[F, State],
