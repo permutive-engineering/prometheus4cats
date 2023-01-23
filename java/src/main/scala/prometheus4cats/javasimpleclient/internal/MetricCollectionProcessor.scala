@@ -55,6 +55,7 @@ class MetricCollectionProcessor[F[_]: Async: Logger] private (
     collectionCallbackRef: Ref[F, Map[Option[
       Metric.Prefix
     ], (Map[Label.Name, String], Map[Unique.Token, F[MetricCollection]])]],
+    duplicates: Ref[F, Set[(Option[Metric.Prefix], String)]],
     dispatcher: Dispatcher[F],
     callbackTimeout: FiniteDuration,
     callbackTimeHistogram: PHistogram,
@@ -260,7 +261,13 @@ class MetricCollectionProcessor[F[_]: Async: Logger] private (
 
         val regDupErr =
           if (registryDuplicates.nonEmpty)
-            Logger[F].warn(DuplicateMetricsException(registryDuplicates))(duplicatesInRegistry)
+            duplicates.modify { current =>
+              if (current != registryDuplicates)
+                registryDuplicates -> Logger[F].warn(DuplicateMetricsException(registryDuplicates))(
+                  duplicatesInRegistry
+                )
+              else current -> Applicative[F].unit
+            }.flatten
           else Applicative[F].unit
 
         regDupErr >> Sync[F]
@@ -321,10 +328,12 @@ object MetricCollectionProcessor {
       collectionCallbackRef <- Ref.of[F, Map[Option[
         Metric.Prefix
       ], (Map[Label.Name, String], Map[Unique.Token, F[MetricCollection]])]](Map.empty)
+      duplicatesRef <- Ref.of[F, Set[(Option[Metric.Prefix], String)]](Set.empty)
       proc = new MetricCollectionProcessor(
         ref,
         callbacks,
         collectionCallbackRef,
+        duplicatesRef,
         dispatcher,
         callbackTimeout,
         callbackHist,
