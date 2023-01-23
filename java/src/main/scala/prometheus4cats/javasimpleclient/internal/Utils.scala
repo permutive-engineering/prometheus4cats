@@ -87,31 +87,15 @@ private[javasimpleclient] object Utils {
   private def classStringRep[F[_]: Sync, A](a: A): F[String] =
     Sync[F].delay(a.getClass.toString)
 
-  private[javasimpleclient] def timeoutCallback[F[_]: Temporal: Logger, A](
+  private[javasimpleclient] def timeoutCallback[F[_]: Temporal, A](
       dispatcher: Dispatcher[F],
       callbackTimeout: FiniteDuration,
       fa: F[A],
-      onError: A,
-      supplementalError: String
+      onTimeout: TimeoutException => F[A],
+      onError: Throwable => F[A]
   ): A =
     dispatcher.unsafeRunSync(fa.timeout(callbackTimeout).handleErrorWith {
-      case th: TimeoutException =>
-        Logger[F]
-          .warn(th)(
-            s"Timed out running callback after $callbackTimeout.\n" +
-              "This may be due to a callback having been registered that performs some long running calculation which blocks\n" +
-              "Please review your code or raise an issue or pull request with the library from which this callback was registered\n"
-              + supplementalError
-          )
-          .as(onError)
-      case th =>
-        Logger[F]
-          .warn(th)(
-            s"Callback failed with the following exception.\n" +
-              "Callbacks that can routinely throw exceptions are strongly discouraged as this can cause performance problems when polling metrics\n" +
-              "Please review your code or raise an issue or pull request with the library from which this callback was registered\n"
-              + supplementalError
-          )
-          .as(onError)
+      case th: TimeoutException => onTimeout(th)
+      case th => onError(th)
     })
 }
