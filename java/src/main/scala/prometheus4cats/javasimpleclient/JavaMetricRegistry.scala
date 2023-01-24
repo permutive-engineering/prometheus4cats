@@ -787,14 +787,15 @@ object JavaMetricRegistry {
     * https://github.com/prometheus/client_java/issues/696.
     *
     * @param callbackTimeout
-    *   How long each callback should be allowed to take before timing out. This is **per callback**.
+    *   How long all callbacks for a certain metric name should be allowed to take before timing out. This is **per
+    *   metric name**.
     * @param metricCollectionCallbackTimeout
     *   how long the combined metric collection callback should take to time out. This is for **all metric collection
     *   callbacks**.
     */
   def default[F[_]: Async: Logger](
-      callbackTimeout: FiniteDuration = 10.millis,
-      metricCollectionCallbackTimeout: FiniteDuration = 100.millis
+      callbackTimeout: FiniteDuration = 250.millis,
+      metricCollectionCallbackTimeout: FiniteDuration = 1.second
   ): Resource[F, JavaMetricRegistry[F]] =
     fromSimpleClientRegistry(
       CollectorRegistry.defaultRegistry,
