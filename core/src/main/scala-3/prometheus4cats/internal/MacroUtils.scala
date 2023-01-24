@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-package prometheus4cats
+package prometheus4cats.internal
 
 import scala.quoted.*
 import scala.util.control.NoStackTrace
 
-case class RefinementError(msg: String) extends RuntimeException(msg) with NoStackTrace
+case class RefinementError private[internal] (msg: String) extends RuntimeException(msg) with NoStackTrace
 
-trait MacroUtils {
+private[internal] trait MacroUtils {
   def error(msg: String): Nothing = throw RefinementError(msg)
 
   def abort(constructorName: String)(using q: Quotes): Unit =

@@ -20,7 +20,7 @@ import prometheus4cats._
 
 import scala.quoted.*
 
-trait SummaryQuantileFromDoubleLiteral {
+private[prometheus4cats] trait SummaryQuantileFromDoubleLiteral {
 
   inline def apply(inline t: Double): Summary.Quantile = ${
     SummaryQuantileFromDoubleLiteral.quantileLiteral('t)
@@ -32,7 +32,7 @@ trait SummaryQuantileFromDoubleLiteral {
 
 }
 
-object SummaryQuantileFromDoubleLiteral extends MacroUtils {
+private[prometheus4cats] object SummaryQuantileFromDoubleLiteral extends MacroUtils {
   def quantileLiteral(d: Expr[Double])(using q: Quotes): Expr[Summary.Quantile] =
     d.value match {
       case Some(int) =>

@@ -214,6 +214,7 @@ lazy val unidocs = project
     name := "prometheus4cats-docs",
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(
       core,
-      testkit
-    ) // TODO add java back when the typelevel unidoc plugin is fixed
+      testkit,
+      java
+    )
   )

@@ -19,7 +19,7 @@ package prometheus4cats.internal
 import scala.compiletime.ops.int.*
 import scala.quoted.*
 
-trait ShapelessPolyfill {
+private[prometheus4cats] trait ShapelessPolyfill {
 
   type Represented[R] = R match {
     case IndexedSeq[a] => a

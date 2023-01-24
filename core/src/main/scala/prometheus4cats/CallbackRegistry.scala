@@ -40,7 +40,7 @@ trait CallbackRegistry[F[_]] {
     * @return
     *   An empty side effect to indicate that the callback has been registered
     */
-  protected[prometheus4cats] def registerDoubleCounterCallback(
+  def registerDoubleCounterCallback(
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
       help: Metric.Help,
@@ -63,7 +63,7 @@ trait CallbackRegistry[F[_]] {
     * @return
     *   An empty side effect to indicate that the callback has been registered
     */
-  protected[prometheus4cats] def registerLongCounterCallback(
+  def registerLongCounterCallback(
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
       help: Metric.Help,
@@ -91,7 +91,7 @@ trait CallbackRegistry[F[_]] {
     * @return
     *   An empty side effect to indicate that the callback has been registered
     */
-  protected[prometheus4cats] def registerLabelledDoubleCounterCallback[A](
+  def registerLabelledDoubleCounterCallback[A](
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
       help: Metric.Help,
@@ -120,7 +120,7 @@ trait CallbackRegistry[F[_]] {
     * @return
     *   An empty side effect to indicate that the callback has been registered
     */
-  protected[prometheus4cats] def registerLabelledLongCounterCallback[A](
+  def registerLabelledLongCounterCallback[A](
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
       help: Metric.Help,
@@ -144,7 +144,7 @@ trait CallbackRegistry[F[_]] {
     * @return
     *   An empty side effect to indicate that the callback has been registered
     */
-  protected[prometheus4cats] def registerDoubleGaugeCallback(
+  def registerDoubleGaugeCallback(
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
       help: Metric.Help,
@@ -167,7 +167,7 @@ trait CallbackRegistry[F[_]] {
     * @return
     *   An empty side effect to indicate that the callback has been registered
     */
-  protected[prometheus4cats] def registerLongGaugeCallback(
+  def registerLongGaugeCallback(
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
       help: Metric.Help,
@@ -195,7 +195,7 @@ trait CallbackRegistry[F[_]] {
     * @return
     *   An empty side effect to indicate that the callback has been registered
     */
-  protected[prometheus4cats] def registerLabelledDoubleGaugeCallback[A](
+  def registerLabelledDoubleGaugeCallback[A](
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
       help: Metric.Help,
@@ -224,7 +224,7 @@ trait CallbackRegistry[F[_]] {
     * @return
     *   An empty side effect to indicate that the callback has been registered
     */
-  protected[prometheus4cats] def registerLabelledLongGaugeCallback[A](
+  def registerLabelledLongGaugeCallback[A](
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
       help: Metric.Help,
@@ -248,7 +248,7 @@ trait CallbackRegistry[F[_]] {
     * @return
     *   An empty side effect to indicate that the callback has been registered
     */
-  protected[prometheus4cats] def registerDoubleHistogramCallback(
+  def registerDoubleHistogramCallback(
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
       help: Metric.Help,
@@ -272,7 +272,7 @@ trait CallbackRegistry[F[_]] {
     * @return
     *   An empty side effect to indicate that the callback has been registered
     */
-  protected[prometheus4cats] def registerLongHistogramCallback(
+  def registerLongHistogramCallback(
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
       help: Metric.Help,
@@ -302,7 +302,7 @@ trait CallbackRegistry[F[_]] {
     * @return
     *   An empty side effect to indicate that the callback has been registered
     */
-  protected[prometheus4cats] def registerLabelledDoubleHistogramCallback[A](
+  def registerLabelledDoubleHistogramCallback[A](
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
       help: Metric.Help,
@@ -333,7 +333,7 @@ trait CallbackRegistry[F[_]] {
     * @return
     *   An empty side effect to indicate that the callback has been registered
     */
-  protected[prometheus4cats] def registerLabelledLongHistogramCallback[A](
+  def registerLabelledLongHistogramCallback[A](
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
       help: Metric.Help,
@@ -358,7 +358,7 @@ trait CallbackRegistry[F[_]] {
     * @return
     *   An empty side effect to indicate that the callback has been registered
     */
-  protected[prometheus4cats] def registerDoubleSummaryCallback(
+  def registerDoubleSummaryCallback(
       prefix: Option[Metric.Prefix],
       name: Summary.Name,
       help: Metric.Help,
@@ -381,7 +381,7 @@ trait CallbackRegistry[F[_]] {
     * @return
     *   An empty side effect to indicate that the callback has been registered
     */
-  protected[prometheus4cats] def registerLongSummaryCallback(
+  def registerLongSummaryCallback(
       prefix: Option[Metric.Prefix],
       name: Summary.Name,
       help: Metric.Help,
@@ -410,7 +410,7 @@ trait CallbackRegistry[F[_]] {
     * @return
     *   a [[Summary.Labelled]] wrapped in whatever side effect that was performed in registering it
     */
-  protected[prometheus4cats] def registerLabelledDoubleSummaryCallback[A](
+  def registerLabelledDoubleSummaryCallback[A](
       prefix: Option[Metric.Prefix],
       name: Summary.Name,
       help: Metric.Help,
@@ -440,7 +440,7 @@ trait CallbackRegistry[F[_]] {
     * @return
     *   a [[Summary.Labelled]] wrapped in whatever side effect that was performed in registering it
     */
-  protected[prometheus4cats] def registerLabelledLongSummaryCallback[A](
+  def registerLabelledLongSummaryCallback[A](
       prefix: Option[Metric.Prefix],
       name: Summary.Name,
       help: Metric.Help,
@@ -449,7 +449,7 @@ trait CallbackRegistry[F[_]] {
       callback: F[NonEmptyList[(Summary.Value[Long], A)]]
   )(f: A => IndexedSeq[String]): Resource[F, Unit]
 
-  protected[prometheus4cats] def registerMetricCollectionCallback(
+  def registerMetricCollectionCallback(
       prefix: Option[Metric.Prefix],
       commonLabels: Metric.CommonLabels,
       callback: F[MetricCollection]
@@ -466,7 +466,7 @@ trait CallbackRegistry[F[_]] {
 
 object CallbackRegistry {
   def noop[F[_]]: CallbackRegistry[F] = new CallbackRegistry[F] {
-    override protected[prometheus4cats] def registerDoubleCounterCallback(
+    override def registerDoubleCounterCallback(
         prefix: Option[Metric.Prefix],
         name: Counter.Name,
         help: Metric.Help,
@@ -474,7 +474,7 @@ object CallbackRegistry {
         callback: F[Double]
     ): Resource[F, Unit] = Resource.unit
 
-    override protected[prometheus4cats] def registerLongCounterCallback(
+    override def registerLongCounterCallback(
         prefix: Option[Metric.Prefix],
         name: Counter.Name,
         help: Metric.Help,
@@ -482,7 +482,7 @@ object CallbackRegistry {
         callback: F[Long]
     ): Resource[F, Unit] = Resource.unit
 
-    override protected[prometheus4cats] def registerLabelledDoubleCounterCallback[A](
+    override def registerLabelledDoubleCounterCallback[A](
         prefix: Option[Metric.Prefix],
         name: Counter.Name,
         help: Metric.Help,
@@ -491,7 +491,7 @@ object CallbackRegistry {
         callback: F[NonEmptyList[(Double, A)]]
     )(f: A => IndexedSeq[String]): Resource[F, Unit] = Resource.unit
 
-    override protected[prometheus4cats] def registerLabelledLongCounterCallback[A](
+    override def registerLabelledLongCounterCallback[A](
         prefix: Option[Metric.Prefix],
         name: Counter.Name,
         help: Metric.Help,
@@ -500,7 +500,7 @@ object CallbackRegistry {
         callback: F[NonEmptyList[(Long, A)]]
     )(f: A => IndexedSeq[String]): Resource[F, Unit] = Resource.unit
 
-    override protected[prometheus4cats] def registerDoubleGaugeCallback(
+    override def registerDoubleGaugeCallback(
         prefix: Option[Metric.Prefix],
         name: Gauge.Name,
         help: Metric.Help,
@@ -508,7 +508,7 @@ object CallbackRegistry {
         callback: F[Double]
     ): Resource[F, Unit] = Resource.unit
 
-    override protected[prometheus4cats] def registerLongGaugeCallback(
+    override def registerLongGaugeCallback(
         prefix: Option[Metric.Prefix],
         name: Gauge.Name,
         help: Metric.Help,
@@ -516,7 +516,7 @@ object CallbackRegistry {
         callback: F[Long]
     ): Resource[F, Unit] = Resource.unit
 
-    override protected[prometheus4cats] def registerLabelledDoubleGaugeCallback[A](
+    override def registerLabelledDoubleGaugeCallback[A](
         prefix: Option[Metric.Prefix],
         name: Gauge.Name,
         help: Metric.Help,
@@ -525,7 +525,7 @@ object CallbackRegistry {
         callback: F[NonEmptyList[(Double, A)]]
     )(f: A => IndexedSeq[String]): Resource[F, Unit] = Resource.unit
 
-    override protected[prometheus4cats] def registerLabelledLongGaugeCallback[A](
+    override def registerLabelledLongGaugeCallback[A](
         prefix: Option[Metric.Prefix],
         name: Gauge.Name,
         help: Metric.Help,
@@ -534,7 +534,7 @@ object CallbackRegistry {
         callback: F[NonEmptyList[(Long, A)]]
     )(f: A => IndexedSeq[String]): Resource[F, Unit] = Resource.unit
 
-    override protected[prometheus4cats] def registerDoubleHistogramCallback(
+    override def registerDoubleHistogramCallback(
         prefix: Option[Metric.Prefix],
         name: Histogram.Name,
         help: Metric.Help,
@@ -543,7 +543,7 @@ object CallbackRegistry {
         callback: F[Histogram.Value[Double]]
     ): Resource[F, Unit] = Resource.unit
 
-    override protected[prometheus4cats] def registerLongHistogramCallback(
+    override def registerLongHistogramCallback(
         prefix: Option[Metric.Prefix],
         name: Histogram.Name,
         help: Metric.Help,
@@ -552,7 +552,7 @@ object CallbackRegistry {
         callback: F[Histogram.Value[Long]]
     ): Resource[F, Unit] = Resource.unit
 
-    override protected[prometheus4cats] def registerLabelledDoubleHistogramCallback[A](
+    override def registerLabelledDoubleHistogramCallback[A](
         prefix: Option[Metric.Prefix],
         name: Histogram.Name,
         help: Metric.Help,
@@ -562,7 +562,7 @@ object CallbackRegistry {
         callback: F[NonEmptyList[(Histogram.Value[Double], A)]]
     )(f: A => IndexedSeq[String]): Resource[F, Unit] = Resource.unit
 
-    override protected[prometheus4cats] def registerLabelledLongHistogramCallback[A](
+    override def registerLabelledLongHistogramCallback[A](
         prefix: Option[Metric.Prefix],
         name: Histogram.Name,
         help: Metric.Help,
@@ -572,7 +572,7 @@ object CallbackRegistry {
         callback: F[NonEmptyList[(Histogram.Value[Long], A)]]
     )(f: A => IndexedSeq[String]): Resource[F, Unit] = Resource.unit
 
-    override protected[prometheus4cats] def registerDoubleSummaryCallback(
+    override def registerDoubleSummaryCallback(
         prefix: Option[Metric.Prefix],
         name: Summary.Name,
         help: Metric.Help,
@@ -580,7 +580,7 @@ object CallbackRegistry {
         callback: F[Summary.Value[Double]]
     ): Resource[F, Unit] = Resource.unit
 
-    override protected[prometheus4cats] def registerLongSummaryCallback(
+    override def registerLongSummaryCallback(
         prefix: Option[Metric.Prefix],
         name: Summary.Name,
         help: Metric.Help,
@@ -588,7 +588,7 @@ object CallbackRegistry {
         callback: F[Summary.Value[Long]]
     ): Resource[F, Unit] = Resource.unit
 
-    override protected[prometheus4cats] def registerLabelledDoubleSummaryCallback[A](
+    override def registerLabelledDoubleSummaryCallback[A](
         prefix: Option[Metric.Prefix],
         name: Summary.Name,
         help: Metric.Help,
@@ -597,7 +597,7 @@ object CallbackRegistry {
         callback: F[NonEmptyList[(Summary.Value[Double], A)]]
     )(f: A => IndexedSeq[String]): Resource[F, Unit] = Resource.unit
 
-    override protected[prometheus4cats] def registerLabelledLongSummaryCallback[A](
+    override def registerLabelledLongSummaryCallback[A](
         prefix: Option[Metric.Prefix],
         name: Summary.Name,
         help: Metric.Help,
@@ -606,7 +606,7 @@ object CallbackRegistry {
         callback: F[NonEmptyList[(Summary.Value[Long], A)]]
     )(f: A => IndexedSeq[String]): Resource[F, Unit] = Resource.unit
 
-    override protected[prometheus4cats] def registerMetricCollectionCallback(
+    override def registerMetricCollectionCallback(
         prefix: Option[Metric.Prefix],
         commonLabels: Metric.CommonLabels,
         callback: F[MetricCollection]
@@ -619,7 +619,7 @@ object CallbackRegistry {
       gk: G ~> F
   )(implicit F: MonadCancel[F, _], G: MonadCancel[G, _]): CallbackRegistry[G] =
     new CallbackRegistry[G] {
-      override protected[prometheus4cats] def registerDoubleCounterCallback(
+      override def registerDoubleCounterCallback(
           prefix: Option[Metric.Prefix],
           name: Counter.Name,
           help: Metric.Help,
@@ -627,7 +627,7 @@ object CallbackRegistry {
           callback: G[Double]
       ): Resource[G, Unit] = self.registerDoubleCounterCallback(prefix, name, help, commonLabels, gk(callback)).mapK(fk)
 
-      override protected[prometheus4cats] def registerLongCounterCallback(
+      override def registerLongCounterCallback(
           prefix: Option[Metric.Prefix],
           name: Counter.Name,
           help: Metric.Help,
@@ -635,7 +635,7 @@ object CallbackRegistry {
           callback: G[Long]
       ): Resource[G, Unit] = self.registerLongCounterCallback(prefix, name, help, commonLabels, gk(callback)).mapK(fk)
 
-      override protected[prometheus4cats] def registerLabelledDoubleCounterCallback[A](
+      override def registerLabelledDoubleCounterCallback[A](
           prefix: Option[Metric.Prefix],
           name: Counter.Name,
           help: Metric.Help,
@@ -646,7 +646,7 @@ object CallbackRegistry {
         .registerLabelledDoubleCounterCallback(prefix, name, help, commonLabels, labelNames, gk(callback))(f)
         .mapK(fk)
 
-      override protected[prometheus4cats] def registerLabelledLongCounterCallback[A](
+      override def registerLabelledLongCounterCallback[A](
           prefix: Option[Metric.Prefix],
           name: Counter.Name,
           help: Metric.Help,
@@ -656,7 +656,7 @@ object CallbackRegistry {
       )(f: A => IndexedSeq[String]): Resource[G, Unit] =
         self.registerLabelledLongCounterCallback(prefix, name, help, commonLabels, labelNames, gk(callback))(f).mapK(fk)
 
-      override protected[prometheus4cats] def registerDoubleGaugeCallback(
+      override def registerDoubleGaugeCallback(
           prefix: Option[Metric.Prefix],
           name: Gauge.Name,
           help: Metric.Help,
@@ -664,7 +664,7 @@ object CallbackRegistry {
           callback: G[Double]
       ): Resource[G, Unit] = self.registerDoubleGaugeCallback(prefix, name, help, commonLabels, gk(callback)).mapK(fk)
 
-      override protected[prometheus4cats] def registerLongGaugeCallback(
+      override def registerLongGaugeCallback(
           prefix: Option[Metric.Prefix],
           name: Gauge.Name,
           help: Metric.Help,
@@ -672,7 +672,7 @@ object CallbackRegistry {
           callback: G[Long]
       ): Resource[G, Unit] = self.registerLongGaugeCallback(prefix, name, help, commonLabels, gk(callback)).mapK(fk)
 
-      override protected[prometheus4cats] def registerLabelledDoubleGaugeCallback[A](
+      override def registerLabelledDoubleGaugeCallback[A](
           prefix: Option[Metric.Prefix],
           name: Gauge.Name,
           help: Metric.Help,
@@ -682,7 +682,7 @@ object CallbackRegistry {
       )(f: A => IndexedSeq[String]): Resource[G, Unit] =
         self.registerLabelledDoubleGaugeCallback(prefix, name, help, commonLabels, labelNames, gk(callback))(f).mapK(fk)
 
-      override protected[prometheus4cats] def registerLabelledLongGaugeCallback[A](
+      override def registerLabelledLongGaugeCallback[A](
           prefix: Option[Metric.Prefix],
           name: Gauge.Name,
           help: Metric.Help,
@@ -692,7 +692,7 @@ object CallbackRegistry {
       )(f: A => IndexedSeq[String]): Resource[G, Unit] =
         self.registerLabelledLongGaugeCallback(prefix, name, help, commonLabels, labelNames, gk(callback))(f).mapK(fk)
 
-      override protected[prometheus4cats] def registerDoubleHistogramCallback(
+      override def registerDoubleHistogramCallback(
           prefix: Option[Metric.Prefix],
           name: Histogram.Name,
           help: Metric.Help,
@@ -702,7 +702,7 @@ object CallbackRegistry {
       ): Resource[G, Unit] =
         self.registerDoubleHistogramCallback(prefix, name, help, commonLabels, buckets, gk(callback)).mapK(fk)
 
-      override protected[prometheus4cats] def registerLongHistogramCallback(
+      override def registerLongHistogramCallback(
           prefix: Option[Metric.Prefix],
           name: Histogram.Name,
           help: Metric.Help,
@@ -712,7 +712,7 @@ object CallbackRegistry {
       ): Resource[G, Unit] =
         self.registerLongHistogramCallback(prefix, name, help, commonLabels, buckets, gk(callback)).mapK(fk)
 
-      override protected[prometheus4cats] def registerLabelledDoubleHistogramCallback[A](
+      override def registerLabelledDoubleHistogramCallback[A](
           prefix: Option[Metric.Prefix],
           name: Histogram.Name,
           help: Metric.Help,
@@ -733,7 +733,7 @@ object CallbackRegistry {
           )(f)
           .mapK(fk)
 
-      override protected[prometheus4cats] def registerLabelledLongHistogramCallback[A](
+      override def registerLabelledLongHistogramCallback[A](
           prefix: Option[Metric.Prefix],
           name: Histogram.Name,
           help: Metric.Help,
@@ -754,7 +754,7 @@ object CallbackRegistry {
           )(f)
           .mapK(fk)
 
-      override protected[prometheus4cats] def registerDoubleSummaryCallback(
+      override def registerDoubleSummaryCallback(
           prefix: Option[Metric.Prefix],
           name: Summary.Name,
           help: Metric.Help,
@@ -771,7 +771,7 @@ object CallbackRegistry {
           )
           .mapK(fk)
 
-      override protected[prometheus4cats] def registerLongSummaryCallback(
+      override def registerLongSummaryCallback(
           prefix: Option[Metric.Prefix],
           name: Summary.Name,
           help: Metric.Help,
@@ -788,7 +788,7 @@ object CallbackRegistry {
           )
           .mapK(fk)
 
-      override protected[prometheus4cats] def registerLabelledDoubleSummaryCallback[A](
+      override def registerLabelledDoubleSummaryCallback[A](
           prefix: Option[Metric.Prefix],
           name: Summary.Name,
           help: Metric.Help,
@@ -807,7 +807,7 @@ object CallbackRegistry {
           )(f)
           .mapK(fk)
 
-      override protected[prometheus4cats] def registerLabelledLongSummaryCallback[A](
+      override def registerLabelledLongSummaryCallback[A](
           prefix: Option[Metric.Prefix],
           name: Summary.Name,
           help: Metric.Help,
@@ -826,7 +826,7 @@ object CallbackRegistry {
           )(f)
           .mapK(fk)
 
-      override protected[prometheus4cats] def registerMetricCollectionCallback(
+      override def registerMetricCollectionCallback(
           prefix: Option[Metric.Prefix],
           commonLabels: Metric.CommonLabels,
           callback: G[MetricCollection]

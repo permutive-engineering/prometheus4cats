@@ -20,7 +20,7 @@ import prometheus4cats._
 
 import scala.quoted.*
 
-trait CounterNameFromStringLiteral {
+private[prometheus4cats] trait CounterNameFromStringLiteral {
 
   inline def apply(inline t: String): Counter.Name = ${
     CounterNameFromStringLiteral.nameLiteral('t)
@@ -32,7 +32,7 @@ trait CounterNameFromStringLiteral {
 
 }
 
-object CounterNameFromStringLiteral extends MacroUtils {
+private[prometheus4cats] object CounterNameFromStringLiteral extends MacroUtils {
   def nameLiteral(s: Expr[String])(using q: Quotes): Expr[Counter.Name] =
     s.value match {
       case Some(string) =>

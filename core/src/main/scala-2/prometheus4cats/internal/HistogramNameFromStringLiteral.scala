@@ -20,7 +20,7 @@ import prometheus4cats.Histogram
 
 import scala.reflect.macros.blackbox
 
-trait HistogramNameFromStringLiteral {
+private[prometheus4cats] trait HistogramNameFromStringLiteral {
 
   def apply(t: String): Histogram.Name =
     macro HistogramNameMacros.fromStringLiteral

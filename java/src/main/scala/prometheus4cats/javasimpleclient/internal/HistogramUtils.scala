@@ -24,7 +24,7 @@ import prometheus4cats.{Histogram, Label, Metric}
 
 import scala.jdk.CollectionConverters._
 
-object HistogramUtils {
+private[javasimpleclient] object HistogramUtils {
   private[javasimpleclient] def histogramSamples(
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,

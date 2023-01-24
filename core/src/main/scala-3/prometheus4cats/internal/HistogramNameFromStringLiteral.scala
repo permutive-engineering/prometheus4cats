@@ -20,7 +20,7 @@ import prometheus4cats._
 
 import scala.quoted.*
 
-trait HistogramNameFromStringLiteral {
+private[prometheus4cats] trait HistogramNameFromStringLiteral {
 
   inline def apply(inline t: String): Histogram.Name = ${
     HistogramNameFromStringLiteral.nameLiteral('t)
@@ -32,7 +32,7 @@ trait HistogramNameFromStringLiteral {
 
 }
 
-object HistogramNameFromStringLiteral extends MacroUtils {
+private[prometheus4cats] object HistogramNameFromStringLiteral extends MacroUtils {
   def nameLiteral(s: Expr[String])(using q: Quotes): Expr[Histogram.Name] =
     s.value match {
       case Some(string) =>

@@ -20,7 +20,7 @@ import prometheus4cats.Gauge
 
 import scala.reflect.macros.blackbox
 
-trait GaugeNameFromStringLiteral {
+private[prometheus4cats] trait GaugeNameFromStringLiteral {
 
   def apply(t: String): Gauge.Name =
     macro GaugeNameMacros.fromStringLiteral

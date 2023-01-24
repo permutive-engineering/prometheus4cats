@@ -23,3 +23,9 @@ metals.sbt
 
 # npm
 node_modules/
+
+# MacOS
+.DS_Store
+
+# Docs
+unidocs/

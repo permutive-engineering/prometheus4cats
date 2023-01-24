@@ -175,7 +175,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       name: Summary.Name
   ): F[Option[Double]] = info(NameUtils.makeName(prefix, name.value)).get.map(_.as(1.0))
 
-  override protected[prometheus4cats] def createAndRegisterDoubleCounter(
+  override def createAndRegisterDoubleCounter(
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
       help: Metric.Help,
@@ -190,7 +190,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       Chain.one(0.0)
     )
 
-  override protected[prometheus4cats] def createAndRegisterLabelledDoubleCounter[A](
+  override def createAndRegisterLabelledDoubleCounter[A](
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
       help: Metric.Help,
@@ -208,7 +208,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       Chain.one(0.0)
     )
 
-  override protected[prometheus4cats] def createAndRegisterDoubleGauge(
+  override def createAndRegisterDoubleGauge(
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
       help: Metric.Help,
@@ -227,7 +227,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       Chain.one(0.0)
     )
 
-  override protected[prometheus4cats] def createAndRegisterLabelledDoubleGauge[A](
+  override def createAndRegisterLabelledDoubleGauge[A](
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
       help: Metric.Help,
@@ -247,7 +247,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       Chain.one(0.0)
     )
 
-  override protected[prometheus4cats] def createAndRegisterDoubleHistogram(
+  override def createAndRegisterDoubleHistogram(
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
       help: Metric.Help,
@@ -263,7 +263,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       Chain.nil
     )
 
-  override protected[prometheus4cats] def createAndRegisterLabelledDoubleHistogram[A](
+  override def createAndRegisterLabelledDoubleHistogram[A](
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
       help: Metric.Help,
@@ -280,7 +280,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       Chain.nil
     )
 
-  override protected[prometheus4cats] def createAndRegisterDoubleSummary(
+  override def createAndRegisterDoubleSummary(
       prefix: Option[Metric.Prefix],
       name: Summary.Name,
       help: Metric.Help,
@@ -298,7 +298,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       Chain.nil
     )
 
-  override protected[prometheus4cats] def createAndRegisterLabelledDoubleSummary[A](
+  override def createAndRegisterLabelledDoubleSummary[A](
       prefix: Option[Metric.Prefix],
       name: Summary.Name,
       help: Metric.Help,
@@ -317,7 +317,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       Chain.nil
     )
 
-  override protected[prometheus4cats] def createAndRegisterInfo(
+  override def createAndRegisterInfo(
       prefix: Option[Metric.Prefix],
       name: Info.Name,
       help: Metric.Help
@@ -337,7 +337,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
     )(_ => release)
   }
 
-  override protected[prometheus4cats] def registerDoubleCounterCallback(
+  override def registerDoubleCounterCallback(
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
       help: Metric.Help,
@@ -345,7 +345,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       callback: F[Double]
   ): Resource[F, Unit] = Resource.unit
 
-  override protected[prometheus4cats] def registerLabelledDoubleCounterCallback[A](
+  override def registerLabelledDoubleCounterCallback[A](
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
       help: Metric.Help,
@@ -354,7 +354,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       callback: F[NonEmptyList[(Double, A)]]
   )(f: A => IndexedSeq[String]): Resource[F, Unit] = Resource.unit
 
-  override protected[prometheus4cats] def registerDoubleGaugeCallback(
+  override def registerDoubleGaugeCallback(
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
       help: Metric.Help,
@@ -362,7 +362,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       callback: F[Double]
   ): Resource[F, Unit] = Resource.unit
 
-  override protected[prometheus4cats] def registerLabelledDoubleGaugeCallback[A](
+  override def registerLabelledDoubleGaugeCallback[A](
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
       help: Metric.Help,
@@ -371,7 +371,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       callback: F[NonEmptyList[(Double, A)]]
   )(f: A => IndexedSeq[String]): Resource[F, Unit] = Resource.unit
 
-  override protected[prometheus4cats] def registerDoubleHistogramCallback(
+  override def registerDoubleHistogramCallback(
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
       help: Metric.Help,
@@ -380,7 +380,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       callback: F[Histogram.Value[Double]]
   ): Resource[F, Unit] = Resource.unit
 
-  override protected[prometheus4cats] def registerLabelledDoubleHistogramCallback[A](
+  override def registerLabelledDoubleHistogramCallback[A](
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
       help: Metric.Help,
@@ -390,7 +390,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       callback: F[NonEmptyList[(Histogram.Value[Double], A)]]
   )(f: A => IndexedSeq[String]): Resource[F, Unit] = Resource.unit
 
-  override protected[prometheus4cats] def registerDoubleSummaryCallback(
+  override def registerDoubleSummaryCallback(
       prefix: Option[Metric.Prefix],
       name: Summary.Name,
       help: Metric.Help,
@@ -398,7 +398,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       callback: F[Summary.Value[Double]]
   ): Resource[F, Unit] = Resource.unit
 
-  override protected[prometheus4cats] def registerLabelledDoubleSummaryCallback[A](
+  override def registerLabelledDoubleSummaryCallback[A](
       prefix: Option[Metric.Prefix],
       name: Summary.Name,
       help: Metric.Help,
@@ -407,7 +407,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       callback: F[NonEmptyList[(Summary.Value[Double], A)]]
   )(f: A => IndexedSeq[String]): Resource[F, Unit] = Resource.unit
 
-  override protected[prometheus4cats] def registerMetricCollectionCallback(
+  override def registerMetricCollectionCallback(
       prefix: Option[Metric.Prefix],
       commonLabels: Metric.CommonLabels,
       callback: F[MetricCollection]

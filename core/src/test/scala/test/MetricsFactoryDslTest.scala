@@ -14,12 +14,14 @@
  * limitations under the License.
  */
 
-package prometheus4cats
+// in a different package to the rest of the codebase to verify private annotations work
+package test
 
 import java.math.BigInteger
 import java.util.concurrent.TimeUnit
 
 import cats.effect.IO
+import prometheus4cats._
 
 import scala.concurrent.duration._
 

@@ -20,7 +20,7 @@ import prometheus4cats.Summary
 
 import scala.reflect.macros.blackbox
 
-trait SummaryQuantileFromDoubleLiteral {
+private[prometheus4cats] trait SummaryQuantileFromDoubleLiteral {
 
   def apply(t: Double): Summary.Quantile =
     macro SummaryQuantileMacros.fromDoubleLiteral

@@ -14,6 +14,19 @@ import prometheus4cats._
 val factory: MetricFactory.WithCallbacks[IO] = MetricFactory.builder.noop[IO]
 ```
 
+### Expected Behaviour
+
+Every metric or callback created/registered using this DSL returns a Cats-Effect `Resource` which indicates
+the lifecycle of that metric. When the `Resource` is allocated the metric/callback is registered and when it is
+finalized it is de-registered.
+
+**It should be possible** to request/register the same metric or callback multiple times without error, where you will
+be returned the currently registered instance rather than a new instance. This does depend on the implementation of
+[`MetricRegistry`] and [`CallbackRegistry`] however, the provided
+[Java wrapper implementation](../implementations/java.md#implementation-notes) implements this via reference counting
+and implementers of [`MetricRegistry`] and [`CallbackRegistry`] are advised to do the same in order to preserve this
+expected behaviour at runtime.
+
 ### Refined Types
 
 Value classes exist for metric and label names that are refined at compile time from string literals. It is also

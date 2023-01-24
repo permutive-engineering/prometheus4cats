@@ -20,7 +20,11 @@ import java.util.regex.Pattern
 
 import cats.{Hash, Order, Show}
 
-abstract class Refined[A, B <: Refined.Value[A]](implicit hashA: Hash[A], orderA: Order[A], showA: Show[A]) {
+abstract private[prometheus4cats] class Refined[A, B <: Refined.Value[A]](implicit
+    hashA: Hash[A],
+    orderA: Order[A],
+    showA: Show[A]
+) {
   protected def make(a: A): B
   protected def test(a: A): Boolean
   protected def nonMatchMessage(a: A): String

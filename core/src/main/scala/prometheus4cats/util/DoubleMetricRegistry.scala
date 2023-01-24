@@ -23,7 +23,7 @@ import prometheus4cats._
 import scala.concurrent.duration.FiniteDuration
 
 trait DoubleMetricRegistry[F[_]] extends MetricRegistry[F] {
-  override protected[prometheus4cats] def createAndRegisterLongCounter(
+  override def createAndRegisterLongCounter(
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
       help: Metric.Help,
@@ -31,7 +31,7 @@ trait DoubleMetricRegistry[F[_]] extends MetricRegistry[F] {
   ): Resource[F, Counter[F, Long]] =
     createAndRegisterDoubleCounter(prefix, name, help, commonLabels).map(_.contramap(_.toDouble))
 
-  override protected[prometheus4cats] def createAndRegisterLabelledLongCounter[A](
+  override def createAndRegisterLabelledLongCounter[A](
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
       help: Metric.Help,
@@ -40,7 +40,7 @@ trait DoubleMetricRegistry[F[_]] extends MetricRegistry[F] {
   )(f: A => IndexedSeq[String]): Resource[F, Counter.Labelled[F, Long, A]] =
     createAndRegisterLabelledDoubleCounter(prefix, name, help, commonLabels, labelNames)(f).map(_.contramap(_.toDouble))
 
-  override protected[prometheus4cats] def createAndRegisterLongGauge(
+  override def createAndRegisterLongGauge(
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
       help: Metric.Help,
@@ -48,7 +48,7 @@ trait DoubleMetricRegistry[F[_]] extends MetricRegistry[F] {
   ): Resource[F, Gauge[F, Long]] =
     createAndRegisterDoubleGauge(prefix, name, help, commonLabels).map(_.contramap(_.toDouble))
 
-  override protected[prometheus4cats] def createAndRegisterLabelledLongGauge[A](
+  override def createAndRegisterLabelledLongGauge[A](
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
       help: Metric.Help,
@@ -57,7 +57,7 @@ trait DoubleMetricRegistry[F[_]] extends MetricRegistry[F] {
   )(f: A => IndexedSeq[String]): Resource[F, Gauge.Labelled[F, Long, A]] =
     createAndRegisterLabelledDoubleGauge(prefix, name, help, commonLabels, labelNames)(f).map(_.contramap(_.toDouble))
 
-  override protected[prometheus4cats] def createAndRegisterLongHistogram(
+  override def createAndRegisterLongHistogram(
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
       help: Metric.Help,
@@ -67,7 +67,7 @@ trait DoubleMetricRegistry[F[_]] extends MetricRegistry[F] {
     createAndRegisterDoubleHistogram(prefix, name, help, commonLabels, buckets.map(_.toDouble))
       .map(_.contramap(_.toDouble))
 
-  override protected[prometheus4cats] def createAndRegisterLabelledLongHistogram[A](
+  override def createAndRegisterLabelledLongHistogram[A](
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
       help: Metric.Help,
@@ -80,7 +80,7 @@ trait DoubleMetricRegistry[F[_]] extends MetricRegistry[F] {
         _.contramap(_.toDouble)
       )
 
-  override protected[prometheus4cats] def createAndRegisterLongSummary(
+  override def createAndRegisterLongSummary(
       prefix: Option[Metric.Prefix],
       name: Summary.Name,
       help: Metric.Help,
@@ -93,7 +93,7 @@ trait DoubleMetricRegistry[F[_]] extends MetricRegistry[F] {
       _.contramap(_.toDouble)
     )
 
-  override protected[prometheus4cats] def createAndRegisterLabelledLongSummary[A](
+  override def createAndRegisterLabelledLongSummary[A](
       prefix: Option[Metric.Prefix],
       name: Summary.Name,
       help: Metric.Help,

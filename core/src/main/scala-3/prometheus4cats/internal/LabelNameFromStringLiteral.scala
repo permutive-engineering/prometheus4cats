@@ -20,7 +20,7 @@ import prometheus4cats._
 
 import scala.quoted.*
 
-trait LabelNameFromStringLiteral {
+private[prometheus4cats] trait LabelNameFromStringLiteral {
 
   inline def apply(inline t: String): Label.Name = ${
     LabelNameFromStringLiteral.nameLiteral('t)
@@ -32,7 +32,7 @@ trait LabelNameFromStringLiteral {
 
 }
 
-object LabelNameFromStringLiteral extends MacroUtils {
+private[prometheus4cats] object LabelNameFromStringLiteral extends MacroUtils {
   def nameLiteral(s: Expr[String])(using q: Quotes): Expr[Label.Name] =
     s.value match {
       case Some(string) =>

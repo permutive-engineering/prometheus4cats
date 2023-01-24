@@ -20,7 +20,7 @@ import prometheus4cats.Metric
 
 import scala.reflect.macros.blackbox
 
-trait MetricHelpFromStringLiteral {
+private[prometheus4cats] trait MetricHelpFromStringLiteral {
 
   def apply(t: String): Metric.Help =
     macro MetricHelpMacros.fromStringLiteral

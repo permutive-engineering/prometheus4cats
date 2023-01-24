@@ -20,7 +20,7 @@ import prometheus4cats.Summary
 
 import scala.reflect.macros.blackbox
 
-trait SummaryNameFromStringLiteral {
+private[prometheus4cats] trait SummaryNameFromStringLiteral {
 
   def apply(t: String): Summary.Name =
     macro SummaryNameMacros.fromStringLiteral

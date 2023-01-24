@@ -31,12 +31,15 @@ import prometheus4cats.javasimpleclient.models.Exceptions._
 import scala.concurrent.duration.FiniteDuration
 
 private[javasimpleclient] object Utils {
-  def unregister[F[_]: Sync: Logger](collector: Collector, registry: CollectorRegistry): F[Unit] =
+  private[javasimpleclient] def unregister[F[_]: Sync: Logger](
+      collector: Collector,
+      registry: CollectorRegistry
+  ): F[Unit] =
     Sync[F].delay(registry.unregister(collector)).handleErrorWith { e =>
       Logger[F].warn(e)(s"Failed to unregister a collector: '$collector'")
     }
 
-  def modifyMetric[F[_]: Sync: Logger, A: Show, B](
+  private[javasimpleclient] def modifyMetric[F[_]: Sync: Logger, A: Show, B](
       c: SimpleCollector[B],
       metricName: A,
       labelNames: IndexedSeq[Label.Name],

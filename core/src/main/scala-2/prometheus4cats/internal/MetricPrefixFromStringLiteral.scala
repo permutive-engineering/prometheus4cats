@@ -20,7 +20,7 @@ import prometheus4cats.Metric
 
 import scala.reflect.macros.blackbox
 
-trait MetricPrefixFromStringLiteral {
+private[prometheus4cats] trait MetricPrefixFromStringLiteral {
 
   def apply(t: String): Metric.Prefix =
     macro MetricPrefixMacros.fromStringLiteral

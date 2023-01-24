@@ -44,14 +44,15 @@ import io.prometheus.client.{
 import org.typelevel.log4cats.Logger
 import prometheus4cats.MetricCollection.Value
 import prometheus4cats._
-import prometheus4cats.javasimpleclient.{CallbackState, DuplicateMetricsException, State}
+import prometheus4cats.javasimpleclient.{CallbackState, State}
+import prometheus4cats.javasimpleclient.models.Exceptions.DuplicateMetricsException
 import prometheus4cats.util.NameUtils
 
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.duration.FiniteDuration
 import scala.jdk.CollectionConverters._
 
-class MetricCollectionProcessor[F[_]: Async: Logger] private (
+private[javasimpleclient] class MetricCollectionProcessor[F[_]: Async: Logger] private (
     ref: Ref[F, State],
     callbacks: Ref[F, CallbackState[F]],
     collectionCallbackRef: Ref[F, Map[Option[
@@ -346,7 +347,7 @@ class MetricCollectionProcessor[F[_]: Async: Logger] private (
 
 }
 
-object MetricCollectionProcessor {
+private[javasimpleclient] object MetricCollectionProcessor {
   private val callbackTimerName = "prometheus4cats_collection_callback_duration"
   private val callbackTimerHelp = "Time it takes to run the metric collection callback"
 

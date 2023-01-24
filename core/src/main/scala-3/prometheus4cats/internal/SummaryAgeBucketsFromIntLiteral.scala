@@ -20,7 +20,7 @@ import prometheus4cats._
 
 import scala.quoted.*
 
-trait SummaryAgeBucketsFromIntLiteral {
+private[prometheus4cats] trait SummaryAgeBucketsFromIntLiteral {
 
   inline def apply(inline t: Int): Summary.AgeBuckets = ${
     SummaryAgeBucketsFromIntLiteral.ageBucketsLiteral('t)
@@ -32,7 +32,7 @@ trait SummaryAgeBucketsFromIntLiteral {
 
 }
 
-object SummaryAgeBucketsFromIntLiteral extends MacroUtils {
+private[prometheus4cats] object SummaryAgeBucketsFromIntLiteral extends MacroUtils {
   def ageBucketsLiteral(i: Expr[Int])(using q: Quotes): Expr[Summary.AgeBuckets] =
     i.value match {
       case Some(int) =>

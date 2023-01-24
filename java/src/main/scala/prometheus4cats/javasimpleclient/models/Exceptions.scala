@@ -16,9 +16,11 @@
 
 package prometheus4cats.javasimpleclient.models
 
+import alleycats.std.set._
 import cats.Show
+import cats.syntax.foldable._
 import cats.syntax.show._
-import prometheus4cats.Label
+import prometheus4cats.{Label, Metric}
 
 object Exceptions {
 
@@ -38,4 +40,10 @@ object Exceptions {
         e
       )
       with PrometheusException[A]
+
+  case class DuplicateMetricsException(duplicates: Set[(Option[Metric.Prefix], String)])
+      extends RuntimeException(
+        s"Duplicate metrics with the following names were found: '${duplicates.mkString_(",")}'"
+      )
+
 }
