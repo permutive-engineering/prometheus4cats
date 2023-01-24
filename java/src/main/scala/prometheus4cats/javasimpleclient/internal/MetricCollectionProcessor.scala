@@ -21,7 +21,9 @@ import java.util
 import alleycats.std.iterable._
 import alleycats.std.set._
 import cats.effect.kernel._
+import cats.effect.kernel.syntax.monadCancel._
 import cats.effect.std.Dispatcher
+import cats.syntax.apply._
 import cats.syntax.flatMap._
 import cats.syntax.foldable._
 import cats.syntax.functor._
@@ -35,13 +37,14 @@ import io.prometheus.client.{
   CounterMetricFamily,
   GaugeMetricFamily,
   SummaryMetricFamily,
+  Counter => PCounter,
   Gauge => PGauge,
   Histogram => PHistogram
 }
 import org.typelevel.log4cats.Logger
 import prometheus4cats.MetricCollection.Value
 import prometheus4cats._
-import prometheus4cats.javasimpleclient.{DuplicateMetricsException, State}
+import prometheus4cats.javasimpleclient.{CallbackState, DuplicateMetricsException, State}
 import prometheus4cats.util.NameUtils
 
 import scala.collection.mutable.ListBuffer
@@ -50,23 +53,68 @@ import scala.jdk.CollectionConverters._
 
 class MetricCollectionProcessor[F[_]: Async: Logger] private (
     ref: Ref[F, State],
+    callbacks: Ref[F, CallbackState[F]],
     collectionCallbackRef: Ref[F, Map[Option[
       Metric.Prefix
     ], (Map[Label.Name, String], Map[Unique.Token, F[MetricCollection]])]],
+    duplicates: Ref[F, Set[(Option[Metric.Prefix], String)]],
     dispatcher: Dispatcher[F],
     callbackTimeout: FiniteDuration,
+    callbackHasTimedOut: Ref[F, Boolean],
+    callbackHasErrored: Ref[F, Boolean],
+    callbackErrorCounter: PCounter,
     callbackTimeHistogram: PHistogram,
     duplicateGauge: PGauge
 ) extends Collector {
 
-  private def timeoutCallback[A](fa: F[A], onError: A): A =
+  private def trackHasErrored[A](state: Ref[F, Boolean], onTrue: F[A], onFalse: F[A]) =
+    state.modify { current =>
+      if (current) (current, onTrue) else (true, onFalse)
+    }.flatten
+
+  private def incErrorCounter(reason: String) =
+    Sync[F].delay(callbackErrorCounter.labels(reason).inc())
+
+  private def timeoutCallback[A](fa: F[A], empty: A): A = {
+    def incTimeout = incErrorCounter("timeout")
+    def incError = incErrorCounter("error")
+
     Utils.timeoutCallback(
       dispatcher,
       callbackTimeout,
       fa,
-      onError,
-      "This originated as a result of metric collection callbacks."
+      th =>
+        trackHasErrored(
+          callbackHasTimedOut,
+          incTimeout.as(empty),
+          Logger[F]
+            .warn(th)(
+              s"Timed out running callback for metric collection after $callbackTimeout.\n" +
+                "This may be due to a callback having been registered that performs some long running calculation which blocks\n" +
+                "Please review your code or raise an issue or pull request with the library from which this callback was registered.\n" +
+                s"This warning will only be shown once after process start. The counter '${MetricCollectionProcessor.callbackErrorCounterName}'" +
+                "tracks the number of times this occurs."
+            )
+            .guarantee(incTimeout)
+            .as(empty)
+        ),
+      th =>
+        trackHasErrored(
+          callbackHasErrored,
+          incError.as(empty),
+          Logger[F]
+            .warn(th)(
+              s"Executing callbacks for metric collection failed with the following exception.\n" +
+                "Callbacks that can routinely throw exceptions are strongly discouraged as this can cause performance problems when polling metrics\n" +
+                "Please review your code or raise an issue or pull request with the library from which this callback was registered.\n" +
+                s"This warning will only be shown once after process start. The counter '${MetricCollectionProcessor.callbackErrorCounterName}'" +
+                "tracks the number of times this occurs."
+            )
+            .guarantee(incError)
+            .as(empty)
+        )
     )
+  }
 
   def register(
       prefix: Option[Metric.Prefix],
@@ -209,34 +257,30 @@ class MetricCollectionProcessor[F[_]: Async: Logger] private (
       }
     }
 
-    ref.get.flatMap { state =>
+    (ref.get, callbacks.get).flatMapN { (state, callbackState) =>
       def collectMetrics[A: Show, B](
           vs: Map[(A, IndexedSeq[Label.Name]), B],
           f: ((A, IndexedSeq[Label.Name]), B) => Option[MetricFamilySamples]
       ): (
           Set[(Option[Metric.Prefix], String)],
           Set[(Option[Metric.Prefix], String)],
-          Set[(Option[Metric.Prefix], String)],
           ListBuffer[MetricFamilySamples]
       ) => (
           Set[(Option[Metric.Prefix], String)],
           Set[(Option[Metric.Prefix], String)],
-          Set[(Option[Metric.Prefix], String)],
           ListBuffer[MetricFamilySamples]
-      ) = { (names, duplicates, registryDuplicates, listBuffer) =>
-        vs.foldLeft((names, duplicates, registryDuplicates, listBuffer)) {
-          case ((names, duplicates, registryDuplicates, samples), (x @ (name, _), v)) =>
+      ) = { (names, registryDuplicates, listBuffer) =>
+        vs.foldLeft((names, registryDuplicates, listBuffer)) {
+          case ((names, registryDuplicates, samples), (x @ (name, _), v)) =>
             val nameString = name.show
 
-            if (names.contains(prefix -> nameString))
-              (names, duplicates + (prefix -> nameString), registryDuplicates, samples)
-            else if (state.contains(prefix -> nameString))
-              (names, duplicates, registryDuplicates + (prefix -> nameString), samples)
-            else (names + (prefix -> nameString), duplicates, registryDuplicates, samples ++ f(x, v))
+            if (state.contains(prefix -> nameString) || callbackState.contains(prefix -> nameString))
+              (names, registryDuplicates + (prefix -> nameString), samples)
+            else (names + (prefix -> nameString), registryDuplicates, samples ++ f(x, v))
         }
       }
 
-      val (_, duplicates, registryDuplicates, samples) = List(
+      val (_, registryDuplicates, samples) = List(
         collectMetrics(values.counters, counterToSample),
         collectMetrics(values.gauges, gaugeToSample),
         collectMetrics(values.histograms, histogramToSample),
@@ -245,49 +289,37 @@ class MetricCollectionProcessor[F[_]: Async: Logger] private (
         (
           Set.empty[(Option[Metric.Prefix], String)],
           Set.empty[(Option[Metric.Prefix], String)],
-          Set.empty[(Option[Metric.Prefix], String)],
           ListBuffer.empty[MetricFamilySamples]
         )
-      ) { case ((names, duplicates, registryDuplicates, samples), f) =>
-        f(names, duplicates, registryDuplicates, samples)
+      ) { case ((names, registryDuplicates, samples), f) =>
+        f(names, registryDuplicates, samples)
       }
 
-      if (duplicates.isEmpty && registryDuplicates.isEmpty) Applicative[F].pure(samples.toList)
+      if (registryDuplicates.isEmpty) Applicative[F].pure(samples.toList)
       else {
-        lazy val common =
-          "This is due to an implementation detail in the Java Prometheus library that backs the MetricsRegistry you are using,\n" +
-            "which prevents metrics with the same name and different label sets from being added to the registry, despite this being allowed by Prometheus.\n" +
-            "See here for more details: https://github.com/prometheus/client_java/issues/696\n" +
-            "These metrics will likely have been added by a library, so you may have to log an issue or raise a pull request to rectify. A stack trace has been included to help with this.\n"
-
-        lazy val duplicatesInCollection =
-          s"The following metrics with the same name and different labels or type have been discovered in a metric collection callback: '${duplicates
-              .mkString_(",")}'.\n" + common +
-            "Because of this, only the first metric will be taken and the others ignored - this will not prevent your application from functioning.\n\n" +
-            "To mitigate this you can do the following to the metric collection:\n" +
-            "  - modify the metric name to disambiguate metric types and/or label sets\n" +
-            "  - align labels between the two metrics if they are of the same type, so that they both have the same keys,\n" +
-            "    but provide empty values for the labels which are not present on each metric"
-
         lazy val duplicatesInRegistry =
-          s"The following metrics with the same name and different labels or type are already registered in the metrics registry and therefore have been excluded from the provided collection: '${registryDuplicates
-              .mkString_(",")}'" + common +
+          s"The following metrics or callbacks with the same name are already registered in the metrics registry and therefore have been excluded from the provided collection: '${registryDuplicates
+              .mkString_(",")}'. " +
             "Because of this the metric(s) in the given collection will be ignored in favour of those already registered\n" +
             "To mitigate this, you can do the following to the metrics collection:\n" +
             "  - modify the metric name to disambiguate metric types and/or label sets\n"
 
-        val colDupErr =
-          if (duplicates.nonEmpty) Logger[F].warn(DuplicateMetricsException(duplicates))(duplicatesInCollection)
-          else Applicative[F].unit
-
         val regDupErr =
           if (registryDuplicates.nonEmpty)
-            Logger[F].warn(DuplicateMetricsException(registryDuplicates))(duplicatesInRegistry)
+            duplicates.modify { current =>
+              if (current != registryDuplicates)
+                registryDuplicates -> Logger[F].warn(DuplicateMetricsException(registryDuplicates))(
+                  duplicatesInRegistry
+                )
+              else current -> Applicative[F].unit
+            }.flatten
           else Applicative[F].unit
 
-        colDupErr >> regDupErr >> Sync[F]
-          .delay(duplicateGauge.labels("in_collection", prefix.show).set(duplicates.size.toDouble)) >> Sync[F]
-          .delay(duplicateGauge.labels("in_registry", prefix.show).set(registryDuplicates.size.toDouble))
+        regDupErr
+          .guarantee(
+            Sync[F]
+              .delay(duplicateGauge.labels("in_registry", prefix.show).set(registryDuplicates.size.toDouble))
+          )
           .as(samples.toList)
       }
 
@@ -323,8 +355,14 @@ object MetricCollectionProcessor {
     "Duplicate metrics with different labels or types detected in metric collections callbacks"
   private val duplicatesLabelNames = List("duplicate_type", "metric_prefix")
 
+  private val callbackErrorCounterName = "prometheus4cats_collection_callback_errors"
+  private val callbackErrorCounterHelp =
+    "Number of times an error has been encountered when executing a metric collection callback"
+  private val callbackErrorCounterLabel = "reason"
+
   def create[F[_]: Async: Logger](
       ref: Ref[F, State],
+      callbacks: Ref[F, CallbackState[F]],
       dispatcher: Dispatcher[F],
       callbackTimeout: FiniteDuration,
       promRegistry: CollectorRegistry
@@ -337,17 +375,29 @@ object MetricCollectionProcessor {
     val duplicateGauge =
       PGauge.build(duplicatesGaugeName, duplicatesGaugeHelp).labelNames(duplicatesLabelNames: _*).create()
 
+    val errorCounter =
+      PCounter.build(callbackErrorCounterName, callbackErrorCounterHelp).labelNames(callbackErrorCounterLabel).create()
+
     val acquire = for {
       _ <- Sync[F].delay(promRegistry.register(callbackHist))
       _ <- Sync[F].delay(promRegistry.register(duplicateGauge))
+      _ <- Sync[F].delay(promRegistry.register(errorCounter))
       collectionCallbackRef <- Ref.of[F, Map[Option[
         Metric.Prefix
       ], (Map[Label.Name, String], Map[Unique.Token, F[MetricCollection]])]](Map.empty)
+      duplicatesRef <- Ref.of[F, Set[(Option[Metric.Prefix], String)]](Set.empty)
+      callbackHasTimedOutRef <- Ref.of[F, Boolean](false)
+      callbackHasErroredRef <- Ref.of[F, Boolean](false)
       proc = new MetricCollectionProcessor(
         ref,
+        callbacks,
         collectionCallbackRef,
+        duplicatesRef,
         dispatcher,
         callbackTimeout,
+        callbackHasTimedOutRef,
+        callbackHasErroredRef,
+        errorCounter,
         callbackHist,
         duplicateGauge
       )
@@ -358,7 +408,7 @@ object MetricCollectionProcessor {
       Utils.unregister(callbackHist, promRegistry) >> Utils.unregister(
         duplicateGauge,
         promRegistry
-      ) >> Utils.unregister(proc, promRegistry)
+      ) >> Utils.unregister(errorCounter, promRegistry) >> Utils.unregister(proc, promRegistry)
     }
   }
 }
