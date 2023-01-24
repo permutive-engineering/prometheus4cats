@@ -196,7 +196,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     }
   }
 
-  override protected[prometheus4cats] def createAndRegisterDoubleCounter(
+  override def createAndRegisterDoubleCounter(
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
       help: Metric.Help,
@@ -222,7 +222,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     }
   }
 
-  override protected[prometheus4cats] def createAndRegisterLabelledDoubleCounter[A](
+  override def createAndRegisterLabelledDoubleCounter[A](
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
       help: Metric.Help,
@@ -254,7 +254,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     }
   }
 
-  override protected[prometheus4cats] def createAndRegisterDoubleGauge(
+  override def createAndRegisterDoubleGauge(
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
       help: Metric.Help,
@@ -287,7 +287,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     }
   }
 
-  override protected[prometheus4cats] def createAndRegisterLabelledDoubleGauge[A](
+  override def createAndRegisterLabelledDoubleGauge[A](
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
       help: Metric.Help,
@@ -319,7 +319,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     }
   }
 
-  override protected[prometheus4cats] def createAndRegisterDoubleHistogram(
+  override def createAndRegisterDoubleHistogram(
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
       help: Metric.Help,
@@ -349,7 +349,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     }
   }
 
-  override protected[prometheus4cats] def createAndRegisterLabelledDoubleHistogram[A](
+  override def createAndRegisterLabelledDoubleHistogram[A](
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
       help: Metric.Help,
@@ -380,7 +380,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     }
   }
 
-  override protected[prometheus4cats] def createAndRegisterDoubleSummary(
+  override def createAndRegisterDoubleSummary(
       prefix: Option[Metric.Prefix],
       name: Summary.Name,
       help: Metric.Help,
@@ -415,7 +415,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     }
   }
 
-  override protected[prometheus4cats] def createAndRegisterLabelledDoubleSummary[A](
+  override def createAndRegisterLabelledDoubleSummary[A](
       prefix: Option[Metric.Prefix],
       name: Summary.Name,
       help: Metric.Help,
@@ -454,7 +454,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
   // The java library always appends "_info" to the metric name, so we need a special `Show` instance
   implicit private val infoNameShow: Show[Info.Name] = Show.show(_.value.replace("_info", ""))
 
-  override protected[prometheus4cats] def createAndRegisterInfo(
+  override def createAndRegisterInfo(
       prefix: Option[Metric.Prefix],
       name: Info.Name,
       help: Metric.Help
@@ -606,7 +606,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     registerCallback(metricType, prefix, name, samples)
   }
 
-  override protected[prometheus4cats] def registerDoubleCounterCallback(
+  override def registerDoubleCounterCallback(
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
       help: Metric.Help,
@@ -618,7 +618,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       (n, lns, lvs, v) => new CounterMetricFamily(n, help.value, lns.asJava).addMetric(lvs.asJava, if (v < 0) 0 else v)
     )
 
-  override protected[prometheus4cats] def registerLabelledDoubleCounterCallback[A](
+  override def registerLabelledDoubleCounterCallback[A](
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
       help: Metric.Help,
@@ -631,7 +631,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       (n, lns, lvs, v) => new CounterMetricFamily(n, help.value, lns.asJava).addMetric(lvs.asJava, if (v < 0) 0 else v)
     )
 
-  override protected[prometheus4cats] def registerDoubleGaugeCallback(
+  override def registerDoubleGaugeCallback(
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
       help: Metric.Help,
@@ -642,7 +642,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     (n, lns, lvs, v) => new GaugeMetricFamily(n, help.value, lns.asJava).addMetric(lvs.asJava, v)
   )
 
-  override protected[prometheus4cats] def registerLabelledDoubleGaugeCallback[A](
+  override def registerLabelledDoubleGaugeCallback[A](
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
       help: Metric.Help,
@@ -655,7 +655,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       (n, lns, lvs, v) => new GaugeMetricFamily(n, help.value, lns.asJava).addMetric(lvs.asJava, v)
     )
 
-  override protected[prometheus4cats] def registerDoubleHistogramCallback(
+  override def registerDoubleHistogramCallback(
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
       help: Metric.Help,
@@ -675,7 +675,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     )(_ => IndexedSeq.empty, makeLabelledSamples)
   }
 
-  override protected[prometheus4cats] def registerLabelledDoubleHistogramCallback[A](
+  override def registerLabelledDoubleHistogramCallback[A](
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
       help: Metric.Help,
@@ -696,7 +696,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     )(f, makeLabelledSamples)
   }
 
-  override protected[prometheus4cats] def registerDoubleSummaryCallback(
+  override def registerDoubleSummaryCallback(
       prefix: Option[Metric.Prefix],
       name: Summary.Name,
       help: Metric.Help,
@@ -737,7 +737,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
             )
     )
 
-  override protected[prometheus4cats] def registerLabelledDoubleSummaryCallback[A](
+  override def registerLabelledDoubleSummaryCallback[A](
       prefix: Option[Metric.Prefix],
       name: Summary.Name,
       help: Metric.Help,
@@ -765,7 +765,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
             )
     )
 
-  override protected[prometheus4cats] def registerMetricCollectionCallback(
+  override def registerMetricCollectionCallback(
       prefix: Option[Metric.Prefix],
       commonLabels: Metric.CommonLabels,
       callback: F[MetricCollection]
