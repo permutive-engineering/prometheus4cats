@@ -32,7 +32,7 @@ import cats.syntax.functor._
 import cats.syntax.monoid._
 import cats.syntax.show._
 import cats.syntax.traverse._
-import cats.{Applicative, Show}
+import cats.{Applicative, Functor, Show}
 import io.prometheus.client.Collector.MetricFamilySamples
 import io.prometheus.client.{
   Collector,
@@ -330,6 +330,12 @@ private[javasimpleclient] class MetricCollectionProcessor[F[_]: Async: Logger] p
     singleCallbackErrored.get.flatMap { case (hasLoggedTimeout, hasLoggedError) =>
       Clock[F]
         .timed(collectionCallbackRef.get.flatMap { callbacks =>
+          def allCallbacks = new GaugeMetricFamily(
+            "prometheus4cats_registered_metric_collection_callbacks",
+            "Number of metric collection callbacks registered in the Prometheus Java registry by Prometheus4Cats",
+            callbacks.map(_._2._2.size).sum.toDouble
+          )
+
           callbacks.toList.flatTraverse { case (prefix, (commonLabels, callbacks)) =>
             callbacks.values
               .foldM((hasLoggedTimeout, hasLoggedError, MetricCollection.empty)) {
@@ -341,6 +347,7 @@ private[javasimpleclient] class MetricCollectionProcessor[F[_]: Async: Logger] p
               .flatMap { case (hasLoggedTimeout0, hasLoggedError0, col) =>
                 singleCallbackErrored
                   .set(hasLoggedTimeout0, hasLoggedError0) >> convertMetrics(prefix, commonLabels, col)
+                  .map(allCallbacks :: _)
               }
           }
         })
@@ -455,6 +462,8 @@ private[javasimpleclient] object MetricCollectionProcessor {
       collectionCallbackRef <- Ref.of[F, Map[Option[
         Metric.Prefix
       ], (Map[Label.Name, String], Map[Unique.Token, F[MetricCollection]])]](Map.empty)
+      callbacksGauge = makeCallbacksGauge(dispatcher, collectionCallbackRef)
+      _ <- Sync[F].delay(promRegistry.register(callbacksGauge))
       duplicatesRef <- Ref.of[F, Set[(Option[Metric.Prefix], String)]](Set.empty)
       callbackHasTimedOutRef <- Ref.of[F, Boolean](false)
       callbackHasErroredRef <- Ref.of[F, Boolean](false)
@@ -476,7 +485,7 @@ private[javasimpleclient] object MetricCollectionProcessor {
         duplicateGauge
       )
       _ <- Sync[F].delay(promRegistry.register(proc))
-    } yield proc
+    } yield (callbacksGauge, proc)
 
     Resource.make(acquire) { proc =>
       Utils.unregister(callbackHist, promRegistry) >> Utils.unregister(
