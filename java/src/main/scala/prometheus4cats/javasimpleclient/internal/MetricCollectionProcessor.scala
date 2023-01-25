@@ -34,7 +34,16 @@ import cats.syntax.show._
 import cats.syntax.traverse._
 import cats.{Applicative, Show}
 import io.prometheus.client.Collector.MetricFamilySamples
-import io.prometheus.client.{Collector, CollectorRegistry, CounterMetricFamily, GaugeMetricFamily, SummaryMetricFamily, Counter => PCounter, Gauge => PGauge, Histogram => PHistogram}
+import io.prometheus.client.{
+  Collector,
+  CollectorRegistry,
+  CounterMetricFamily,
+  GaugeMetricFamily,
+  SummaryMetricFamily,
+  Counter => PCounter,
+  Gauge => PGauge,
+  Histogram => PHistogram
+}
 import org.typelevel.log4cats.Logger
 import prometheus4cats.MetricCollection.Value
 import prometheus4cats._
