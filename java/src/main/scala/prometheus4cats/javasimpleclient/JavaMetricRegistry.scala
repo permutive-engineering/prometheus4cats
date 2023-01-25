@@ -842,6 +842,7 @@ object JavaMetricRegistry {
           ref,
           callbackState,
           dis,
+          callbackTimeout,
           metricCollectionCallbackTimeout,
           promRegistry
         )
