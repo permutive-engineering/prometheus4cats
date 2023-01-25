@@ -508,8 +508,8 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     )
   }
 
-  private def incSingleCallbackCounter(status: String) =
-    Sync[F].delay(singleCallbackCounter.labels(status).inc())
+  private def incSingleCallbackCounter(name: String, status: String) =
+    Sync[F].delay(singleCallbackCounter.labels(name, status).inc())
 
   private def timeoutEach(
       stringName: String,
@@ -517,11 +517,11 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       hasLoggedTimeout: Boolean,
       hasLoggedError: Boolean
   ): F[(Boolean, Boolean, List[Collector.MetricFamilySamples])] = {
-    def incTimeout = incSingleCallbackCounter("timeout")
-    def incError = incSingleCallbackCounter("error")
+    def incTimeout = incSingleCallbackCounter(stringName, "timeout")
+    def incError = incSingleCallbackCounter(stringName, "error")
 
     samplesF
-      .flatTap(_ => incSingleCallbackCounter("success"))
+      .flatTap(_ => incSingleCallbackCounter(stringName, "success"))
       .map(samples => (hasLoggedTimeout, hasLoggedError, samples.toList))
       .timeout(singleCallbackTimeout)
       .handleErrorWith {
@@ -540,13 +540,15 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
         case th =>
           (if (hasLoggedError) incError
            else
-             Logger[F].warn(th)(
-               s"Executing a callback for the metric '$stringName' failed with the following exception.\n" +
-                 "Callbacks that can routinely throw exceptions are strongly discouraged as this can cause performance problems when polling metrics\n" +
-                 "Please review your code or raise an issue or pull request with the library from which this callback was registered.\n" +
-                 s"This warning will only be shown once after process start. The counter '${JavaMetricRegistry.callbackCounterName}'" +
-                 "tracks the number of times this occurs."
-             )).as(MetricCollection.empty).as((hasLoggedTimeout, true, List.empty[Collector.MetricFamilySamples]))
+             Logger[F]
+               .warn(th)(
+                 s"Executing a callback for the metric '$stringName' failed with the following exception.\n" +
+                   "Callbacks that can routinely throw exceptions are strongly discouraged as this can cause performance problems when polling metrics\n" +
+                   "Please review your code or raise an issue or pull request with the library from which this callback was registered.\n" +
+                   s"This warning will only be shown once after process start. The counter '${JavaMetricRegistry.callbackCounterName}'" +
+                   "tracks the number of times this occurs."
+               )
+               .guarantee(incError)).as((hasLoggedTimeout, true, List.empty[Collector.MetricFamilySamples]))
       }
   }
 
