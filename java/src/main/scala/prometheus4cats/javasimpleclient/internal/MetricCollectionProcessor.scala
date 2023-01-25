@@ -63,7 +63,7 @@ private[javasimpleclient] class MetricCollectionProcessor[F[_]: Async: Logger] p
     callbackTimeout: FiniteDuration,
     callbackHasTimedOut: Ref[F, Boolean],
     callbackHasErrored: Ref[F, Boolean],
-    callbackErrorCounter: PCounter,
+    callbackCounter: PCounter,
     callbackTimeHistogram: PHistogram,
     duplicateGauge: PGauge
 ) extends Collector {
@@ -73,48 +73,50 @@ private[javasimpleclient] class MetricCollectionProcessor[F[_]: Async: Logger] p
       if (current) (current, onTrue) else (true, onFalse)
     }.flatten
 
-  private def incErrorCounter(reason: String) =
-    Sync[F].delay(callbackErrorCounter.labels(reason).inc())
+  private def incCallbackCounter(status: String) =
+    Sync[F].delay(callbackCounter.labels(status).inc())
 
   private def timeoutCallback[A](fa: F[A], empty: A): A = {
-    def incTimeout = incErrorCounter("timeout")
-    def incError = incErrorCounter("error")
+    def incTimeout = incCallbackCounter("timeout")
+    def incError = incCallbackCounter("error")
 
-    Utils.timeoutCallback(
-      dispatcher,
-      callbackTimeout,
-      fa,
-      th =>
-        trackHasErrored(
-          callbackHasTimedOut,
-          incTimeout.as(empty),
-          Logger[F]
-            .warn(th)(
-              s"Timed out running callback for metric collection after $callbackTimeout.\n" +
-                "This may be due to a callback having been registered that performs some long running calculation which blocks\n" +
-                "Please review your code or raise an issue or pull request with the library from which this callback was registered.\n" +
-                s"This warning will only be shown once after process start. The counter '${MetricCollectionProcessor.callbackErrorCounterName}'" +
-                "tracks the number of times this occurs."
-            )
-            .guarantee(incTimeout)
-            .as(empty)
-        ),
-      th =>
-        trackHasErrored(
-          callbackHasErrored,
-          incError.as(empty),
-          Logger[F]
-            .warn(th)(
-              s"Executing callbacks for metric collection failed with the following exception.\n" +
-                "Callbacks that can routinely throw exceptions are strongly discouraged as this can cause performance problems when polling metrics\n" +
-                "Please review your code or raise an issue or pull request with the library from which this callback was registered.\n" +
-                s"This warning will only be shown once after process start. The counter '${MetricCollectionProcessor.callbackErrorCounterName}'" +
-                "tracks the number of times this occurs."
-            )
-            .guarantee(incError)
-            .as(empty)
-        )
-    )
+    Utils
+      .timeoutCallback(
+        dispatcher,
+        callbackTimeout,
+        // use flatTap to inc "success" status of the counter here, so that it will be cancelled if the operation times out or errors
+        fa.flatTap(_ => incCallbackCounter("success")),
+        th =>
+          trackHasErrored(
+            callbackHasTimedOut,
+            incTimeout.as(empty),
+            Logger[F]
+              .warn(th)(
+                s"Timed out running callback for metric collection after $callbackTimeout.\n" +
+                  "This may be due to a callback having been registered that performs some long running calculation which blocks\n" +
+                  "Please review your code or raise an issue or pull request with the library from which this callback was registered.\n" +
+                  s"This warning will only be shown once after process start. The counter '${MetricCollectionProcessor.callbackCounterName}'" +
+                  "tracks the number of times this occurs."
+              )
+              .guarantee(incTimeout)
+              .as(empty)
+          ),
+        th =>
+          trackHasErrored(
+            callbackHasErrored,
+            incError.as(empty),
+            Logger[F]
+              .warn(th)(
+                s"Executing callbacks for metric collection failed with the following exception.\n" +
+                  "Callbacks that can routinely throw exceptions are strongly discouraged as this can cause performance problems when polling metrics\n" +
+                  "Please review your code or raise an issue or pull request with the library from which this callback was registered.\n" +
+                  s"This warning will only be shown once after process start. The counter '${MetricCollectionProcessor.callbackCounterName}'" +
+                  "tracks the number of times this occurs."
+              )
+              .guarantee(incError)
+              .as(empty)
+          )
+      )
   }
 
   def register(
@@ -356,10 +358,10 @@ private[javasimpleclient] object MetricCollectionProcessor {
     "Duplicate metrics with different labels or types detected in metric collections callbacks"
   private val duplicatesLabelNames = List("duplicate_type", "metric_prefix")
 
-  private val callbackErrorCounterName = "prometheus4cats_collection_callback_errors"
-  private val callbackErrorCounterHelp =
-    "Number of times an error has been encountered when executing a metric collection callback"
-  private val callbackErrorCounterLabel = "reason"
+  private val callbackCounterName = "prometheus4cats_collection_callback_total"
+  private val callbackCounterHelp =
+    "Number of times the metric collection callback has been executed, with a status (success, error, timeout)"
+  private val callbackCounterLabel = "status"
 
   def create[F[_]: Async: Logger](
       ref: Ref[F, State],
@@ -377,7 +379,7 @@ private[javasimpleclient] object MetricCollectionProcessor {
       PGauge.build(duplicatesGaugeName, duplicatesGaugeHelp).labelNames(duplicatesLabelNames: _*).create()
 
     val errorCounter =
-      PCounter.build(callbackErrorCounterName, callbackErrorCounterHelp).labelNames(callbackErrorCounterLabel).create()
+      PCounter.build(callbackCounterName, callbackCounterHelp).labelNames(callbackCounterLabel).create()
 
     val acquire = for {
       _ <- Sync[F].delay(promRegistry.register(callbackHist))

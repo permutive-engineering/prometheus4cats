@@ -53,7 +53,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     private val callbackState: Ref[F, CallbackState[F]],
     private val callbackTimeoutState: Ref[F, Set[String]],
     private val callbackErrorState: Ref[F, Set[String]],
-    private val callbackErrorCounter: PCounter,
+    private val callbackCounter: PCounter,
     private val metricCollectionCollector: MetricCollectionProcessor[F],
     private val sem: Semaphore[F],
     private val dispatcher: Dispatcher[F],
@@ -72,17 +72,18 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       if (current.contains(stringName)) (current, onContains) else (current + stringName, onContainsNot)
     }.flatten
 
-  private def incErrorCounter(stringName: String, reason: String) =
-    Sync[F].delay(callbackErrorCounter.labels(stringName, reason).inc())
+  private def incCallbackCounter(stringName: String, status: String) =
+    Sync[F].delay(callbackCounter.labels(stringName, status).inc())
 
   private def timeoutCallback[A](fa: F[A], empty: A, stringName: String): A = {
-    def incTimeout = incErrorCounter(stringName, "timeout")
-    def incError = incErrorCounter(stringName, "error")
+    def incTimeout = incCallbackCounter(stringName, "timeout")
+    def incError = incCallbackCounter(stringName, "error")
 
     Utils.timeoutCallback(
       dispatcher,
       callbackTimeout,
-      fa,
+      // use flatTap to inc "success" status of the counter here, so that it will be cancelled if the operation times out or errors
+      fa.flatTap(_ => incCallbackCounter(stringName, "success")),
       th =>
         trackErrors(
           callbackTimeoutState,
@@ -93,7 +94,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
               s"Timed out running callback for metric '$stringName' after $callbackTimeout.\n" +
                 "This may be due to a callback having been registered that performs some long running calculation which blocks\n" +
                 "Please review your code or raise an issue or pull request with the library from which this callback was registered.\n" +
-                s"This warning will only be shown once for each metric after process start. The counter '${JavaMetricRegistry.callbackErrorCounterName}'" +
+                s"This warning will only be shown once for each metric after process start. The counter '${JavaMetricRegistry.callbackCounterName}'" +
                 "tracks the number of times this occurs per metric name."
             )
             .guarantee(incTimeout)
@@ -109,7 +110,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
               s"Callback for metric '$stringName' failed with the following exception.\n" +
                 "Callbacks that can routinely throw exceptions are strongly discouraged as this can cause performance problems when polling metrics\n" +
                 "Please review your code or raise an issue or pull request with the library from which this callback was registered.\n" +
-                s"This warning will only be shown once for each metric after process start. The counter '${JavaMetricRegistry.callbackErrorCounterName}'" +
+                s"This warning will only be shown once for each metric after process start. The counter '${JavaMetricRegistry.callbackCounterName}'" +
                 "tracks the number of times this occurs per metric name."
             )
             .guarantee(incError)
@@ -775,10 +776,10 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
 
 object JavaMetricRegistry {
 
-  private val callbackErrorCounterName = "prometheus4cats_callback_errors"
-  private val callbackErrorCounterHelp =
-    "Number of times an error has been encountered when executing a metric callback"
-  private val callbackErrorCounterLabels = List("metric_name", "reason")
+  private val callbackCounterName = "prometheus4cats_callback_total"
+  private val callbackCounterHelp =
+    "Number of times a metric callback has been executed, with a status (success, error, timeout)"
+  private val callbackCounterLabels = List("metric_name", "status")
 
   /** Create a metric registry using the default `io.prometheus.client.CollectorRegistry`
     *
@@ -825,8 +826,8 @@ object JavaMetricRegistry {
   ): Resource[F, JavaMetricRegistry[F]] = Dispatcher.sequential[F].flatMap { dis =>
     val errorCounter =
       PCounter
-        .build(callbackErrorCounterName, callbackErrorCounterHelp)
-        .labelNames(callbackErrorCounterLabels: _*)
+        .build(callbackCounterName, callbackCounterHelp)
+        .labelNames(callbackCounterLabels: _*)
         .create()
 
     val acquire = for {
