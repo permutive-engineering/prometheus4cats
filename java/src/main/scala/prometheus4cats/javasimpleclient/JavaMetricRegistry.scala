@@ -985,21 +985,27 @@ object JavaMetricRegistry {
 
   private def makeCallbacksGauge[F[_]: Monad](dis: Dispatcher[F], state: Ref[F, CallbackState[F]]) = new Collector {
     override def collect(): util.List[MetricFamilySamples] = dis.unsafeRunSync(
-      state.get.flatMap(
-        _.toList
+      state.get.flatMap { s =>
+        val allCallbacks = new GaugeMetricFamily(
+          "prometheus4cats_registered_callback_metrics",
+          "Number of callback metrics registered in the Prometheus Java registry by Prometheus4Cats",
+          s.size.toDouble
+        )
+
+        s.toList
           .foldM(
             new GaugeMetricFamily(
-              "prometheus4cats_registered_callbacks",
+              "prometheus4cats_registered_callbacks_per_metric",
               "Number of callbacks registered with the Prometheus4Cats Java registry",
               List("metric_name", "metric_type").asJava
             )
           ) { case (gauge, ((prefix, name), (metricType, callbacks, _))) =>
             callbacks.get.map { cbs =>
-              gauge.addMetric(List(NameUtils.makeName(prefix, name), metricType.toString).asJava, cbs.size)
+              gauge.addMetric(List(NameUtils.makeName(prefix, name), metricType.toString).asJava, cbs.size.toDouble)
             }
           }
-          .map(List[MetricFamilySamples](_).asJava)
-      )
+          .map(List[MetricFamilySamples](_, allCallbacks).asJava)
+      }
     )
   }
 

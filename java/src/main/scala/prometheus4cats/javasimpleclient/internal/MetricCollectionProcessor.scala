@@ -32,18 +32,9 @@ import cats.syntax.functor._
 import cats.syntax.monoid._
 import cats.syntax.show._
 import cats.syntax.traverse._
-import cats.{Applicative, Functor, Show}
+import cats.{Applicative, Show}
 import io.prometheus.client.Collector.MetricFamilySamples
-import io.prometheus.client.{
-  Collector,
-  CollectorRegistry,
-  CounterMetricFamily,
-  GaugeMetricFamily,
-  SummaryMetricFamily,
-  Counter => PCounter,
-  Gauge => PGauge,
-  Histogram => PHistogram
-}
+import io.prometheus.client.{Collector, CollectorRegistry, CounterMetricFamily, GaugeMetricFamily, SummaryMetricFamily, Counter => PCounter, Gauge => PGauge, Histogram => PHistogram}
 import org.typelevel.log4cats.Logger
 import prometheus4cats.MetricCollection.Value
 import prometheus4cats._
@@ -462,8 +453,6 @@ private[javasimpleclient] object MetricCollectionProcessor {
       collectionCallbackRef <- Ref.of[F, Map[Option[
         Metric.Prefix
       ], (Map[Label.Name, String], Map[Unique.Token, F[MetricCollection]])]](Map.empty)
-      callbacksGauge = makeCallbacksGauge(dispatcher, collectionCallbackRef)
-      _ <- Sync[F].delay(promRegistry.register(callbacksGauge))
       duplicatesRef <- Ref.of[F, Set[(Option[Metric.Prefix], String)]](Set.empty)
       callbackHasTimedOutRef <- Ref.of[F, Boolean](false)
       callbackHasErroredRef <- Ref.of[F, Boolean](false)
@@ -485,7 +474,7 @@ private[javasimpleclient] object MetricCollectionProcessor {
         duplicateGauge
       )
       _ <- Sync[F].delay(promRegistry.register(proc))
-    } yield (callbacksGauge, proc)
+    } yield proc
 
     Resource.make(acquire) { proc =>
       Utils.unregister(callbackHist, promRegistry) >> Utils.unregister(
