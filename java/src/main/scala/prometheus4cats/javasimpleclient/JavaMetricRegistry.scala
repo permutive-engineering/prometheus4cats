@@ -586,9 +586,9 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
             .flatMap { case (hasLoggedTimeout0, hasLoggedError0, samples) =>
               ((hasLoggedTimeout0, hasLoggedError0) match {
                 case (true, true) =>
-                  singleCallbackErrorState.set(loggedTimeout + renderedFullName, loggedError + renderedFullName)
-                case (true, false) => singleCallbackErrorState.set(loggedTimeout + renderedFullName, loggedError)
-                case (false, true) => singleCallbackErrorState.set(loggedTimeout, loggedError + renderedFullName)
+                  singleCallbackErrorState.set((loggedTimeout + renderedFullName, loggedError + renderedFullName))
+                case (true, false) => singleCallbackErrorState.set((loggedTimeout + renderedFullName, loggedError))
+                case (false, true) => singleCallbackErrorState.set((loggedTimeout, loggedError + renderedFullName))
                 case (false, false) => Applicative[F].unit
               }).as(samples.asJava)
 

@@ -346,7 +346,7 @@ private[javasimpleclient] class MetricCollectionProcessor[F[_]: Async: Logger] p
               }
               .flatMap { case (hasLoggedTimeout0, hasLoggedError0, col) =>
                 singleCallbackErrored
-                  .set(hasLoggedTimeout0, hasLoggedError0) >> convertMetrics(prefix, commonLabels, col)
+                  .set((hasLoggedTimeout0, hasLoggedError0)) >> convertMetrics(prefix, commonLabels, col)
                   .map(allCallbacks :: _)
               }
           }
