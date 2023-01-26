@@ -58,9 +58,9 @@ multiple times **will not** result in an error, instead you will be returned the
 registry wrapper implements reference counting to ensure that a metric or callback will only be de-registered when there
 are no more references to it or when the wrapper's surrounding `Resource` is finalized.
 
-[metrics](../metrics/primitive-metric-types.md)
-[callback](../interface/dsl.md#metric-callbacks)
-[metric collection](../interface/dsl.md#metric-collection)
+[metrics]: ../metrics/primitive-metric-types.md
+[callback]: ../interface/dsl.md#metric-callbacks
+[metric collection]: ../interface/dsl.md#metric-collection
 
 [`MetricRegistry`]: ../interface/metric-registry.md
 [`CallbackRegistry`]: ../interface/callback-registry.md
