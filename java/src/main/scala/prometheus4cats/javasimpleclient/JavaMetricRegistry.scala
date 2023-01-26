@@ -998,7 +998,7 @@ object JavaMetricRegistry {
           .foldM(
             new GaugeMetricFamily(
               "prometheus4cats_registered_callbacks_per_metric",
-              "Number of callbacks registered with the Prometheus4Cats Java registry",
+              "Number of callbacks per metric callback registered with the Prometheus4Cats Java registry",
               List("metric_name", "metric_type").asJava
             )
           ) { case (gauge, ((prefix, name), (metricType, callbacks, _))) =>

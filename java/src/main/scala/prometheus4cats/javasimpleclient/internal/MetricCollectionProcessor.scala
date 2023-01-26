@@ -416,11 +416,11 @@ private[javasimpleclient] class MetricCollectionProcessor[F[_]: Async: Logger] p
 
 private[javasimpleclient] object MetricCollectionProcessor {
   private val callbackTimerName = "prometheus4cats_collection_callback_duration"
-  private val callbackTimerHelp = "Time it takes to run the metric collection callback"
+  private val callbackTimerHelp = "Time it takes to run all metric collection callbacks"
 
   private val duplicatesGaugeName = "prometheus4cats_collection_callback_duplicates"
   private val duplicatesGaugeHelp =
-    "Duplicate metrics with different labels or types detected in metric collections callbacks"
+    "Duplicate metrics with different types detected in metric collections callbacks"
   private val duplicatesLabelNames = List("duplicate_type", "metric_prefix")
 
   private val callbackCounterName = "prometheus4cats_combined_collection_callback_total"
