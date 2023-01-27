@@ -857,11 +857,11 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
 
 object JavaMetricRegistry {
 
-  private val callbacksCounterName = "prometheus4cats_callback_metric_total"
+  private val callbacksCounterName = "prometheus4cats_combined_callback_metric_total"
   private val callbacksCounterHelp =
     "Number of times all callbacks for a metric have been executed, with a status (success, error, timeout)"
 
-  private val callbackCounterName = "prometheus4cats_individual_callback_total"
+  private val callbackCounterName = "prometheus4cats_callback_total"
   private val callbackCounterHelp =
     "Number of times each metric callback has been executed, with a status (success, error, timeout)"
   private val callbackCounterLabels = List("metric_name", "status")

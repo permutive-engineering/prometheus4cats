@@ -35,7 +35,8 @@ val factory: Resource[IO, MetricFactory.WithCallbacks[IO]] =
 
 ### Built-in Metrics
 
-The Java registry provides some metrics related to its internals:
+The Java registry provides some metrics related to its internals, these can used when investigating a callback that may
+not be functioning probably:
 
 | Metric Name                                          | Metric Type | Labels                             | Description                                                                                                                                                                |
 |------------------------------------------------------|-------------|------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -43,8 +44,8 @@ The Java registry provides some metrics related to its internals:
 | `prometheus4cats_registered_metric_claims`           | Gauge       | `metric_name`, `metric_type`       | Number of claims on each metric registered in the Prometheus Java registry by Prometheus4Cats; i.e. how many [references](#implementation-notes) there are for each metric |
 | `prometheus4cats_registered_callback_metrics`        | Gauge       |                                    | Number of [callback] metrics registered in the Prometheus Java registry by Prometheus4Cats                                                                                 |
 | `prometheus4cats_registered_callbacks_per_metric`    | Gauge       | `metric_name`, `metric_type`       | Number of callbacks per metric [callback] registered with the Prometheus4Cats Java registry. Multiple callbacks may be registered per metric name.                         |                                                                                                                                                                            |
-| `prometheus4cats_callback_metric_total`              | Counter     | `metric_name`, `status`            | Number of times all callbacks for a metric have been executed, with a status (success, error, timeout)                                                                     |
-| `prometheus4cats_individual_callback_total`          | Counter     | `metric_name`, `status`            | Number of times each metric callback has been executed, with a status (success, error, timeout)                                                                            |
+| `prometheus4cats_combined_callback_metric_total`     | Counter     | `metric_name`, `status`            | Number of times all callbacks for a metric have been executed, with a status (success, error, timeout)                                                                     |
+| `prometheus4cats_callback_total`                     | Counter     | `metric_name`, `status`            | Number of times each metric callback has been executed, with a status (success, error, timeout)                                                                            |
 | `prometheus4cats_collection_callback_duplicates`     | Gauge       | `duplicate_type`,  `metric_prefix` | Duplicate metrics with different types detected in [metric collection]s callbacks                                                                                          |
 | `prometheus4cats_collection_callback_duration`       | Histogram   |                                    | Time it takes to run all [metric collection] callbacks                                                                                                                     |
 | `prometheus4cats_combined_collection_callback_total` | Counter     | `status`                           | Number of times all of the [metric collection] callbacks have been executed, with a status (success, error, timeout)                                                       |
