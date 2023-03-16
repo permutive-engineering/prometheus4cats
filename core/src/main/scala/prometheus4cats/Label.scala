@@ -34,7 +34,7 @@ object Label {
     // prevents macro compilation problems with the status label
     private[prometheus4cats] val outcomeStatus = new Name("outcome_status")
 
-    private val invalidNames: Set[String] = Set("quantile", "le", "name")
+    private val invalidNames: Set[String] = Set("quantile", "le")
 
     protected val regex: Pattern = "^[a-zA-Z_:][a-zA-Z0-9_:]*$".r.pattern
 
