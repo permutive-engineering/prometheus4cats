@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="generator" content="Laika 0.18.1 + Helium Theme" />
-  <title>Design</title>
+  <title>Testing Registry</title>
   
   
   <meta name="description" content="docs"/>
@@ -74,10 +74,10 @@
   <ul class="nav-list">
     <li class="level1"><a href="../index.html">Prometheus4Cats</a></li>
     <li class="level1 nav-header">design</li>
-    <li class="level2 active"><a href="#">Design</a></li>
+    <li class="level2"><a href="../design/design.html">Design</a></li>
     <li class="level1 nav-header">implementations</li>
-    <li class="level2"><a href="../implementations/java.html">Java Registry</a></li>
-    <li class="level2"><a href="../implementations/testing.html">Testing Registry</a></li>
+    <li class="level2"><a href="java.html">Java Registry</a></li>
+    <li class="level2 active"><a href="#">Testing Registry</a></li>
     <li class="level1 nav-header">interface</li>
     <li class="level2"><a href="../interface/callback-registry.html">Callback Registry</a></li>
     <li class="level2"><a href="../interface/dsl.html">Metrics DSL</a></li>
@@ -104,7 +104,7 @@
 <div id="container">
 
   <nav id="page-nav">
-    <p class="header"><a href="#">Design</a></p>
+    <p class="header"><a href="#">Testing Registry</a></p>
 
     <ul class="nav-list">
     </ul>
@@ -114,20 +114,34 @@
 
   <main class="content">
 
-    <h1 id="design" class="title">Design</h1>
-    <p>This library is specifically designed to work with Prometheus metrics and as such it provides an opinionated API that
-    mirrors the functionality in the <a href="https://github.com/prometheus/client_java/">Prometheus Java client</a>. Unlike the Java client, the API, <a href="../metrics/derived-metric-types.html">derived metrics</a> and
-    <a href="../interface/metric-registry.html">recording</a> <a href="../interface/callback-registry.html">functionality</a> are separated.</p>
-    <p>By separating the functionality of providing an API to construct metrics and an interface to register them against
-    some concurrent registry we are able to provide implementations other than just the <a href="https://github.com/prometheus/client_java/">Prometheus Java client</a>,
-    although this is <a href="../implementations/java.html">supported</a>.</p>
-    <p>The API is separated into a few components (follow the links for more details):</p>
-    <ul>
-      <li>The <a href="../interface/metric-registry.html"><code>MetricRegistry</code></a> and <a href="../interface/callback-registry.html"><code>CallbackRegistry</code></a> provide an interface which may be implemented by backends such as the
-      <a href="https://github.com/prometheus/client_java/">Prometheus Java client</a></li>
-      <li>The <a href="../interface/metric-factory.html"><code>MetricFactory</code></a> uses the <a href="../interface/metric-registry.html"><code>MetricRegistry</code></a> and optionally the <a href="../interface/callback-registry.html"><code>CallbackRegistry</code></a> to create <a href="../metrics/primitive-metric-types.html">primitive</a> and
-      <a href="../metrics/derived-metric-types.html">derived metrics</a> using a <a href="../interface/dsl.html">DSL</a></li>
-    </ul>
+    <h1 id="testing-registry" class="title">Testing Registry</h1>
+    <p>There exists a testing <code>MetricRegistry</code> implementation which allows you to check the value
+    history of any created metrics. For <code>Histogram</code> and <code>Summary</code> this is a <code>Chain</code> of all
+    the values that have been <code>observe</code>d for that metric. For <code>Counter</code> and <code>Gauge</code> this is
+    the history of the current value of the metric over time.</p>
+    <pre><code class="nohighlight"><span class="keyword">import</span><span> </span><span class="identifier">cats</span><span>.</span><span class="identifier">syntax</span><span>.</span><span class="identifier">all</span><span>.</span><span class="identifier">_</span><span>
+</span><span class="keyword">import</span><span> </span><span class="identifier">cats</span><span>.</span><span class="identifier">data</span><span>.</span><span class="type-name">Chain</span><span>
+</span><span class="keyword">import</span><span> </span><span class="identifier">cats</span><span>.</span><span class="identifier">effect</span><span>.</span><span class="identifier">_</span><span>
+</span><span class="keyword">import</span><span> </span><span class="identifier">prometheus4cats</span><span>.</span><span class="identifier">_</span><span>
+</span><span class="keyword">import</span><span> </span><span class="identifier">prometheus4cats</span><span>.</span><span class="identifier">testing</span><span>.</span><span class="identifier">_</span><span>
+
+</span><span class="type-name">TestingMetricRegistry</span><span>[</span><span class="type-name">IO</span><span>].</span><span class="identifier">flatMap</span><span> { </span><span class="identifier">reg</span><span> =&gt;
+  </span><span class="keyword">val</span><span> </span><span class="identifier">factory</span><span> = </span><span class="type-name">MetricFactory</span><span>.</span><span class="identifier">builder</span><span>.</span><span class="identifier">build</span><span>(</span><span class="identifier">reg</span><span>)
+  </span><span class="identifier">factory</span><span>
+    .</span><span class="identifier">counter</span><span>(</span><span class="string-literal">&quot;counter_total&quot;</span><span>)
+    .</span><span class="identifier">ofDouble</span><span>
+    .</span><span class="identifier">help</span><span>(</span><span class="string-literal">&quot;Describe what this metric does&quot;</span><span>)
+    .</span><span class="identifier">build</span><span>
+    .</span><span class="identifier">use</span><span> { </span><span class="identifier">counter</span><span> =&gt;
+      </span><span class="identifier">counter</span><span>.</span><span class="identifier">inc</span><span> &gt;&gt; </span><span class="identifier">counter</span><span>.</span><span class="identifier">inc</span><span>(</span><span class="number-literal">2.0</span><span>)
+        </span><span class="identifier">reg</span><span>.</span><span class="identifier">counterHistory</span><span>(
+          </span><span class="type-name">Counter</span><span>.</span><span class="type-name">Name</span><span>(</span><span class="string-literal">&quot;counter_total&quot;</span><span>),
+          </span><span class="type-name">Metric</span><span>.</span><span class="type-name">CommonLabels</span><span>.</span><span class="identifier">empty</span><span>
+        ).</span><span class="identifier">flatMap</span><span> { </span><span class="identifier">hist</span><span> =&gt;
+          </span><span class="type-name">IO</span><span>(</span><span class="identifier">hist</span><span> === </span><span class="type-name">Some</span><span>(</span><span class="type-name">Chain</span><span>(</span><span class="number-literal">0.0</span><span>, </span><span class="number-literal">1.0</span><span>, </span><span class="number-literal">3.0</span><span>)))
+        }
+    }
+}</span></code></pre>
 
     <hr style="margin-top: 30px"/>
     <footer style="font-size: 90%; text-align: center">
