@@ -43,9 +43,9 @@ MetricFactory.WithCallbacks.noop[IO]
 MetricFactory.builder.noop[IO]
 ```
 
-### Constructing from a `MetricRegitry`
+### Constructing from a `MetricRegistry`
 
-`MetricRegitry` provides a builder with a fluent API that allows you to create an instance that adds an optional
+`MetricRegistry` provides a builder with a fluent API that allows you to create an instance that adds an optional
 prefix and/or common label set to all metrics.
 
 ```scala mdoc
@@ -65,6 +65,7 @@ MetricFactory
 ```
 
 Common labels are a set of labels that are checked at runtime so that the label names conform to the [OpenMetrics]
+
 format and no more than ten are defined at any one time, which helps to reduce cardinality.
 
 There is no compile time checking of these labels as it is assumed they will come from the runtime environment.
@@ -159,7 +160,7 @@ val factoryWithCallbacksG = factoryWithCallbacksF.imapK(fk, gk)
 
 It is also possible to construct a `MetricsFactory.WithCallbacks` from a `MetricsFactory` and [`CallbackRegistry`]:
 
-```scala
+```scala mdoc
 val callbackRegistryG: CallbackRegistry[G] = CallbackRegistry.noop[G]
 
 MetricFactory.builder.build(factoryG, callbackRegistryG)

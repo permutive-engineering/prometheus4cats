@@ -204,7 +204,7 @@ lazy val docs = project
     ),
     scalacOptions := Seq()
   )
-  .dependsOn(core, java)
+  .dependsOn(core, java, testing)
   .enablePlugins(TypelevelSitePlugin)
 
 lazy val unidocs = project
