@@ -156,7 +156,7 @@
     <pre class="keep-together pdf epub"><code class="nohighlight"><span class="type-name">MetricFactory</span><span>
   .</span><span class="identifier">builder</span><span>
   .</span><span class="identifier">build</span><span>(</span><span class="identifier">metricRegistry</span><span>)
-</span><span class="comment">// res3: MetricFactory[IO[A]] = prometheus4cats.MetricFactory$Builder$$anon$37@4d198a46</span></code></pre>
+</span><span class="comment">// res3: MetricFactory[IO[A]] = prometheus4cats.MetricFactory$Builder$$anon$37@1115bd48</span></code></pre>
     <p>Literal prefixes are checked at compile time to ensure they conform to the <a href="https://github.com/OpenObservability/OpenMetrics">OpenMetrics</a> format. Alternatively you may
     provide an instance of <code>Metric.Prefix</code> that has been refined at runtime.</p>
     <pre class="keep-together pdf epub"><code class="nohighlight"><span class="type-name">MetricFactory</span><span>
@@ -183,12 +183,12 @@
     <pre class="keep-together pdf epub"><code class="nohighlight"><span class="type-name">MetricFactory</span><span>
   .</span><span class="identifier">builder</span><span>
   .</span><span class="identifier">build</span><span>(</span><span class="identifier">metricRegistry</span><span>, </span><span class="identifier">callbackRegistry</span><span>)
-</span><span class="comment">// res6: MetricFactory.WithCallbacks[IO[A]] = prometheus4cats.MetricFactory$Builder$$anon$38@7ffa33dc</span></code></pre>
+</span><span class="comment">// res6: MetricFactory.WithCallbacks[IO[A]] = prometheus4cats.MetricFactory$Builder$$anon$38@677be205</span></code></pre>
     <p>Alternatively:</p>
     <pre class="keep-together pdf epub"><code class="nohighlight"><span class="type-name">MetricFactory</span><span>
   .</span><span class="identifier">builder</span><span>
   .</span><span class="identifier">build</span><span>(</span><span class="identifier">registry</span><span>)
-</span><span class="comment">// res7: MetricFactory.WithCallbacks[IO[A]] = prometheus4cats.MetricFactory$Builder$$anon$39@3e237a18</span></code></pre>
+</span><span class="comment">// res7: MetricFactory.WithCallbacks[IO[A]] = prometheus4cats.MetricFactory$Builder$$anon$39@d2b0492</span></code></pre>
     <p>As above, you may add <code>CommonLabels</code> and a <code>Prefix</code> as you see fit.</p>
     
     <h3 id="changing-a-metricfactory" class="section">Changing a <code>MetricFactory</code><a class="anchor-link right" href="#changing-a-metricfactory"><i class="icofont-laika">&#xef71;</i></a></h3>
@@ -223,27 +223,27 @@
 </span><span class="keyword">type</span><span> </span><span class="type-name">G</span><span>[</span><span class="type-name">A</span><span>] = </span><span class="type-name">EitherT</span><span>[</span><span class="type-name">IO</span><span>, </span><span class="type-name">Throwable</span><span>, </span><span class="type-name">A</span><span>]
 
 </span><span class="keyword">val</span><span> </span><span class="identifier">fk</span><span>: </span><span class="type-name">F</span><span> ~&gt; </span><span class="type-name">G</span><span> = </span><span class="type-name">EitherT</span><span>.</span><span class="identifier">liftK</span><span>[</span><span class="type-name">F</span><span>, </span><span class="type-name">Throwable</span><span>]
-</span><span class="comment">// fk: F ~&gt; G = cats.data.EitherT$$anon$1@5beb9978
+</span><span class="comment">// fk: F ~&gt; G = cats.data.EitherT$$anon$1@720f84ec
 </span><span>
 </span><span class="keyword">val</span><span> </span><span class="identifier">gk</span><span>: </span><span class="type-name">G</span><span> ~&gt; </span><span class="type-name">F</span><span> = </span><span class="keyword">new</span><span> (</span><span class="type-name">G</span><span> ~&gt; </span><span class="type-name">F</span><span>) {
   </span><span class="keyword">def</span><span> </span><span class="declaration-name">apply</span><span>[</span><span class="type-name">A</span><span>](</span><span class="identifier">fa</span><span>: </span><span class="type-name">G</span><span>[</span><span class="type-name">A</span><span>]): </span><span class="type-name">F</span><span>[</span><span class="type-name">A</span><span>] = </span><span class="identifier">fa</span><span>.</span><span class="identifier">rethrowT</span><span>
 }
-</span><span class="comment">// gk: G ~&gt; F = repl.MdocSession$App$$anon$1@5aa163f9
+</span><span class="comment">// gk: G ~&gt; F = repl.MdocSession$App$$anon$1@4ecc9818
 </span><span>
 </span><span class="keyword">val</span><span> </span><span class="identifier">factoryWithCallbacksF</span><span> = </span><span class="type-name">MetricFactory</span><span>.</span><span class="identifier">builder</span><span>.</span><span class="identifier">build</span><span>(</span><span class="identifier">metricRegistry</span><span>, </span><span class="identifier">callbackRegistry</span><span>)
-</span><span class="comment">// factoryWithCallbacksF: MetricFactory.WithCallbacks[IO[A]] = prometheus4cats.MetricFactory$Builder$$anon$38@74ebdfa2
+</span><span class="comment">// factoryWithCallbacksF: MetricFactory.WithCallbacks[IO[A]] = prometheus4cats.MetricFactory$Builder$$anon$38@769f200e
 </span><span>
 </span><span class="keyword">val</span><span> </span><span class="identifier">factoryG</span><span> = </span><span class="identifier">factoryWithCallbacksF</span><span>.</span><span class="identifier">mapK</span><span>(</span><span class="identifier">fk</span><span>)
-</span><span class="comment">// factoryG: MetricFactory[G[A]] = prometheus4cats.MetricFactory$$anon$1@513d989d
+</span><span class="comment">// factoryG: MetricFactory[G[A]] = prometheus4cats.MetricFactory$$anon$1@2345a5db
 </span><span>
 </span><span class="keyword">val</span><span> </span><span class="identifier">factoryWithCallbacksG</span><span> = </span><span class="identifier">factoryWithCallbacksF</span><span>.</span><span class="identifier">imapK</span><span>(</span><span class="identifier">fk</span><span>, </span><span class="identifier">gk</span><span>)
-</span><span class="comment">// factoryWithCallbacksG: MetricFactory.WithCallbacks[G[A]] = prometheus4cats.MetricFactory$WithCallbacks$$anon$14@561aeb9b</span></code></pre>
+</span><span class="comment">// factoryWithCallbacksG: MetricFactory.WithCallbacks[G[A]] = prometheus4cats.MetricFactory$WithCallbacks$$anon$14@2de36dbb</span></code></pre>
     <p>It is also possible to construct a <code>MetricsFactory.WithCallbacks</code> from a <code>MetricsFactory</code> and <a href="callback-registry.html"><code>CallbackRegistry</code></a>:</p>
     <pre class="keep-together pdf epub"><code class="nohighlight"><span class="keyword">val</span><span> </span><span class="identifier">callbackRegistryG</span><span>: </span><span class="type-name">CallbackRegistry</span><span>[</span><span class="type-name">G</span><span>] = </span><span class="type-name">CallbackRegistry</span><span>.</span><span class="identifier">noop</span><span>[</span><span class="type-name">G</span><span>]
-</span><span class="comment">// callbackRegistryG: CallbackRegistry[G] = prometheus4cats.CallbackRegistry$$anon$1@7f5f40a
+</span><span class="comment">// callbackRegistryG: CallbackRegistry[G] = prometheus4cats.CallbackRegistry$$anon$1@7452c47
 </span><span>
 </span><span class="type-name">MetricFactory</span><span>.</span><span class="identifier">builder</span><span>.</span><span class="identifier">build</span><span>(</span><span class="identifier">factoryG</span><span>, </span><span class="identifier">callbackRegistryG</span><span>)
-</span><span class="comment">// res9: MetricFactory.WithCallbacks[G[A]] = prometheus4cats.MetricFactory$Builder$$anon$40@2dc92d99</span></code></pre>
+</span><span class="comment">// res9: MetricFactory.WithCallbacks[G[A]] = prometheus4cats.MetricFactory$Builder$$anon$40@8d5e3f1</span></code></pre>
 
     <hr style="margin-top: 30px"/>
     <footer style="font-size: 90%; text-align: center">
