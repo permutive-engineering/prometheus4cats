@@ -29,7 +29,7 @@ val Scala213 = "2.13.11"
 
 val Cats = "2.9.0"
 
-val CatsEffect = "3.4.8"
+val CatsEffect = "3.4.11"
 
 val Log4Cats = "2.5.0"
 
