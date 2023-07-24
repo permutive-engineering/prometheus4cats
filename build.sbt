@@ -39,7 +39,7 @@ val MunitCe3 = "1.0.7"
 
 val ScalacheckEffect = "1.0.4"
 
-ThisBuild / crossScalaVersions := Seq("2.12.17", "3.2.2", Scala213)
+ThisBuild / crossScalaVersions := Seq("2.12.18", "3.2.2", Scala213)
 ThisBuild / scalaVersion := crossScalaVersions.value.last
 
 ThisBuild / tlSitePublishBranch := Some("main")
