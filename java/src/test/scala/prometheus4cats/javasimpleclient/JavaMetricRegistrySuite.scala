@@ -46,10 +46,10 @@ class JavaMetricRegistrySuite
   override val stateResource: Resource[IO, CollectorRegistry] = Resource.eval(IO.delay(new CollectorRegistry()))
 
   override def metricRegistryResource(state: CollectorRegistry): Resource[IO, MetricRegistry[IO]] =
-    JavaMetricRegistry.fromSimpleClientRegistry[IO](state)
+    JavaMetricRegistry.Builder().withRegistry(state).build[IO]
 
   override def callbackRegistryResource(state: CollectorRegistry): Resource[IO, CallbackRegistry[IO]] =
-    JavaMetricRegistry.fromSimpleClientRegistry[IO](state, callbackTimeout = 100.millis)
+    JavaMetricRegistry.Builder().withRegistry(state).withCallbackTimeout(100.millis).build[IO]
 
   def getMetricValue[A: Show](
       state: CollectorRegistry,
@@ -212,7 +212,7 @@ class JavaMetricRegistrySuite
           labels: Set[Label.Name]
       ) =>
         stateResource
-          .flatMap(JavaMetricRegistry.fromSimpleClientRegistry(_))
+          .flatMap(JavaMetricRegistry.Builder().withRegistry(_).build)
           .use { reg =>
             val metric = reg
               .createAndRegisterLabelledDoubleCounter[Map[Label.Name, String]](
@@ -257,7 +257,7 @@ class JavaMetricRegistrySuite
           labels: Set[Label.Name]
       ) =>
         stateResource
-          .flatMap(JavaMetricRegistry.fromSimpleClientRegistry(_))
+          .flatMap(JavaMetricRegistry.Builder().withRegistry(_).build)
           .use { reg =>
             val metric = reg
               .createAndRegisterLabelledDoubleCounter[Map[Label.Name, String]](
