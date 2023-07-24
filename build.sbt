@@ -121,7 +121,7 @@ lazy val java =
       ),
       libraryDependencies ++= PartialFunction
         .condOpt(CrossVersion.partialVersion(scalaVersion.value)) { case Some((2, 12)) =>
-          "org.scala-lang.modules" %% "scala-collection-compat" % "2.9.0"
+          "org.scala-lang.modules" %% "scala-collection-compat" % "2.11.0"
         }
         .toList
     )
