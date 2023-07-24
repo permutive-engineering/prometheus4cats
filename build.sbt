@@ -31,7 +31,7 @@ val Cats = "2.9.0"
 
 val CatsEffect = "3.4.11"
 
-val Log4Cats = "2.5.0"
+val Log4Cats = "2.6.0"
 
 val Munit = "0.7.29"
 
