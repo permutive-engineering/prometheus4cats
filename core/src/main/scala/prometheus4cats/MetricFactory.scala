@@ -116,6 +116,35 @@ sealed abstract class MetricFactory[F[_]](
       )
     )
 
+  type ExemplarCounterDsl[MDsl[_[_], _, _[_[_], _], _[_[_], _, _]], A] =
+    HelpStep[MDsl[F, A, Counter.Exemplar, Counter.Labelled]]
+
+  def exemplarCounter(name: Counter.Name): TypeStep[ExemplarCounterDsl[MetricDsl, *]] =
+    new TypeStep[ExemplarCounterDsl[MetricDsl, *]](
+      new HelpStep(help =>
+        new MetricDsl(
+          metricRegistry.createAndRegisterLongExemplarCounter(prefix, name, help, commonLabels),
+          new LabelledMetricPartiallyApplied[F, Long, Counter.Labelled] {
+            override def apply[B](
+                labels: IndexedSeq[Label.Name]
+            )(f: B => IndexedSeq[String]): Resource[F, Counter.Labelled[F, Long, B]] =
+              metricRegistry.createAndRegisterLabelledLongCounter(prefix, name, help, commonLabels, labels)(f)
+          }
+        )
+      ),
+      new HelpStep(help =>
+        new MetricDsl(
+          metricRegistry.createAndRegisterDoubleExemplarCounter(prefix, name, help, commonLabels),
+          new LabelledMetricPartiallyApplied[F, Double, Counter.Labelled] {
+            override def apply[B](
+                labels: IndexedSeq[Label.Name]
+            )(f: B => IndexedSeq[String]): Resource[F, Counter.Labelled[F, Double, B]] =
+              metricRegistry.createAndRegisterLabelledDoubleCounter(prefix, name, help, commonLabels, labels)(f)
+          }
+        )
+      )
+    )
+
   type HistogramDsl[MDsl[_[_], _, _[_[_], _], _[_[_], _, _]], A] =
     HelpStep[BucketDsl[MDsl[F, A, Histogram, Histogram.Labelled], A]]
 

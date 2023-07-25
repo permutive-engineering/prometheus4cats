@@ -16,9 +16,11 @@
 
 package prometheus4cats
 
-import java.util.regex.Pattern
+import cats.FlatMap
 
+import java.util.regex.Pattern
 import cats.{Applicative, Contravariant, ~>}
+import cats.syntax.flatMap._
 
 sealed abstract class Counter[F[_], -A] extends Metric[A] { self =>
 
@@ -66,6 +68,44 @@ object Counter {
     override def inc: F[Unit] = Applicative[F].unit
 
     override def inc(n: A): F[Unit] = Applicative[F].unit
+  }
+
+  sealed abstract class Exemplar[F[_], -A] { self =>
+    def inc: F[Unit]
+
+    def inc(n: A): F[Unit]
+
+    def contramap[B](f: B => A): Exemplar[F, B] = new Exemplar[F, B] {
+      override def inc: F[Unit] = self.inc
+
+      override def inc(n: B): F[Unit] = self.inc(f(n))
+    }
+
+    final def mapK[G[_]](fk: F ~> G): Exemplar[G, A] = new Exemplar[G, A] {
+      override def inc: G[Unit] = fk(self.inc)
+
+      override def inc(n: A): G[Unit] = fk(self.inc(n))
+    }
+  }
+
+  object Exemplar {
+    def make[F[_]: FlatMap: prometheus4cats.Exemplar, A](
+        default: A,
+        _inc: (A, Option[prometheus4cats.Exemplar.Labels]) => F[Unit]
+    ): Exemplar[F, A] = new Exemplar[F, A] {
+      override def inc: F[Unit] = inc(default)
+      override def inc(n: A): F[Unit] = prometheus4cats.Exemplar[F].get.flatMap(_inc(n, _))
+    }
+
+    def make[F[_]: FlatMap: prometheus4cats.Exemplar, A](_inc: (A, Option[prometheus4cats.Exemplar.Labels]) => F[Unit])(
+        implicit A: Numeric[A]
+    ): Exemplar[F, A] =
+      make(A.one, _inc)
+
+    def noop[F[_]: Applicative, A]: Exemplar[F, A] = new Exemplar[F, A] {
+      override def inc: F[Unit] = Applicative[F].unit
+      override def inc(n: A): F[Unit] = Applicative[F].unit
+    }
   }
 
   sealed abstract class Labelled[F[_], -A, -B] extends Metric[A] with Metric.Labelled[B] {

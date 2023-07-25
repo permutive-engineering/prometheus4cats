@@ -16,7 +16,7 @@
 
 package prometheus4cats
 
-import cats.{Applicative, Eval}
+import cats.Applicative
 import cats.syntax.show._
 import prometheus4cats.internal.ExemplarLabelNameFromStringLiteral
 
@@ -27,19 +27,14 @@ import scala.collection.immutable.SortedMap
   * implementations.
   */
 trait Exemplar[F[_]] {
-  def get(metricName: String, labels: Eval[Map[Label.Name, String]], value: Long): F[Option[Exemplar.Labels]]
-  def get(metricName: String, labels: Eval[Map[Label.Name, String]], value: Double): F[Option[Exemplar.Labels]]
+  def get: F[Option[Exemplar.Labels]]
 }
 
 object Exemplar {
   def apply[F[_]: Exemplar]: Exemplar[F] = implicitly
 
   implicit def noop[F[_]: Applicative]: Exemplar[F] = new Exemplar[F] {
-    override def get(metricName: String, labels: Eval[Map[Label.Name, String]], value: Long): F[Option[Labels]] =
-      Applicative[F].pure(None)
-
-    override def get(metricName: String, labels: Eval[Map[Label.Name, String]], value: Double): F[Option[Labels]] =
-      Applicative[F].pure(None)
+    override def get: F[Option[Labels]] = Applicative[F].pure(None)
   }
 
   /** Refined value class for an exemplar label name that has been parsed from a string
@@ -68,11 +63,6 @@ object Exemplar {
   }
 
   object Labels extends internal.Refined[SortedMap[LabelName, String], Labels] {
-    def of(first: (LabelName, String), rest: (LabelName, String)*): Either[String, Labels] =
-      from(rest.foldLeft(SortedMap.empty[LabelName, String].updated(first._1, first._2)) { case (acc, (k, v)) =>
-        acc.updated(k, v)
-      })
-
     def fromMap(a: Map[LabelName, String]): Either[String, Labels] = from(
       a.foldLeft(SortedMap.empty[LabelName, String]) { case (acc, (k, v)) => acc.updated(k, v) }
     )

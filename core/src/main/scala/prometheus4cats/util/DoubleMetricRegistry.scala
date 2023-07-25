@@ -31,6 +31,14 @@ trait DoubleMetricRegistry[F[_]] extends MetricRegistry[F] {
   ): Resource[F, Counter[F, Long]] =
     createAndRegisterDoubleCounter(prefix, name, help, commonLabels).map(_.contramap(_.toDouble))
 
+  override def createAndRegisterLongExemplarCounter(
+      prefix: Option[Metric.Prefix],
+      name: Counter.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels
+  ): Resource[F, Counter.Exemplar[F, Long]] =
+    createAndRegisterDoubleExemplarCounter(prefix, name, help, commonLabels).map(_.contramap(_.toDouble))
+
   override def createAndRegisterLabelledLongCounter[A](
       prefix: Option[Metric.Prefix],
       name: Counter.Name,

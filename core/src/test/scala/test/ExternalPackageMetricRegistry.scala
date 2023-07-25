@@ -312,4 +312,18 @@ class ExternalPackageMetricRegistry extends MetricRegistry[IO] with CallbackRegi
       commonLabels: Metric.CommonLabels,
       callback: IO[MetricCollection]
   ): Resource[IO, Unit] = ???
+
+  override def createAndRegisterLongExemplarCounter(
+      prefix: Option[Metric.Prefix],
+      name: Counter.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels
+  ): Resource[IO, Counter.Exemplar[IO, Long]] = ???
+
+  override def createAndRegisterDoubleExemplarCounter(
+      prefix: Option[Metric.Prefix],
+      name: Counter.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels
+  ): Resource[IO, Counter.Exemplar[IO, Double]] = ???
 }
