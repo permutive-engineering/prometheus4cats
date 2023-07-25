@@ -190,14 +190,6 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       Chain.one(0.0)
     )
 
-  // TODO implementation
-  override def createAndRegisterDoubleExemplarCounter(
-      prefix: Option[Metric.Prefix],
-      name: Counter.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels
-  ): Resource[F, Counter.Exemplar[F, Double]] = ???
-
   override def createAndRegisterLabelledDoubleCounter[A](
       prefix: Option[Metric.Prefix],
       name: Counter.Name,

@@ -16,10 +16,11 @@
 
 package prometheus4cats
 
-import java.util.regex.Pattern
-
 import cats.data.NonEmptySeq
-import cats.{Applicative, Contravariant, ~>}
+import cats.syntax.flatMap._
+import cats.{Applicative, Contravariant, FlatMap, ~>}
+
+import java.util.regex.Pattern
 
 sealed abstract class Histogram[F[_], -A] extends Metric[A] { self =>
 
@@ -81,6 +82,51 @@ object Histogram {
       override def observe(n: A): F[Unit] = Applicative[F].unit
     }
 
+  sealed abstract class Exemplar[F[_], -A] extends Metric[A] {
+    self =>
+
+    def observe(n: A): F[Unit]
+
+    def observeWithExemplar(n: A): F[Unit]
+
+    def contramap[B](f: B => A): Exemplar[F, B] = new Exemplar[F, B] {
+      override def observe(n: B): F[Unit] = self.observe(f(n))
+
+      override def observeWithExemplar(n: B): F[Unit] = self.observeWithExemplar(f(n))
+    }
+
+    final def mapK[G[_]](fk: F ~> G): Exemplar[G, A] = new Exemplar[G, A] {
+      override def observe(n: A): G[Unit] = fk(self.observe(n))
+
+      override def observeWithExemplar(n: A): G[Unit] = fk(self.observeWithExemplar(n))
+    }
+  }
+
+  object Exemplar {
+    def make[F[_]: FlatMap: prometheus4cats.Exemplar, A](
+        _observe: (A, Option[prometheus4cats.Exemplar.Labels]) => F[Unit]
+    ): Exemplar[F, A] =
+      new Exemplar[F, A] {
+        override def observe(n: A): F[Unit] = _observe(n, None)
+
+        override def observeWithExemplar(n: A): F[Unit] = prometheus4cats.Exemplar[F].get.flatMap(_observe(n, _))
+      }
+
+    private[prometheus4cats] def fromHistogram[F[_], A](histogram: Histogram[F, A]): Exemplar[F, A] =
+      new Exemplar[F, A] {
+        override def observe(n: A): F[Unit] = histogram.observe(n)
+
+        override def observeWithExemplar(n: A): F[Unit] = histogram.observe(n)
+      }
+
+    def noop[F[_]: Applicative, A]: Exemplar[F, A] =
+      new Exemplar[F, A] {
+        override def observe(n: A): F[Unit] = Applicative[F].unit
+
+        override def observeWithExemplar(n: A): F[Unit] = Applicative[F].unit
+      }
+  }
+
   sealed abstract class Labelled[F[_], -A, -B] extends Metric[A] with Metric.Labelled[B] {
     self =>
 
@@ -127,5 +173,79 @@ object Histogram {
         override def observe(n: A, labels: B): F[Unit] =
           Applicative[F].unit
       }
+
+    sealed abstract class Exemplar[F[_], -A, -B] extends Metric[A] with Metric.Labelled[B] {
+      self =>
+
+      def observe(n: A, labels: B): F[Unit]
+
+      def observeWithExemplar(n: A, labels: B): F[Unit]
+
+      def contramap[C](f: C => A): Exemplar[F, C, B] = new Exemplar[F, C, B] {
+        override def observe(n: C, labels: B): F[Unit] = self.observe(f(n), labels)
+
+        override def observeWithExemplar(n: C, labels: B): F[Unit] = self.observeWithExemplar(f(n), labels)
+      }
+
+      def contramapLabels[C](f: C => B): Exemplar[F, A, C] = new Exemplar[F, A, C] {
+        override def observe(n: A, labels: C): F[Unit] = self.observe(n, f(labels))
+
+        override def observeWithExemplar(n: A, labels: C): F[Unit] = self.observeWithExemplar(n, f(labels))
+      }
+
+      final def mapK[G[_]](fk: F ~> G): Exemplar[G, A, B] =
+        new Exemplar[G, A, B] {
+          override def observe(n: A, labels: B): G[Unit] = fk(
+            self.observe(n, labels)
+          )
+
+          override def observeWithExemplar(n: A, labels: B): G[Unit] = fk(
+            self.observeWithExemplar(n, labels)
+          )
+        }
+
+    }
+
+    object Exemplar {
+      implicit def catsInstances[F[_], C]: Contravariant[Exemplar[F, *, C]] =
+        new Contravariant[Exemplar[F, *, C]] {
+          override def contramap[A, B](fa: Exemplar[F, A, C])(f: B => A): Exemplar[F, B, C] = fa.contramap(f)
+        }
+
+      implicit def labelsContravariant[F[_], C]: LabelsContravariant[Exemplar[F, C, *]] =
+        new LabelsContravariant[Exemplar[F, C, *]] {
+          override def contramapLabels[A, B](fa: Exemplar[F, C, A])(f: B => A): Exemplar[F, C, B] =
+            fa.contramapLabels(f)
+        }
+
+      def make[F[_]: FlatMap: prometheus4cats.Exemplar, A, B](
+          _observe: (A, B, Option[prometheus4cats.Exemplar.Labels]) => F[Unit]
+      ): Exemplar[F, A, B] =
+        new Exemplar[F, A, B] {
+          override def observe(n: A, labels: B): F[Unit] = _observe(n, labels, None)
+
+          override def observeWithExemplar(n: A, labels: B): F[Unit] =
+            prometheus4cats.Exemplar[F].get.flatMap(_observe(n, labels, _))
+
+        }
+
+      private[prometheus4cats] def fromHistogram[F[_], A, B](
+          histogram: Histogram.Labelled[F, A, B]
+      ): Exemplar[F, A, B] =
+        new Exemplar[F, A, B] {
+          override def observe(n: A, labels: B): F[Unit] = histogram.observe(n, labels)
+
+          override def observeWithExemplar(n: A, labels: B): F[Unit] = histogram.observe(n, labels)
+        }
+
+      def noop[F[_]: Applicative, A, B]: Exemplar[F, A, B] =
+        new Exemplar[F, A, B] {
+          override def observe(n: A, labels: B): F[Unit] = Applicative[F].unit
+
+          override def observeWithExemplar(n: A, labels: B): F[Unit] = Applicative[F].unit
+
+        }
+    }
+
   }
 }

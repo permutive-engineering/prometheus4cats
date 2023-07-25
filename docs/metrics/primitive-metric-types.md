@@ -22,6 +22,13 @@ See the example below on how to obtain a `Counter` from a [`MetricFactory`]:
 factory.counter("my_counter_total").ofLong.help("Metric description")
 ```
 
+Counters also support [exemplars], to obtain a counter with exemplar support use the following method on the 
+[`MetricFactory`]:
+
+```scala mdoc:silent
+factory.exemplarCounter("my_counter_total").ofLong.help("Metric description")
+```
+
 ### `Gauge`
 
 This implements an [OpenMetrics] gauge, allowing a number to be incremented and decremented by `1` or some positive
@@ -42,6 +49,16 @@ See the example below on how to obtain a `Histogram` from a [`MetricFactory`]:
 ```scala mdoc:silent
 val histogram = factory
   .histogram("my_histogram")
+  .ofDouble
+  .help("Metric description")
+```
+
+Histograms also support [exemplars], to obtain a counter with exemplar support use the following method on the
+[`MetricFactory`]:
+
+```scala mdoc:silent
+val histogram = factory
+  .exemplarHistogram("my_histogram")
   .ofDouble
   .help("Metric description")
 ```
@@ -168,5 +185,6 @@ val info = factory
 
 [Metrics DSL]: ../interface/dsl.md
 [`MetricFactory`]: ../interface/metric-factory.md
+[exemplars]: ../interface/exemplar.md
 
 [OpenMetrics]: https://github.com/OpenObservability/OpenMetrics

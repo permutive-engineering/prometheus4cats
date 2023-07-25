@@ -31,14 +31,6 @@ trait DoubleMetricRegistry[F[_]] extends MetricRegistry[F] {
   ): Resource[F, Counter[F, Long]] =
     createAndRegisterDoubleCounter(prefix, name, help, commonLabels).map(_.contramap(_.toDouble))
 
-  override def createAndRegisterLongExemplarCounter(
-      prefix: Option[Metric.Prefix],
-      name: Counter.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels
-  ): Resource[F, Counter.Exemplar[F, Long]] =
-    createAndRegisterDoubleExemplarCounter(prefix, name, help, commonLabels).map(_.contramap(_.toDouble))
-
   override def createAndRegisterLabelledLongCounter[A](
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
@@ -114,4 +106,57 @@ trait DoubleMetricRegistry[F[_]] extends MetricRegistry[F] {
     createAndRegisterLabelledDoubleSummary(prefix, name, help, commonLabels, labelNames, quantiles, maxAge, ageBuckets)(
       f
     ).map(_.contramap(_.toDouble))
+}
+
+object DoubleMetricRegistry {
+  trait WithExemplars[F[_]] extends DoubleMetricRegistry[F] with MetricRegistry.WithExemplars[F] {
+    override def createAndRegisterLongExemplarCounter(
+        prefix: Option[Metric.Prefix],
+        name: Counter.Name,
+        help: Metric.Help,
+        commonLabels: Metric.CommonLabels
+    ): Resource[F, Counter.Exemplar[F, Long]] =
+      createAndRegisterDoubleExemplarCounter(prefix, name, help, commonLabels).map(_.contramap(_.toDouble))
+
+    override def createAndRegisterLabelledLongExemplarCounter[A](
+        prefix: Option[Metric.Prefix],
+        name: Counter.Name,
+        help: Metric.Help,
+        commonLabels: Metric.CommonLabels,
+        labelNames: IndexedSeq[Label.Name]
+    )(f: A => IndexedSeq[String]): Resource[F, Counter.Labelled.Exemplar[F, Long, A]] =
+      createAndRegisterLabelledDoubleExemplarCounter(prefix, name, help, commonLabels, labelNames)(f).map(
+        _.contramap(_.toDouble)
+      )
+
+    override def createAndRegisterLongExemplarHistogram(
+        prefix: Option[Metric.Prefix],
+        name: Histogram.Name,
+        help: Metric.Help,
+        commonLabels: Metric.CommonLabels,
+        buckets: NonEmptySeq[Long]
+    ): Resource[F, Histogram.Exemplar[F, Long]] =
+      createAndRegisterDoubleExemplarHistogram(prefix, name, help, commonLabels, buckets.map(_.toDouble))
+        .map(_.contramap(_.toDouble))
+
+    override def createAndRegisterLabelledLongExemplarHistogram[A](
+        prefix: Option[Metric.Prefix],
+        name: Histogram.Name,
+        help: Metric.Help,
+        commonLabels: Metric.CommonLabels,
+        labelNames: IndexedSeq[Label.Name],
+        buckets: NonEmptySeq[Long]
+    )(f: A => IndexedSeq[String]): Resource[F, Histogram.Labelled.Exemplar[F, Long, A]] =
+      createAndRegisterLabelledDoubleExemplarHistogram(
+        prefix,
+        name,
+        help,
+        commonLabels,
+        labelNames,
+        buckets.map(_.toDouble)
+      )(f).map(
+        _.contramap(_.toDouble)
+      )
+
+  }
 }

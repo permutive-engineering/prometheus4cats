@@ -63,6 +63,11 @@ object Exemplar {
   }
 
   object Labels extends internal.Refined[SortedMap[LabelName, String], Labels] {
+    def of(first: (LabelName, String), rest: (LabelName, String)*): Either[String, Labels] =
+      from(rest.foldLeft(SortedMap.empty[LabelName, String].updated(first._1, first._2)) { case (acc, (k, v)) =>
+        acc.updated(k, v)
+      })
+
     def fromMap(a: Map[LabelName, String]): Either[String, Labels] = from(
       a.foldLeft(SortedMap.empty[LabelName, String]) { case (acc, (k, v)) => acc.updated(k, v) }
     )

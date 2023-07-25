@@ -1,4 +1,4 @@
-# Exemplars
+# Exemplar
 
 Exemplars provide a way of linking trace information to metrics. For a detailed explainer see the 
 [Grafana labs introduction to exemplars](https://grafana.com/docs/grafana/latest/fundamentals/exemplars/).
