@@ -23,7 +23,7 @@ import cats.effect.kernel.syntax.monadCancel._
 import cats.effect.kernel.syntax.temporal._
 import cats.effect.std.{Dispatcher, Semaphore}
 import cats.syntax.all._
-import cats.{Applicative, ApplicativeThrow, Functor, Monad, Show}
+import cats.{Applicative, ApplicativeThrow, Eval, Functor, Monad, Show}
 import io.prometheus.client.Collector.MetricFamilySamples
 import io.prometheus.client.{
   Collector,
@@ -925,15 +925,16 @@ object JavaMetricRegistry {
         Counter.make(
           1.0,
           (d: Double) =>
-            Exemplar[F].get.flatMap { ex =>
-              Utils
-                .modifyMetric[F, Counter.Name, PCounter.Child](
-                  counter,
-                  name,
-                  commonLabelNames,
-                  commonLabelValues,
-                  c => ex.fold(c.inc(d))(e => c.incWithExemplar(d, transformExemplarLabels(e)))
-                )
+            Exemplar[F].get(NameUtils.makeName(prefix, counterName(name)), Eval.later(commonLabels.value), d).flatMap {
+              ex =>
+                Utils
+                  .modifyMetric[F, Counter.Name, PCounter.Child](
+                    counter,
+                    name,
+                    commonLabelNames,
+                    commonLabelValues,
+                    c => ex.fold(c.inc(d))(e => c.incWithExemplar(d, transformExemplarLabels(e)))
+                  )
             }
         )
       }
@@ -955,20 +956,30 @@ object JavaMetricRegistry {
         prefix,
         name,
         help,
-        labelNames ++ commonLabels.value.keys.toIndexedSeq
+        labelNames ++ commonLabelNames
       ).map { counter =>
         Counter.Labelled.make(
           1.0,
-          (d: Double, labels: A) =>
-            Exemplar[F].get.flatMap { ex =>
-              Utils.modifyMetric[F, Counter.Name, PCounter.Child](
-                counter,
-                name,
-                labelNames ++ commonLabelNames,
-                f(labels) ++ commonLabelValues,
-                c => ex.fold(c.inc(d))(e => c.incWithExemplar(d, transformExemplarLabels(e)))
+          (d: Double, labels: A) => {
+            lazy val allLabelNames = labelNames ++ commonLabelNames
+            lazy val allLabelValues = f(labels) ++ commonLabelValues
+
+            Exemplar[F]
+              .get(
+                NameUtils.makeName(prefix, counterName(name)),
+                Eval.later(allLabelNames.zip(allLabelValues).toMap),
+                d
               )
-            }
+              .flatMap { ex =>
+                Utils.modifyMetric[F, Counter.Name, PCounter.Child](
+                  counter,
+                  name,
+                  labelNames ++ commonLabelNames,
+                  f(labels) ++ commonLabelValues,
+                  c => ex.fold(c.inc(d))(e => c.incWithExemplar(d, transformExemplarLabels(e)))
+                )
+              }
+          }
         )
       }
     }
@@ -991,17 +1002,18 @@ object JavaMetricRegistry {
         help,
         commonLabels.value.keys.toIndexedSeq
       ).map { histogram =>
-        Histogram.make(d =>
-          Exemplar[F].get.flatMap { ex =>
-            Utils.modifyMetric[F, Histogram.Name, PHistogram.Child](
-              histogram,
-              name,
-              commonLabelNames,
-              commonLabelValues,
-              h => ex.fold(h.observe(d))(e => h.observeWithExemplar(d, transformExemplarLabels(e)))
-            )
+        Histogram.make { d =>
+          Exemplar[F].get(NameUtils.makeName(prefix, counterName(name)), Eval.later(commonLabels.value), d).flatMap {
+            ex =>
+              Utils.modifyMetric[F, Histogram.Name, PHistogram.Child](
+                histogram,
+                name,
+                commonLabelNames,
+                commonLabelValues,
+                h => ex.fold(h.observe(d))(e => h.observeWithExemplar(d, transformExemplarLabels(e)))
+              )
           }
-        )
+        }
       }
     }
 
@@ -1025,15 +1037,24 @@ object JavaMetricRegistry {
         labelNames ++ commonLabelNames
       ).map { histogram =>
         Histogram.Labelled.make[F, Double, A](_observe = { (d: Double, labels: A) =>
-          Exemplar[F].get.flatMap { ex =>
-            Utils.modifyMetric[F, Histogram.Name, PHistogram.Child](
-              histogram,
-              name,
-              labelNames ++ commonLabelNames,
-              f(labels) ++ commonLabelValues,
-              h => ex.fold(h.observe(d))(e => h.observeWithExemplar(d, transformExemplarLabels(e)))
+          lazy val allLabelNames = labelNames ++ commonLabelNames
+          lazy val allLabelValues = f(labels) ++ commonLabelValues
+
+          Exemplar[F]
+            .get(
+              NameUtils.makeName(prefix, counterName(name)),
+              Eval.later(allLabelNames.zip(allLabelValues).toMap),
+              d
             )
-          }
+            .flatMap { ex =>
+              Utils.modifyMetric[F, Histogram.Name, PHistogram.Child](
+                histogram,
+                name,
+                labelNames ++ commonLabelNames,
+                f(labels) ++ commonLabelValues,
+                h => ex.fold(h.observe(d))(e => h.observeWithExemplar(d, transformExemplarLabels(e)))
+              )
+            }
         })
       }
     }
