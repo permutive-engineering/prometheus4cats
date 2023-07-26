@@ -70,7 +70,7 @@ object Counter {
     override def inc(n: A): F[Unit] = Applicative[F].unit
   }
 
-  sealed abstract class Exemplar[F[_], -A] { self =>
+  sealed abstract class Exemplar[F[_], -A] extends Metric[A] { self =>
     def inc: F[Unit]
     def incWithExemplar: F[Unit]
     def inc(n: A): F[Unit]

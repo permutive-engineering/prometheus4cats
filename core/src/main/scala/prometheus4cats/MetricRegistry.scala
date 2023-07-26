@@ -1166,7 +1166,7 @@ object MetricRegistry {
       }
   }
 
-  def noop[F[_]: Applicative]: WithExemplars[F] = WithExemplars.noop[F]
+  def noop[F[_]: Applicative]: MetricRegistry[F] = WithExemplars.noop[F]
 
   private[prometheus4cats] def mapK[F[_], G[_]](
       self: MetricRegistry[F],

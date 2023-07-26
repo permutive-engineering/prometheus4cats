@@ -17,23 +17,22 @@
 package prometheus4cats
 package testing
 
-import cats.syntax.all._
-import cats.data.{Chain, NonEmptyList}
+import cats.data.{Chain, NonEmptyList, NonEmptySeq}
 import cats.effect.kernel._
 import cats.effect.std.MapRef
-import cats.data.NonEmptySeq
-import prometheus4cats.util.{DoubleMetricRegistry, NameUtils}
+import cats.syntax.all._
+import prometheus4cats.testing.TestingMetricRegistry._
+import prometheus4cats.util.{DoubleCallbackRegistry, DoubleMetricRegistry, NameUtils}
+
 import scala.concurrent.duration.FiniteDuration
-import TestingMetricRegistry._
-import prometheus4cats.util.DoubleCallbackRegistry
 
 sealed abstract class TestingMetricRegistry[F[_]] private (
     private val underlying: MapRef[F, (String, List[String]), Option[
-      (Int, MetricType, Metric[Double], MapRef[F, List[String], Chain[Double]])
+      (Int, MetricType, Metric[Double], MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]])
     ]],
     private val info: MapRef[F, String, Option[(Int, Info[F, Map[Label.Name, String]])]]
 )(implicit override val F: Concurrent[F])
-    extends DoubleMetricRegistry[F]
+    extends DoubleMetricRegistry.WithExemplars[F]
     with DoubleCallbackRegistry[F] {
 
   def counterHistory(name: Counter.Name, commonLabels: Metric.CommonLabels): F[Option[Chain[Double]]] =
@@ -49,7 +48,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       names(commonLabels),
       values(commonLabels),
       MetricType.Counter
-    )
+    ).map(_.map(_.map(_._1)))
 
   def counterHistory(
       name: Counter.Name,
@@ -70,6 +69,46 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       names(commonLabels, labelNames),
       values(commonLabels, labelValues),
       MetricType.Counter
+    ).map(_.map(_.map(_._1)))
+
+  def exemplarCounterHistory(
+      name: Counter.Name,
+      commonLabels: Metric.CommonLabels
+  ): F[Option[Chain[(Double, Option[Exemplar.Labels])]]] =
+    exemplarCounterHistory(None, name, commonLabels)
+
+  def exemplarCounterHistory(
+      prefix: Option[Metric.Prefix],
+      name: Counter.Name,
+      commonLabels: Metric.CommonLabels
+  ): F[Option[Chain[(Double, Option[Exemplar.Labels])]]] =
+    metricHistory(
+      NameUtils.makeName(prefix, name.value),
+      names(commonLabels),
+      values(commonLabels),
+      MetricType.Counter
+    )
+
+  def exemplarCounterHistory(
+      name: Counter.Name,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name],
+      labelValues: IndexedSeq[String]
+  ): F[Option[Chain[(Double, Option[Exemplar.Labels])]]] =
+    exemplarCounterHistory(None, name, commonLabels, labelNames, labelValues)
+
+  def exemplarCounterHistory(
+      prefix: Option[Metric.Prefix],
+      name: Counter.Name,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name],
+      labelValues: IndexedSeq[String]
+  ): F[Option[Chain[(Double, Option[Exemplar.Labels])]]] =
+    metricHistory(
+      NameUtils.makeName(prefix, name.value),
+      names(commonLabels, labelNames),
+      values(commonLabels, labelValues),
+      MetricType.Counter
     )
 
   def gaugeHistory(name: Gauge.Name, commonLabels: Metric.CommonLabels): F[Option[Chain[Double]]] =
@@ -81,6 +120,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       commonLabels: Metric.CommonLabels
   ): F[Option[Chain[Double]]] =
     metricHistory(NameUtils.makeName(prefix, name.value), names(commonLabels), values(commonLabels), MetricType.Gauge)
+      .map(_.map(_.map(_._1)))
 
   def gaugeHistory(
       name: Gauge.Name,
@@ -101,7 +141,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       names(commonLabels, labelNames),
       values(commonLabels, labelValues),
       MetricType.Gauge
-    )
+    ).map(_.map(_.map(_._1)))
 
   def histogramHistory(name: Histogram.Name, commonLabels: Metric.CommonLabels): F[Option[Chain[Double]]] =
     histogramHistory(None, name, commonLabels)
@@ -116,7 +156,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       names(commonLabels),
       values(commonLabels),
       MetricType.Histogram
-    )
+    ).map(_.map(_.map(_._1)))
 
   def histogramHistory(
       name: Histogram.Name,
@@ -137,6 +177,46 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       names(commonLabels, labelNames),
       values(commonLabels, labelValues),
       MetricType.Histogram
+    ).map(_.map(_.map(_._1)))
+
+  def exemplarHistogramHistory(
+      name: Histogram.Name,
+      commonLabels: Metric.CommonLabels
+  ): F[Option[Chain[(Double, Option[Exemplar.Labels])]]] =
+    exemplarHistogramHistory(None, name, commonLabels)
+
+  def exemplarHistogramHistory(
+      prefix: Option[Metric.Prefix],
+      name: Histogram.Name,
+      commonLabels: Metric.CommonLabels
+  ): F[Option[Chain[(Double, Option[Exemplar.Labels])]]] =
+    metricHistory(
+      NameUtils.makeName(prefix, name.value),
+      names(commonLabels),
+      values(commonLabels),
+      MetricType.Histogram
+    )
+
+  def exemplarHistogramHistory(
+      name: Histogram.Name,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name],
+      labelValues: IndexedSeq[String]
+  ): F[Option[Chain[(Double, Option[Exemplar.Labels])]]] =
+    exemplarHistogramHistory(None, name, commonLabels, labelNames, labelValues)
+
+  def exemplarHistogramHistory(
+      prefix: Option[Metric.Prefix],
+      name: Histogram.Name,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name],
+      labelValues: IndexedSeq[String]
+  ): F[Option[Chain[(Double, Option[Exemplar.Labels])]]] =
+    metricHistory(
+      NameUtils.makeName(prefix, name.value),
+      names(commonLabels, labelNames),
+      values(commonLabels, labelValues),
+      MetricType.Histogram
     )
 
   def summaryHistory(name: Summary.Name, commonLabels: Metric.CommonLabels): F[Option[Chain[Double]]] =
@@ -148,6 +228,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       commonLabels: Metric.CommonLabels
   ): F[Option[Chain[Double]]] =
     metricHistory(NameUtils.makeName(prefix, name.value), names(commonLabels), values(commonLabels), MetricType.Summary)
+      .map(_.map(_.map(_._1)))
 
   def summaryHistory(
       name: Summary.Name,
@@ -168,7 +249,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       names(commonLabels, labelNames),
       values(commonLabels, labelValues),
       MetricType.Summary
-    )
+    ).map(_.map(_.map(_._1)))
 
   def infoValue(
       prefix: Option[Metric.Prefix],
@@ -185,9 +266,11 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       NameUtils.makeName(prefix, name.value),
       names(commonLabels),
       MetricType.Counter,
-      (ref: MapRef[F, List[String], Chain[Double]]) =>
-        Counter.make[F, Double]((d: Double) => ref(values(commonLabels)).update(c => c.append(c.lastOption.get + d))),
-      Chain.one(0.0)
+      (ref: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]]) =>
+        Counter.make[F, Double]((d: Double) =>
+          ref(values(commonLabels)).update(c => c.append((c.lastOption.get._1 + d, None)))
+        ),
+      Chain.one(0.0 -> None)
     )
 
   override def createAndRegisterLabelledDoubleCounter[A](
@@ -201,11 +284,11 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       NameUtils.makeName(prefix, name.value),
       names(commonLabels, labelNames),
       MetricType.Counter,
-      (ref: MapRef[F, List[String], Chain[Double]]) =>
+      (ref: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]]) =>
         Counter.Labelled.make[F, Double, A]((d: Double, a: A) =>
-          ref(values(commonLabels, f(a))).update(c => c.append(c.lastOption.get + d))
+          ref(values(commonLabels, f(a))).update(c => c.append((c.lastOption.get._1 + d, None)))
         ),
-      Chain.one(0.0)
+      Chain.one(0.0 -> None)
     )
 
   override def createAndRegisterDoubleGauge(
@@ -218,13 +301,13 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       NameUtils.makeName(prefix, name.value),
       names(commonLabels),
       MetricType.Gauge,
-      (ref: MapRef[F, List[String], Chain[Double]]) =>
+      (ref: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]]) =>
         Gauge.make[F, Double](
-          (d: Double) => ref(values(commonLabels)).update(c => c.append(c.lastOption.get + d)),
-          (d: Double) => ref(values(commonLabels)).update(c => c.append(c.lastOption.get - d)),
-          (d: Double) => ref(values(commonLabels)).update(_.append(d))
+          (d: Double) => ref(values(commonLabels)).update(c => c.append((c.lastOption.get._1 + d, None))),
+          (d: Double) => ref(values(commonLabels)).update(c => c.append((c.lastOption.get._1 - d, None))),
+          (d: Double) => ref(values(commonLabels)).update(_.append(d -> None))
         ),
-      Chain.one(0.0)
+      Chain.one(0.0 -> None)
     )
 
   override def createAndRegisterLabelledDoubleGauge[A](
@@ -238,13 +321,13 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       NameUtils.makeName(prefix, name.value),
       names(commonLabels, labelNames),
       MetricType.Gauge,
-      (ref: MapRef[F, List[String], Chain[Double]]) =>
+      (ref: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]]) =>
         Gauge.Labelled.make[F, Double, A](
-          (d: Double, a: A) => ref(values(commonLabels, f(a))).update(c => c.append(c.lastOption.get + d)),
-          (d: Double, a: A) => ref(values(commonLabels, f(a))).update(c => c.append(c.lastOption.get - d)),
-          (d: Double, a: A) => ref(values(commonLabels, f(a))).update(_.append(d))
+          (d: Double, a: A) => ref(values(commonLabels, f(a))).update(c => c.append((c.lastOption.get._1 + d, None))),
+          (d: Double, a: A) => ref(values(commonLabels, f(a))).update(c => c.append((c.lastOption.get._1 - d, None))),
+          (d: Double, a: A) => ref(values(commonLabels, f(a))).update(_.append(d -> None))
         ),
-      Chain.one(0.0)
+      Chain.one(0.0 -> None)
     )
 
   override def createAndRegisterDoubleHistogram(
@@ -258,8 +341,8 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       NameUtils.makeName(prefix, name.value),
       names(commonLabels),
       MetricType.Histogram,
-      (ref: MapRef[F, List[String], Chain[Double]]) =>
-        Histogram.make[F, Double]((d: Double) => ref(values(commonLabels)).update(_.append(d))),
+      (ref: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]]) =>
+        Histogram.make[F, Double]((d: Double) => ref(values(commonLabels)).update(_.append(d -> None))),
       Chain.nil
     )
 
@@ -275,8 +358,10 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       NameUtils.makeName(prefix, name.value),
       names(commonLabels, labelNames),
       MetricType.Histogram,
-      (ref: MapRef[F, List[String], Chain[Double]]) =>
-        Histogram.Labelled.make[F, Double, A]((d: Double, a: A) => ref(values(commonLabels, f(a))).update(_.append(d))),
+      (ref: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]]) =>
+        Histogram.Labelled.make[F, Double, A]((d: Double, a: A) =>
+          ref(values(commonLabels, f(a))).update(_.append(d -> None))
+        ),
       Chain.nil
     )
 
@@ -293,8 +378,8 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       NameUtils.makeName(prefix, name.value),
       names(commonLabels),
       MetricType.Summary,
-      (ref: MapRef[F, List[String], Chain[Double]]) =>
-        Summary.make[F, Double]((d: Double) => ref(values(commonLabels)).update(_.append(d))),
+      (ref: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]]) =>
+        Summary.make[F, Double]((d: Double) => ref(values(commonLabels)).update(_.append(d -> None))),
       Chain.nil
     )
 
@@ -312,8 +397,10 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       NameUtils.makeName(prefix, name.value),
       names(commonLabels, labelNames),
       MetricType.Summary,
-      (ref: MapRef[F, List[String], Chain[Double]]) =>
-        Summary.Labelled.make[F, Double, A]((d: Double, a: A) => ref(values(commonLabels, f(a))).update(_.append(d))),
+      (ref: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]]) =>
+        Summary.Labelled.make[F, Double, A]((d: Double, a: A) =>
+          ref(values(commonLabels, f(a))).update(_.append(d -> None))
+        ),
       Chain.nil
     )
 
@@ -417,14 +504,14 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       name: String,
       labels: List[String],
       tpe: MetricType,
-      create: MapRef[F, List[String], Chain[Double]] => M,
-      initial: Chain[Double]
+      create: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]] => M,
+      initial: Chain[(Double, Option[Exemplar.Labels])]
   ): Resource[F, M] =
     Resource
       .eval(
         MapRef
-          .ofShardedImmutableMap[F, List[String], Chain[Double]](32)
-          .map(r => MapRef.defaultedMapRef[F, List[String], Chain[Double]](r, initial))
+          .ofShardedImmutableMap[F, List[String], Chain[(Double, Option[Exemplar.Labels])]](32)
+          .map(r => MapRef.defaultedMapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]](r, initial))
           .flatMap { ref =>
             val release =
               underlying(name -> labels).update {
@@ -463,11 +550,11 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       labelNames: List[String],
       labelValues: List[String],
       tpe: MetricType
-  ): F[Option[Chain[Double]]] =
+  ): F[Option[Chain[(Double, Option[Exemplar.Labels])]]] =
     underlying(name -> labelNames).get.flatMap(_.flatTraverse {
       case (_, t, _, r) if t == tpe =>
         r(labelValues).get.map(_.some)
-      case _ => Option.empty[Chain[Double]].pure[F]
+      case _ => Option.empty[Chain[(Double, Option[Exemplar.Labels])]].pure[F]
     })
 
   private def names(commonLabels: Metric.CommonLabels): List[String] =
@@ -482,6 +569,75 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
   private def values(comonLabels: Metric.CommonLabels, labels: IndexedSeq[String]): List[String] =
     values(comonLabels) ++ labels
 
+  override def createAndRegisterDoubleExemplarCounter(
+      prefix: Option[Metric.Prefix],
+      name: Counter.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels
+  ): Resource[F, Counter.Exemplar[F, Double]] =
+    store(
+      NameUtils.makeName(prefix, name.value),
+      names(commonLabels),
+      MetricType.Counter,
+      (ref: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]]) =>
+        Counter.Exemplar.make[F, Double]((d: Double, ex: Option[Exemplar.Labels]) =>
+          ref(values(commonLabels)).update(c => c.append((c.lastOption.get._1 + d, ex)))
+        ),
+      Chain.one(0.0 -> None)
+    )
+
+  override def createAndRegisterLabelledDoubleExemplarCounter[A](
+      prefix: Option[Metric.Prefix],
+      name: Counter.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name]
+  )(f: A => IndexedSeq[String]): Resource[F, Counter.Labelled.Exemplar[F, Double, A]] =
+    store(
+      NameUtils.makeName(prefix, name.value),
+      names(commonLabels, labelNames),
+      MetricType.Counter,
+      (ref: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]]) =>
+        Counter.Labelled.Exemplar.make[F, Double, A]((d: Double, a: A, ex: Option[Exemplar.Labels]) =>
+          ref(values(commonLabels, f(a))).update(c => c.append((c.lastOption.get._1 + d, ex)))
+        ),
+      Chain.one(0.0 -> None)
+    )
+
+  override def createAndRegisterDoubleExemplarHistogram(
+      prefix: Option[Metric.Prefix],
+      name: Histogram.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      buckets: NonEmptySeq[Double]
+  ): Resource[F, Histogram.Exemplar[F, Double]] = store(
+    NameUtils.makeName(prefix, name.value),
+    names(commonLabels),
+    MetricType.Histogram,
+    (ref: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]]) =>
+      Histogram.Exemplar.make[F, Double]((d: Double, ex: Option[Exemplar.Labels]) =>
+        ref(values(commonLabels)).update(_.append(d -> ex))
+      ),
+    Chain.nil
+  )
+
+  override def createAndRegisterLabelledDoubleExemplarHistogram[A](
+      prefix: Option[Metric.Prefix],
+      name: Histogram.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name],
+      buckets: NonEmptySeq[Double]
+  )(f: A => IndexedSeq[String]): Resource[F, Histogram.Labelled.Exemplar[F, Double, A]] = store(
+    NameUtils.makeName(prefix, name.value),
+    names(commonLabels, labelNames),
+    MetricType.Histogram,
+    (ref: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]]) =>
+      Histogram.Labelled.Exemplar.make[F, Double, A]((d: Double, a: A, ex: Option[Exemplar.Labels]) =>
+        ref(values(commonLabels, f(a))).update(_.append(d -> ex))
+      ),
+    Chain.nil
+  )
 }
 
 object TestingMetricRegistry {
@@ -491,7 +647,7 @@ object TestingMetricRegistry {
       .ofShardedImmutableMap[
         F,
         (String, List[String]),
-        (Int, MetricType, Metric[Double], MapRef[F, List[String], Chain[Double]])
+        (Int, MetricType, Metric[Double], MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]])
       ](256),
     MapRef.ofShardedImmutableMap[F, String, (Int, Info[F, Map[Label.Name, String]])](64)
   ).mapN { case (m, i) => new TestingMetricRegistry(m, i) {} }
