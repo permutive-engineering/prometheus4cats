@@ -62,9 +62,7 @@ object SummaryDsl {
         labelNames: Label.Name*
     ): BuildStep[F, Summary[F, A, Map[Label.Name, String]]]
 
-    def labels[B, N <: Nat](labelNames: Sized[IndexedSeq[Label.Name], N])(
-        f: B => Sized[IndexedSeq[String], N]
-    ): LabelsBuildStep[F, A, B, N, Summary]
+    def labels[B](labels: (Label.Name, B => String)*): LabelsBuildStep[F, A, B, Summary]
   }
 
   private val defaultQuantiles: Seq[Summary.QuantileDefinition] = Seq.empty

@@ -115,8 +115,9 @@ val classLabelledCounter = factory
   .counter("counter_total")
   .ofDouble
   .help("Describe what this metric does")
-  .labels(Sized(Label.Name("label1"), Label.Name("label2")))((x: MyMultiClass) =>
-    Sized(x.value1, x.value2.toString)
+  .labels[MyMultiClass](
+    Label.Name("label1") -> (_.value1),
+    Label.Name("label2") -> (_.value2.toString)
   )
 
 classLabelledCounter.build.evalMap(_.inc(2.0, MyMultiClass("label_value", 42)))
