@@ -32,7 +32,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
     ]],
     private val info: MapRef[F, String, Option[(Int, Info[F, Map[Label.Name, String]])]]
 )(implicit override val F: Concurrent[F])
-    extends DoubleMetricRegistry.WithExemplars[F]
+    extends DoubleMetricRegistry[F]
     with DoubleCallbackRegistry[F] {
 
   def counterHistory(name: Counter.Name, commonLabels: Metric.CommonLabels): F[Option[Chain[Double]]] =

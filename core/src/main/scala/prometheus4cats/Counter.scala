@@ -104,18 +104,7 @@ object Counter {
 
     def make[F[_]: FlatMap: prometheus4cats.Exemplar, A](_inc: (A, Option[prometheus4cats.Exemplar.Labels]) => F[Unit])(
         implicit A: Numeric[A]
-    ): Exemplar[F, A] =
-      make(A.one, _inc)
-
-    private[prometheus4cats] def fromCounter[F[_], A](counter: Counter[F, A]) = new Exemplar[F, A] {
-      override def inc: F[Unit] = counter.inc
-
-      override def inc(n: A): F[Unit] = counter.inc(n)
-
-      override def incWithExemplar: F[Unit] = inc
-
-      override def incWithExemplar(n: A): F[Unit] = inc(n)
-    }
+    ): Counter.Exemplar[F, A] = make(A.one, _inc)
 
     def noop[F[_]: Applicative, A]: Exemplar[F, A] = new Exemplar[F, A] {
       override def inc: F[Unit] = Applicative[F].unit

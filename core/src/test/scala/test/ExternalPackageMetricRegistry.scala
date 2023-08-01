@@ -313,4 +313,67 @@ class ExternalPackageMetricRegistry extends MetricRegistry[IO] with CallbackRegi
       callback: IO[MetricCollection]
   ): Resource[IO, Unit] = ???
 
+  override def createAndRegisterLongExemplarCounter(
+      prefix: Option[Metric.Prefix],
+      name: Counter.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels
+  ): Resource[IO, Counter.Exemplar[IO, Long]] = ???
+
+  override def createAndRegisterDoubleExemplarCounter(
+      prefix: Option[Metric.Prefix],
+      name: Counter.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels
+  ): Resource[IO, Counter.Exemplar[IO, Double]] = ???
+
+  override def createAndRegisterLabelledDoubleExemplarCounter[A](
+      prefix: Option[Metric.Prefix],
+      name: Counter.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name]
+  )(f: A => IndexedSeq[String]): Resource[IO, Counter.Labelled.Exemplar[IO, Double, A]] = ???
+
+  override def createAndRegisterLabelledLongExemplarCounter[A](
+      prefix: Option[Metric.Prefix],
+      name: Counter.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name]
+  )(f: A => IndexedSeq[String]): Resource[IO, Counter.Labelled.Exemplar[IO, Long, A]] = ???
+
+  override def createAndRegisterDoubleExemplarHistogram(
+      prefix: Option[Metric.Prefix],
+      name: Histogram.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      buckets: NonEmptySeq[Double]
+  ): Resource[IO, Histogram.Exemplar[IO, Double]] = ???
+
+  override def createAndRegisterLongExemplarHistogram(
+      prefix: Option[Metric.Prefix],
+      name: Histogram.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      buckets: NonEmptySeq[Long]
+  ): Resource[IO, Histogram.Exemplar[IO, Long]] = ???
+
+  override def createAndRegisterLabelledDoubleExemplarHistogram[A](
+      prefix: Option[Metric.Prefix],
+      name: Histogram.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name],
+      buckets: NonEmptySeq[Double]
+  )(f: A => IndexedSeq[String]): Resource[IO, Histogram.Labelled.Exemplar[IO, Double, A]] = ???
+
+  override def createAndRegisterLabelledLongExemplarHistogram[A](
+      prefix: Option[Metric.Prefix],
+      name: Histogram.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name],
+      buckets: NonEmptySeq[Long]
+  )(f: A => IndexedSeq[String]): Resource[IO, Histogram.Labelled.Exemplar[IO, Long, A]] = ???
 }

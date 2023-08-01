@@ -30,17 +30,12 @@ sealed abstract class MetricFactory[F[_]](
     val commonLabels: CommonLabels
 ) {
 
-  protected def exemplarRegistry: Option[MetricRegistry.WithExemplars[F]] = metricRegistry match {
-    case exemplars: MetricRegistry.WithExemplars[F] => Some(exemplars)
-    case _ => None
-  }
-
   /** Given a natural transformation from `F` to `G`, transforms this [[MetricFactory]] from effect `F` to effect `G`.
     * The G constraint can also be satisfied by requiring a Functor[G].
     */
   def mapK[G[_]](fk: F ~> G)(implicit F: MonadCancel[F, _], G: MonadCancel[G, _]): MetricFactory[G] =
     new MetricFactory[G](
-      exemplarRegistry.fold(metricRegistry.mapK(fk))(_.mapK(fk)),
+      metricRegistry.mapK(fk),
       prefix,
       commonLabels
     ) {}
@@ -138,39 +133,23 @@ sealed abstract class MetricFactory[F[_]](
     new TypeStep[ExemplarCounterDsl[MetricDsl, *]](
       new HelpStep(help =>
         new MetricDsl(
-          exemplarRegistry.fold[Resource[F, Counter.Exemplar[F, Long]]](
-            metricRegistry
-              .createAndRegisterLongCounter(prefix, name, help, commonLabels)
-              .map(Counter.Exemplar.fromCounter)
-          )(_.createAndRegisterLongExemplarCounter(prefix, name, help, commonLabels)),
+          metricRegistry.createAndRegisterLongExemplarCounter(prefix, name, help, commonLabels),
           new LabelledMetricPartiallyApplied[F, Long, Counter.Labelled.Exemplar] {
             override def apply[B](
                 labels: IndexedSeq[Label.Name]
             )(f: B => IndexedSeq[String]): Resource[F, Counter.Labelled.Exemplar[F, Long, B]] =
-              exemplarRegistry.fold[Resource[F, Counter.Labelled.Exemplar[F, Long, B]]](
-                metricRegistry
-                  .createAndRegisterLabelledLongCounter(prefix, name, help, commonLabels, labels)(f)
-                  .map(Counter.Labelled.Exemplar.fromCounter)
-              )(_.createAndRegisterLabelledLongExemplarCounter(prefix, name, help, commonLabels, labels)(f))
+              metricRegistry.createAndRegisterLabelledLongExemplarCounter(prefix, name, help, commonLabels, labels)(f)
           }
         )
       ),
       new HelpStep(help =>
         new MetricDsl(
-          exemplarRegistry.fold[Resource[F, Counter.Exemplar[F, Double]]](
-            metricRegistry
-              .createAndRegisterDoubleCounter(prefix, name, help, commonLabels)
-              .map(Counter.Exemplar.fromCounter)
-          )(_.createAndRegisterDoubleExemplarCounter(prefix, name, help, commonLabels)),
+          metricRegistry.createAndRegisterDoubleExemplarCounter(prefix, name, help, commonLabels),
           new LabelledMetricPartiallyApplied[F, Double, Counter.Labelled.Exemplar] {
             override def apply[B](
                 labels: IndexedSeq[Label.Name]
             )(f: B => IndexedSeq[String]): Resource[F, Counter.Labelled.Exemplar[F, Double, B]] =
-              exemplarRegistry.fold[Resource[F, Counter.Labelled.Exemplar[F, Double, B]]](
-                metricRegistry
-                  .createAndRegisterLabelledDoubleCounter(prefix, name, help, commonLabels, labels)(f)
-                  .map(Counter.Labelled.Exemplar.fromCounter)
-              )(_.createAndRegisterLabelledDoubleExemplarCounter(prefix, name, help, commonLabels, labels)(f))
+              metricRegistry.createAndRegisterLabelledDoubleExemplarCounter(prefix, name, help, commonLabels, labels)(f)
           }
         )
       )
@@ -245,22 +224,13 @@ sealed abstract class MetricFactory[F[_]](
       new HelpStep(help =>
         new BucketDsl[MetricDsl[F, Long, Histogram.Exemplar, Histogram.Labelled.Exemplar], Long](buckets =>
           new MetricDsl(
-            exemplarRegistry.fold[Resource[F, Histogram.Exemplar[F, Long]]](
-              metricRegistry
-                .createAndRegisterLongHistogram(prefix, name, help, commonLabels, buckets)
-                .map(Histogram.Exemplar.fromHistogram)
-            )(_.createAndRegisterLongExemplarHistogram(prefix, name, help, commonLabels, buckets)),
+            metricRegistry.createAndRegisterLongExemplarHistogram(prefix, name, help, commonLabels, buckets),
             new LabelledMetricPartiallyApplied[F, Long, Histogram.Labelled.Exemplar] {
               override def apply[B](
                   labels: IndexedSeq[Label.Name]
               )(f: B => IndexedSeq[String]): Resource[F, Histogram.Labelled.Exemplar[F, Long, B]] =
-                exemplarRegistry.fold[Resource[F, Histogram.Labelled.Exemplar[F, Long, B]]](
-                  metricRegistry
-                    .createAndRegisterLabelledLongHistogram(prefix, name, help, commonLabels, labels, buckets)(f)
-                    .map(Histogram.Labelled.Exemplar.fromHistogram)
-                )(
-                  _.createAndRegisterLabelledLongExemplarHistogram(prefix, name, help, commonLabels, labels, buckets)(f)
-                )
+                metricRegistry
+                  .createAndRegisterLabelledLongExemplarHistogram(prefix, name, help, commonLabels, labels, buckets)(f)
             }
           )
         )
@@ -268,24 +238,19 @@ sealed abstract class MetricFactory[F[_]](
       new HelpStep(help =>
         new BucketDsl[MetricDsl[F, Double, Histogram.Exemplar, Histogram.Labelled.Exemplar], Double](buckets =>
           new MetricDsl(
-            exemplarRegistry.fold[Resource[F, Histogram.Exemplar[F, Double]]](
-              metricRegistry
-                .createAndRegisterDoubleHistogram(prefix, name, help, commonLabels, buckets)
-                .map(Histogram.Exemplar.fromHistogram)
-            )(_.createAndRegisterDoubleExemplarHistogram(prefix, name, help, commonLabels, buckets)),
+            metricRegistry.createAndRegisterDoubleExemplarHistogram(prefix, name, help, commonLabels, buckets),
             new LabelledMetricPartiallyApplied[F, Double, Histogram.Labelled.Exemplar] {
               override def apply[B](
                   labels: IndexedSeq[Label.Name]
               )(f: B => IndexedSeq[String]): Resource[F, Histogram.Labelled.Exemplar[F, Double, B]] =
-                exemplarRegistry.fold[Resource[F, Histogram.Labelled.Exemplar[F, Double, B]]](
-                  metricRegistry
-                    .createAndRegisterLabelledDoubleHistogram(prefix, name, help, commonLabels, labels, buckets)(f)
-                    .map(Histogram.Labelled.Exemplar.fromHistogram)
-                )(
-                  _.createAndRegisterLabelledDoubleExemplarHistogram(prefix, name, help, commonLabels, labels, buckets)(
-                    f
-                  )
-                )
+                metricRegistry.createAndRegisterLabelledDoubleExemplarHistogram(
+                  prefix,
+                  name,
+                  help,
+                  commonLabels,
+                  labels,
+                  buckets
+                )(f)
             }
           )
         )
@@ -756,21 +721,7 @@ object MetricFactory {
       * @return
       *   a new [[MetricFactory]] instance
       */
-    @deprecated(
-      "please provide a MetricRegistry.WithExemplars[F] instead, otherwise any exemplar labels you set won't be displayed",
-      "1.1.0"
-    )
     def build[F[_]](metricRegistry: MetricRegistry[F]): MetricFactory[F] =
-      new MetricFactory[F](metricRegistry, prefix, commonLabels) {}
-
-    /** Build a [[MetricFactory]] from a [[MetricRegistry]]
-      *
-      * @param metricRegistry
-      *   [[MetricRegistry.WithExemplars]] with which to register new metrics created by the built [[MetricFactory]]
-      * @return
-      *   a new [[MetricFactory]] instance
-      */
-    def build[F[_]](metricRegistry: MetricRegistry.WithExemplars[F]): MetricFactory[F] =
       new MetricFactory[F](metricRegistry, prefix, commonLabels) {}
 
     /** Build a [[MetricFactory]] from a [[MetricRegistry]] and separate [[CallbackRegistry]]
@@ -782,27 +733,8 @@ object MetricFactory {
       * @return
       *   a new [[MetricFactory.WithCallbacks]] instance
       */
-    @deprecated(
-      "please provide a MetricRegistry.WithExemplars[F] instead, otherwise any exemplar labels you set won't be displayed",
-      "1.1.0"
-    )
     def build[F[_]](
         metricRegistry: MetricRegistry[F],
-        callbackRegistry: CallbackRegistry[F]
-    ): MetricFactory.WithCallbacks[F] =
-      new MetricFactory.WithCallbacks[F](metricRegistry, callbackRegistry, prefix, commonLabels) {}
-
-    /** Build a [[MetricFactory]] from a [[MetricRegistry.WithExemplars]] and separate [[CallbackRegistry]]
-      *
-      * @param metricRegistry
-      *   [[MetricRegistry.WithExemplars]] with which to register new metrics created by the built [[MetricFactory]]
-      * @param callbackRegistry
-      *   [[CallbackRegistry]] with which to register new metrics created by the built [[MetricFactory]]
-      * @return
-      *   a new [[MetricFactory.WithCallbacks]] instance
-      */
-    def build[F[_]](
-        metricRegistry: MetricRegistry.WithExemplars[F],
         callbackRegistry: CallbackRegistry[F]
     ): MetricFactory.WithCallbacks[F] =
       new MetricFactory.WithCallbacks[F](metricRegistry, callbackRegistry, prefix, commonLabels) {}
@@ -815,24 +747,7 @@ object MetricFactory {
       * @return
       *   a new [[MetricFactory.WithCallbacks]] instance
       */
-    @deprecated(
-      "please provide a MetricRegistry.WithExemplars[F] instead, otherwise any exemplar labels you set won't be displayed",
-      "1.1.0"
-    )
     def build[F[_]](metricRegistry: MetricRegistry[F] with CallbackRegistry[F]): MetricFactory.WithCallbacks[F] =
-      new MetricFactory.WithCallbacks[F](metricRegistry, metricRegistry, prefix, commonLabels) {}
-
-    /** Build a [[MetricFactory]] from a [[MetricRegistry.WithExemplars with CallbackRegistry]]
-      *
-      * @param metricRegistry
-      *   [[[MetricRegistry.WithExemplars with CallbackRegistry]] with which to register new metrics and callbacks
-      *   created by the built [[MetricFactory]]
-      * @return
-      *   a new [[MetricFactory.WithCallbacks]] instance
-      */
-    def build[F[_]](
-        metricRegistry: MetricRegistry.WithExemplars[F] with CallbackRegistry[F]
-    ): MetricFactory.WithCallbacks[F] =
       new MetricFactory.WithCallbacks[F](metricRegistry, metricRegistry, prefix, commonLabels) {}
 
     /** Build a [[MetricFactory]] from an existing [[MetricFactory]] and [[CallbackRegistry]]

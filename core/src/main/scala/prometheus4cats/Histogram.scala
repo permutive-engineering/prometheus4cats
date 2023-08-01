@@ -112,13 +112,6 @@ object Histogram {
         override def observeWithExemplar(n: A): F[Unit] = prometheus4cats.Exemplar[F].get.flatMap(_observe(n, _))
       }
 
-    private[prometheus4cats] def fromHistogram[F[_], A](histogram: Histogram[F, A]): Exemplar[F, A] =
-      new Exemplar[F, A] {
-        override def observe(n: A): F[Unit] = histogram.observe(n)
-
-        override def observeWithExemplar(n: A): F[Unit] = histogram.observe(n)
-      }
-
     def noop[F[_]: Applicative, A]: Exemplar[F, A] =
       new Exemplar[F, A] {
         override def observe(n: A): F[Unit] = Applicative[F].unit
