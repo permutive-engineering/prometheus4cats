@@ -72,6 +72,11 @@ object BuildStep {
       bs.map(Timer.fromHistogram[F])
   }
 
+  implicit class DoubleHistogramExemplarSyntax[F[_]](bs: BuildStep[F, Histogram.Exemplar[F, Double]]) {
+    def asTimer(implicit F: FlatMap[F], clock: Clock[F]): BuildStep[F, Timer.Exemplar.Aux[F, Histogram.Exemplar]] =
+      bs.map(Timer.Exemplar.fromHistogram[F])
+  }
+
   implicit class DoubleLabelledGaugeSyntax[F[_], A](
       bs: BuildStep[F, Gauge.Labelled[F, Double, A]]
   ) {
@@ -113,6 +118,16 @@ object BuildStep {
         clock: Clock[F]
     ): BuildStep[F, Timer.Labelled.Aux[F, A, Histogram.Labelled]] =
       bs.map(Timer.Labelled.fromHistogram[F, A])
+  }
+
+  implicit class DoubleLabelledHistogramExemplarSyntax[F[_], A](
+      bs: BuildStep[F, Histogram.Labelled.Exemplar[F, Double, A]]
+  ) {
+    def asTimer(implicit
+        F: MonadThrow[F],
+        clock: Clock[F]
+    ): BuildStep[F, Timer.Labelled.Exemplar.Aux[F, A, Histogram.Labelled.Exemplar]] =
+      bs.map(Timer.Labelled.Exemplar.fromHistogram[F, A])
   }
 
   implicit class DoubleSummarySyntax[F[_]](bs: BuildStep[F, Summary[F, Double]]) {
