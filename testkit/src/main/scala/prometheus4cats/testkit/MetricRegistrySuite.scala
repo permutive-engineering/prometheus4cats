@@ -342,15 +342,15 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
             val expected =
               if (value > 0)
                 Map(
-                  "0.0" -> (0.0, None),
-                  value.toString -> (1.0, Some(Map("test" -> "test"))),
-                  "+Inf" -> (1.0, None)
+                  ("0.0", (0.0, None)),
+                  (value.toString, (1.0, Some(Map("test" -> "test")))),
+                  ("+Inf", (1.0, None))
                 )
               else
                 Map(
-                  value.toString -> (1.0, Some(Map("test" -> "test"))),
-                  "0.0" -> (1.0, None),
-                  "+Inf" -> (1.0, None)
+                  (value.toString, (1.0, Some(Map("test" -> "test")))),
+                  ("0.0", (1.0, None)),
+                  ("+Inf", (1.0, None))
                 )
 
             val get = getExemplarHistogramValue(
@@ -437,15 +437,15 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
             val expected =
               if (value > 0)
                 Map(
-                  "0.0" -> (0.0, None),
-                  value.toString -> (1.0, Some(Map("test" -> "test"))),
-                  "+Inf" -> (1.0, None)
+                  ("0.0", (0.0, None)),
+                  (value.toString, (1.0, Some(Map("test" -> "test")))),
+                  ("+Inf", (1.0, None))
                 )
               else
                 Map(
-                  value.toString -> (1.0, Some(Map("test" -> "test"))),
-                  "0.0" -> (1.0, None),
-                  "+Inf" -> (1.0, None)
+                  (value.toString, (1.0, Some(Map("test" -> "test")))),
+                  ("0.0", (1.0, None)),
+                  ("+Inf", (1.0, None))
                 )
 
             val get = getExemplarHistogramValue(

@@ -133,7 +133,7 @@ class JavaMetricRegistrySuite
       extraLabels: Map[Label.Name, String]
   ): IO[Option[Map[String, Double]]] =
     getExemplarHistogramValue(state, prefix, name, help, commonLabels, buckets, extraLabels).map(
-      _.map(_.view.mapValues(_._1).toMap)
+      _.map(_.map { case (k, (v, _)) => k -> v })
     )
 
   override def getExemplarHistogramValue(
