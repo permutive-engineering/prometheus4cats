@@ -57,7 +57,7 @@ Histograms also support [exemplars], to obtain a counter with exemplar support u
 [`MetricFactory`]:
 
 ```scala mdoc:silent
-val histogram = factory
+factory
   .exemplarHistogram("my_histogram")
   .ofDouble
   .help("Metric description")

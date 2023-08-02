@@ -10,7 +10,7 @@ The following examples assume that you have the following imports in scope and t
 import cats.effect._
 import prometheus4cats._
 
-val metricRegistry: MetricRegistry.WithExemplers[IO] = MetricRegistry.WithExemplers.noop[IO]
+val metricRegistry: MetricRegistry[IO] = MetricRegistry.noop[IO]
 val callbackRegistry: CallbackRegistry[IO] = CallbackRegistry.noop[IO]
 val registry: MetricRegistry[IO] with CallbackRegistry[IO] = null
 ```
