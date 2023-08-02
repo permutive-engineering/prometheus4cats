@@ -25,13 +25,13 @@ ThisBuild / developers := List(
 // publish to s01.oss.sonatype.org (set to true to publish to oss.sonatype.org instead)
 ThisBuild / tlSonatypeUseLegacyHost := false
 
-val Scala213 = "2.13.10"
+val Scala213 = "2.13.11"
 
 val Cats = "2.9.0"
 
-val CatsEffect = "3.4.8"
+val CatsEffect = "3.4.11"
 
-val Log4Cats = "2.5.0"
+val Log4Cats = "2.6.0"
 
 val Munit = "0.7.29"
 
@@ -39,7 +39,7 @@ val MunitCe3 = "1.0.7"
 
 val ScalacheckEffect = "1.0.4"
 
-ThisBuild / crossScalaVersions := Seq("2.12.17", "3.2.2", Scala213)
+ThisBuild / crossScalaVersions := Seq("2.12.18", "3.3.0", Scala213)
 ThisBuild / scalaVersion := crossScalaVersions.value.last
 
 ThisBuild / tlSitePublishBranch := Some("main")
@@ -121,7 +121,7 @@ lazy val java =
       ),
       libraryDependencies ++= PartialFunction
         .condOpt(CrossVersion.partialVersion(scalaVersion.value)) { case Some((2, 12)) =>
-          "org.scala-lang.modules" %% "scala-collection-compat" % "2.9.0"
+          "org.scala-lang.modules" %% "scala-collection-compat" % "2.11.0"
         }
         .toList
     )
