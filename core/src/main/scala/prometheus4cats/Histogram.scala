@@ -222,15 +222,6 @@ object Histogram {
 
         }
 
-      private[prometheus4cats] def fromHistogram[F[_], A, B](
-          histogram: Histogram.Labelled[F, A, B]
-      ): Exemplar[F, A, B] =
-        new Exemplar[F, A, B] {
-          override def observe(n: A, labels: B): F[Unit] = histogram.observe(n, labels)
-
-          override def observeWithExemplar(n: A, labels: B): F[Unit] = histogram.observe(n, labels)
-        }
-
       def noop[F[_]: Applicative, A, B]: Exemplar[F, A, B] =
         new Exemplar[F, A, B] {
           override def observe(n: A, labels: B): F[Unit] = Applicative[F].unit

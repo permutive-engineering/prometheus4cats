@@ -71,6 +71,39 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
     }
   }
 
+  test("create, increment and de-register an exemplar counter") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name: Counter.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels,
+          incBy: Double
+      ) =>
+        stateResource.use { state =>
+          metricRegistryResource(state).use { reg =>
+            val get = getExemplarCounterValue(
+              state,
+              prefix,
+              name,
+              help,
+              commonLabels
+            )
+
+            reg
+              .createAndRegisterDoubleExemplarCounter(prefix, name, help, commonLabels)
+              .evalMap(_.incWithExemplar(incBy))
+              .surround(
+                get.map(res =>
+                  if (incBy >= 0) assertEquals(res, Some(incBy -> Some(Map("test" -> "test"))))
+                  else assertEquals(res, Some(0.0 -> None))
+                )
+              ) >> get.map(assertEquals(_, None))
+          }
+        }
+    }
+  }
+
   test("create, increment and de-register a labelled counter") {
     forAllF {
       (
@@ -103,6 +136,47 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
               .evalMap(_.inc(incBy, labels))
               .surround(
                 get.map(res => if (incBy >= 0) assertEquals(res, Some(incBy)) else assertEquals(res, Some(0.0)))
+              ) >> get.map(assertEquals(_, None))
+          }
+        }
+    }
+  }
+
+  test("create, increment and de-register a labelled exemplar counter") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name: Counter.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels,
+          labels: Map[Label.Name, String],
+          incBy: Double
+      ) =>
+        stateResource.use { state =>
+          metricRegistryResource(state).use { reg =>
+            val get = getExemplarCounterValue(
+              state,
+              prefix,
+              name,
+              help,
+              commonLabels,
+              labels
+            )
+
+            reg
+              .createAndRegisterLabelledDoubleExemplarCounter[Map[Label.Name, String]](
+                prefix,
+                name,
+                help,
+                commonLabels,
+                labels.keys.toIndexedSeq
+              )(_.values.toIndexedSeq)
+              .evalMap(_.incWithExemplar(incBy, labels))
+              .surround(
+                get.map(res =>
+                  if (incBy >= 0) assertEquals(res, Some(incBy -> Some(Map("test" -> "test"))))
+                  else assertEquals(res, Some(0.0 -> None))
+                )
               ) >> get.map(assertEquals(_, None))
           }
         }
@@ -252,6 +326,54 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
     }
   }
 
+  test("create, increment and de-register an exemplar histogram") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name: Histogram.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels,
+          value: Double
+      ) =>
+        stateResource.use { state =>
+          metricRegistryResource(state).use { reg =>
+            val buckets = NonEmptySeq.of[Double](0, value).sorted
+
+            val expected =
+              if (value > 0)
+                Map(
+                  "0.0" -> (0.0, None),
+                  value.toString -> (1.0, Some(Map("test" -> "test"))),
+                  "+Inf" -> (1.0, None)
+                )
+              else
+                Map(
+                  value.toString -> (1.0, Some(Map("test" -> "test"))),
+                  "0.0" -> (1.0, None),
+                  "+Inf" -> (1.0, None)
+                )
+
+            val get = getExemplarHistogramValue(
+              state,
+              prefix,
+              name,
+              help,
+              commonLabels,
+              buckets
+            )
+
+            reg
+              .createAndRegisterDoubleExemplarHistogram(prefix, name, help, commonLabels, buckets)
+              .evalMap(_.observeWithExemplar(value))
+              .surround(
+                get.map(res => assertEquals(res, Some(expected)))
+              ) >> get.map(assertEquals(_, None))
+
+          }
+        }
+    }
+  }
+
   test("create, increment and de-register a labelled histogram") {
     forAllF {
       (
@@ -290,6 +412,62 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
                 buckets
               )(_.values.toIndexedSeq)
               .evalMap(_.observe(value, labels))
+              .surround(
+                get.map(res => assertEquals(res, Some(expected)))
+              ) >> get.map(assertEquals(_, None))
+          }
+        }
+    }
+  }
+
+  test("create, increment and de-register a labelled exemplar histogram") {
+    forAllF {
+      (
+          prefix: Option[Metric.Prefix],
+          name: Histogram.Name,
+          help: Metric.Help,
+          commonLabels: Metric.CommonLabels,
+          labels: Map[Label.Name, String],
+          value: Double
+      ) =>
+        stateResource.use { state =>
+          metricRegistryResource(state).use { reg =>
+            val buckets = NonEmptySeq.of[Double](0, value).sorted
+
+            val expected =
+              if (value > 0)
+                Map(
+                  "0.0" -> (0.0, None),
+                  value.toString -> (1.0, Some(Map("test" -> "test"))),
+                  "+Inf" -> (1.0, None)
+                )
+              else
+                Map(
+                  value.toString -> (1.0, Some(Map("test" -> "test"))),
+                  "0.0" -> (1.0, None),
+                  "+Inf" -> (1.0, None)
+                )
+
+            val get = getExemplarHistogramValue(
+              state,
+              prefix,
+              name,
+              help,
+              commonLabels,
+              buckets,
+              labels
+            )
+
+            reg
+              .createAndRegisterLabelledDoubleExemplarHistogram[Map[Label.Name, String]](
+                prefix,
+                name,
+                help,
+                commonLabels,
+                labels.keys.toIndexedSeq,
+                buckets
+              )(_.values.toIndexedSeq)
+              .evalMap(_.observeWithExemplar(value, labels))
               .surround(
                 get.map(res => assertEquals(res, Some(expected)))
               ) >> get.map(assertEquals(_, None))

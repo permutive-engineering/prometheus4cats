@@ -37,7 +37,7 @@ import scala.concurrent.TimeoutException
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 
-class JavaMetricRegistry[F[_]: Async: Logger] private (
+class JavaMetricRegistry[F[_]: Async: Logger: Exemplar] private (
     private val registry: CollectorRegistry,
     private val ref: Ref[F, State],
     private val callbackState: Ref[F, CallbackState[F]],
@@ -997,7 +997,7 @@ object JavaMetricRegistry {
     def withCallbackCollectionTimeout(callbackCollectionTimeout: FiniteDuration): Builder =
       copy(callbackCollectionTimeout = callbackCollectionTimeout)
 
-    def build[F[_]: Async: Logger]: Resource[F, JavaMetricRegistry[F]] =
+    def build[F[_]: Async: Logger: Exemplar]: Resource[F, JavaMetricRegistry[F]] =
       Dispatcher.sequential[F].flatMap { dis =>
         val callbacksCounter =
           PCounter
@@ -1093,8 +1093,8 @@ object JavaMetricRegistry {
     *   how long the combined set of callbacks for a metric or metric collection should take to time out. This is for
     *   **all callbacks for a metric** or **all callbacks returning a metric collection**.
     */
-  @deprecated("Use JavaMetricRegistry.Builder instead", "1.1.0")
-  def default[F[_]: Async: Logger](
+  @deprecated("Use JavaMetricRegistry.Builder instead", "2.0.0")
+  def default[F[_]: Async: Logger: Exemplar](
       callbackTimeout: FiniteDuration = 250.millis,
       callbackCollectionTimeout: FiniteDuration = 1.second
   ): Resource[F, JavaMetricRegistry[F]] =
@@ -1115,8 +1115,8 @@ object JavaMetricRegistry {
     *   how long the combined set of callbacks for a metric or metric collection should take to time out. This is for
     *   **all callbacks for a metric** or **all callbacks returning a metric collection**.
     */
-  @deprecated("Use JavaMetricRegistry.Builder instead", "1.1.0")
-  def fromSimpleClientRegistry[F[_]: Async: Logger](
+  @deprecated("Use JavaMetricRegistry.Builder instead", "2.0.0")
+  def fromSimpleClientRegistry[F[_]: Async: Logger: Exemplar](
       promRegistry: CollectorRegistry,
       callbackTimeout: FiniteDuration = 250.millis,
       callbackCollectionTimeout: FiniteDuration = 1.second
