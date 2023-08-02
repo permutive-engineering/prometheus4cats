@@ -753,7 +753,7 @@ object MetricFactory {
     /** Build a [[MetricFactory]] from an existing [[MetricFactory]] and [[CallbackRegistry]]
       *
       * @param metricFactory
-      *   [[MetricFactory]] from which to obtain a [[MetricRegistry.WithExemplars]]
+      *   [[MetricFactory]] from which to obtain a [[MetricRegistry]]
       * @param callbackRegistry
       *   [[CallbackRegistry]] with which to register new metrics created by the built [[MetricFactory]]
       * @return

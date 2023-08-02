@@ -12,7 +12,7 @@ import prometheus4cats._
 
 val metricRegistry: MetricRegistry.WithExemplers[IO] = MetricRegistry.WithExemplers.noop[IO]
 val callbackRegistry: CallbackRegistry[IO] = CallbackRegistry.noop[IO]
-val registry: MetricRegistry.WithExemplars[IO] with CallbackRegistry[IO] = null
+val registry: MetricRegistry[IO] with CallbackRegistry[IO] = null
 ```
 
 ### `MetricFactory.` or `MetricFactory.WithCallbacks`

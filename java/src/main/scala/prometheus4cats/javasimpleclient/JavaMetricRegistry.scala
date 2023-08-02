@@ -25,7 +25,19 @@ import cats.effect.std.{Dispatcher, Semaphore}
 import cats.syntax.all._
 import cats.{Applicative, ApplicativeThrow, Functor, Monad, Show}
 import io.prometheus.client.Collector.MetricFamilySamples
-import io.prometheus.client.{Collector, CollectorRegistry, CounterMetricFamily, GaugeMetricFamily, SimpleCollector, SummaryMetricFamily, Counter => PCounter, Gauge => PGauge, Histogram => PHistogram, Info => PInfo, Summary => PSummary}
+import io.prometheus.client.{
+  Collector,
+  CollectorRegistry,
+  CounterMetricFamily,
+  GaugeMetricFamily,
+  SimpleCollector,
+  SummaryMetricFamily,
+  Counter => PCounter,
+  Gauge => PGauge,
+  Histogram => PHistogram,
+  Info => PInfo,
+  Summary => PSummary
+}
 import org.typelevel.log4cats.Logger
 import prometheus4cats._
 import prometheus4cats.javasimpleclient.internal.{HistogramUtils, MetricCollectionProcessor, Utils}
@@ -886,7 +898,7 @@ class JavaMetricRegistry[F[_]: Async: Logger: Exemplar] private (
     val commonLabelValues = commonLabels.value.values.toIndexedSeq
 
     configureBuilderOrRetrieve(
-      PCounter.build(),
+      PCounter.build().withExemplars(),
       MetricType.Counter,
       prefix,
       name,
@@ -949,7 +961,7 @@ class JavaMetricRegistry[F[_]: Async: Logger: Exemplar] private (
     val commonLabelValues = commonLabels.value.values.toIndexedSeq
 
     configureBuilderOrRetrieve(
-      PHistogram.build().buckets(buckets.toSeq: _*),
+      PHistogram.build().withExemplars().buckets(buckets.toSeq: _*),
       MetricType.Histogram,
       prefix,
       name,
