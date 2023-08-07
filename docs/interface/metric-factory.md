@@ -15,7 +15,7 @@ val callbackRegistry: CallbackRegistry[IO] = CallbackRegistry.noop[IO]
 val registry: MetricRegistry[IO] with CallbackRegistry[IO] = null
 ```
 
-### `MetricFactory.` or `MetricFactory.WithCallbacks`
+### `MetricFactory` or `MetricFactory.WithCallbacks`
 
 There are two variants of Metric Factory: `MetricFactory` and `MetricFactory.WithCallbacks`, the latter extending and
 providing the same functionality as the former but with the ability to pass [callbacks](dsl.md#metric-callbacks) to the
