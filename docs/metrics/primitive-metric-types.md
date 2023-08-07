@@ -22,12 +22,6 @@ See the example below on how to obtain a `Counter` from a [`MetricFactory`]:
 factory.counter("my_counter_total").ofLong.help("Metric description")
 ```
 
-Counters also support [exemplars], to obtain a counter with exemplar support use the following method on the 
-[`MetricFactory`]:
-
-```scala mdoc:silent
-factory.exemplarCounter("my_counter_total").ofLong.help("Metric description")
-```
 
 ### `Gauge`
 
@@ -49,16 +43,6 @@ See the example below on how to obtain a `Histogram` from a [`MetricFactory`]:
 ```scala mdoc:silent
 val histogram = factory
   .histogram("my_histogram")
-  .ofDouble
-  .help("Metric description")
-```
-
-Histograms also support [exemplars], to obtain a counter with exemplar support use the following method on the
-[`MetricFactory`]:
-
-```scala mdoc:silent
-factory
-  .exemplarHistogram("my_histogram")
   .ofDouble
   .help("Metric description")
 ```
