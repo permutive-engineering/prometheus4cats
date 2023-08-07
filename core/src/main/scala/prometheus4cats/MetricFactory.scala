@@ -18,7 +18,7 @@ package prometheus4cats
 
 import cats.data.NonEmptyList
 import cats.effect.kernel.{MonadCancel, Resource}
-import cats.{Applicative, ~>}
+import cats.{Monad, ~>}
 import prometheus4cats.Metric.CommonLabels
 import prometheus4cats.internal._
 import prometheus4cats.internal.histogram.BucketDsl
@@ -116,45 +116,6 @@ sealed abstract class MetricFactory[F[_]](
       )
     )
 
-  type ExemplarCounterDsl[MDsl[_[_], _, _[_[_], _], _[_[_], _, _]], A] =
-    HelpStep[MDsl[F, A, Counter.Exemplar, Counter.Labelled.Exemplar]]
-
-  /** Starts creating a "counter" metric with exemplar support.
-    *
-    * @example
-    *   {{{ metrics.exemplarCounter("my_counter").ofLong.help("my counter help") .label[Int]("first_label")
-    *   .label[String]("second_label") .label[Boolean]("third_label") .build }}}
-    * @param name
-    *   [[Counter.Name]] value
-    * @return
-    *   Exemplar Counter builder
-    */
-  def exemplarCounter(name: Counter.Name): TypeStep[ExemplarCounterDsl[MetricDsl, *]] =
-    new TypeStep[ExemplarCounterDsl[MetricDsl, *]](
-      new HelpStep(help =>
-        new MetricDsl(
-          metricRegistry.createAndRegisterLongExemplarCounter(prefix, name, help, commonLabels),
-          new LabelledMetricPartiallyApplied[F, Long, Counter.Labelled.Exemplar] {
-            override def apply[B](
-                labels: IndexedSeq[Label.Name]
-            )(f: B => IndexedSeq[String]): Resource[F, Counter.Labelled.Exemplar[F, Long, B]] =
-              metricRegistry.createAndRegisterLabelledLongExemplarCounter(prefix, name, help, commonLabels, labels)(f)
-          }
-        )
-      ),
-      new HelpStep(help =>
-        new MetricDsl(
-          metricRegistry.createAndRegisterDoubleExemplarCounter(prefix, name, help, commonLabels),
-          new LabelledMetricPartiallyApplied[F, Double, Counter.Labelled.Exemplar] {
-            override def apply[B](
-                labels: IndexedSeq[Label.Name]
-            )(f: B => IndexedSeq[String]): Resource[F, Counter.Labelled.Exemplar[F, Double, B]] =
-              metricRegistry.createAndRegisterLabelledDoubleExemplarCounter(prefix, name, help, commonLabels, labels)(f)
-          }
-        )
-      )
-    )
-
   type HistogramDsl[MDsl[_[_], _, _[_[_], _], _[_[_], _, _]], A] =
     HelpStep[BucketDsl[MDsl[F, A, Histogram, Histogram.Labelled], A]]
 
@@ -193,57 +154,6 @@ sealed abstract class MetricFactory[F[_]](
                   labels: IndexedSeq[Label.Name]
               )(f: B => IndexedSeq[String]): Resource[F, Histogram.Labelled[F, Double, B]] =
                 metricRegistry.createAndRegisterLabelledDoubleHistogram(
-                  prefix,
-                  name,
-                  help,
-                  commonLabels,
-                  labels,
-                  buckets
-                )(f)
-            }
-          )
-        )
-      )
-    )
-
-  type ExemplarHistogramDsl[MDsl[_[_], _, _[_[_], _], _[_[_], _, _]], A] =
-    HelpStep[BucketDsl[MDsl[F, A, Histogram.Exemplar, Histogram.Labelled.Exemplar], A]]
-
-  /** Starts creating a "histogram" metric with exemplar support.
-    *
-    * @example
-    *   {{{ metrics.exemplarHistogram("my_histogram").ofDouble.help("my counter help").buckets(1.0, 2.0)
-    *   .label[Int]("first_label").label[String]("second_label").label[Boolean]("third_label") .build }}}
-    * @param name
-    *   [[Histogram.Name]] value
-    * @return
-    *   Exemplar Histogram builder
-    */
-  def exemplarHistogram(name: Histogram.Name): TypeStep[ExemplarHistogramDsl[MetricDsl, *]] =
-    new TypeStep[ExemplarHistogramDsl[MetricDsl, *]](
-      new HelpStep(help =>
-        new BucketDsl[MetricDsl[F, Long, Histogram.Exemplar, Histogram.Labelled.Exemplar], Long](buckets =>
-          new MetricDsl(
-            metricRegistry.createAndRegisterLongExemplarHistogram(prefix, name, help, commonLabels, buckets),
-            new LabelledMetricPartiallyApplied[F, Long, Histogram.Labelled.Exemplar] {
-              override def apply[B](
-                  labels: IndexedSeq[Label.Name]
-              )(f: B => IndexedSeq[String]): Resource[F, Histogram.Labelled.Exemplar[F, Long, B]] =
-                metricRegistry
-                  .createAndRegisterLabelledLongExemplarHistogram(prefix, name, help, commonLabels, labels, buckets)(f)
-            }
-          )
-        )
-      ),
-      new HelpStep(help =>
-        new BucketDsl[MetricDsl[F, Double, Histogram.Exemplar, Histogram.Labelled.Exemplar], Double](buckets =>
-          new MetricDsl(
-            metricRegistry.createAndRegisterDoubleExemplarHistogram(prefix, name, help, commonLabels, buckets),
-            new LabelledMetricPartiallyApplied[F, Double, Histogram.Labelled.Exemplar] {
-              override def apply[B](
-                  labels: IndexedSeq[Label.Name]
-              )(f: B => IndexedSeq[String]): Resource[F, Histogram.Labelled.Exemplar[F, Double, B]] =
-                metricRegistry.createAndRegisterLabelledDoubleExemplarHistogram(
                   prefix,
                   name,
                   help,
@@ -673,7 +583,7 @@ object MetricFactory {
   }
 
   object WithCallbacks {
-    def noop[F[_]: Applicative]: WithCallbacks[F] =
+    def noop[F[_]: Monad]: WithCallbacks[F] =
       new WithCallbacks[F](
         MetricRegistry.noop,
         CallbackRegistry.noop,
@@ -684,7 +594,7 @@ object MetricFactory {
 
   /** Create an instance of [[MetricFactory]] that performs no operations
     */
-  def noop[F[_]: Applicative]: MetricFactory[F] =
+  def noop[F[_]: Monad]: MetricFactory[F] =
     new MetricFactory[F](
       MetricRegistry.noop,
       None,
@@ -770,7 +680,7 @@ object MetricFactory {
       * @return
       *   a new [[MetricFactory]] instance that performs no operations
       */
-    def noop[F[_]: Applicative]: MetricFactory.WithCallbacks[F] =
+    def noop[F[_]: Monad]: MetricFactory.WithCallbacks[F] =
       MetricFactory.WithCallbacks.noop[F]
   }
 

@@ -29,6 +29,8 @@ import scala.concurrent.duration._
 
 trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffectSuite =>
 
+  implicit def exemplar: Exemplar[IO]
+
   implicit val infoNameArb: Arbitrary[Info.Name] = niceStringArb(s => Info.Name.from(s"${s}_info"))
 
   def metricRegistryResource(state: State): Resource[IO, MetricRegistry[IO]]
@@ -91,7 +93,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
             )
 
             reg
-              .createAndRegisterDoubleExemplarCounter(prefix, name, help, commonLabels)
+              .createAndRegisterDoubleCounter(prefix, name, help, commonLabels)
               .evalMap(_.incWithExemplar(incBy))
               .surround(
                 get.map(res =>
@@ -164,7 +166,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
             )
 
             reg
-              .createAndRegisterLabelledDoubleExemplarCounter[Map[Label.Name, String]](
+              .createAndRegisterLabelledDoubleCounter[Map[Label.Name, String]](
                 prefix,
                 name,
                 help,
@@ -363,7 +365,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
             )
 
             reg
-              .createAndRegisterDoubleExemplarHistogram(prefix, name, help, commonLabels, buckets)
+              .createAndRegisterDoubleHistogram(prefix, name, help, commonLabels, buckets)
               .evalMap(_.observeWithExemplar(value))
               .surround(
                 get.map(res => assertEquals(res, Some(expected)))
@@ -459,7 +461,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
             )
 
             reg
-              .createAndRegisterLabelledDoubleExemplarHistogram[Map[Label.Name, String]](
+              .createAndRegisterLabelledDoubleHistogram[Map[Label.Name, String]](
                 prefix,
                 name,
                 help,

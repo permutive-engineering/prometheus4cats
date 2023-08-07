@@ -33,8 +33,10 @@ trait Exemplar[F[_]] {
 object Exemplar {
   def apply[F[_]: Exemplar]: Exemplar[F] = implicitly
 
-  implicit def noop[F[_]: Applicative]: Exemplar[F] = new Exemplar[F] {
-    override def get: F[Option[Labels]] = Applicative[F].pure(None)
+  object Implicits {
+    implicit def noop[F[_]: Applicative]: Exemplar[F] = new Exemplar[F] {
+      override def get: F[Option[Labels]] = Applicative[F].pure(None)
+    }
   }
 
   /** Refined value class for an exemplar label name that has been parsed from a string

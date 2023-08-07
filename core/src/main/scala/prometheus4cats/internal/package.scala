@@ -19,7 +19,7 @@ package prometheus4cats.internal
 import cats.data.NonEmptyList
 import cats.effect.kernel.{Clock, MonadCancelThrow, Resource}
 import cats.syntax.all._
-import cats.{Contravariant, FlatMap, Functor, MonadThrow, Show}
+import cats.{Contravariant, FlatMap, Functor, Monad, MonadThrow, Show}
 import prometheus4cats.OutcomeRecorder.Status
 import prometheus4cats._
 
@@ -70,10 +70,8 @@ object BuildStep {
   implicit class DoubleHistogramSyntax[F[_]](bs: BuildStep[F, Histogram[F, Double]]) {
     def asTimer(implicit F: FlatMap[F], clock: Clock[F]): BuildStep[F, Timer.Aux[F, Histogram]] =
       bs.map(Timer.fromHistogram[F])
-  }
 
-  implicit class DoubleHistogramExemplarSyntax[F[_]](bs: BuildStep[F, Histogram.Exemplar[F, Double]]) {
-    def asTimer(implicit F: FlatMap[F], clock: Clock[F]): BuildStep[F, Timer.Exemplar.Aux[F, Histogram.Exemplar]] =
+    def asExemplarTimer(implicit F: Monad[F], clock: Clock[F]): BuildStep[F, Timer.Exemplar.Aux[F, Histogram]] =
       bs.map(Timer.Exemplar.fromHistogram[F])
   }
 
@@ -118,15 +116,11 @@ object BuildStep {
         clock: Clock[F]
     ): BuildStep[F, Timer.Labelled.Aux[F, A, Histogram.Labelled]] =
       bs.map(Timer.Labelled.fromHistogram[F, A])
-  }
 
-  implicit class DoubleLabelledHistogramExemplarSyntax[F[_], A](
-      bs: BuildStep[F, Histogram.Labelled.Exemplar[F, Double, A]]
-  ) {
-    def asTimer(implicit
+    def asExemplarTimer(implicit
         F: MonadThrow[F],
         clock: Clock[F]
-    ): BuildStep[F, Timer.Labelled.Exemplar.Aux[F, A, Histogram.Labelled.Exemplar]] =
+    ): BuildStep[F, Timer.Labelled.Exemplar.Aux[F, A, Histogram.Labelled]] =
       bs.map(Timer.Labelled.Exemplar.fromHistogram[F, A])
   }
 

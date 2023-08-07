@@ -43,7 +43,7 @@ class JavaMetricRegistrySuite
 
   implicit val logger: Logger[IO] = NoOpLogger.impl
 
-  implicit val exemplar: Exemplar[IO] = new Exemplar[IO] {
+  implicit override val exemplar: Exemplar[IO] = new Exemplar[IO] {
     override def get: IO[Option[Exemplar.Labels]] = IO(
       Exemplar.Labels.of(Exemplar.LabelName("test") -> "test").toOption
     )

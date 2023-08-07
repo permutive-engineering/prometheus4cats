@@ -49,7 +49,7 @@ import scala.concurrent.TimeoutException
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 
-class JavaMetricRegistry[F[_]: Async: Logger: Exemplar] private (
+class JavaMetricRegistry[F[_]: Async: Logger] private (
     private val registry: CollectorRegistry,
     private val ref: Ref[F, State],
     private val callbackState: Ref[F, CallbackState[F]],
@@ -169,14 +169,14 @@ class JavaMetricRegistry[F[_]: Async: Logger: Exemplar] private (
     ).map { counter =>
       Counter.make(
         1.0,
-        (d: Double) =>
+        (d: Double, exemplar: Option[Exemplar.Labels]) =>
           Utils
             .modifyMetric[F, Counter.Name, PCounter.Child](
               counter,
               name,
               commonLabelNames,
               commonLabelValues,
-              _.inc(d)
+              c => exemplar.fold(c.inc(d))(e => c.incWithExemplar(d, transformExemplarLabels(e)))
             )
       )
     }
@@ -202,13 +202,13 @@ class JavaMetricRegistry[F[_]: Async: Logger: Exemplar] private (
     ).map { counter =>
       Counter.Labelled.make(
         1.0,
-        (d: Double, labels: A) =>
+        (d: Double, labels: A, exemplar: Option[Exemplar.Labels]) =>
           Utils.modifyMetric[F, Counter.Name, PCounter.Child](
             counter,
             name,
             labelNames ++ commonLabelNames,
             f(labels) ++ commonLabelValues,
-            _.inc(d)
+            c => exemplar.fold(c.inc(d))(e => c.incWithExemplar(d, transformExemplarLabels(e)))
           )
       )
     }
@@ -290,13 +290,13 @@ class JavaMetricRegistry[F[_]: Async: Logger: Exemplar] private (
       help,
       commonLabelNames
     ).map { histogram =>
-      Histogram.make(d =>
+      Histogram.make((d, exemplar) =>
         Utils.modifyMetric[F, Histogram.Name, PHistogram.Child](
           histogram,
           name,
           commonLabelNames,
           commonLabelValues,
-          _.observe(d)
+          h => exemplar.fold(h.observe(d))(e => h.observeWithExemplar(d, transformExemplarLabels(e)))
         )
       )
     }
@@ -321,13 +321,13 @@ class JavaMetricRegistry[F[_]: Async: Logger: Exemplar] private (
       help,
       labelNames ++ commonLabelNames
     ).map { histogram =>
-      Histogram.Labelled.make[F, Double, A](_observe = { (d: Double, labels: A) =>
+      Histogram.Labelled.make[F, Double, A](_observe = { (d: Double, labels: A, exemplar: Option[Exemplar.Labels]) =>
         Utils.modifyMetric[F, Histogram.Name, PHistogram.Child](
           histogram,
           name,
           labelNames ++ commonLabelNames,
           f(labels) ++ commonLabelValues,
-          _.observe(d)
+          h => exemplar.fold(h.observe(d))(e => h.observeWithExemplar(d, transformExemplarLabels(e)))
         )
       })
     }
@@ -854,131 +854,6 @@ class JavaMetricRegistry[F[_]: Async: Logger: Exemplar] private (
   private def transformExemplarLabels(labels: Exemplar.Labels): util.Map[String, String] = labels.value.map {
     case (k, v) => k.value -> v
   }.asJava
-
-  def createAndRegisterDoubleExemplarCounter(
-      prefix: Option[Metric.Prefix],
-      name: Counter.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels
-  ): Resource[F, Counter.Exemplar[F, Double]] = {
-    lazy val commonLabelNames = commonLabels.value.keys.toIndexedSeq
-    lazy val commonLabelValues = commonLabels.value.values.toIndexedSeq
-
-    configureBuilderOrRetrieve(
-      PCounter.build().withExemplars(),
-      MetricType.Counter,
-      prefix,
-      name,
-      help,
-      commonLabels.value.keys.toIndexedSeq
-    ).map { counter =>
-      Counter.Exemplar.make(
-        1.0,
-        (d: Double, ex: Option[Exemplar.Labels]) =>
-          Utils
-            .modifyMetric[F, Counter.Name, PCounter.Child](
-              counter,
-              name,
-              commonLabelNames,
-              commonLabelValues,
-              c => ex.fold(c.inc(d))(e => c.incWithExemplar(d, transformExemplarLabels(e)))
-            )
-      )
-    }
-  }
-
-  override def createAndRegisterLabelledDoubleExemplarCounter[A](
-      prefix: Option[Metric.Prefix],
-      name: Counter.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels,
-      labelNames: IndexedSeq[Label.Name]
-  )(f: A => IndexedSeq[String]): Resource[F, Counter.Labelled.Exemplar[F, Double, A]] = {
-    val commonLabelNames = commonLabels.value.keys.toIndexedSeq
-    val commonLabelValues = commonLabels.value.values.toIndexedSeq
-
-    configureBuilderOrRetrieve(
-      PCounter.build().withExemplars(),
-      MetricType.Counter,
-      prefix,
-      name,
-      help,
-      labelNames ++ commonLabelNames
-    ).map { counter =>
-      Counter.Labelled.Exemplar.make(
-        1.0,
-        (d: Double, labels: A, ex: Option[Exemplar.Labels]) =>
-          Utils.modifyMetric[F, Counter.Name, PCounter.Child](
-            counter,
-            name,
-            labelNames ++ commonLabelNames,
-            f(labels) ++ commonLabelValues,
-            c => ex.fold(c.inc(d))(e => c.incWithExemplar(d, transformExemplarLabels(e)))
-          )
-      )
-    }
-  }
-
-  override def createAndRegisterDoubleExemplarHistogram(
-      prefix: Option[Metric.Prefix],
-      name: Histogram.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels,
-      buckets: NonEmptySeq[Double]
-  ): Resource[F, Histogram.Exemplar[F, Double]] = {
-    val commonLabelNames = commonLabels.value.keys.toIndexedSeq
-    val commonLabelValues = commonLabels.value.values.toIndexedSeq
-
-    configureBuilderOrRetrieve(
-      PHistogram.build().withExemplars().buckets(buckets.toSeq: _*),
-      MetricType.Histogram,
-      prefix,
-      name,
-      help,
-      commonLabelNames
-    ).map { histogram =>
-      Histogram.Exemplar.make((d, ex) =>
-        Utils.modifyMetric[F, Histogram.Name, PHistogram.Child](
-          histogram,
-          name,
-          commonLabelNames,
-          commonLabelValues,
-          h => ex.fold(h.observe(d))(e => h.observeWithExemplar(d, transformExemplarLabels(e)))
-        )
-      )
-    }
-  }
-
-  override def createAndRegisterLabelledDoubleExemplarHistogram[A](
-      prefix: Option[Metric.Prefix],
-      name: Histogram.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels,
-      labelNames: IndexedSeq[Label.Name],
-      buckets: NonEmptySeq[Double]
-  )(f: A => IndexedSeq[String]): Resource[F, Histogram.Labelled.Exemplar[F, Double, A]] = {
-    val commonLabelNames = commonLabels.value.keys.toIndexedSeq
-    val commonLabelValues = commonLabels.value.values.toIndexedSeq
-
-    configureBuilderOrRetrieve(
-      PHistogram.build().withExemplars().buckets(buckets.toSeq: _*),
-      MetricType.Histogram,
-      prefix,
-      name,
-      help,
-      labelNames ++ commonLabelNames
-    ).map { histogram =>
-      Histogram.Labelled.Exemplar.make[F, Double, A](_observe = { (d: Double, labels: A, ex: Option[Exemplar.Labels]) =>
-        Utils.modifyMetric[F, Histogram.Name, PHistogram.Child](
-          histogram,
-          name,
-          labelNames ++ commonLabelNames,
-          f(labels) ++ commonLabelValues,
-          h => ex.fold(h.observe(d))(e => h.observeWithExemplar(d, transformExemplarLabels(e)))
-        )
-      })
-    }
-  }
 }
 
 object JavaMetricRegistry {
@@ -1009,7 +884,7 @@ object JavaMetricRegistry {
     def withCallbackCollectionTimeout(callbackCollectionTimeout: FiniteDuration): Builder =
       copy(callbackCollectionTimeout = callbackCollectionTimeout)
 
-    def build[F[_]: Async: Logger: Exemplar]: Resource[F, JavaMetricRegistry[F]] =
+    def build[F[_]: Async: Logger]: Resource[F, JavaMetricRegistry[F]] =
       Dispatcher.sequential[F].flatMap { dis =>
         val callbacksCounter =
           PCounter
@@ -1106,7 +981,7 @@ object JavaMetricRegistry {
     *   **all callbacks for a metric** or **all callbacks returning a metric collection**.
     */
   @deprecated("Use JavaMetricRegistry.Builder instead", "2.0.0")
-  def default[F[_]: Async: Logger: Exemplar](
+  def default[F[_]: Async: Logger](
       callbackTimeout: FiniteDuration = 250.millis,
       callbackCollectionTimeout: FiniteDuration = 1.second
   ): Resource[F, JavaMetricRegistry[F]] =
@@ -1128,7 +1003,7 @@ object JavaMetricRegistry {
     *   **all callbacks for a metric** or **all callbacks returning a metric collection**.
     */
   @deprecated("Use JavaMetricRegistry.Builder instead", "2.0.0")
-  def fromSimpleClientRegistry[F[_]: Async: Logger: Exemplar](
+  def fromSimpleClientRegistry[F[_]: Async: Logger](
       promRegistry: CollectorRegistry,
       callbackTimeout: FiniteDuration = 250.millis,
       callbackCollectionTimeout: FiniteDuration = 1.second
