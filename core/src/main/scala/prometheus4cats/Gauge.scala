@@ -20,42 +20,76 @@ import java.util.regex.Pattern
 
 import cats.{Applicative, Contravariant, ~>}
 
-sealed abstract class Gauge[F[_], -A] extends Metric[A] { self =>
+abstract class Gauge[F[_], -A, B] extends Metric[A] with Metric.Labelled[B] {
+  self =>
 
-  def inc: F[Unit]
-  def inc(n: A): F[Unit]
-  def dec: F[Unit]
-  def dec(n: A): F[Unit]
-  def set(n: A): F[Unit]
-  def reset: F[Unit]
+  def inc(labels: B): F[Unit]
+  def inc(implicit ev: Unit =:= B): F[Unit] = inc(labels = ev(()))
 
-  def contramap[B](f: B => A): Gauge[F, B] = new Gauge[F, B] {
-    override def inc: F[Unit] = self.inc
+  def inc(n: A, labels: B): F[Unit]
+  def inc(n: A)(implicit ev: Unit =:= B): F[Unit] = inc(n = n, labels = ev(()))
 
-    override def inc(n: B): F[Unit] = self.inc(f(n))
+  def dec(labels: B): F[Unit]
+  def dec(implicit ev: Unit =:= B): F[Unit] = dec(labels = ev(()))
 
-    override def dec: F[Unit] = self.dec
+  def dec(n: A, labels: B): F[Unit]
+  def dec(n: A)(implicit ev: Unit =:= B): F[Unit] = dec(n = n, labels = ev(()))
 
-    override def dec(n: B): F[Unit] = self.dec(f(n))
+  def set(n: A, labels: B): F[Unit]
+  def set(n: A)(implicit ev: Unit =:= B): F[Unit] = set(n = n, labels = ev(()))
 
-    override def set(n: B): F[Unit] = self.set(f(n))
+  def reset(labels: B): F[Unit]
+  def reset(implicit ev: Unit =:= B): F[Unit] = reset(labels = ev(()))
 
-    override def reset: F[Unit] = self.reset
+  def contramap[C](f: C => A): Gauge[F, C, B] = new Gauge[F, C, B] {
+    override def inc(labels: B): F[Unit] = self.inc(labels)
+
+    override def inc(n: C, labels: B): F[Unit] = self.inc(f(n), labels)
+
+    override def dec(labels: B): F[Unit] = self.dec(labels)
+
+    override def dec(n: C, labels: B): F[Unit] = self.dec(f(n), labels)
+
+    override def set(n: C, labels: B): F[Unit] = self.set(f(n), labels)
+
+    override def reset(labels: B): F[Unit] = self.reset(labels)
   }
 
-  final def mapK[G[_]](fk: F ~> G): Gauge[G, A] = new Gauge[G, A] {
-    override def inc: G[Unit] = fk(self.inc)
+  def contramapLabels[C](f: C => B): Gauge[F, A, C] = new Gauge[F, A, C] {
+    override def inc(labels: C): F[Unit] = self.inc(f(labels))
 
-    override def inc(n: A): G[Unit] = fk(self.inc(n))
+    override def inc(n: A, labels: C): F[Unit] = self.inc(n, f(labels))
 
-    override def dec: G[Unit] = fk(self.dec)
+    override def dec(labels: C): F[Unit] = self.dec(f(labels))
 
-    override def dec(n: A): G[Unit] = fk(self.dec(n))
+    override def dec(n: A, labels: C): F[Unit] = self.dec(n, f(labels))
 
-    override def set(n: A): G[Unit] = fk(self.set(n))
+    override def set(n: A, labels: C): F[Unit] = self.set(n, f(labels))
 
-    override def reset: G[Unit] = fk(self.reset)
+    override def reset(labels: C): F[Unit] = self.reset(f(labels))
   }
+
+  final def mapK[G[_]](fk: F ~> G): Gauge[G, A, B] =
+    new Gauge[G, A, B] {
+
+      override def inc(labels: B): G[Unit] = fk(self.inc(labels))
+
+      override def inc(n: A, labels: B): G[Unit] = fk(
+        self.inc(n, labels)
+      )
+
+      override def dec(labels: B): G[Unit] = fk(self.dec(labels))
+
+      override def dec(n: A, labels: B): G[Unit] = fk(
+        self.dec(n, labels)
+      )
+
+      override def set(n: A, labels: B): G[Unit] = fk(
+        self.set(n, labels)
+      )
+
+      override def reset(labels: B): G[Unit] = fk(self.reset(labels))
+    }
 
 }
 
@@ -72,167 +106,55 @@ object Gauge {
     override protected def make(a: String): Name = new Name(a)
   }
 
-  implicit def catsInstances[F[_]]: Contravariant[Gauge[F, *]] = new Contravariant[Gauge[F, *]] {
-    override def contramap[A, B](fa: Gauge[F, A])(f: B => A): Gauge[F, B] = fa.contramap(f)
-  }
+  implicit def catsInstances[F[_], C]: Contravariant[Gauge[F, *, C]] =
+    new Contravariant[Gauge[F, *, C]] {
+      override def contramap[A, B](fa: Gauge[F, A, C])(f: B => A): Gauge[F, B, C] = fa.contramap(f)
+    }
 
-  def make[F[_], A](
+  implicit def labelsContravariant[F[_], C]: LabelsContravariant[Gauge[F, C, *]] =
+    new LabelsContravariant[Gauge[F, C, *]] {
+      override def contramapLabels[A, B](fa: Gauge[F, C, A])(f: B => A): Gauge[F, C, B] = fa.contramapLabels(f)
+    }
+
+  def make[F[_], A, B](
       default: A,
-      _inc: A => F[Unit],
-      _dec: A => F[Unit],
-      _set: A => F[Unit],
-      _reset: F[Unit]
-  ): Gauge[F, A] = new Gauge[F, A] {
-    override def inc: F[Unit] = inc(default)
+      _inc: (A, B) => F[Unit],
+      _dec: (A, B) => F[Unit],
+      _set: (A, B) => F[Unit],
+      _reset: B => F[Unit]
+  ): Gauge[F, A, B] = new Gauge[F, A, B] {
+    override def inc(labels: B): F[Unit] = inc(default, labels)
 
-    override def inc(n: A): F[Unit] = _inc(n)
+    override def inc(n: A, labels: B): F[Unit] = _inc(n, labels)
 
-    override def dec: F[Unit] = dec(default)
+    override def dec(labels: B): F[Unit] = dec(default, labels)
 
-    override def dec(n: A): F[Unit] = _dec(n)
+    override def dec(n: A, labels: B): F[Unit] = _dec(n, labels)
 
-    override def set(n: A): F[Unit] = _set(n)
+    override def set(n: A, labels: B): F[Unit] = _set(n, labels)
 
-    override def reset: F[Unit] = _reset
+    override def reset(labels: B): F[Unit] = _reset(labels)
   }
 
-  def make[F[_], A](
-      _inc: A => F[Unit],
-      _dec: A => F[Unit],
-      _set: A => F[Unit]
-  )(implicit A: Numeric[A]): Gauge[F, A] = make(A.one, _inc, _dec, _set, _set(A.zero))
+  def make[F[_], A, B](
+      _inc: (A, B) => F[Unit],
+      _dec: (A, B) => F[Unit],
+      _set: (A, B) => F[Unit]
+  )(implicit A: Numeric[A]): Gauge[F, A, B] =
+    make(A.one, _inc, _dec, _set, _set(A.zero, _))
 
-  def noop[F[_]: Applicative, A]: Gauge[F, A] = new Gauge[F, A] {
-    override def inc: F[Unit] = Applicative[F].unit
+  def noop[F[_]: Applicative, A, B]: Gauge[F, A, B] = new Gauge[F, A, B] {
+    override def inc(labels: B): F[Unit] = Applicative[F].unit
 
-    override def inc(n: A): F[Unit] = Applicative[F].unit
+    override def inc(n: A, labels: B): F[Unit] = Applicative[F].unit
 
-    override def dec: F[Unit] = Applicative[F].unit
+    override def dec(labels: B): F[Unit] = Applicative[F].unit
 
-    override def dec(n: A): F[Unit] = Applicative[F].unit
+    override def dec(n: A, labels: B): F[Unit] = Applicative[F].unit
 
-    override def set(n: A): F[Unit] = Applicative[F].unit
+    override def set(n: A, labels: B): F[Unit] = Applicative[F].unit
 
-    override def reset: F[Unit] = Applicative[F].unit
+    override def reset(labels: B): F[Unit] = Applicative[F].unit
   }
 
-  abstract class Labelled[F[_], -A, -B] extends Metric[A] with Metric.Labelled[B] {
-    self =>
-
-    def inc(labels: B): F[Unit]
-
-    def inc(n: A, labels: B): F[Unit]
-
-    def dec(labels: B): F[Unit]
-
-    def dec(n: A, labels: B): F[Unit]
-
-    def set(n: A, labels: B): F[Unit]
-
-    def reset(labels: B): F[Unit]
-
-    def contramap[C](f: C => A): Labelled[F, C, B] = new Labelled[F, C, B] {
-      override def inc(labels: B): F[Unit] = self.inc(labels)
-
-      override def inc(n: C, labels: B): F[Unit] = self.inc(f(n), labels)
-
-      override def dec(labels: B): F[Unit] = self.dec(labels)
-
-      override def dec(n: C, labels: B): F[Unit] = self.dec(f(n), labels)
-
-      override def set(n: C, labels: B): F[Unit] = self.set(f(n), labels)
-
-      override def reset(labels: B): F[Unit] = self.reset(labels)
-    }
-
-    def contramapLabels[C](f: C => B): Labelled[F, A, C] = new Labelled[F, A, C] {
-      override def inc(labels: C): F[Unit] = self.inc(f(labels))
-
-      override def inc(n: A, labels: C): F[Unit] = self.inc(n, f(labels))
-
-      override def dec(labels: C): F[Unit] = self.dec(f(labels))
-
-      override def dec(n: A, labels: C): F[Unit] = self.dec(n, f(labels))
-
-      override def set(n: A, labels: C): F[Unit] = self.set(n, f(labels))
-
-      override def reset(labels: C): F[Unit] = self.reset(f(labels))
-    }
-
-    final def mapK[G[_]](fk: F ~> G): Labelled[G, A, B] =
-      new Labelled[G, A, B] {
-
-        override def inc(labels: B): G[Unit] = fk(self.inc(labels))
-
-        override def inc(n: A, labels: B): G[Unit] = fk(
-          self.inc(n, labels)
-        )
-
-        override def dec(labels: B): G[Unit] = fk(self.dec(labels))
-
-        override def dec(n: A, labels: B): G[Unit] = fk(
-          self.dec(n, labels)
-        )
-
-        override def set(n: A, labels: B): G[Unit] = fk(
-          self.set(n, labels)
-        )
-
-        override def reset(labels: B): G[Unit] = fk(self.reset(labels))
-      }
-
-  }
-
-  object Labelled {
-    implicit def catsInstances[F[_], C]: Contravariant[Labelled[F, *, C]] =
-      new Contravariant[Labelled[F, *, C]] {
-        override def contramap[A, B](fa: Labelled[F, A, C])(f: B => A): Labelled[F, B, C] = fa.contramap(f)
-      }
-
-    implicit def labelsContravariant[F[_], C]: LabelsContravariant[Labelled[F, C, *]] =
-      new LabelsContravariant[Labelled[F, C, *]] {
-        override def contramapLabels[A, B](fa: Labelled[F, C, A])(f: B => A): Labelled[F, C, B] = fa.contramapLabels(f)
-      }
-
-    def make[F[_], A, B](
-        default: A,
-        _inc: (A, B) => F[Unit],
-        _dec: (A, B) => F[Unit],
-        _set: (A, B) => F[Unit],
-        _reset: B => F[Unit]
-    ): Labelled[F, A, B] = new Labelled[F, A, B] {
-      override def inc(labels: B): F[Unit] = inc(default, labels)
-
-      override def inc(n: A, labels: B): F[Unit] = _inc(n, labels)
-
-      override def dec(labels: B): F[Unit] = dec(default, labels)
-
-      override def dec(n: A, labels: B): F[Unit] = _dec(n, labels)
-
-      override def set(n: A, labels: B): F[Unit] = _set(n, labels)
-
-      override def reset(labels: B): F[Unit] = _reset(labels)
-    }
-
-    def make[F[_], A, B](
-        _inc: (A, B) => F[Unit],
-        _dec: (A, B) => F[Unit],
-        _set: (A, B) => F[Unit]
-    )(implicit A: Numeric[A]): Labelled[F, A, B] =
-      make(A.one, _inc, _dec, _set, _set(A.zero, _))
-
-    def noop[F[_]: Applicative, A, B]: Labelled[F, A, B] = new Labelled[F, A, B] {
-      override def inc(labels: B): F[Unit] = Applicative[F].unit
-
-      override def inc(n: A, labels: B): F[Unit] = Applicative[F].unit
-
-      override def dec(labels: B): F[Unit] = Applicative[F].unit
-
-      override def dec(n: A, labels: B): F[Unit] = Applicative[F].unit
-
-      override def set(n: A, labels: B): F[Unit] = Applicative[F].unit
-
-      override def reset(labels: B): F[Unit] = Applicative[F].unit
-    }
-  }
 }

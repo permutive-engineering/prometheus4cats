@@ -28,7 +28,7 @@ trait DoubleMetricRegistry[F[_]] extends MetricRegistry[F] {
       name: Counter.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels
-  ): Resource[F, Counter[F, Long]] =
+  ): Resource[F, Counter[F, Long, Unit]] =
     createAndRegisterDoubleCounter(prefix, name, help, commonLabels).map(_.contramap(_.toDouble))
 
   override def createAndRegisterLabelledLongCounter[A](
@@ -37,7 +37,7 @@ trait DoubleMetricRegistry[F[_]] extends MetricRegistry[F] {
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name]
-  )(f: A => IndexedSeq[String]): Resource[F, Counter.Labelled[F, Long, A]] =
+  )(f: A => IndexedSeq[String]): Resource[F, Counter[F, Long, A]] =
     createAndRegisterLabelledDoubleCounter(prefix, name, help, commonLabels, labelNames)(f).map(_.contramap(_.toDouble))
 
   override def createAndRegisterLongGauge(
@@ -45,7 +45,7 @@ trait DoubleMetricRegistry[F[_]] extends MetricRegistry[F] {
       name: Gauge.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels
-  ): Resource[F, Gauge[F, Long]] =
+  ): Resource[F, Gauge[F, Long, Unit]] =
     createAndRegisterDoubleGauge(prefix, name, help, commonLabels).map(_.contramap(_.toDouble))
 
   override def createAndRegisterLabelledLongGauge[A](
@@ -54,7 +54,7 @@ trait DoubleMetricRegistry[F[_]] extends MetricRegistry[F] {
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name]
-  )(f: A => IndexedSeq[String]): Resource[F, Gauge.Labelled[F, Long, A]] =
+  )(f: A => IndexedSeq[String]): Resource[F, Gauge[F, Long, A]] =
     createAndRegisterLabelledDoubleGauge(prefix, name, help, commonLabels, labelNames)(f).map(_.contramap(_.toDouble))
 
   override def createAndRegisterLongHistogram(
@@ -63,7 +63,7 @@ trait DoubleMetricRegistry[F[_]] extends MetricRegistry[F] {
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       buckets: NonEmptySeq[Long]
-  ): Resource[F, Histogram[F, Long]] =
+  ): Resource[F, Histogram[F, Long, Unit]] =
     createAndRegisterDoubleHistogram(prefix, name, help, commonLabels, buckets.map(_.toDouble))
       .map(_.contramap(_.toDouble))
 
@@ -74,7 +74,7 @@ trait DoubleMetricRegistry[F[_]] extends MetricRegistry[F] {
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
       buckets: NonEmptySeq[Long]
-  )(f: A => IndexedSeq[String]): Resource[F, Histogram.Labelled[F, Long, A]] =
+  )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Long, A]] =
     createAndRegisterLabelledDoubleHistogram(prefix, name, help, commonLabels, labelNames, buckets.map(_.toDouble))(f)
       .map(
         _.contramap(_.toDouble)
@@ -88,7 +88,7 @@ trait DoubleMetricRegistry[F[_]] extends MetricRegistry[F] {
       quantiles: Seq[Summary.QuantileDefinition],
       maxAge: FiniteDuration,
       ageBuckets: Summary.AgeBuckets
-  ): Resource[F, Summary[F, Long]] =
+  ): Resource[F, Summary[F, Long, Unit]] =
     createAndRegisterDoubleSummary(prefix, name, help, commonLabels, quantiles, maxAge, ageBuckets).map(
       _.contramap(_.toDouble)
     )
@@ -102,7 +102,7 @@ trait DoubleMetricRegistry[F[_]] extends MetricRegistry[F] {
       quantiles: Seq[Summary.QuantileDefinition],
       maxAge: FiniteDuration,
       ageBuckets: Summary.AgeBuckets
-  )(f: A => IndexedSeq[String]): Resource[F, Summary.Labelled[F, Long, A]] =
+  )(f: A => IndexedSeq[String]): Resource[F, Summary[F, Long, A]] =
     createAndRegisterLabelledDoubleSummary(prefix, name, help, commonLabels, labelNames, quantiles, maxAge, ageBuckets)(
       f
     ).map(_.contramap(_.toDouble))

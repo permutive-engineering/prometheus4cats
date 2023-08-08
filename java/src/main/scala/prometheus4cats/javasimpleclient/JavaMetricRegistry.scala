@@ -48,6 +48,7 @@ import java.util
 import scala.concurrent.TimeoutException
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
+import scala.annotation.nowarn
 
 class JavaMetricRegistry[F[_]: Async: Logger] private (
     private val registry: CollectorRegistry,
@@ -155,7 +156,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       name: Counter.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels
-  ): Resource[F, Counter[F, Double]] = {
+  ): Resource[F, Counter[F, Double, Unit]] = {
     lazy val commonLabelNames = commonLabels.value.keys.toIndexedSeq
     lazy val commonLabelValues = commonLabels.value.values.toIndexedSeq
 
@@ -169,7 +170,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     ).map { counter =>
       Counter.make(
         1.0,
-        (d: Double, exemplar: Option[Exemplar.Labels]) =>
+        (d: Double, _: Unit, exemplar: Option[Exemplar.Labels]) =>
           Utils
             .modifyMetric[F, Counter.Name, PCounter.Child](
               counter,
@@ -188,7 +189,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name]
-  )(f: A => IndexedSeq[String]): Resource[F, Counter.Labelled[F, Double, A]] = {
+  )(f: A => IndexedSeq[String]): Resource[F, Counter[F, Double, A]] = {
     val commonLabelNames = commonLabels.value.keys.toIndexedSeq
     val commonLabelValues = commonLabels.value.values.toIndexedSeq
 
@@ -200,7 +201,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       help,
       labelNames ++ commonLabelNames
     ).map { counter =>
-      Counter.Labelled.make(
+      Counter.make(
         1.0,
         (d: Double, labels: A, exemplar: Option[Exemplar.Labels]) =>
           Utils.modifyMetric[F, Counter.Name, PCounter.Child](
@@ -219,7 +220,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       name: Gauge.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels
-  ): Resource[F, Gauge[F, Double]] = {
+  ): Resource[F, Gauge[F, Double, Unit]] = {
     val commonLabelNames = commonLabels.value.keys.toIndexedSeq
     val commonLabelValues = commonLabels.value.values.toIndexedSeq
     configureBuilderOrRetrieve(PGauge.build(), MetricType.Gauge, prefix, name, help, commonLabelNames).map { gauge =>
@@ -227,14 +228,11 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       def modify(f: PGauge.Child => Unit): F[Unit] =
         Utils.modifyMetric(gauge, name, commonLabelNames, commonLabelValues, f)
 
-      def inc(n: Double): F[Unit] =
-        modify(_.inc(n))
+      @nowarn def inc(n: Double, ignored: Unit): F[Unit] = modify(_.inc(n))
 
-      def dec(n: Double): F[Unit] =
-        modify(_.dec(n))
+      @nowarn def dec(n: Double, ignored: Unit): F[Unit] = modify(_.dec(n))
 
-      def set(n: Double): F[Unit] =
-        modify(_.set(n))
+      @nowarn def set(n: Double, ignored: Unit): F[Unit] = modify(_.set(n))
 
       Gauge.make(inc, dec, set)
     }
@@ -246,7 +244,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name]
-  )(f: A => IndexedSeq[String]): Resource[F, Gauge.Labelled[F, Double, A]] = {
+  )(f: A => IndexedSeq[String]): Resource[F, Gauge[F, Double, A]] = {
     val commonLabelNames = commonLabels.value.keys.toIndexedSeq
     val commonLabelValues = commonLabels.value.values.toIndexedSeq
 
@@ -268,7 +266,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
 
       def set(n: Double, labels: A): F[Unit] = modify(_.set(n), labels)
 
-      Gauge.Labelled.make(inc, dec, set)
+      Gauge.make(inc, dec, set)
     }
   }
 
@@ -278,7 +276,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       buckets: NonEmptySeq[Double]
-  ): Resource[F, Histogram[F, Double]] = {
+  ): Resource[F, Histogram[F, Double, Unit]] = {
     val commonLabelNames = commonLabels.value.keys.toIndexedSeq
     val commonLabelValues = commonLabels.value.values.toIndexedSeq
 
@@ -290,7 +288,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       help,
       commonLabelNames
     ).map { histogram =>
-      Histogram.make((d, exemplar) =>
+      Histogram.make((d, _: Unit, exemplar) =>
         Utils.modifyMetric[F, Histogram.Name, PHistogram.Child](
           histogram,
           name,
@@ -309,7 +307,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
       buckets: NonEmptySeq[Double]
-  )(f: A => IndexedSeq[String]): Resource[F, Histogram.Labelled[F, Double, A]] = {
+  )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Double, A]] = {
     val commonLabelNames = commonLabels.value.keys.toIndexedSeq
     val commonLabelValues = commonLabels.value.values.toIndexedSeq
 
@@ -321,7 +319,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       help,
       labelNames ++ commonLabelNames
     ).map { histogram =>
-      Histogram.Labelled.make[F, Double, A](_observe = { (d: Double, labels: A, exemplar: Option[Exemplar.Labels]) =>
+      Histogram.make[F, Double, A](_observe = { (d: Double, labels: A, exemplar: Option[Exemplar.Labels]) =>
         Utils.modifyMetric[F, Histogram.Name, PHistogram.Child](
           histogram,
           name,
@@ -341,7 +339,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       quantiles: Seq[Summary.QuantileDefinition],
       maxAge: FiniteDuration,
       ageBuckets: Summary.AgeBuckets
-  ): Resource[F, Summary[F, Double]] = {
+  ): Resource[F, Summary[F, Double, Unit]] = {
 
     val commonLabelNames = commonLabels.value.keys.toIndexedSeq
     val commonLabelValues = commonLabels.value.values.toIndexedSeq
@@ -356,7 +354,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       help,
       commonLabelNames
     ).map { summary =>
-      Summary.make[F, Double](d =>
+      Summary.make[F, Double, Unit]((d, _: Unit) =>
         Utils.modifyMetric[F, Summary.Name, PSummary.Child](
           summary,
           name,
@@ -377,7 +375,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       quantiles: Seq[Summary.QuantileDefinition],
       maxAge: FiniteDuration,
       ageBuckets: Summary.AgeBuckets
-  )(f: A => IndexedSeq[String]): Resource[F, Summary.Labelled[F, Double, A]] = {
+  )(f: A => IndexedSeq[String]): Resource[F, Summary[F, Double, A]] = {
 
     val commonLabelNames = commonLabels.value.keys.toIndexedSeq
     val commonLabelValues = commonLabels.value.values.toIndexedSeq
@@ -392,7 +390,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       help,
       labelNames ++ commonLabelNames
     ).map { summary =>
-      Summary.Labelled.make[F, Double, A] { case (d, labels) =>
+      Summary.make[F, Double, A] { case (d, labels) =>
         Utils.modifyMetric[F, Summary.Name, PSummary.Child](
           summary,
           name,

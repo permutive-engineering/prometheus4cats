@@ -155,7 +155,7 @@ val shortCounter: Resource[IO, Counter[IO, Short]] = intCounter.map(_.contramap[
 #### Labelled Metric
 
 ```scala mdoc:silent
-val intLabelledCounter: Resource[IO, Counter.Labelled[IO, Int, (String, Int)]] = factory
+val intLabelledCounter: Resource[IO, Counter[IO, Int, (String, Int)]] = factory
   .counter("counter_total")
   .ofLong
   .help("Describe what this metric does")
@@ -166,7 +166,7 @@ val intLabelledCounter: Resource[IO, Counter.Labelled[IO, Int, (String, Int)]] =
 ```
 
 ```scala mdoc:silent
-val shortLabelledCounter: Resource[IO, Counter.Labelled[IO, Short, (String, Int)]] =
+val shortLabelledCounter: Resource[IO, Counter[IO, Short, (String, Int)]] =
   intLabelledCounter.map(_.contramap[Short](_.toInt))
 ```
 
@@ -178,7 +178,7 @@ This can work as a nice alternative to
 ```scala mdoc:silent
 case class LabelsClass(string: String, int: Int)
 
-val updatedLabelsCounter: Resource[IO, Counter.Labelled[IO, Long, LabelsClass]] = factory
+val updatedLabelsCounter: Resource[IO, Counter[IO, Long, LabelsClass]] = factory
   .counter("counter_total")
   .ofLong
   .help("Describe what this metric does")

@@ -261,13 +261,13 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       name: Counter.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels
-  ): Resource[F, Counter[F, Double]] =
+  ): Resource[F, Counter[F, Double, Unit]] =
     store(
       NameUtils.makeName(prefix, name.value),
       names(commonLabels),
       MetricType.Counter,
       (ref: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]]) =>
-        Counter.make[F, Double]((d: Double, e: Option[Exemplar.Labels]) =>
+        Counter.make[F, Double, Unit]((d: Double, _: Unit, e: Option[Exemplar.Labels]) =>
           ref(values(commonLabels)).update(c => c.append((c.lastOption.get._1 + d, e)))
         ),
       Chain.one(0.0 -> None)
@@ -279,13 +279,13 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name]
-  )(f: A => IndexedSeq[String]): Resource[F, Counter.Labelled[F, Double, A]] =
+  )(f: A => IndexedSeq[String]): Resource[F, Counter[F, Double, A]] =
     store(
       NameUtils.makeName(prefix, name.value),
       names(commonLabels, labelNames),
       MetricType.Counter,
       (ref: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]]) =>
-        Counter.Labelled.make[F, Double, A]((d: Double, a: A, e: Option[Exemplar.Labels]) =>
+        Counter.make[F, Double, A]((d: Double, a: A, e: Option[Exemplar.Labels]) =>
           ref(values(commonLabels, f(a))).update(c => c.append((c.lastOption.get._1 + d, e)))
         ),
       Chain.one(0.0 -> None)
@@ -296,16 +296,16 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       name: Gauge.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels
-  ): Resource[F, Gauge[F, Double]] =
+  ): Resource[F, Gauge[F, Double, Unit]] =
     store(
       NameUtils.makeName(prefix, name.value),
       names(commonLabels),
       MetricType.Gauge,
       (ref: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]]) =>
-        Gauge.make[F, Double](
-          (d: Double) => ref(values(commonLabels)).update(c => c.append((c.lastOption.get._1 + d, None))),
-          (d: Double) => ref(values(commonLabels)).update(c => c.append((c.lastOption.get._1 - d, None))),
-          (d: Double) => ref(values(commonLabels)).update(_.append(d -> None))
+        Gauge.make[F, Double, Unit](
+          (d: Double, _: Unit) => ref(values(commonLabels)).update(c => c.append((c.lastOption.get._1 + d, None))),
+          (d: Double, _: Unit) => ref(values(commonLabels)).update(c => c.append((c.lastOption.get._1 - d, None))),
+          (d: Double, _: Unit) => ref(values(commonLabels)).update(_.append(d -> None))
         ),
       Chain.one(0.0 -> None)
     )
@@ -316,13 +316,13 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name]
-  )(f: A => IndexedSeq[String]): Resource[F, Gauge.Labelled[F, Double, A]] =
+  )(f: A => IndexedSeq[String]): Resource[F, Gauge[F, Double, A]] =
     store(
       NameUtils.makeName(prefix, name.value),
       names(commonLabels, labelNames),
       MetricType.Gauge,
       (ref: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]]) =>
-        Gauge.Labelled.make[F, Double, A](
+        Gauge.make[F, Double, A](
           (d: Double, a: A) => ref(values(commonLabels, f(a))).update(c => c.append((c.lastOption.get._1 + d, None))),
           (d: Double, a: A) => ref(values(commonLabels, f(a))).update(c => c.append((c.lastOption.get._1 - d, None))),
           (d: Double, a: A) => ref(values(commonLabels, f(a))).update(_.append(d -> None))
@@ -336,13 +336,13 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       buckets: NonEmptySeq[Double]
-  ): Resource[F, Histogram[F, Double]] =
+  ): Resource[F, Histogram[F, Double, Unit]] =
     store(
       NameUtils.makeName(prefix, name.value),
       names(commonLabels),
       MetricType.Histogram,
       (ref: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]]) =>
-        Histogram.make[F, Double]((d: Double, e: Option[Exemplar.Labels]) =>
+        Histogram.make[F, Double, Unit]((d: Double, _: Unit, e: Option[Exemplar.Labels]) =>
           ref(values(commonLabels)).update(_.append(d -> e))
         ),
       Chain.nil
@@ -355,13 +355,13 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
       buckets: NonEmptySeq[Double]
-  )(f: A => IndexedSeq[String]): Resource[F, Histogram.Labelled[F, Double, A]] =
+  )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Double, A]] =
     store(
       NameUtils.makeName(prefix, name.value),
       names(commonLabels, labelNames),
       MetricType.Histogram,
       (ref: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]]) =>
-        Histogram.Labelled.make[F, Double, A]((d: Double, a: A, e: Option[Exemplar.Labels]) =>
+        Histogram.make[F, Double, A]((d: Double, a: A, e: Option[Exemplar.Labels]) =>
           ref(values(commonLabels, f(a))).update(_.append(d -> e))
         ),
       Chain.nil
@@ -375,13 +375,13 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       quantiles: Seq[Summary.QuantileDefinition],
       maxAge: FiniteDuration,
       ageBuckets: Summary.AgeBuckets
-  ): Resource[F, Summary[F, Double]] =
+  ): Resource[F, Summary[F, Double, Unit]] =
     store(
       NameUtils.makeName(prefix, name.value),
       names(commonLabels),
       MetricType.Summary,
       (ref: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]]) =>
-        Summary.make[F, Double]((d: Double) => ref(values(commonLabels)).update(_.append(d -> None))),
+        Summary.make[F, Double, Unit]((d: Double, _: Unit) => ref(values(commonLabels)).update(_.append(d -> None))),
       Chain.nil
     )
 
@@ -394,15 +394,13 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       quantiles: Seq[Summary.QuantileDefinition],
       maxAge: FiniteDuration,
       ageBuckets: Summary.AgeBuckets
-  )(f: A => IndexedSeq[String]): Resource[F, Summary.Labelled[F, Double, A]] =
+  )(f: A => IndexedSeq[String]): Resource[F, Summary[F, Double, A]] =
     store(
       NameUtils.makeName(prefix, name.value),
       names(commonLabels, labelNames),
       MetricType.Summary,
       (ref: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]]) =>
-        Summary.Labelled.make[F, Double, A]((d: Double, a: A) =>
-          ref(values(commonLabels, f(a))).update(_.append(d -> None))
-        ),
+        Summary.make[F, Double, A]((d: Double, a: A) => ref(values(commonLabels, f(a))).update(_.append(d -> None))),
       Chain.nil
     )
 

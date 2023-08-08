@@ -27,13 +27,13 @@ final class SummaryDsl[F[_], A] private[prometheus4cats] (
     quantiles: Seq[QuantileDefinition] = SummaryDsl.defaultQuantiles,
     maxAgeValue: FiniteDuration = SummaryDsl.defaultMaxAge,
     ageBucketsValue: Summary.AgeBuckets = Summary.AgeBuckets.Default,
-    makeSummary: (Seq[QuantileDefinition], FiniteDuration, Summary.AgeBuckets) => Resource[F, Summary[F, A]],
+    makeSummary: (Seq[QuantileDefinition], FiniteDuration, Summary.AgeBuckets) => Resource[F, Summary[F, A, Unit]],
     makeLabelledSummary: (
         Seq[QuantileDefinition],
         FiniteDuration,
         Summary.AgeBuckets
-    ) => LabelledMetricPartiallyApplied[F, A, Summary.Labelled]
-) extends MetricDsl[F, A, Summary, Summary.Labelled](
+    ) => LabelledMetricPartiallyApplied[F, A, Summary]
+) extends MetricDsl[F, A, Summary](
       makeSummary(quantiles, maxAgeValue, ageBucketsValue),
       makeLabelledSummary(quantiles, maxAgeValue, ageBucketsValue)
     )
@@ -52,24 +52,24 @@ final class SummaryDsl[F[_], A] private[prometheus4cats] (
 }
 
 object SummaryDsl {
-  trait Base[F[_], A] extends BuildStep[F, Summary[F, A]] {
-    self: MetricDsl[F, A, Summary, Summary.Labelled] =>
+  trait Base[F[_], A] extends BuildStep[F, Summary[F, A, Unit]] {
+    self: MetricDsl[F, A, Summary] =>
     def quantile(quantile: Summary.Quantile, error: Summary.AllowedError): SummaryDsl[F, A]
     def maxAge(age: FiniteDuration): AgeBucketsStep[F, A]
 
-    def label[B]: FirstLabelApply[F, A, B, Summary.Labelled]
+    def label[B]: FirstLabelApply[F, A, B, Summary]
 
     def unsafeLabels(
         labelNames: IndexedSeq[Label.Name]
-    ): BuildStep[F, Summary.Labelled[F, A, Map[Label.Name, String]]]
+    ): BuildStep[F, Summary[F, A, Map[Label.Name, String]]]
 
     def unsafeLabels(
         labelNames: Label.Name*
-    ): BuildStep[F, Summary.Labelled[F, A, Map[Label.Name, String]]]
+    ): BuildStep[F, Summary[F, A, Map[Label.Name, String]]]
 
     def labels[B, N <: Nat](labelNames: Sized[IndexedSeq[Label.Name], N])(
         f: B => Sized[IndexedSeq[String], N]
-    ): LabelsBuildStep[F, A, B, N, Summary.Labelled]
+    ): LabelsBuildStep[F, A, B, N, Summary]
   }
 
   private val defaultQuantiles: Seq[Summary.QuantileDefinition] = Seq.empty
@@ -80,15 +80,15 @@ object SummaryDsl {
       quantiles: Seq[QuantileDefinition] = SummaryDsl.defaultQuantiles,
       maxAgeValue: FiniteDuration = SummaryDsl.defaultMaxAge,
       ageBucketsValue: Summary.AgeBuckets = Summary.AgeBuckets.Default,
-      makeSummary: (Seq[QuantileDefinition], FiniteDuration, Summary.AgeBuckets) => Resource[F, Summary[F, A]],
+      makeSummary: (Seq[QuantileDefinition], FiniteDuration, Summary.AgeBuckets) => Resource[F, Summary[F, A, Unit]],
       makeSummaryCallback: F[A0] => Resource[F, Unit],
       makeLabelledSummary: (
           Seq[QuantileDefinition],
           FiniteDuration,
           Summary.AgeBuckets
-      ) => LabelledMetricPartiallyApplied[F, A, Summary.Labelled],
+      ) => LabelledMetricPartiallyApplied[F, A, Summary],
       makeLabelledSummaryCallback: LabelledCallbackPartiallyApplied[F, A0]
-  ) extends MetricDsl.WithCallbacks[F, A, A0, Summary, Summary.Labelled](
+  ) extends MetricDsl.WithCallbacks[F, A, A0, Summary](
         makeSummary(quantiles, maxAgeValue, ageBucketsValue),
         makeSummaryCallback,
         makeLabelledSummary(quantiles, maxAgeValue, ageBucketsValue),
@@ -113,18 +113,18 @@ final class AgeBucketsStep[F[_], A] private[summary] (
     quantiles: Seq[QuantileDefinition],
     maxAgeValue: FiniteDuration,
     ageBucketsValue: Summary.AgeBuckets,
-    makeSummary: (Seq[QuantileDefinition], FiniteDuration, Summary.AgeBuckets) => Resource[F, Summary[F, A]],
+    makeSummary: (Seq[QuantileDefinition], FiniteDuration, Summary.AgeBuckets) => Resource[F, Summary[F, A, Unit]],
     makeLabelledSummary: (
         Seq[QuantileDefinition],
         FiniteDuration,
         Summary.AgeBuckets
-    ) => LabelledMetricPartiallyApplied[F, A, Summary.Labelled]
-) extends MetricDsl[F, A, Summary, Summary.Labelled](
+    ) => LabelledMetricPartiallyApplied[F, A, Summary]
+) extends MetricDsl[F, A, Summary](
       makeSummary(quantiles, maxAgeValue, ageBucketsValue),
       makeLabelledSummary(quantiles, maxAgeValue, ageBucketsValue)
     ) {
-  def ageBuckets(buckets: Summary.AgeBuckets): MetricDsl[F, A, Summary, Summary.Labelled] =
-    new MetricDsl[F, A, Summary, Summary.Labelled](
+  def ageBuckets(buckets: Summary.AgeBuckets): MetricDsl[F, A, Summary] =
+    new MetricDsl[F, A, Summary](
       makeSummary(quantiles, maxAgeValue, buckets),
       makeLabelledSummary(quantiles, maxAgeValue, buckets)
     )

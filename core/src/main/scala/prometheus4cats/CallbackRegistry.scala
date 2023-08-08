@@ -408,7 +408,7 @@ trait CallbackRegistry[F[_]] {
     *   a function from `A` to an [[scala.IndexedSeq]] of [[java.lang.String]] that provides label values, which must be
     *   paired with their corresponding name in the [[scala.IndexedSeq]] of [[Label.Name]]s
     * @return
-    *   a [[Summary.Labelled]] wrapped in whatever side effect that was performed in registering it
+    *   a [[Summary]] wrapped in whatever side effect that was performed in registering it
     */
   def registerLabelledDoubleSummaryCallback[A](
       prefix: Option[Metric.Prefix],
@@ -438,7 +438,7 @@ trait CallbackRegistry[F[_]] {
     *   a function from `A` to an [[scala.IndexedSeq]] of [[java.lang.String]] that provides label values, which must be
     *   paired with their corresponding name in the [[scala.IndexedSeq]] of [[Label.Name]]s
     * @return
-    *   a [[Summary.Labelled]] wrapped in whatever side effect that was performed in registering it
+    *   a [[Summary]] wrapped in whatever side effect that was performed in registering it
     */
   def registerLabelledLongSummaryCallback[A](
       prefix: Option[Metric.Prefix],

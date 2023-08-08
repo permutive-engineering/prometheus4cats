@@ -21,6 +21,7 @@ import java.math.BigInteger
 import java.util.concurrent.TimeUnit
 
 import cats.effect.IO
+
 import prometheus4cats._
 
 import scala.concurrent.duration._
@@ -34,7 +35,6 @@ object MetricsFactoryDslTest {
   doubleGaugeBuilder.build
   doubleGaugeBuilder.asCurrentTimeRecorder
   doubleGaugeBuilder.asCurrentTimeRecorder(_.toUnit(TimeUnit.NANOSECONDS))
-  doubleGaugeBuilder.contramap[Int](_.toDouble).build
   doubleGaugeBuilder.asTimer.build
   doubleGaugeBuilder.asOutcomeRecorder.build
 
@@ -98,7 +98,6 @@ object MetricsFactoryDslTest {
   longHistogramBuilder.unsafeLabels(Label.Name("label1"), Label.Name("label2")).build
 
   val infoBuilder = factory.info("test_info").help("help")
-  infoBuilder.contramap[List[(Label.Name, String)]](_.toMap)
   infoBuilder.build
 
   val doubleSummaryBuilder =

@@ -27,16 +27,14 @@ class OutcomeRecorderSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
   val opCounter: IO[(OutcomeRecorder[IO], IO[Map[Status, Int]])] =
     Ref.of[IO, Map[Status, Int]](Map.empty).map { ref =>
       OutcomeRecorder.fromCounter(
-        Counter.Labelled.make[IO, Int, Status]((i: Int, s: Status, _: Option[Exemplar.Labels]) =>
-          ref.update(_ |+| Map(s -> i))
-        )
+        Counter.make[IO, Int, Status]((i: Int, s: Status, _: Option[Exemplar.Labels]) => ref.update(_ |+| Map(s -> i)))
       ) -> ref.get
     }
 
   val opGauge: IO[(OutcomeRecorder[IO], IO[Map[Status, Int]])] =
     Ref.of[IO, Map[Status, Int]](Map.empty).map { ref =>
       OutcomeRecorder.fromGauge(
-        Gauge.Labelled.make[IO, Int, Status](
+        Gauge.make[IO, Int, Status](
           (i: Int, s: Status) => ref.update(_ |+| Map(s -> i)),
           (i: Int, s: Status) => ref.update(_ |+| Map(s -> -i)),
           (i: Int, s: Status) => ref.update(_.updated(s, i))
@@ -47,7 +45,7 @@ class OutcomeRecorderSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
   val labelledOpCounter: IO[(OutcomeRecorder.Labelled[IO, String], IO[Map[(String, Status), Int]])] =
     Ref.of[IO, Map[(String, Status), Int]](Map.empty).map { ref =>
       OutcomeRecorder.Labelled.fromCounter(
-        Counter.Labelled.make[IO, Int, (String, Status)]((i: Int, s: (String, Status), _: Option[Exemplar.Labels]) =>
+        Counter.make[IO, Int, (String, Status)]((i: Int, s: (String, Status), _: Option[Exemplar.Labels]) =>
           ref.update(_ |+| Map(s -> i))
         )
       ) -> ref.get
@@ -56,7 +54,7 @@ class OutcomeRecorderSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
   val labelledOpGauge: IO[(OutcomeRecorder.Labelled[IO, String], IO[Map[(String, Status), Int]])] =
     Ref.of[IO, Map[(String, Status), Int]](Map.empty).map { ref =>
       OutcomeRecorder.Labelled.fromGauge(
-        Gauge.Labelled.make[IO, Int, (String, Status)](
+        Gauge.make[IO, Int, (String, Status)](
           (i: Int, s: (String, Status)) => ref.update(_ |+| Map(s -> i)),
           (i: Int, s: (String, Status)) => ref.update(_ |+| Map(s -> -i)),
           (i: Int, s: (String, Status)) => ref.update(_.updated(s, i))

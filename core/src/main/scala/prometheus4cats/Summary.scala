@@ -20,16 +20,25 @@ import java.util.regex.Pattern
 
 import cats.{Applicative, Contravariant, ~>}
 
-sealed abstract class Summary[F[_], -A] extends Metric[A] { self =>
-  def observe(n: A): F[Unit]
+sealed abstract class Summary[F[_], -A, B] extends Metric[A] with Metric.Labelled[B] {
+  self =>
 
-  override def contramap[B](f: B => A): Summary[F, B] = new Summary[F, B] {
-    override def observe(n: B): F[Unit] = self.observe(f(n))
+  def observe(n: A, labels: B): F[Unit]
+  def observe(n: A)(implicit ev: Unit =:= B): F[Unit] = observe(n = n, labels = ev(()))
+
+  def contramap[C](f: C => A): Summary[F, C, B] = new Summary[F, C, B] {
+    override def observe(n: C, labels: B): F[Unit] = self.observe(f(n), labels)
   }
 
-  def mapK[G[_]](fk: F ~> G): Summary[G, A] = new Summary[G, A] {
-    override def observe(n: A): G[Unit] = fk(self.observe(n))
+  def contramapLabels[C](f: C => B): Summary[F, A, C] = new Summary[F, A, C] {
+    override def observe(n: A, labels: C): F[Unit] = self.observe(n, f(labels))
   }
+
+  final def mapK[G[_]](fk: F ~> G): Summary[G, A, B] =
+    new Summary[G, A, B] {
+      override def observe(n: A, labels: B): G[Unit] = fk(self.observe(n, labels))
+    }
+
 }
 
 object Summary {
@@ -93,57 +102,24 @@ object Summary {
     final override protected def make(a: String): Name = new Name(a)
   }
 
-  implicit def catsInstances[F[_]]: Contravariant[Summary[F, *]] = new Contravariant[Summary[F, *]] {
-    override def contramap[A, B](fa: Summary[F, A])(f: B => A): Summary[F, B] = fa.contramap(f)
-  }
-
-  def make[F[_], A](_observe: A => F[Unit]): Summary[F, A] = new Summary[F, A] {
-    override def observe(n: A): F[Unit] = _observe(n)
-  }
-
-  def noop[F[_]: Applicative, A]: Summary[F, A] = new Summary[F, A] {
-    override def observe(n: A): F[Unit] = Applicative[F].unit
-  }
-
-  sealed abstract class Labelled[F[_], -A, -B] extends Metric[A] with Metric.Labelled[B] {
-    self =>
-
-    def observe(n: A, labels: B): F[Unit]
-
-    def contramap[C](f: C => A): Labelled[F, C, B] = new Labelled[F, C, B] {
-      override def observe(n: C, labels: B): F[Unit] = self.observe(f(n), labels)
+  implicit def catsInstances[F[_], C]: Contravariant[Summary[F, *, C]] =
+    new Contravariant[Summary[F, *, C]] {
+      override def contramap[A, B](fa: Summary[F, A, C])(f: B => A): Summary[F, B, C] = fa.contramap(f)
     }
 
-    def contramapLabels[C](f: C => B): Labelled[F, A, C] = new Labelled[F, A, C] {
-      override def observe(n: A, labels: C): F[Unit] = self.observe(n, f(labels))
+  implicit def labelsContravariant[F[_], C]: LabelsContravariant[Summary[F, C, *]] =
+    new LabelsContravariant[Summary[F, C, *]] {
+      override def contramapLabels[A, B](fa: Summary[F, C, A])(f: B => A): Summary[F, C, B] = fa.contramapLabels(f)
     }
 
-    final def mapK[G[_]](fk: F ~> G): Labelled[G, A, B] =
-      new Labelled[G, A, B] {
-        override def observe(n: A, labels: B): G[Unit] = fk(self.observe(n, labels))
-      }
+  def make[F[_], A, B](_observe: (A, B) => F[Unit]): Summary[F, A, B] =
+    new Summary[F, A, B] {
+      override def observe(n: A, labels: B): F[Unit] = _observe(n, labels)
+    }
 
-  }
+  def noop[F[_]: Applicative, A, B]: Summary[F, A, B] =
+    new Summary[F, A, B] {
+      override def observe(n: A, labels: B): F[Unit] = Applicative[F].unit
+    }
 
-  object Labelled {
-    implicit def catsInstances[F[_], C]: Contravariant[Labelled[F, *, C]] =
-      new Contravariant[Labelled[F, *, C]] {
-        override def contramap[A, B](fa: Labelled[F, A, C])(f: B => A): Labelled[F, B, C] = fa.contramap(f)
-      }
-
-    implicit def labelsContravariant[F[_], C]: LabelsContravariant[Labelled[F, C, *]] =
-      new LabelsContravariant[Labelled[F, C, *]] {
-        override def contramapLabels[A, B](fa: Labelled[F, C, A])(f: B => A): Labelled[F, C, B] = fa.contramapLabels(f)
-      }
-
-    def make[F[_], A, B](_observe: (A, B) => F[Unit]): Labelled[F, A, B] =
-      new Labelled[F, A, B] {
-        override def observe(n: A, labels: B): F[Unit] = _observe(n, labels)
-      }
-
-    def noop[F[_]: Applicative, A, B]: Labelled[F, A, B] =
-      new Labelled[F, A, B] {
-        override def observe(n: A, labels: B): F[Unit] = Applicative[F].unit
-      }
-  }
 }

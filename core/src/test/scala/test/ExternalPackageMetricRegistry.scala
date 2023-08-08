@@ -30,14 +30,14 @@ class ExternalPackageMetricRegistry extends MetricRegistry[IO] with CallbackRegi
       name: Counter.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels
-  ): Resource[IO, Counter[IO, Double]] = ???
+  ): Resource[IO, Counter[IO, Double, Unit]] = ???
 
   override def createAndRegisterLongCounter(
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels
-  ): Resource[IO, Counter[IO, Long]] = ???
+  ): Resource[IO, Counter[IO, Long, Unit]] = ???
 
   override def createAndRegisterLabelledDoubleCounter[A](
       prefix: Option[Metric.Prefix],
@@ -45,7 +45,7 @@ class ExternalPackageMetricRegistry extends MetricRegistry[IO] with CallbackRegi
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name]
-  )(f: A => IndexedSeq[String]): Resource[IO, Counter.Labelled[IO, Double, A]] = ???
+  )(f: A => IndexedSeq[String]): Resource[IO, Counter[IO, Double, A]] = ???
 
   override def createAndRegisterLabelledLongCounter[A](
       prefix: Option[Metric.Prefix],
@@ -53,21 +53,21 @@ class ExternalPackageMetricRegistry extends MetricRegistry[IO] with CallbackRegi
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name]
-  )(f: A => IndexedSeq[String]): Resource[IO, Counter.Labelled[IO, Long, A]] = ???
+  )(f: A => IndexedSeq[String]): Resource[IO, Counter[IO, Long, A]] = ???
 
   override def createAndRegisterDoubleGauge(
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels
-  ): Resource[IO, Gauge[IO, Double]] = ???
+  ): Resource[IO, Gauge[IO, Double, Unit]] = ???
 
   override def createAndRegisterLongGauge(
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels
-  ): Resource[IO, Gauge[IO, Long]] = ???
+  ): Resource[IO, Gauge[IO, Long, Unit]] = ???
 
   override def createAndRegisterLabelledDoubleGauge[A](
       prefix: Option[Metric.Prefix],
@@ -75,7 +75,7 @@ class ExternalPackageMetricRegistry extends MetricRegistry[IO] with CallbackRegi
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name]
-  )(f: A => IndexedSeq[String]): Resource[IO, Gauge.Labelled[IO, Double, A]] = ???
+  )(f: A => IndexedSeq[String]): Resource[IO, Gauge[IO, Double, A]] = ???
 
   override def createAndRegisterLabelledLongGauge[A](
       prefix: Option[Metric.Prefix],
@@ -83,7 +83,7 @@ class ExternalPackageMetricRegistry extends MetricRegistry[IO] with CallbackRegi
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name]
-  )(f: A => IndexedSeq[String]): Resource[IO, Gauge.Labelled[IO, Long, A]] = ???
+  )(f: A => IndexedSeq[String]): Resource[IO, Gauge[IO, Long, A]] = ???
 
   override def createAndRegisterDoubleHistogram(
       prefix: Option[Metric.Prefix],
@@ -91,7 +91,7 @@ class ExternalPackageMetricRegistry extends MetricRegistry[IO] with CallbackRegi
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       buckets: NonEmptySeq[Double]
-  ): Resource[IO, Histogram[IO, Double]] = ???
+  ): Resource[IO, Histogram[IO, Double, Unit]] = ???
 
   override def createAndRegisterLongHistogram(
       prefix: Option[Metric.Prefix],
@@ -99,7 +99,7 @@ class ExternalPackageMetricRegistry extends MetricRegistry[IO] with CallbackRegi
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       buckets: NonEmptySeq[Long]
-  ): Resource[IO, Histogram[IO, Long]] = ???
+  ): Resource[IO, Histogram[IO, Long, Unit]] = ???
 
   override def createAndRegisterLabelledDoubleHistogram[A](
       prefix: Option[Metric.Prefix],
@@ -108,7 +108,7 @@ class ExternalPackageMetricRegistry extends MetricRegistry[IO] with CallbackRegi
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
       buckets: NonEmptySeq[Double]
-  )(f: A => IndexedSeq[String]): Resource[IO, Histogram.Labelled[IO, Double, A]] = ???
+  )(f: A => IndexedSeq[String]): Resource[IO, Histogram[IO, Double, A]] = ???
 
   override def createAndRegisterLabelledLongHistogram[A](
       prefix: Option[Metric.Prefix],
@@ -117,7 +117,7 @@ class ExternalPackageMetricRegistry extends MetricRegistry[IO] with CallbackRegi
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
       buckets: NonEmptySeq[Long]
-  )(f: A => IndexedSeq[String]): Resource[IO, Histogram.Labelled[IO, Long, A]] = ???
+  )(f: A => IndexedSeq[String]): Resource[IO, Histogram[IO, Long, A]] = ???
 
   override def createAndRegisterDoubleSummary(
       prefix: Option[Metric.Prefix],
@@ -127,7 +127,7 @@ class ExternalPackageMetricRegistry extends MetricRegistry[IO] with CallbackRegi
       quantiles: Seq[Summary.QuantileDefinition],
       maxAge: FiniteDuration,
       ageBuckets: Summary.AgeBuckets
-  ): Resource[IO, Summary[IO, Double]] = ???
+  ): Resource[IO, Summary[IO, Double, Unit]] = ???
 
   override def createAndRegisterLongSummary(
       prefix: Option[Metric.Prefix],
@@ -137,7 +137,7 @@ class ExternalPackageMetricRegistry extends MetricRegistry[IO] with CallbackRegi
       quantiles: Seq[Summary.QuantileDefinition],
       maxAge: FiniteDuration,
       ageBuckets: Summary.AgeBuckets
-  ): Resource[IO, Summary[IO, Long]] = ???
+  ): Resource[IO, Summary[IO, Long, Unit]] = ???
 
   override def createAndRegisterLabelledDoubleSummary[A](
       prefix: Option[Metric.Prefix],
@@ -148,7 +148,7 @@ class ExternalPackageMetricRegistry extends MetricRegistry[IO] with CallbackRegi
       quantiles: Seq[Summary.QuantileDefinition],
       maxAge: FiniteDuration,
       ageBuckets: Summary.AgeBuckets
-  )(f: A => IndexedSeq[String]): Resource[IO, Summary.Labelled[IO, Double, A]] = ???
+  )(f: A => IndexedSeq[String]): Resource[IO, Summary[IO, Double, A]] = ???
 
   override def createAndRegisterLabelledLongSummary[A](
       prefix: Option[Metric.Prefix],
@@ -159,7 +159,7 @@ class ExternalPackageMetricRegistry extends MetricRegistry[IO] with CallbackRegi
       quantiles: Seq[Summary.QuantileDefinition],
       maxAge: FiniteDuration,
       ageBuckets: Summary.AgeBuckets
-  )(f: A => IndexedSeq[String]): Resource[IO, Summary.Labelled[IO, Long, A]] = ???
+  )(f: A => IndexedSeq[String]): Resource[IO, Summary[IO, Long, A]] = ???
 
   override def createAndRegisterInfo(
       prefix: Option[Metric.Prefix],
