@@ -96,6 +96,15 @@ trait RegistrySuite[State] extends ScalaCheckEffectSuite {
       extraLabels: Map[Label.Name, String] = Map.empty
   ): IO[Option[Double]]
 
+  def getExemplarCounterValue(
+      state: State,
+      prefix: Option[Metric.Prefix],
+      name: Counter.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      extraLabels: Map[Label.Name, String] = Map.empty
+  ): IO[Option[(Double, Option[Map[String, String]])]]
+
   def getGaugeValue(
       state: State,
       prefix: Option[Metric.Prefix],
@@ -114,6 +123,16 @@ trait RegistrySuite[State] extends ScalaCheckEffectSuite {
       buckets: NonEmptySeq[Double],
       extraLabels: Map[Label.Name, String] = Map.empty
   ): IO[Option[Map[String, Double]]]
+
+  def getExemplarHistogramValue(
+      state: State,
+      prefix: Option[Metric.Prefix],
+      name: Histogram.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      buckets: NonEmptySeq[Double],
+      extraLabels: Map[Label.Name, String] = Map.empty
+  ): IO[Option[Map[String, (Double, Option[Map[String, String]])]]]
 
   def getSummaryValue(
       state: State,

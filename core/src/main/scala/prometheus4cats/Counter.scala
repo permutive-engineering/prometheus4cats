@@ -16,24 +16,34 @@
 
 package prometheus4cats
 
+import cats.syntax.flatMap._
+import cats.{Applicative, Contravariant, FlatMap, Monad, ~>}
+
 import java.util.regex.Pattern
 
-import cats.{Applicative, Contravariant, ~>}
+sealed abstract class Counter[F[_]: FlatMap, -A] extends Metric[A] { self =>
 
-sealed abstract class Counter[F[_], -A] extends Metric[A] { self =>
+  final def inc: F[Unit] = incWithExemplar(None)
+  final def inc(n: A): F[Unit] = incWithExemplar(n, None)
+  final def incWithExemplar(implicit exemplar: Exemplar[F]): F[Unit] = exemplar.get.flatMap(incWithExemplar)
+  final def incWithExemplar(n: A)(implicit exemplar: Exemplar[F]): F[Unit] = exemplar.get.flatMap(incWithExemplar(n, _))
 
-  def inc: F[Unit]
-  def inc(n: A): F[Unit]
+  def incWithExemplar(n: A, exemplar: Option[Exemplar.Labels]): F[Unit]
+  def incWithExemplar(exemplar: Option[Exemplar.Labels]): F[Unit]
 
   def contramap[B](f: B => A): Counter[F, B] = new Counter[F, B] {
-    override def inc: F[Unit] = self.inc
-
-    override def inc(n: B): F[Unit] = self.inc(f(n))
+    override def incWithExemplar(n: B, exemplar: Option[Exemplar.Labels]): F[Unit] =
+      self.incWithExemplar(f(n), exemplar)
+    override def incWithExemplar(exemplar: Option[Exemplar.Labels]): F[Unit] = self.incWithExemplar(exemplar)
   }
 
-  final def mapK[G[_]](fk: F ~> G): Counter[G, A] = new Counter[G, A] {
-    override def inc: G[Unit] = fk(self.inc)
-    override def inc(n: A): G[Unit] = fk(self.inc(n))
+  final def mapK[G[_]: FlatMap](fk: F ~> G): Counter[G, A] = new Counter[G, A] {
+    override def incWithExemplar(n: A, exemplar: Option[Exemplar.Labels]): G[Unit] = fk(
+      self.incWithExemplar(n, exemplar)
+    )
+    override def incWithExemplar(exemplar: Option[Exemplar.Labels]): G[Unit] = fk(
+      self.incWithExemplar(exemplar)
+    )
   }
 }
 
@@ -54,45 +64,56 @@ object Counter {
     override def contramap[A, B](fa: Counter[F, A])(f: B => A): Counter[F, B] = fa.contramap(f)
   }
 
-  def make[F[_], A](default: A, _inc: A => F[Unit]): Counter[F, A] = new Counter[F, A] {
-    override def inc: F[Unit] = inc(default)
+  def make[F[_]: FlatMap, A](default: A, _inc: (A, Option[Exemplar.Labels]) => F[Unit]): Counter[F, A] =
+    new Counter[F, A] {
+      override def incWithExemplar(n: A, exemplar: Option[Exemplar.Labels]): F[Unit] = _inc(n, exemplar)
 
-    override def inc(n: A): F[Unit] = _inc(n)
+      override def incWithExemplar(exemplar: Option[Exemplar.Labels]): F[Unit] = _inc(default, exemplar)
+    }
+
+  def make[F[_]: FlatMap, A](_inc: (A, Option[Exemplar.Labels]) => F[Unit])(implicit A: Numeric[A]): Counter[F, A] =
+    make(A.one, _inc)
+
+  def noop[F[_]: Monad, A]: Counter[F, A] = new Counter[F, A] {
+    override def incWithExemplar(n: A, exemplar: Option[Exemplar.Labels]): F[Unit] = Applicative[F].unit
+
+    override def incWithExemplar(exemplar: Option[Exemplar.Labels]): F[Unit] = Applicative[F].unit
   }
 
-  def make[F[_], A](_inc: A => F[Unit])(implicit A: Numeric[A]): Counter[F, A] = make(A.one, _inc)
-
-  def noop[F[_]: Applicative, A]: Counter[F, A] = new Counter[F, A] {
-    override def inc: F[Unit] = Applicative[F].unit
-
-    override def inc(n: A): F[Unit] = Applicative[F].unit
-  }
-
-  sealed abstract class Labelled[F[_], -A, -B] extends Metric[A] with Metric.Labelled[B] {
+  sealed abstract class Labelled[F[_]: FlatMap, -A, -B] extends Metric[A] with Metric.Labelled[B] {
     self =>
-    def inc(labels: B): F[Unit]
+    final def inc(labels: B): F[Unit] = incWithExemplar(labels, None)
+    final def inc(n: A, labels: B): F[Unit] = incWithExemplar(n, labels, None)
+    final def incWithExemplar(labels: B)(implicit exemplar: Exemplar[F]): F[Unit] =
+      exemplar.get.flatMap(incWithExemplar(labels, _))
+    final def incWithExemplar(n: A, labels: B)(implicit exemplar: Exemplar[F]): F[Unit] =
+      exemplar.get.flatMap(incWithExemplar(n, labels, _))
 
-    def inc(n: A, labels: B): F[Unit]
+    def incWithExemplar(labels: B, exemplar: Option[Exemplar.Labels]): F[Unit]
+    def incWithExemplar(n: A, labels: B, exemplar: Option[Exemplar.Labels]): F[Unit]
 
     def contramap[C](f: C => A): Labelled[F, C, B] = new Labelled[F, C, B] {
-      override def inc(labels: B): F[Unit] = self.inc(labels)
+      override def incWithExemplar(labels: B, exemplar: Option[Exemplar.Labels]): F[Unit] =
+        self.incWithExemplar(labels, exemplar)
 
-      override def inc(n: C, labels: B): F[Unit] = self.inc(f(n), labels)
+      override def incWithExemplar(n: C, labels: B, exemplar: Option[Exemplar.Labels]): F[Unit] =
+        self.incWithExemplar(f(n), labels, exemplar)
     }
 
     def contramapLabels[C](f: C => B): Labelled[F, A, C] = new Labelled[F, A, C] {
-      override def inc(labels: C): F[Unit] = self.inc(f(labels))
-
-      override def inc(n: A, labels: C): F[Unit] = self.inc(n, f(labels))
+      override def incWithExemplar(labels: C, exemplar: Option[Exemplar.Labels]): F[Unit] =
+        self.incWithExemplar(f(labels), exemplar)
+      override def incWithExemplar(n: A, labels: C, exemplar: Option[Exemplar.Labels]): F[Unit] =
+        self.incWithExemplar(n, f(labels), exemplar)
     }
 
-    final def mapK[G[_]](fk: F ~> G): Counter.Labelled[G, A, B] =
+    final def mapK[G[_]: FlatMap](fk: F ~> G): Counter.Labelled[G, A, B] =
       new Labelled[G, A, B] {
-        override def inc(labels: B): G[Unit] = fk(self.inc(labels))
+        override def incWithExemplar(labels: B, exemplar: Option[Exemplar.Labels]): G[Unit] =
+          fk(self.incWithExemplar(labels, exemplar))
 
-        override def inc(n: A, labels: B): G[Unit] = fk(
-          self.inc(n, labels)
-        )
+        override def incWithExemplar(n: A, labels: B, exemplar: Option[Exemplar.Labels]): G[Unit] =
+          fk(self.incWithExemplar(n, labels, exemplar))
       }
   }
 
@@ -107,19 +128,26 @@ object Counter {
         override def contramapLabels[A, B](fa: Labelled[F, C, A])(f: B => A): Labelled[F, C, B] = fa.contramapLabels(f)
       }
 
-    def make[F[_], A, B](default: A, _inc: (A, B) => F[Unit]): Labelled[F, A, B] =
+    def make[F[_]: FlatMap, A, B](default: A, _inc: (A, B, Option[Exemplar.Labels]) => F[Unit]): Labelled[F, A, B] =
       new Labelled[F, A, B] {
-        override def inc(labels: B): F[Unit] = inc(default, labels)
+        override def incWithExemplar(labels: B, exemplar: Option[Exemplar.Labels]): F[Unit] =
+          _inc(default, labels, exemplar)
 
-        override def inc(n: A, labels: B): F[Unit] = _inc(n, labels)
+        override def incWithExemplar(n: A, labels: B, exemplar: Option[Exemplar.Labels]): F[Unit] =
+          _inc(n, labels, exemplar)
       }
 
-    def make[F[_], A, B](_inc: (A, B) => F[Unit])(implicit A: Numeric[A]): Labelled[F, A, B] = make(A.one, _inc)
+    def make[F[_]: FlatMap, A, B](_inc: (A, B, Option[Exemplar.Labels]) => F[Unit])(implicit
+        A: Numeric[A]
+    ): Labelled[F, A, B] =
+      make(A.one, _inc)
 
-    def noop[F[_]: Applicative, A, B]: Labelled[F, A, B] = new Labelled[F, A, B] {
-      override def inc(labels: B): F[Unit] = Applicative[F].unit
+    def noop[F[_]: Monad, A, B]: Labelled[F, A, B] = new Labelled[F, A, B] {
+      override def incWithExemplar(labels: B, exemplar: Option[Exemplar.Labels]): F[Unit] =
+        Applicative[F].unit
 
-      override def inc(n: A, labels: B): F[Unit] = Applicative[F].unit
+      override def incWithExemplar(n: A, labels: B, exemplar: Option[Exemplar.Labels]): F[Unit] =
+        Applicative[F].unit
     }
   }
 

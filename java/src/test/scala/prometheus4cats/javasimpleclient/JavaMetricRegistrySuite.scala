@@ -43,13 +43,19 @@ class JavaMetricRegistrySuite
 
   implicit val logger: Logger[IO] = NoOpLogger.impl
 
+  implicit override val exemplar: Exemplar[IO] = new Exemplar[IO] {
+    override def get: IO[Option[Exemplar.Labels]] = IO(
+      Exemplar.Labels.of(Exemplar.LabelName("test") -> "test").toOption
+    )
+  }
+
   override val stateResource: Resource[IO, CollectorRegistry] = Resource.eval(IO.delay(new CollectorRegistry()))
 
   override def metricRegistryResource(state: CollectorRegistry): Resource[IO, MetricRegistry[IO]] =
-    JavaMetricRegistry.fromSimpleClientRegistry[IO](state)
+    JavaMetricRegistry.Builder().withRegistry(state).build[IO]
 
   override def callbackRegistryResource(state: CollectorRegistry): Resource[IO, CallbackRegistry[IO]] =
-    JavaMetricRegistry.fromSimpleClientRegistry[IO](state, callbackTimeout = 100.millis)
+    JavaMetricRegistry.Builder().withRegistry(state).withCallbackTimeout(100.millis).build[IO]
 
   def getMetricValue[A: Show](
       state: CollectorRegistry,
@@ -57,7 +63,7 @@ class JavaMetricRegistrySuite
       name: A,
       commonLabels: Metric.CommonLabels,
       extraLabels: Map[Label.Name, String]
-  ): Option[Double] = {
+  ): Option[(Double, Option[Map[String, String]])] = {
     val n = NameUtils.makeName(prefix, name)
 
     val allLabels = (extraLabels ++ commonLabels.value).map { case (n, v) => n.value -> v }
@@ -77,7 +83,16 @@ class JavaMetricRegistrySuite
 
         sample.name == n && labels == allLabels
       }
-      .map(_.value)
+      .map { sample =>
+        (
+          sample.value,
+          Option(sample.exemplar).map { exemplar =>
+            0.until(exemplar.getNumberOfLabels).foldLeft(Map.empty[String, String]) { case (acc, i) =>
+              acc.updated(exemplar.getLabelName(i), exemplar.getLabelValue(i))
+            }
+          }
+        )
+      }
   }
 
   override def getCounterValue(
@@ -87,7 +102,17 @@ class JavaMetricRegistrySuite
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       extraLabels: Map[Label.Name, String]
-  ): IO[Option[Double]] = IO(getMetricValue(state, prefix, name, commonLabels, extraLabels))
+  ): IO[Option[Double]] = IO(getMetricValue(state, prefix, name, commonLabels, extraLabels).map(_._1))
+
+  override def getExemplarCounterValue(
+      state: CollectorRegistry,
+      prefix: Option[Metric.Prefix],
+      name: Counter.Name,
+      help: Metric.Help,
+      commonLabels: CommonLabels,
+      extraLabels: Map[Label.Name, String]
+  ): IO[Option[(Double, Option[Map[String, String]])]] =
+    IO(getMetricValue(state, prefix, name, commonLabels, extraLabels))
 
   override def getGaugeValue(
       state: CollectorRegistry,
@@ -96,9 +121,22 @@ class JavaMetricRegistrySuite
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       extraLabels: Map[Label.Name, String]
-  ): IO[Option[Double]] = IO(getMetricValue(state, prefix, name, commonLabels, extraLabels))
+  ): IO[Option[Double]] = IO(getMetricValue(state, prefix, name, commonLabels, extraLabels).map(_._1))
 
   override def getHistogramValue(
+      state: CollectorRegistry,
+      prefix: Option[Metric.Prefix],
+      name: Histogram.Name,
+      help: Metric.Help,
+      commonLabels: CommonLabels,
+      buckets: NonEmptySeq[Double],
+      extraLabels: Map[Label.Name, String]
+  ): IO[Option[Map[String, Double]]] =
+    getExemplarHistogramValue(state, prefix, name, help, commonLabels, buckets, extraLabels).map(
+      _.map(_.map { case (k, (v, _)) => k -> v })
+    )
+
+  override def getExemplarHistogramValue(
       state: CollectorRegistry,
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
@@ -106,7 +144,7 @@ class JavaMetricRegistrySuite
       commonLabels: Metric.CommonLabels,
       buckets: NonEmptySeq[Double],
       extraLabels: Map[Label.Name, String]
-  ): IO[Option[Map[String, Double]]] =
+  ): IO[Option[Map[String, (Double, Option[Map[String, String]])]]] =
     IO {
       val n = NameUtils.makeName(prefix, name)
 
@@ -126,7 +164,14 @@ class JavaMetricRegistrySuite
           }.map { sample =>
             (
               sample.labelNames.asScala.zip(sample.labelValues.asScala).collectFirst { case ("le", v) => v }.get,
-              sample.value
+              (
+                sample.value,
+                Option(sample.exemplar).map { exemplar =>
+                  0.until(exemplar.getNumberOfLabels).foldLeft(Map.empty[String, String]) { case (acc, i) =>
+                    acc.updated(exemplar.getLabelName(i), exemplar.getLabelValue(i))
+                  }
+                }
+              )
             )
           }.toMap
         }
@@ -165,8 +210,8 @@ class JavaMetricRegistrySuite
 
     (
       quantiles,
-      getMetricValue(state, prefix, show"${name}_count", commonLabels, extraLabels),
-      getMetricValue(state, prefix, show"${name}_sum", commonLabels, extraLabels)
+      getMetricValue(state, prefix, show"${name}_count", commonLabels, extraLabels).map(_._1),
+      getMetricValue(state, prefix, show"${name}_sum", commonLabels, extraLabels).map(_._1)
     )
   }
 
@@ -176,7 +221,7 @@ class JavaMetricRegistrySuite
       name: Info.Name,
       help: Metric.Help,
       labels: Map[Label.Name, String]
-  ): IO[Option[Double]] = IO(getMetricValue(state, prefix, name, CommonLabels.empty, labels))
+  ): IO[Option[Double]] = IO(getMetricValue(state, prefix, name, CommonLabels.empty, labels).map(_._1))
 
   test("returns an existing metric when labels and name are the same") {
     forAllF {
@@ -212,7 +257,7 @@ class JavaMetricRegistrySuite
           labels: Set[Label.Name]
       ) =>
         stateResource
-          .flatMap(JavaMetricRegistry.fromSimpleClientRegistry(_))
+          .flatMap(JavaMetricRegistry.Builder().withRegistry(_).build)
           .use { reg =>
             val metric = reg
               .createAndRegisterLabelledDoubleCounter[Map[Label.Name, String]](
@@ -257,7 +302,7 @@ class JavaMetricRegistrySuite
           labels: Set[Label.Name]
       ) =>
         stateResource
-          .flatMap(JavaMetricRegistry.fromSimpleClientRegistry(_))
+          .flatMap(JavaMetricRegistry.Builder().withRegistry(_).build)
           .use { reg =>
             val metric = reg
               .createAndRegisterLabelledDoubleCounter[Map[Label.Name, String]](

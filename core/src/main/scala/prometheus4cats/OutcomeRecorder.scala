@@ -144,6 +144,128 @@ object OutcomeRecorder {
       override protected val onSucceeded: F[Unit] = setOutcome(Status.Succeeded)
     }
 
+  sealed abstract class Exemplar[F[_]: MonadCancelThrow] {
+    self =>
+    type Metric
+
+    /** Surround an operation and evaluate its outcome using an instance of [[cats.effect.kernel.MonadCancel]].
+      *
+      * The resulting metrics depend on the underlying implementation. See [[OutcomeRecorder.Exemplar.fromCounter]] and
+      *
+      * @param fa
+      *   operation to be evaluated
+      */
+    final def surround[A](
+        fa: F[A],
+        recordExemplarOnSucceeded: Boolean = false,
+        recordExemplarOnErrored: Boolean = false,
+        recordExemplarOnCanceled: Boolean = false
+    )(implicit exemplar: prometheus4cats.Exemplar[F]): F[A] =
+      fa.guaranteeCase(
+        recordOutcome[A, Throwable](_, recordExemplarOnSucceeded, recordExemplarOnErrored, recordExemplarOnCanceled)
+      )
+
+    final def surroundWithExemplar[A](
+        fa: F[A],
+        exemplarOnSucceeded: Option[prometheus4cats.Exemplar.Labels] = None,
+        exemplarOnErrored: Option[prometheus4cats.Exemplar.Labels] = None,
+        exemplarOnCanceled: Option[prometheus4cats.Exemplar.Labels] = None
+    ): F[A] =
+      fa.guaranteeCase(
+        recordOutcomeWithExemplar[A, Throwable](_, exemplarOnSucceeded, exemplarOnErrored, exemplarOnCanceled)
+      )
+
+    /** Record the result of provided [[cats.effect.kernel.Outcome]]
+      *
+      * The resulting metrics depend on the underlying implementation. See [[OutcomeRecorder.fromCounter]] and
+      * [[OutcomeRecorder.fromGauge]] for more details.
+      *
+      * @param outcome
+      *   the [[cats.effect.kernel.Outcome]] to be recorded
+      */
+    final def recordOutcome[A, E](
+        outcome: Outcome[F, E, A],
+        recordExemplarOnSucceeded: Boolean = false,
+        recordExemplarOnErrored: Boolean = false,
+        recordExemplarOnCanceled: Boolean = false
+    )(implicit exemplar: prometheus4cats.Exemplar[F]): F[Unit] = outcome match {
+      case Outcome.Succeeded(_) =>
+        if (recordExemplarOnSucceeded) exemplar.get.flatMap(onSucceeded) else onSucceeded(None)
+      case Outcome.Errored(_) =>
+        if (recordExemplarOnErrored) exemplar.get.flatMap(onErrored) else onErrored(None)
+      case Outcome.Canceled() =>
+        if (recordExemplarOnCanceled) exemplar.get.flatMap(onCanceled) else onCanceled(None)
+    }
+
+    final def recordOutcomeWithExemplar[A, E](
+        outcome: Outcome[F, E, A],
+        exemplarOnSucceeded: Option[prometheus4cats.Exemplar.Labels] = None,
+        exemplarOnErrored: Option[prometheus4cats.Exemplar.Labels] = None,
+        exemplarOnCanceled: Option[prometheus4cats.Exemplar.Labels] = None
+    ): F[Unit] = outcome match {
+      case Outcome.Succeeded(_) =>
+        onSucceeded(exemplarOnSucceeded)
+      case Outcome.Errored(_) =>
+        onErrored(exemplarOnErrored)
+      case Outcome.Canceled() =>
+        onCanceled(exemplarOnCanceled)
+    }
+
+    protected def onCanceled(exemplar: Option[prometheus4cats.Exemplar.Labels]): F[Unit]
+
+    protected def onErrored(exemplar: Option[prometheus4cats.Exemplar.Labels]): F[Unit]
+
+    protected def onSucceeded(exemplar: Option[prometheus4cats.Exemplar.Labels]): F[Unit]
+
+    def mapK[G[_]: MonadCancelThrow](fk: F ~> G): OutcomeRecorder.Exemplar[G] = new OutcomeRecorder.Exemplar[G] {
+      override type Metric = self.Metric
+
+      override protected def onCanceled(exemplar: Option[prometheus4cats.Exemplar.Labels]): G[Unit] = fk(
+        self.onCanceled(exemplar)
+      )
+
+      override protected def onErrored(exemplar: Option[prometheus4cats.Exemplar.Labels]): G[Unit] = fk(
+        self.onErrored(exemplar)
+      )
+
+      override protected def onSucceeded(exemplar: Option[prometheus4cats.Exemplar.Labels]): G[Unit] = fk(
+        self.onSucceeded(exemplar)
+      )
+    }
+  }
+  object Exemplar {
+    type Aux[F[_], A, M[_[_], _, _]] = OutcomeRecorder.Exemplar[F] {
+      type Metric = M[F, A, Status]
+    }
+
+    /** Create an [[OutcomeRecorder]] from a [[Counter.Labelled]] instance, where its only label type is [[Status]].
+      *
+      * This works by incrementing a counter with a label value that corresponds to the value [[Status]] on each
+      * invocation.
+      *
+      * The best way to construct a counter based [[OutcomeRecorder]] is to use the `.asOutcomeRecorder` on the counter
+      * DSL provided by [[MetricFactory]].
+      *
+      * @return
+      *   an [[OutcomeRecorder.Aux]] that is annotated with the type of underlying metric, in this case
+      *   [[Counter.Labelled]]
+      */
+    def fromCounter[F[_]: MonadCancelThrow, A](
+        counter: Counter.Labelled[F, A, Status]
+    ): OutcomeRecorder.Exemplar.Aux[F, A, Counter.Labelled] = new OutcomeRecorder.Exemplar[F] {
+      override type Metric = Counter.Labelled[F, A, Status]
+
+      override protected def onCanceled(exemplar: Option[prometheus4cats.Exemplar.Labels]): F[Unit] =
+        counter.incWithExemplar(Status.Canceled, exemplar)
+
+      override protected def onErrored(exemplar: Option[prometheus4cats.Exemplar.Labels]): F[Unit] =
+        counter.incWithExemplar(Status.Errored, exemplar)
+
+      override protected def onSucceeded(exemplar: Option[prometheus4cats.Exemplar.Labels]): F[Unit] =
+        counter.incWithExemplar(Status.Succeeded, exemplar)
+    }
+  }
+
   /** A derived metric type that records the outcome of an operation. See [[OutcomeRecorder.Labelled.fromCounter]] and
     * [[OutcomeRecorder.Labelled.fromGauge]] for more information.
     */
@@ -317,5 +439,164 @@ object OutcomeRecorder {
 
         override protected def onSucceeded(labels: B): F[Unit] = setOutcome(labels, Status.Succeeded)
       }
+
+    /** A derived metric type that records the outcome of an operation. See [[OutcomeRecorder.Labelled.fromCounter]] and
+      * [[OutcomeRecorder.Labelled.fromGauge]] for more information.
+      */
+    sealed abstract class Exemplar[F[_]: MonadCancelThrow, -A] extends Metric.Labelled[A] {
+      self =>
+      type Metric
+
+      /** Surround an operation and evaluate its outcome using an instance of [[cats.effect.kernel.MonadCancel]].
+        *
+        * The resulting metrics depend on the underlying implementation. See [[OutcomeRecorder.Labelled.fromCounter]]
+        * and [[OutcomeRecorder.Labelled.fromGauge]] for more details.
+        *
+        * @param fb
+        *   operation to be evaluated
+        * @param labels
+        *   labels to add to the underlying metric
+        */
+      final def surround[B](
+          fb: F[B],
+          labels: A,
+          recordExemplarOnSucceeded: Boolean = false,
+          recordExemplarOnErrored: Boolean = false,
+          recordExemplarOnCanceled: Boolean = false
+      )(implicit exemplar: prometheus4cats.Exemplar[F]): F[B] = fb.guaranteeCase(
+        recordOutcome(_, labels, recordExemplarOnSucceeded, recordExemplarOnErrored, recordExemplarOnCanceled)
+      )
+
+      /** Record the result of provided [[cats.effect.kernel.Outcome]]
+        *
+        * The resulting metrics depend on the underlying implementation. See [[OutcomeRecorder.Labelled.fromCounter]]
+        * and [[OutcomeRecorder.Labelled.fromGauge]] for more details.
+        *
+        * @param outcome
+        *   the [[cats.effect.kernel.Outcome]] to be recorded
+        * @param labels
+        *   labels to add to the underlying metric
+        */
+      final def recordOutcome[B, E](
+          outcome: Outcome[F, E, B],
+          labels: A,
+          recordExemplarOnSucceeded: Boolean = false,
+          recordExemplarOnErrored: Boolean = false,
+          recordExemplarOnCanceled: Boolean = false
+      )(implicit exemplar: prometheus4cats.Exemplar[F]): F[Unit] =
+        outcome match {
+          case Outcome.Succeeded(_) =>
+            if (recordExemplarOnSucceeded) exemplar.get.flatMap(onSucceeded(labels, _))
+            else onSucceeded(labels, None)
+          case Outcome.Errored(_) =>
+            if (recordExemplarOnErrored) exemplar.get.flatMap(onErrored(labels, _))
+            else onErrored(labels, None)
+          case Outcome.Canceled() =>
+            if (recordExemplarOnCanceled) exemplar.get.flatMap(onCanceled(labels, _))
+            else onCanceled(labels, None)
+        }
+
+      /** Surround an operation and evaluate its outcome using an instance of [[cats.effect.kernel.MonadCancel]],
+        * computing additional labels from the result.
+        *
+        * The resulting metrics depend on the underlying implementation. See [[OutcomeRecorder.Labelled.fromCounter]]
+        * and [[OutcomeRecorder.Labelled.fromGauge]] for more details.
+        *
+        * @param fb
+        *   operation to be evaluated
+        * @param labelsCanceled
+        *   labels to add when the operation is canceled
+        * @param labelsSuccess
+        *   function to compute labels from the result of `fb` when the operation is successful
+        * @param labelsError
+        *   function to compute labels from the exception that was raised if the operation is unsuccessful
+        */
+      final def surroundWithComputedLabels[B](
+          fb: F[B],
+          labelsCanceled: A,
+          recordExemplarOnSucceeded: Boolean = false,
+          recordExemplarOnErrored: Boolean = false,
+          recordExemplarOnCanceled: Boolean = false
+      )(labelsSuccess: B => A, labelsError: Throwable => A)(implicit exemplar: prometheus4cats.Exemplar[F]): F[B] =
+        fb.guaranteeCase(
+          recordOutcomeWithComputedLabels(
+            _,
+            labelsCanceled,
+            recordExemplarOnSucceeded,
+            recordExemplarOnErrored,
+            recordExemplarOnCanceled
+          )(labelsSuccess, labelsError)
+        )
+
+      /** Record the result of provided [[cats.effect.kernel.Outcome]] computing additional labels from the result.
+        *
+        * The resulting metrics depend on the underlying implementation. See [[OutcomeRecorder.Labelled.fromCounter]]
+        * and [[OutcomeRecorder.Labelled.fromGauge]] for more details.
+        *
+        * @param outcome
+        *   the [[cats.effect.kernel.Outcome]] to be recorded
+        * @param labelsCanceled
+        *   labels to add when the operation is canceled
+        * @param labelsSuccess
+        *   function to compute labels from the result of `fb` when the operation is successful
+        * @param labelsError
+        *   function to compute labels from the exception that was raised if the operation is unsuccessful
+        */
+      final def recordOutcomeWithComputedLabels[B, E](
+          outcome: Outcome[F, E, B],
+          labelsCanceled: A,
+          recordExemplarOnSucceeded: Boolean = false,
+          recordExemplarOnErrored: Boolean = false,
+          recordExemplarOnCanceled: Boolean = false
+      )(labelsSuccess: B => A, labelsError: E => A)(implicit exemplar: prometheus4cats.Exemplar[F]): F[Unit] =
+        outcome match {
+          case Outcome.Succeeded(fb) =>
+            fb.flatMap(b =>
+              if (recordExemplarOnSucceeded) exemplar.get.flatMap(onSucceeded(labelsSuccess(b), _))
+              else onSucceeded(labelsSuccess(b), None)
+            )
+          case Outcome.Errored(th) =>
+            if (recordExemplarOnErrored) exemplar.get.flatMap(onErrored(labelsError(th), _))
+            else onErrored(labelsError(th), None)
+          case Outcome.Canceled() =>
+            if (recordExemplarOnCanceled) exemplar.get.flatMap(onCanceled(labelsCanceled, _))
+            else onCanceled(labelsCanceled, None)
+        }
+
+      protected def onCanceled(labels: A, exemplar: Option[prometheus4cats.Exemplar.Labels]): F[Unit]
+
+      protected def onErrored(labels: A, exemplar: Option[prometheus4cats.Exemplar.Labels]): F[Unit]
+
+      protected def onSucceeded(labels: A, exemplar: Option[prometheus4cats.Exemplar.Labels]): F[Unit]
+
+      def contramapLabels[B](f: B => A): Labelled.Exemplar[F, B] = new Labelled.Exemplar[F, B] {
+        override type Metric = self.Metric
+
+        override protected def onCanceled(labels: B, exemplar: Option[prometheus4cats.Exemplar.Labels]): F[Unit] =
+          self.onCanceled(f(labels), exemplar)
+
+        override protected def onErrored(labels: B, exemplar: Option[prometheus4cats.Exemplar.Labels]): F[Unit] =
+          self.onErrored(f(labels), exemplar)
+
+        override protected def onSucceeded(labels: B, exemplar: Option[prometheus4cats.Exemplar.Labels]): F[Unit] =
+          self.onSucceeded(f(labels), exemplar)
+      }
+
+      def mapK[G[_]: MonadCancelThrow](fk: F ~> G): Labelled.Exemplar[G, A] = new Labelled.Exemplar[G, A] {
+        override type Metric = self.Metric
+
+        override protected def onCanceled(labels: A, exemplar: Option[prometheus4cats.Exemplar.Labels]): G[Unit] = fk(
+          self.onCanceled(labels, exemplar)
+        )
+
+        override protected def onErrored(labels: A, exemplar: Option[prometheus4cats.Exemplar.Labels]): G[Unit] = fk(
+          self.onErrored(labels, exemplar)
+        )
+
+        override protected def onSucceeded(labels: A, exemplar: Option[prometheus4cats.Exemplar.Labels]): G[Unit] = fk(
+          self.onSucceeded(labels, exemplar)
+        )
+      }
+    }
   }
 }

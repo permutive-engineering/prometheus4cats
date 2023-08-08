@@ -16,8 +16,6 @@
 
 package prometheus4cats.javasimpleclient
 
-import java.util
-
 import alleycats.std.iterable._
 import cats.data.{NonEmptyList, NonEmptySeq}
 import cats.effect.kernel._
@@ -46,6 +44,7 @@ import prometheus4cats.javasimpleclient.internal.{HistogramUtils, MetricCollecti
 import prometheus4cats.javasimpleclient.models.MetricType
 import prometheus4cats.util.{DoubleCallbackRegistry, DoubleMetricRegistry, NameUtils}
 
+import java.util
 import scala.concurrent.TimeoutException
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
@@ -68,12 +67,12 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     with DoubleCallbackRegistry[F] {
   override protected val F: Functor[F] = implicitly
 
-  private def counterName[A: Show](name: A) = name match {
+  protected def counterName[A: Show](name: A): String = name match {
     case counter: Counter.Name => counter.value.replace("_total", "")
     case _ => name.show
   }
 
-  private def configureBuilderOrRetrieve[A: Show, B <: SimpleCollector.Builder[B, C], C <: SimpleCollector[_]](
+  protected def configureBuilderOrRetrieve[A: Show, B <: SimpleCollector.Builder[B, C], C <: SimpleCollector[_]](
       builder: SimpleCollector.Builder[B, C],
       metricType: MetricType,
       metricPrefix: Option[Metric.Prefix],
@@ -166,13 +165,19 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       prefix,
       name,
       help,
-      commonLabels.value.keys.toIndexedSeq
+      commonLabelNames
     ).map { counter =>
       Counter.make(
         1.0,
-        (d: Double) =>
+        (d: Double, exemplar: Option[Exemplar.Labels]) =>
           Utils
-            .modifyMetric[F, Counter.Name, PCounter.Child](counter, name, commonLabelNames, commonLabelValues, _.inc(d))
+            .modifyMetric[F, Counter.Name, PCounter.Child](
+              counter,
+              name,
+              commonLabelNames,
+              commonLabelValues,
+              c => exemplar.fold(c.inc(d))(e => c.incWithExemplar(d, transformExemplarLabels(e)))
+            )
       )
     }
   }
@@ -193,17 +198,17 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       prefix,
       name,
       help,
-      labelNames ++ commonLabels.value.keys.toIndexedSeq
+      labelNames ++ commonLabelNames
     ).map { counter =>
       Counter.Labelled.make(
         1.0,
-        (d: Double, labels: A) =>
+        (d: Double, labels: A, exemplar: Option[Exemplar.Labels]) =>
           Utils.modifyMetric[F, Counter.Name, PCounter.Child](
             counter,
             name,
             labelNames ++ commonLabelNames,
             f(labels) ++ commonLabelValues,
-            _.inc(d)
+            c => exemplar.fold(c.inc(d))(e => c.incWithExemplar(d, transformExemplarLabels(e)))
           )
       )
     }
@@ -217,14 +222,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
   ): Resource[F, Gauge[F, Double]] = {
     val commonLabelNames = commonLabels.value.keys.toIndexedSeq
     val commonLabelValues = commonLabels.value.values.toIndexedSeq
-    configureBuilderOrRetrieve(
-      PGauge.build(),
-      MetricType.Gauge,
-      prefix,
-      name,
-      help,
-      commonLabels.value.keys.toIndexedSeq
-    ).map { gauge =>
+    configureBuilderOrRetrieve(PGauge.build(), MetricType.Gauge, prefix, name, help, commonLabelNames).map { gauge =>
       @inline
       def modify(f: PGauge.Child => Unit): F[Unit] =
         Utils.modifyMetric(gauge, name, commonLabelNames, commonLabelValues, f)
@@ -258,7 +256,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       prefix,
       name,
       help,
-      labelNames ++ commonLabels.value.keys.toIndexedSeq
+      labelNames ++ commonLabelNames
     ).map { gauge =>
       @inline
       def modify(g: PGauge.Child => Unit, labels: A): F[Unit] =
@@ -290,15 +288,15 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       prefix,
       name,
       help,
-      commonLabels.value.keys.toIndexedSeq
+      commonLabelNames
     ).map { histogram =>
-      Histogram.make(d =>
+      Histogram.make((d, exemplar) =>
         Utils.modifyMetric[F, Histogram.Name, PHistogram.Child](
           histogram,
           name,
           commonLabelNames,
           commonLabelValues,
-          _.observe(d)
+          h => exemplar.fold(h.observe(d))(e => h.observeWithExemplar(d, transformExemplarLabels(e)))
         )
       )
     }
@@ -323,13 +321,13 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       help,
       labelNames ++ commonLabelNames
     ).map { histogram =>
-      Histogram.Labelled.make[F, Double, A](_observe = { (d: Double, labels: A) =>
+      Histogram.Labelled.make[F, Double, A](_observe = { (d: Double, labels: A, exemplar: Option[Exemplar.Labels]) =>
         Utils.modifyMetric[F, Histogram.Name, PHistogram.Child](
           histogram,
           name,
           labelNames ++ commonLabelNames,
           f(labels) ++ commonLabelValues,
-          _.observe(d)
+          h => exemplar.fold(h.observe(d))(e => h.observeWithExemplar(d, transformExemplarLabels(e)))
         )
       })
     }
@@ -853,6 +851,9 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       callback: F[MetricCollection]
   ): Resource[F, Unit] = metricCollectionCollector.register(prefix, commonLabels, callback)
 
+  private def transformExemplarLabels(labels: Exemplar.Labels): util.Map[String, String] = labels.value.map {
+    case (k, v) => k.value -> v
+  }.asJava
 }
 
 object JavaMetricRegistry {
@@ -865,6 +866,106 @@ object JavaMetricRegistry {
   private val callbackCounterHelp =
     "Number of times each metric callback has been executed, with a status (success, error, timeout)"
   private val callbackCounterLabels = List("metric_name", "status")
+
+  sealed abstract class Builder(
+      val promRegistry: CollectorRegistry,
+      val callbackTimeout: FiniteDuration,
+      val callbackCollectionTimeout: FiniteDuration
+  ) {
+    private def copy(
+        promRegistry: CollectorRegistry = promRegistry,
+        callbackTimeout: FiniteDuration = callbackTimeout,
+        callbackCollectionTimeout: FiniteDuration = callbackCollectionTimeout
+    ): Builder = new Builder(promRegistry, callbackTimeout, callbackCollectionTimeout) {}
+
+    def withRegistry(promRegistry: CollectorRegistry): Builder = copy(promRegistry = promRegistry)
+    def withCallbackTimeout(callbackTimeout: FiniteDuration): Builder =
+      copy(callbackTimeout = callbackTimeout)
+    def withCallbackCollectionTimeout(callbackCollectionTimeout: FiniteDuration): Builder =
+      copy(callbackCollectionTimeout = callbackCollectionTimeout)
+
+    def build[F[_]: Async: Logger]: Resource[F, JavaMetricRegistry[F]] =
+      Dispatcher.sequential[F].flatMap { dis =>
+        val callbacksCounter =
+          PCounter
+            .build(callbacksCounterName, callbackCounterHelp)
+            .labelNames(callbackCounterLabels: _*)
+            .create()
+
+        val singleCallbackCounter =
+          PCounter
+            .build(callbackCounterName, callbacksCounterHelp)
+            .labelNames(callbackCounterLabels: _*)
+            .create()
+
+        val acquire = for {
+          ref <- Ref.of[F, State](Map.empty)
+          metricsGauge = makeMetricsGauge(dis, ref)
+          _ <- Sync[F].delay(promRegistry.register(metricsGauge))
+          callbackState <- Ref.of[F, CallbackState[F]](Map.empty)
+          callbacksGauge = makeCallbacksGauge(dis, callbackState)
+          _ <- Sync[F].delay(promRegistry.register(callbacksGauge))
+          callbackTimeoutState <- Ref.of[F, Set[String]](Set.empty)
+          callbackErrorState <- Ref.of[F, Set[String]](Set.empty)
+          singleCallbacksErrorState <- Ref.of[F, (Set[String], Set[String])]((Set.empty, Set.empty))
+          _ <- Sync[F].delay(promRegistry.register(callbacksCounter))
+          _ <- Sync[F].delay(promRegistry.register(singleCallbackCounter))
+          sem <- Semaphore[F](1L)
+          metricCollectionProcessor <- MetricCollectionProcessor
+            .create(
+              ref,
+              callbackState,
+              dis,
+              callbackTimeout,
+              callbackCollectionTimeout,
+              promRegistry
+            )
+            .allocated
+        } yield (
+          ref,
+          metricsGauge,
+          callbacksGauge,
+          metricCollectionProcessor._2,
+          new JavaMetricRegistry[F](
+            promRegistry,
+            ref,
+            callbackState,
+            callbackTimeoutState,
+            callbackErrorState,
+            singleCallbacksErrorState,
+            callbacksCounter,
+            singleCallbackCounter,
+            metricCollectionProcessor._1,
+            sem,
+            dis,
+            callbackCollectionTimeout,
+            callbackTimeout
+          )
+        )
+
+        Resource
+          .make(acquire) { case (ref, metricsGauge, callbacksGauge, procRelease, _) =>
+            Utils.unregister(metricsGauge, promRegistry) >> Utils.unregister(callbacksGauge, promRegistry) >> Utils
+              .unregister(callbacksCounter, promRegistry) >> Utils
+              .unregister(singleCallbackCounter, promRegistry) >> procRelease >>
+              ref.get.flatMap { metrics =>
+                if (metrics.nonEmpty)
+                  metrics.values
+                    .map(_._2)
+                    .toList
+                    .traverse_ { case (collector, _) =>
+                      Utils.unregister(collector, promRegistry)
+                    }
+                else Applicative[F].unit
+              }
+          }
+          .map(_._5)
+      }
+  }
+
+  object Builder {
+    def apply(): Builder = new Builder(CollectorRegistry.defaultRegistry, 250.millis, 1.second) {}
+  }
 
   /** Create a metric registry using the default `io.prometheus.client.CollectorRegistry`
     *
@@ -879,15 +980,12 @@ object JavaMetricRegistry {
     *   how long the combined set of callbacks for a metric or metric collection should take to time out. This is for
     *   **all callbacks for a metric** or **all callbacks returning a metric collection**.
     */
+  @deprecated("Use JavaMetricRegistry.Builder instead", "2.0.0")
   def default[F[_]: Async: Logger](
       callbackTimeout: FiniteDuration = 250.millis,
       callbackCollectionTimeout: FiniteDuration = 1.second
   ): Resource[F, JavaMetricRegistry[F]] =
-    fromSimpleClientRegistry(
-      CollectorRegistry.defaultRegistry,
-      callbackTimeout,
-      callbackCollectionTimeout
-    )
+    Builder().withCallbackTimeout(callbackTimeout).withCallbackCollectionTimeout(callbackCollectionTimeout).build[F]
 
   /** Create a metric registry using the given `io.prometheus.client.CollectorRegistry`
     *
@@ -904,86 +1002,16 @@ object JavaMetricRegistry {
     *   how long the combined set of callbacks for a metric or metric collection should take to time out. This is for
     *   **all callbacks for a metric** or **all callbacks returning a metric collection**.
     */
+  @deprecated("Use JavaMetricRegistry.Builder instead", "2.0.0")
   def fromSimpleClientRegistry[F[_]: Async: Logger](
       promRegistry: CollectorRegistry,
       callbackTimeout: FiniteDuration = 250.millis,
       callbackCollectionTimeout: FiniteDuration = 1.second
-  ): Resource[F, JavaMetricRegistry[F]] = Dispatcher.sequential[F].flatMap { dis =>
-    val callbacksCounter =
-      PCounter
-        .build(callbacksCounterName, callbackCounterHelp)
-        .labelNames(callbackCounterLabels: _*)
-        .create()
-
-    val singleCallbackCounter =
-      PCounter
-        .build(callbackCounterName, callbacksCounterHelp)
-        .labelNames(callbackCounterLabels: _*)
-        .create()
-
-    val acquire = for {
-      ref <- Ref.of[F, State](Map.empty)
-      metricsGauge = makeMetricsGauge(dis, ref)
-      _ <- Sync[F].delay(promRegistry.register(metricsGauge))
-      callbackState <- Ref.of[F, CallbackState[F]](Map.empty)
-      callbacksGauge = makeCallbacksGauge(dis, callbackState)
-      _ <- Sync[F].delay(promRegistry.register(callbacksGauge))
-      callbackTimeoutState <- Ref.of[F, Set[String]](Set.empty)
-      callbackErrorState <- Ref.of[F, Set[String]](Set.empty)
-      singleCallbacksErrorState <- Ref.of[F, (Set[String], Set[String])]((Set.empty, Set.empty))
-      _ <- Sync[F].delay(promRegistry.register(callbacksCounter))
-      _ <- Sync[F].delay(promRegistry.register(singleCallbackCounter))
-      sem <- Semaphore[F](1L)
-      metricCollectionProcessor <- MetricCollectionProcessor
-        .create(
-          ref,
-          callbackState,
-          dis,
-          callbackTimeout,
-          callbackCollectionTimeout,
-          promRegistry
-        )
-        .allocated
-    } yield (
-      ref,
-      metricsGauge,
-      callbacksGauge,
-      metricCollectionProcessor._2,
-      new JavaMetricRegistry[F](
-        promRegistry,
-        ref,
-        callbackState,
-        callbackTimeoutState,
-        callbackErrorState,
-        singleCallbacksErrorState,
-        callbacksCounter,
-        singleCallbackCounter,
-        metricCollectionProcessor._1,
-        sem,
-        dis,
-        callbackCollectionTimeout,
-        callbackTimeout
-      )
-    )
-
-    Resource
-      .make(acquire) { case (ref, metricsGauge, callbacksGauge, procRelease, _) =>
-        Utils.unregister(metricsGauge, promRegistry) >> Utils.unregister(callbacksGauge, promRegistry) >> Utils
-          .unregister(callbacksCounter, promRegistry) >> Utils
-          .unregister(singleCallbackCounter, promRegistry) >> procRelease >>
-          ref.get.flatMap { metrics =>
-            if (metrics.nonEmpty)
-              metrics.values
-                .map(_._2)
-                .toList
-                .traverse_ { case (collector, _) =>
-                  Utils.unregister(collector, promRegistry)
-                }
-            else Applicative[F].unit
-          }
-      }
-      .map(_._5)
-  }
+  ): Resource[F, JavaMetricRegistry[F]] = Builder()
+    .withRegistry(promRegistry)
+    .withCallbackTimeout(callbackTimeout)
+    .withCallbackCollectionTimeout(callbackCollectionTimeout)
+    .build[F]
 
   private def makeCallbacksGauge[F[_]: Monad](dis: Dispatcher[F], state: Ref[F, CallbackState[F]]) = new Collector {
     override def collect(): util.List[MetricFamilySamples] = dis.unsafeRunSync(

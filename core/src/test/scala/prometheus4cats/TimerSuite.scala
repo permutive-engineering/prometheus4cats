@@ -34,7 +34,7 @@ class TimerSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
   val write: Double => WriterT[IO, List[Double], Unit] = d => WriterT.tell[IO, List[Double]](List(d))
 
   val hist =
-    Timer.fromHistogram(Histogram.make(write))
+    Timer.fromHistogram(Histogram.make((d, _) => write(d)))
 
   val gauge =
     Timer.fromGauge(
@@ -48,7 +48,8 @@ class TimerSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
   def writeLabels[A]: (Double, A) => WriterT[IO, List[(Double, A)], Unit] = (d, a) =>
     WriterT.tell[IO, List[(Double, A)]](List(d -> a))
 
-  val labelledHistogram = Timer.Labelled.fromHistogram(Histogram.Labelled.make(writeLabels[String]))
+  val labelledHistogram =
+    Timer.Labelled.fromHistogram(Histogram.Labelled.make((d, a: String, _) => writeLabels[String](d, a)))
 
   val labelledGauge = Timer.Labelled.fromGauge(
     Gauge.Labelled.make(
@@ -194,7 +195,7 @@ class TimerSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
 
       test((ref, s) =>
         Timer.Labelled
-          .fromHistogram(Histogram.Labelled.make[IO, Double, String]((d, s) => ref.update(_ :+ (d -> s))))
+          .fromHistogram(Histogram.Labelled.make[IO, Double, String]((d, s, _) => ref.update(_ :+ (d -> s))))
           .timeAttempt[String](s)(identity, { case th => th.getMessage })
       ) >> test((ref, s) =>
         Timer.Labelled

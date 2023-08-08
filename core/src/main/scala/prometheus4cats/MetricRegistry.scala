@@ -18,9 +18,10 @@ package prometheus4cats
 
 import cats.data.NonEmptySeq
 import cats.effect.kernel.{MonadCancel, Resource}
-import cats.{Applicative, ~>}
+import cats.{Monad, ~>}
 import prometheus4cats.Metric.CommonLabels
 import prometheus4cats.Summary.QuantileDefinition
+import prometheus4cats.util.DoubleMetricRegistry
 
 import scala.concurrent.duration.FiniteDuration
 
@@ -226,7 +227,7 @@ trait MetricRegistry[F[_]] {
     * @param buckets
     *   a [[cats.data.NonEmptySeq]] of [[scala.Double]]s representing bucket values for the histogram
     * @return
-    *   a [[Gauge]] wrapped in whatever side effect that was performed in registering it
+    *   a [[Histogram]] wrapped in whatever side effect that was performed in registering it
     */
   def createAndRegisterDoubleHistogram(
       prefix: Option[Metric.Prefix],
@@ -249,7 +250,7 @@ trait MetricRegistry[F[_]] {
     * @param buckets
     *   a [[cats.data.NonEmptySeq]] of [[scala.Double]]s representing bucket values for the histogram
     * @return
-    *   a [[Gauge]] wrapped in whatever side effect that was performed in registering it
+    *   a [[Histogram]] wrapped in whatever side effect that was performed in registering it
     */
   def createAndRegisterLongHistogram(
       prefix: Option[Metric.Prefix],
@@ -478,14 +479,15 @@ trait MetricRegistry[F[_]] {
       help: Metric.Help
   ): Resource[F, Info[F, Map[Label.Name, String]]]
 
-  final def mapK[G[_]](fk: F ~> G)(implicit F: MonadCancel[F, _], G: MonadCancel[G, _]): MetricRegistry[G] =
+  def mapK[G[_]](fk: F ~> G)(implicit F: MonadCancel[F, _], G: MonadCancel[G, _]): MetricRegistry[G] =
     MetricRegistry.mapK(this, fk)
 }
 
 object MetricRegistry {
 
-  def noop[F[_]](implicit F: Applicative[F]): MetricRegistry[F] =
-    new MetricRegistry[F] {
+  def noop[F[_]](implicit F: Monad[F]): MetricRegistry[F] =
+    new DoubleMetricRegistry[F] {
+
       override def createAndRegisterDoubleCounter(
           prefix: Option[Metric.Prefix],
           name: Counter.Name,
@@ -508,14 +510,6 @@ object MetricRegistry {
           help: Metric.Help,
           commonLabels: CommonLabels
       ): Resource[F, Gauge[F, Double]] =
-        Resource.pure(Gauge.noop)
-
-      override def createAndRegisterLongGauge(
-          prefix: Option[Metric.Prefix],
-          name: Gauge.Name,
-          help: Metric.Help,
-          commonLabels: CommonLabels
-      ): Resource[F, Gauge[F, Long]] =
         Resource.pure(Gauge.noop)
 
       override def createAndRegisterLabelledDoubleGauge[A](
@@ -545,49 +539,6 @@ object MetricRegistry {
       )(f: A => IndexedSeq[String]): Resource[F, Histogram.Labelled[F, Double, A]] =
         Resource.pure(Histogram.Labelled.noop)
 
-      override def createAndRegisterLongCounter(
-          prefix: Option[Metric.Prefix],
-          name: Counter.Name,
-          help: Metric.Help,
-          commonLabels: CommonLabels
-      ): Resource[F, Counter[F, Long]] = Resource.pure(Counter.noop)
-
-      override def createAndRegisterLabelledLongCounter[A](
-          prefix: Option[Metric.Prefix],
-          name: Counter.Name,
-          help: Metric.Help,
-          commonLabels: CommonLabels,
-          labelNames: IndexedSeq[Label.Name]
-      )(f: A => IndexedSeq[String]): Resource[F, Counter.Labelled[F, Long, A]] =
-        Resource.pure(Counter.Labelled.noop)
-
-      override def createAndRegisterLabelledLongGauge[A](
-          prefix: Option[Metric.Prefix],
-          name: Gauge.Name,
-          help: Metric.Help,
-          commonLabels: CommonLabels,
-          labelNames: IndexedSeq[Label.Name]
-      )(f: A => IndexedSeq[String]): Resource[F, Gauge.Labelled[F, Long, A]] =
-        Resource.pure(Gauge.Labelled.noop)
-
-      override def createAndRegisterLongHistogram(
-          prefix: Option[Metric.Prefix],
-          name: Histogram.Name,
-          help: Metric.Help,
-          commonLabels: CommonLabels,
-          buckets: NonEmptySeq[Long]
-      ): Resource[F, Histogram[F, Long]] = Resource.pure(Histogram.noop)
-
-      override def createAndRegisterLabelledLongHistogram[A](
-          prefix: Option[Metric.Prefix],
-          name: Histogram.Name,
-          help: Metric.Help,
-          commonLabels: CommonLabels,
-          labelNames: IndexedSeq[Label.Name],
-          buckets: NonEmptySeq[Long]
-      )(f: A => IndexedSeq[String]): Resource[F, Histogram.Labelled[F, Long, A]] =
-        Resource.pure(Histogram.Labelled.noop)
-
       override def createAndRegisterDoubleSummary(
           prefix: Option[Metric.Prefix],
           name: Summary.Name,
@@ -598,16 +549,6 @@ object MetricRegistry {
           ageBuckets: Summary.AgeBuckets
       ): Resource[F, Summary[F, Double]] = Resource.pure(Summary.noop)
 
-      override def createAndRegisterLongSummary(
-          prefix: Option[Metric.Prefix],
-          name: Summary.Name,
-          help: Metric.Help,
-          commonLabels: CommonLabels,
-          quantiles: Seq[QuantileDefinition],
-          maxAge: FiniteDuration,
-          ageBuckets: Summary.AgeBuckets
-      ): Resource[F, Summary[F, Long]] = Resource.pure(Summary.noop)
-
       override def createAndRegisterLabelledDoubleSummary[A](
           prefix: Option[Metric.Prefix],
           name: Summary.Name,
@@ -617,18 +558,8 @@ object MetricRegistry {
           quantiles: Seq[QuantileDefinition],
           maxAge: FiniteDuration,
           ageBuckets: Summary.AgeBuckets
-      )(f: A => IndexedSeq[String]): Resource[F, Summary.Labelled[F, Double, A]] = Resource.pure(Summary.Labelled.noop)
-
-      override def createAndRegisterLabelledLongSummary[A](
-          prefix: Option[Metric.Prefix],
-          name: Summary.Name,
-          help: Metric.Help,
-          commonLabels: CommonLabels,
-          labelNames: IndexedSeq[Label.Name],
-          quantiles: Seq[QuantileDefinition],
-          maxAge: FiniteDuration,
-          ageBuckets: Summary.AgeBuckets
-      )(f: A => IndexedSeq[String]): Resource[F, Summary.Labelled[F, Long, A]] = Resource.pure(Summary.Labelled.noop)
+      )(f: A => IndexedSeq[String]): Resource[F, Summary.Labelled[F, Double, A]] =
+        Resource.pure(Summary.Labelled.noop)
 
       override def createAndRegisterInfo(
           prefix: Option[Metric.Prefix],

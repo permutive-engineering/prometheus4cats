@@ -16,15 +16,14 @@
 
 package prometheus4cats
 
-import java.util.concurrent.TimeUnit
-
 import cats.effect.kernel.Clock
 import cats.syntax.applicativeError._
 import cats.syntax.either._
 import cats.syntax.flatMap._
 import cats.syntax.functor._
-import cats.{Applicative, FlatMap, MonadThrow, ~>}
+import cats.{Applicative, FlatMap, Monad, MonadThrow, ~>}
 
+import java.util.concurrent.TimeUnit
 import scala.concurrent.duration.FiniteDuration
 
 /** A derived metric type that can time a given operation. See [[Timer.fromHistogram]] and [[Timer.fromGauge]] for more
@@ -115,6 +114,86 @@ object Timer {
       override def recordTime(duration: FiniteDuration): F[Unit] = gauge.set(duration.toUnit(TimeUnit.SECONDS))
     }
 
+  sealed abstract class Exemplar[F[_]: FlatMap: Clock] { self =>
+    type Metric
+
+    /** Time an operation using an instance of [[cats.effect.kernel.Clock]].
+      *
+      * The resulting metrics depend on the underlying implementation. See [[Timer.Exemplar.fromHistogram]] and for more
+      * details.
+      *
+      * @param fa
+      *   operation to be timed
+      * @param recordExemplar
+      *   function to decide a duration threshold or the resulting value of `B` to record an exemplar
+      */
+    final def time[B](
+        fa: F[B]
+    )(recordExemplar: (FiniteDuration, B) => Boolean)(implicit exemplar: prometheus4cats.Exemplar[F]): F[B] =
+      Clock[F].timed(fa).flatMap { case (t, b) =>
+        (if (recordExemplar(t, b)) recordTimeWithExemplar(t)
+         else recordTime(t)).as(b)
+      }
+
+    final def time[B](
+        fa: F[B]
+    )(recordExemplar: (FiniteDuration, B) => Option[prometheus4cats.Exemplar.Labels]): F[B] =
+      Clock[F].timed(fa).flatMap { case (t, b) =>
+        recordTimeWithExemplar(t, recordExemplar(t, b)).as(b)
+      }
+
+    final def recordTime(duration: FiniteDuration): F[Unit] = recordTimeWithExemplar(duration, None)
+
+    final def recordTimeWithExemplar(duration: FiniteDuration)(implicit
+        exemplar: prometheus4cats.Exemplar[F]
+    ): F[Unit] =
+      exemplar.get.flatMap(recordTimeWithExemplar(duration, _))
+
+    def recordTimeWithExemplar(duration: FiniteDuration, exemplar: Option[prometheus4cats.Exemplar.Labels]): F[Unit]
+
+    def mapK[G[_]: FlatMap: Clock](fk: F ~> G): Exemplar[G] = new Exemplar[G] {
+      override type Metric = self.Metric
+
+      override def recordTimeWithExemplar(
+          duration: FiniteDuration,
+          exemplar: Option[prometheus4cats.Exemplar.Labels]
+      ): G[Unit] = fk(self.recordTimeWithExemplar(duration, exemplar))
+    }
+  }
+
+  object Exemplar {
+    type Aux[F[_], M[_[_], _]] = Timer.Exemplar[F] {
+      type Metric = M[F, Double]
+    }
+
+    /** Create a [[Timer.Exemplar]] from a [[Histogram]] instance.
+      *
+      * This delegates to the underlying [[Histogram]] instance and assumes you have already set up sensible buckets for
+      * the distribution of values.
+      *
+      * Values are recorded in [[scala.Double]]s by converting a [[scala.concurrent.duration.FiniteDuration]] to
+      * seconds.
+      *
+      * The best way to construct a histogram based [[Timer]] is to use the `.asTimer` on the histogram DSL provided by
+      * [[MetricFactory]].
+      *
+      * @return
+      *   a [[Timer.Aux]] that is annotated with the type of underlying metrics, in this case [[Histogram]]
+      */
+    def fromHistogram[F[_]: Monad: Clock](
+        histogram: Histogram[F, Double]
+    ): Exemplar.Aux[F, Histogram] =
+      new Exemplar[F] {
+        override type Metric = Histogram[F, Double]
+
+        override def recordTimeWithExemplar(
+            duration: FiniteDuration,
+            exemplar: Option[prometheus4cats.Exemplar.Labels]
+        ): F[Unit] =
+          histogram.observeWithExemplar(duration.toUnit(TimeUnit.SECONDS), exemplar)
+      }
+  }
+
   /** A derived metric type that can time a given operation. See [[Timer.Labelled.fromHistogram]] and
     * [[Timer.Labelled.fromGauge]] for more information.
     */
@@ -189,6 +268,198 @@ object Timer {
   object Labelled {
     type Aux[F[_], A, M[_[_], _, _]] = Timer.Labelled[F, A] {
       type Metric = M[F, Double, A]
+    }
+
+    sealed abstract class Exemplar[F[_]: MonadThrow: Clock, A] extends Metric.Labelled[A] {
+      self =>
+      type Metric
+
+      def recordTime(duration: FiniteDuration, labels: A): F[Unit] = recordTimeWithExemplar(duration, labels, None)
+
+      def recordTimeWithExemplar(duration: FiniteDuration, labels: A)(implicit
+          exemplar: prometheus4cats.Exemplar[F]
+      ): F[Unit] = exemplar.get.flatMap(recordTimeWithExemplar(duration, labels, _))
+
+      def recordTimeWithExemplar(
+          duration: FiniteDuration,
+          labels: A,
+          exemplar: Option[prometheus4cats.Exemplar.Labels]
+      ): F[Unit]
+
+      /** Time an operation using an instance of [[cats.effect.kernel.Clock]].
+        *
+        * The resulting metrics depend on the underlying implementation. See [[Timer.fromHistogram]] and
+        * [[Timer.fromGauge]] for more details.
+        *
+        * @param fb
+        *   operation to be timed
+        * @param labels
+        *   labels to add to the underlying metric
+        */
+      final def time[B](fb: F[B], labels: A)(recordExemplar: (FiniteDuration, B, A) => Boolean)(implicit
+          exemplar: prometheus4cats.Exemplar[F]
+      ): F[B] =
+        timeWithComputedLabels(fb)((_: B) => labels, recordExemplar)(exemplar)
+
+      final def timeWithExemplar[B](fb: F[B], labels: A)(
+          recordExemplar: (FiniteDuration, B, A) => Option[prometheus4cats.Exemplar.Labels]
+      ): F[B] =
+        timeWithComputedLabelsExemplar(fb)((_: B) => labels, recordExemplar)
+
+      /** Time an operation using an instance of [[cats.effect.kernel.Clock]], computing labels from the result.
+        *
+        * @param fb
+        *   operation to be timed
+        * @param labels
+        *   function to convert the result of `fb` to labels
+        */
+      final def timeWithComputedLabels[B](
+          fb: F[B]
+      )(labels: B => A, recordExemplar: (FiniteDuration, B, A) => Boolean)(implicit
+          exemplar: prometheus4cats.Exemplar[F]
+      ): F[B] =
+        exemplar.get.flatMap(ex =>
+          timeWithComputedLabelsExemplar(fb)(labels, (t, b, a) => ex.filter(_ => recordExemplar(t, b, a)))
+        )
+
+      final def timeWithComputedLabelsExemplar[B](
+          fb: F[B]
+      )(labels: B => A, recordExemplar: (FiniteDuration, B, A) => Option[prometheus4cats.Exemplar.Labels]): F[B] =
+        Clock[F].timed(fb).flatMap { case (t, b) =>
+          val a = labels(b)
+          recordTimeWithExemplar(t, a, recordExemplar(t, b, a)).as(b)
+        }
+
+      /** Time an operation using an instance of [[cats.effect.kernel.Clock]], handling failures and computing labels
+        * from the result.
+        *
+        * @param fb
+        *   operation to be timed
+        * @param labelsSuccess
+        *   function to convert the successful result of `fb` to labels
+        * @param labelsError
+        *   partial function to convert an exception raised on unsuccessful operation of `fb`. If the exception does not
+        *   match the provided [[scala.PartialFunction]] then no value will be recorded.
+        */
+      final def timeAttempt[B](fb: F[B])(
+          labelsSuccess: B => A,
+          labelsError: PartialFunction[Throwable, A],
+          recordExemplarSuccess: (FiniteDuration, B, A) => Boolean,
+          recordExemplarFailure: (FiniteDuration, Throwable, A) => Boolean
+      )(implicit
+          exemplar: prometheus4cats.Exemplar[F]
+      ): F[B] =
+        for {
+          x <- Clock[F].timed(fb.attempt)
+          _ <- x._2.fold(
+            e =>
+              labelsError
+                .lift(e)
+                .fold(Applicative[F].unit)(a =>
+                  if (recordExemplarFailure(x._1, e, a)) recordTimeWithExemplar(x._1, a) else recordTime(x._1, a)
+                ),
+            b => {
+              val a = labelsSuccess(b)
+
+              if (recordExemplarSuccess(x._1, b, a)) recordTimeWithExemplar(x._1, labelsSuccess(b))
+              else recordTime(x._1, labelsSuccess(b))
+            }
+          )
+          res <- x._2.liftTo[F]
+        } yield res
+
+      /** Time an operation using an instance of [[cats.effect.kernel.Clock]], handling failures and computing labels
+        * from the result.
+        *
+        * @param fb
+        *   operation to be timed
+        * @param labelsSuccess
+        *   function to convert the successful result of `fb` to labels
+        * @param labelsError
+        *   partial function to convert an exception raised on unsuccessful operation of `fb`. If the exception does not
+        *   match the provided [[scala.PartialFunction]] then no value will be recorded.
+        */
+      final def timeAttemptWithExemplar[B](fb: F[B])(
+          labelsSuccess: B => A,
+          labelsError: PartialFunction[Throwable, A],
+          recordExemplarSuccess: (FiniteDuration, B, A) => Option[prometheus4cats.Exemplar.Labels],
+          recordExemplarFailure: (FiniteDuration, Throwable, A) => Option[prometheus4cats.Exemplar.Labels]
+      ): F[B] =
+        for {
+          x <- Clock[F].timed(fb.attempt)
+          _ <- x._2.fold(
+            e =>
+              labelsError
+                .lift(e)
+                .fold(Applicative[F].unit)(a => recordTimeWithExemplar(x._1, a, recordExemplarFailure(x._1, e, a))),
+            b => {
+              val a = labelsSuccess(b)
+
+              recordTimeWithExemplar(x._1, labelsSuccess(b), recordExemplarSuccess(x._1, b, a))
+            }
+          )
+          res <- x._2.liftTo[F]
+        } yield res
+
+      def contramapLabels[B](f: B => A): Exemplar[F, B] = new Exemplar[F, B] {
+        override type Metric = self.Metric
+
+        override def recordTimeWithExemplar(
+            duration: FiniteDuration,
+            labels: B,
+            exemplar: Option[prometheus4cats.Exemplar.Labels]
+        ): F[Unit] = self.recordTimeWithExemplar(duration, f(labels), exemplar)
+      }
+
+      def mapK[G[_]: MonadThrow: Clock](fk: F ~> G): Exemplar[G, A] = new Exemplar[G, A] {
+        override type Metric = self.Metric
+
+        override def recordTimeWithExemplar(
+            duration: FiniteDuration,
+            labels: A,
+            exemplar: Option[prometheus4cats.Exemplar.Labels]
+        ): G[Unit] =
+          fk(self.recordTimeWithExemplar(duration, labels, exemplar))
+      }
+    }
+
+    object Exemplar {
+      type Aux[F[_], A, M[_[_], _, _]] = Timer.Labelled.Exemplar[F, A] {
+        type Metric = M[F, Double, A]
+      }
+
+      implicit def labelsExemplarContravariant[F[_]]: LabelsContravariant[Exemplar[F, *]] =
+        new LabelsContravariant[Exemplar[F, *]] {
+          override def contramapLabels[A, B](fa: Exemplar[F, A])(f: B => A): Exemplar[F, B] = fa.contramapLabels(f)
+        }
+
+      /** Create a [[Timer.Labelled.Exemplar]] from a [[Histogram.Labelled]] instance.
+        *
+        * This delegates to the underlying [[Histogram.Labelled]] instance and assumes you have already set up sensible
+        * buckets for the distribution of values.
+        *
+        * Values are recorded in [[scala.Double]]s by converting a [[scala.concurrent.duration.FiniteDuration]] to
+        * seconds.
+        *
+        * The best way to construct a histogram based [[Timer.Labelled.Exemplar]] is to use the `.asTimer` on the
+        * histogram DSL provided by [[MetricFactory]].
+        *
+        * @return
+        *   a [[Timer.Labelled.Exemplar.Aux]] that is annotated with the type of underlying metrics, in this case
+        *   [[Histogram.Labelled]]
+        */
+      def fromHistogram[F[_]: MonadThrow: Clock, A](
+          histogram: Histogram.Labelled[F, Double, A]
+      ): Exemplar.Aux[F, A, Histogram.Labelled] = new Labelled.Exemplar[F, A] {
+        override type Metric = Histogram.Labelled[F, Double, A]
+
+        override def recordTimeWithExemplar(
+            duration: FiniteDuration,
+            labels: A,
+            exemplar: Option[prometheus4cats.Exemplar.Labels]
+        ): F[Unit] =
+          histogram.observeWithExemplar(duration.toUnit(TimeUnit.SECONDS), labels, exemplar)
+      }
     }
 
     implicit def labelsContravariant[F[_]]: LabelsContravariant[Labelled[F, *]] =

@@ -11,7 +11,7 @@ import laika.rewrite.link._
 import org.typelevel.sbt.site.TypelevelProject
 
 // https://typelevel.org/sbt-typelevel/faq.html#what-is-a-base-version-anyway
-ThisBuild / tlBaseVersion := "1.0" // your current series x.y
+ThisBuild / tlBaseVersion := "2.0" // your current series x.y
 
 ThisBuild / organization := "com.permutive"
 ThisBuild / organizationName := "Permutive"
