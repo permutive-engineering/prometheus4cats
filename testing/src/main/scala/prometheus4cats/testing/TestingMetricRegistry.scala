@@ -256,24 +256,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       name: Summary.Name
   ): F[Option[Double]] = info(NameUtils.makeName(prefix, name.value)).get.map(_.as(1.0))
 
-  override def createAndRegisterDoubleCounter(
-      prefix: Option[Metric.Prefix],
-      name: Counter.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels
-  ): Resource[F, Counter[F, Double, Unit]] =
-    store(
-      NameUtils.makeName(prefix, name.value),
-      names(commonLabels),
-      MetricType.Counter,
-      (ref: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]]) =>
-        Counter.make[F, Double, Unit]((d: Double, _: Unit, e: Option[Exemplar.Labels]) =>
-          ref(values(commonLabels)).update(c => c.append((c.lastOption.get._1 + d, e)))
-        ),
-      Chain.one(0.0 -> None)
-    )
-
-  override def createAndRegisterLabelledDoubleCounter[A](
+  override def createAndRegisterDoubleCounter[A](
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
       help: Metric.Help,
@@ -291,26 +274,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       Chain.one(0.0 -> None)
     )
 
-  override def createAndRegisterDoubleGauge(
-      prefix: Option[Metric.Prefix],
-      name: Gauge.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels
-  ): Resource[F, Gauge[F, Double, Unit]] =
-    store(
-      NameUtils.makeName(prefix, name.value),
-      names(commonLabels),
-      MetricType.Gauge,
-      (ref: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]]) =>
-        Gauge.make[F, Double, Unit](
-          (d: Double, _: Unit) => ref(values(commonLabels)).update(c => c.append((c.lastOption.get._1 + d, None))),
-          (d: Double, _: Unit) => ref(values(commonLabels)).update(c => c.append((c.lastOption.get._1 - d, None))),
-          (d: Double, _: Unit) => ref(values(commonLabels)).update(_.append(d -> None))
-        ),
-      Chain.one(0.0 -> None)
-    )
-
-  override def createAndRegisterLabelledDoubleGauge[A](
+  override def createAndRegisterDoubleGauge[A](
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
       help: Metric.Help,
@@ -330,25 +294,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       Chain.one(0.0 -> None)
     )
 
-  override def createAndRegisterDoubleHistogram(
-      prefix: Option[Metric.Prefix],
-      name: Histogram.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels,
-      buckets: NonEmptySeq[Double]
-  ): Resource[F, Histogram[F, Double, Unit]] =
-    store(
-      NameUtils.makeName(prefix, name.value),
-      names(commonLabels),
-      MetricType.Histogram,
-      (ref: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]]) =>
-        Histogram.make[F, Double, Unit]((d: Double, _: Unit, e: Option[Exemplar.Labels]) =>
-          ref(values(commonLabels)).update(_.append(d -> e))
-        ),
-      Chain.nil
-    )
-
-  override def createAndRegisterLabelledDoubleHistogram[A](
+  override def createAndRegisterDoubleHistogram[A](
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
       help: Metric.Help,
@@ -367,25 +313,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       Chain.nil
     )
 
-  override def createAndRegisterDoubleSummary(
-      prefix: Option[Metric.Prefix],
-      name: Summary.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels,
-      quantiles: Seq[Summary.QuantileDefinition],
-      maxAge: FiniteDuration,
-      ageBuckets: Summary.AgeBuckets
-  ): Resource[F, Summary[F, Double, Unit]] =
-    store(
-      NameUtils.makeName(prefix, name.value),
-      names(commonLabels),
-      MetricType.Summary,
-      (ref: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]]) =>
-        Summary.make[F, Double, Unit]((d: Double, _: Unit) => ref(values(commonLabels)).update(_.append(d -> None))),
-      Chain.nil
-    )
-
-  override def createAndRegisterLabelledDoubleSummary[A](
+  override def createAndRegisterDoubleSummary[A](
       prefix: Option[Metric.Prefix],
       name: Summary.Name,
       help: Metric.Help,
@@ -424,15 +352,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
     )(_ => release)
   }
 
-  override def registerDoubleCounterCallback(
-      prefix: Option[Metric.Prefix],
-      name: Counter.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels,
-      callback: F[Double]
-  ): Resource[F, Unit] = Resource.unit
-
-  override def registerLabelledDoubleCounterCallback[A](
+  override def registerDoubleCounterCallback[A](
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
       help: Metric.Help,
@@ -441,15 +361,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       callback: F[NonEmptyList[(Double, A)]]
   )(f: A => IndexedSeq[String]): Resource[F, Unit] = Resource.unit
 
-  override def registerDoubleGaugeCallback(
-      prefix: Option[Metric.Prefix],
-      name: Gauge.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels,
-      callback: F[Double]
-  ): Resource[F, Unit] = Resource.unit
-
-  override def registerLabelledDoubleGaugeCallback[A](
+  override def registerDoubleGaugeCallback[A](
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
       help: Metric.Help,
@@ -458,16 +370,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       callback: F[NonEmptyList[(Double, A)]]
   )(f: A => IndexedSeq[String]): Resource[F, Unit] = Resource.unit
 
-  override def registerDoubleHistogramCallback(
-      prefix: Option[Metric.Prefix],
-      name: Histogram.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels,
-      buckets: NonEmptySeq[Double],
-      callback: F[Histogram.Value[Double]]
-  ): Resource[F, Unit] = Resource.unit
-
-  override def registerLabelledDoubleHistogramCallback[A](
+  override def registerDoubleHistogramCallback[A](
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
       help: Metric.Help,
@@ -477,15 +380,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       callback: F[NonEmptyList[(Histogram.Value[Double], A)]]
   )(f: A => IndexedSeq[String]): Resource[F, Unit] = Resource.unit
 
-  override def registerDoubleSummaryCallback(
-      prefix: Option[Metric.Prefix],
-      name: Summary.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels,
-      callback: F[Summary.Value[Double]]
-  ): Resource[F, Unit] = Resource.unit
-
-  override def registerLabelledDoubleSummaryCallback[A](
+  override def registerDoubleSummaryCallback[A](
       prefix: Option[Metric.Prefix],
       name: Summary.Name,
       help: Metric.Help,

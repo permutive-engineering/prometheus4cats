@@ -23,51 +23,26 @@ import prometheus4cats._
 import scala.concurrent.duration.FiniteDuration
 
 trait DoubleMetricRegistry[F[_]] extends MetricRegistry[F] {
-  override def createAndRegisterLongCounter(
-      prefix: Option[Metric.Prefix],
-      name: Counter.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels
-  ): Resource[F, Counter[F, Long, Unit]] =
-    createAndRegisterDoubleCounter(prefix, name, help, commonLabels).map(_.contramap(_.toDouble))
 
-  override def createAndRegisterLabelledLongCounter[A](
+  override def createAndRegisterLongCounter[A](
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name]
   )(f: A => IndexedSeq[String]): Resource[F, Counter[F, Long, A]] =
-    createAndRegisterLabelledDoubleCounter(prefix, name, help, commonLabels, labelNames)(f).map(_.contramap(_.toDouble))
+    createAndRegisterDoubleCounter(prefix, name, help, commonLabels, labelNames)(f).map(_.contramap(_.toDouble))
 
-  override def createAndRegisterLongGauge(
-      prefix: Option[Metric.Prefix],
-      name: Gauge.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels
-  ): Resource[F, Gauge[F, Long, Unit]] =
-    createAndRegisterDoubleGauge(prefix, name, help, commonLabels).map(_.contramap(_.toDouble))
-
-  override def createAndRegisterLabelledLongGauge[A](
+  override def createAndRegisterLongGauge[A](
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name]
   )(f: A => IndexedSeq[String]): Resource[F, Gauge[F, Long, A]] =
-    createAndRegisterLabelledDoubleGauge(prefix, name, help, commonLabels, labelNames)(f).map(_.contramap(_.toDouble))
+    createAndRegisterDoubleGauge(prefix, name, help, commonLabels, labelNames)(f).map(_.contramap(_.toDouble))
 
-  override def createAndRegisterLongHistogram(
-      prefix: Option[Metric.Prefix],
-      name: Histogram.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels,
-      buckets: NonEmptySeq[Long]
-  ): Resource[F, Histogram[F, Long, Unit]] =
-    createAndRegisterDoubleHistogram(prefix, name, help, commonLabels, buckets.map(_.toDouble))
-      .map(_.contramap(_.toDouble))
-
-  override def createAndRegisterLabelledLongHistogram[A](
+  override def createAndRegisterLongHistogram[A](
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
       help: Metric.Help,
@@ -75,25 +50,12 @@ trait DoubleMetricRegistry[F[_]] extends MetricRegistry[F] {
       labelNames: IndexedSeq[Label.Name],
       buckets: NonEmptySeq[Long]
   )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Long, A]] =
-    createAndRegisterLabelledDoubleHistogram(prefix, name, help, commonLabels, labelNames, buckets.map(_.toDouble))(f)
+    createAndRegisterDoubleHistogram(prefix, name, help, commonLabels, labelNames, buckets.map(_.toDouble))(f)
       .map(
         _.contramap(_.toDouble)
       )
 
-  override def createAndRegisterLongSummary(
-      prefix: Option[Metric.Prefix],
-      name: Summary.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels,
-      quantiles: Seq[Summary.QuantileDefinition],
-      maxAge: FiniteDuration,
-      ageBuckets: Summary.AgeBuckets
-  ): Resource[F, Summary[F, Long, Unit]] =
-    createAndRegisterDoubleSummary(prefix, name, help, commonLabels, quantiles, maxAge, ageBuckets).map(
-      _.contramap(_.toDouble)
-    )
-
-  override def createAndRegisterLabelledLongSummary[A](
+  override def createAndRegisterLongSummary[A](
       prefix: Option[Metric.Prefix],
       name: Summary.Name,
       help: Metric.Help,
@@ -103,7 +65,7 @@ trait DoubleMetricRegistry[F[_]] extends MetricRegistry[F] {
       maxAge: FiniteDuration,
       ageBuckets: Summary.AgeBuckets
   )(f: A => IndexedSeq[String]): Resource[F, Summary[F, Long, A]] =
-    createAndRegisterLabelledDoubleSummary(prefix, name, help, commonLabels, labelNames, quantiles, maxAge, ageBuckets)(
+    createAndRegisterDoubleSummary(prefix, name, help, commonLabels, labelNames, quantiles, maxAge, ageBuckets)(
       f
     ).map(_.contramap(_.toDouble))
 }

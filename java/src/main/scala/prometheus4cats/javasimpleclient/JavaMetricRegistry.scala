@@ -48,7 +48,6 @@ import java.util
 import scala.concurrent.TimeoutException
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
-import scala.annotation.nowarn
 
 class JavaMetricRegistry[F[_]: Async: Logger] private (
     private val registry: CollectorRegistry,
@@ -151,39 +150,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     }
   }
 
-  override def createAndRegisterDoubleCounter(
-      prefix: Option[Metric.Prefix],
-      name: Counter.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels
-  ): Resource[F, Counter[F, Double, Unit]] = {
-    lazy val commonLabelNames = commonLabels.value.keys.toIndexedSeq
-    lazy val commonLabelValues = commonLabels.value.values.toIndexedSeq
-
-    configureBuilderOrRetrieve(
-      PCounter.build(),
-      MetricType.Counter,
-      prefix,
-      name,
-      help,
-      commonLabelNames
-    ).map { counter =>
-      Counter.make(
-        1.0,
-        (d: Double, _: Unit, exemplar: Option[Exemplar.Labels]) =>
-          Utils
-            .modifyMetric[F, Counter.Name, PCounter.Child](
-              counter,
-              name,
-              commonLabelNames,
-              commonLabelValues,
-              c => exemplar.fold(c.inc(d))(e => c.incWithExemplar(d, transformExemplarLabels(e)))
-            )
-      )
-    }
-  }
-
-  override def createAndRegisterLabelledDoubleCounter[A](
+  override def createAndRegisterDoubleCounter[A](
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
       help: Metric.Help,
@@ -215,30 +182,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     }
   }
 
-  override def createAndRegisterDoubleGauge(
-      prefix: Option[Metric.Prefix],
-      name: Gauge.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels
-  ): Resource[F, Gauge[F, Double, Unit]] = {
-    val commonLabelNames = commonLabels.value.keys.toIndexedSeq
-    val commonLabelValues = commonLabels.value.values.toIndexedSeq
-    configureBuilderOrRetrieve(PGauge.build(), MetricType.Gauge, prefix, name, help, commonLabelNames).map { gauge =>
-      @inline
-      def modify(f: PGauge.Child => Unit): F[Unit] =
-        Utils.modifyMetric(gauge, name, commonLabelNames, commonLabelValues, f)
-
-      @nowarn def inc(n: Double, ignored: Unit): F[Unit] = modify(_.inc(n))
-
-      @nowarn def dec(n: Double, ignored: Unit): F[Unit] = modify(_.dec(n))
-
-      @nowarn def set(n: Double, ignored: Unit): F[Unit] = modify(_.set(n))
-
-      Gauge.make(inc, dec, set)
-    }
-  }
-
-  override def createAndRegisterLabelledDoubleGauge[A](
+  override def createAndRegisterDoubleGauge[A](
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
       help: Metric.Help,
@@ -270,37 +214,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     }
   }
 
-  override def createAndRegisterDoubleHistogram(
-      prefix: Option[Metric.Prefix],
-      name: Histogram.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels,
-      buckets: NonEmptySeq[Double]
-  ): Resource[F, Histogram[F, Double, Unit]] = {
-    val commonLabelNames = commonLabels.value.keys.toIndexedSeq
-    val commonLabelValues = commonLabels.value.values.toIndexedSeq
-
-    configureBuilderOrRetrieve(
-      PHistogram.build().buckets(buckets.toSeq: _*),
-      MetricType.Histogram,
-      prefix,
-      name,
-      help,
-      commonLabelNames
-    ).map { histogram =>
-      Histogram.make((d, _: Unit, exemplar) =>
-        Utils.modifyMetric[F, Histogram.Name, PHistogram.Child](
-          histogram,
-          name,
-          commonLabelNames,
-          commonLabelValues,
-          h => exemplar.fold(h.observe(d))(e => h.observeWithExemplar(d, transformExemplarLabels(e)))
-        )
-      )
-    }
-  }
-
-  override def createAndRegisterLabelledDoubleHistogram[A](
+  override def createAndRegisterDoubleHistogram[A](
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
       help: Metric.Help,
@@ -331,42 +245,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     }
   }
 
-  override def createAndRegisterDoubleSummary(
-      prefix: Option[Metric.Prefix],
-      name: Summary.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels,
-      quantiles: Seq[Summary.QuantileDefinition],
-      maxAge: FiniteDuration,
-      ageBuckets: Summary.AgeBuckets
-  ): Resource[F, Summary[F, Double, Unit]] = {
-
-    val commonLabelNames = commonLabels.value.keys.toIndexedSeq
-    val commonLabelValues = commonLabels.value.values.toIndexedSeq
-
-    configureBuilderOrRetrieve(
-      quantiles.foldLeft(PSummary.build().ageBuckets(ageBuckets.value).maxAgeSeconds(maxAge.toSeconds))((b, q) =>
-        b.quantile(q.value.value, q.error.value)
-      ),
-      MetricType.Summary,
-      prefix,
-      name,
-      help,
-      commonLabelNames
-    ).map { summary =>
-      Summary.make[F, Double, Unit]((d, _: Unit) =>
-        Utils.modifyMetric[F, Summary.Name, PSummary.Child](
-          summary,
-          name,
-          commonLabelNames,
-          commonLabelValues,
-          _.observe(d)
-        )
-      )
-    }
-  }
-
-  override def createAndRegisterLabelledDoubleSummary[A](
+  override def createAndRegisterDoubleSummary[A](
       prefix: Option[Metric.Prefix],
       name: Summary.Name,
       help: Metric.Help,
@@ -428,29 +307,6 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
         )
       )
     }
-
-  private def register[A: Show, B](
-      metricType: MetricType,
-      prefix: Option[Metric.Prefix],
-      name: A,
-      commonLabels: Metric.CommonLabels,
-      callback: F[B]
-  )(
-      makeFamily: (String, B) => Collector.MetricFamilySamples,
-      makeLabelledFamily: (String, List[String], List[String], B) => Collector.MetricFamilySamples
-  ): Resource[F, Unit] = registerLabelled[A, B, Unit](
-    metricType,
-    prefix,
-    name,
-    commonLabels,
-    IndexedSeq.empty,
-    callback.map[NonEmptyList[(B, Unit)]](b => NonEmptyList.one((b, ())))
-  )(
-    _ => IndexedSeq.empty,
-    (name, labelNames, labelValues, b) =>
-      if (labelNames.isEmpty) makeFamily(name, b)
-      else makeLabelledFamily(name, labelNames, labelValues, b)
-  )
 
   private def trackErrors[A](state: Ref[F, Set[String]], stringName: String, onContains: F[A], onContainsNot: F[A]) =
     state.modify { current =>
@@ -660,7 +516,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       .void
   }
 
-  private def registerLabelled[A: Show, B, C](
+  private def register[A: Show, B, C](
       metricType: MetricType,
       prefix: Option[Metric.Prefix],
       name: A,
@@ -684,19 +540,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     registerCallback(metricType, prefix, name, samples)
   }
 
-  override def registerDoubleCounterCallback(
-      prefix: Option[Metric.Prefix],
-      name: Counter.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels,
-      callback: F[Double]
-  ): Resource[F, Unit] =
-    register(MetricType.Counter, prefix, name, commonLabels, callback)(
-      (n, v) => new CounterMetricFamily(n, help.value, if (v < 0) 0 else v),
-      (n, lns, lvs, v) => new CounterMetricFamily(n, help.value, lns.asJava).addMetric(lvs.asJava, if (v < 0) 0 else v)
-    )
-
-  override def registerLabelledDoubleCounterCallback[A](
+  override def registerDoubleCounterCallback[A](
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
       help: Metric.Help,
@@ -704,23 +548,12 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       labelNames: IndexedSeq[Label.Name],
       callback: F[NonEmptyList[(Double, A)]]
   )(f: A => IndexedSeq[String]): Resource[F, Unit] =
-    registerLabelled(MetricType.Counter, prefix, name, commonLabels, labelNames, callback)(
+    register(MetricType.Counter, prefix, name, commonLabels, labelNames, callback)(
       f,
       (n, lns, lvs, v) => new CounterMetricFamily(n, help.value, lns.asJava).addMetric(lvs.asJava, if (v < 0) 0 else v)
     )
 
-  override def registerDoubleGaugeCallback(
-      prefix: Option[Metric.Prefix],
-      name: Gauge.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels,
-      callback: F[Double]
-  ): Resource[F, Unit] = register(MetricType.Gauge, prefix, name, commonLabels, callback)(
-    (n, v) => new GaugeMetricFamily(n, help.value, v),
-    (n, lns, lvs, v) => new GaugeMetricFamily(n, help.value, lns.asJava).addMetric(lvs.asJava, v)
-  )
-
-  override def registerLabelledDoubleGaugeCallback[A](
+  override def registerDoubleGaugeCallback[A](
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
       help: Metric.Help,
@@ -728,32 +561,12 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       labelNames: IndexedSeq[Label.Name],
       callback: F[NonEmptyList[(Double, A)]]
   )(f: A => IndexedSeq[String]): Resource[F, Unit] =
-    registerLabelled(MetricType.Gauge, prefix, name, commonLabels, labelNames, callback)(
+    register(MetricType.Gauge, prefix, name, commonLabels, labelNames, callback)(
       f,
       (n, lns, lvs, v) => new GaugeMetricFamily(n, help.value, lns.asJava).addMetric(lvs.asJava, v)
     )
 
-  override def registerDoubleHistogramCallback(
-      prefix: Option[Metric.Prefix],
-      name: Histogram.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels,
-      buckets: NonEmptySeq[Double],
-      callback: F[Histogram.Value[Double]]
-  ): Resource[F, Unit] = {
-    val makeSamples = HistogramUtils.labelledHistogramSamples(help, buckets)
-
-    registerLabelled(
-      MetricType.Histogram,
-      prefix,
-      name,
-      commonLabels,
-      IndexedSeq.empty,
-      callback.map[NonEmptyList[(Histogram.Value[Double], Unit)]](b => NonEmptyList.one((b, ())))
-    )(_ => IndexedSeq.empty, makeSamples)
-  }
-
-  override def registerLabelledDoubleHistogramCallback[A](
+  override def registerDoubleHistogramCallback[A](
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
       help: Metric.Help,
@@ -764,7 +577,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
   )(f: A => IndexedSeq[String]): Resource[F, Unit] = {
     val makeSamples = HistogramUtils.labelledHistogramSamples(help, buckets)
 
-    registerLabelled(
+    register(
       MetricType.Histogram,
       prefix,
       name,
@@ -774,48 +587,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     )(f, makeSamples)
   }
 
-  override def registerDoubleSummaryCallback(
-      prefix: Option[Metric.Prefix],
-      name: Summary.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels,
-      callback: F[Summary.Value[Double]]
-  ): Resource[F, Unit] =
-    register(MetricType.Summary, prefix, name, commonLabels, callback)(
-      (n, v) =>
-        if (v.quantiles.isEmpty) new SummaryMetricFamily(n, help.value, v.count, v.sum)
-        else
-          new SummaryMetricFamily(
-            n,
-            help.value,
-            List.empty[String].asJava,
-            v.quantiles.keys.toList.map(_.asInstanceOf[java.lang.Double]).asJava
-          )
-            .addMetric(
-              List.empty[String].asJava,
-              v.count,
-              v.sum,
-              v.quantiles.values.toList.map(_.asInstanceOf[java.lang.Double]).asJava
-            ),
-      (n, lns, lvs, v) =>
-        if (v.quantiles.isEmpty)
-          new SummaryMetricFamily(n, help.value, lns.asJava).addMetric(lvs.asJava, v.count, v.sum)
-        else
-          new SummaryMetricFamily(
-            n,
-            help.value,
-            lns.asJava,
-            v.quantiles.keys.toList.map(_.asInstanceOf[java.lang.Double]).asJava
-          )
-            .addMetric(
-              lvs.asJava,
-              v.count,
-              v.sum,
-              v.quantiles.values.toList.map(_.asInstanceOf[java.lang.Double]).asJava
-            )
-    )
-
-  override def registerLabelledDoubleSummaryCallback[A](
+  override def registerDoubleSummaryCallback[A](
       prefix: Option[Metric.Prefix],
       name: Summary.Name,
       help: Metric.Help,
@@ -823,7 +595,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       labelNames: IndexedSeq[Label.Name],
       callback: F[NonEmptyList[(Summary.Value[Double], A)]]
   )(f: A => IndexedSeq[String]): Resource[F, Unit] =
-    registerLabelled(MetricType.Summary, prefix, name, commonLabels, labelNames, callback)(
+    register(MetricType.Summary, prefix, name, commonLabels, labelNames, callback)(
       f,
       (n, lns, lvs, v) =>
         if (v.quantiles.isEmpty)

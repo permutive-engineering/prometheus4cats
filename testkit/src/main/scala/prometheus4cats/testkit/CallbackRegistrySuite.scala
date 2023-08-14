@@ -53,7 +53,14 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
             )
 
             reg
-              .registerDoubleCounterCallback(prefix, name, help, commonLabels, IO(value))
+              .registerDoubleCounterCallback[Unit](
+                prefix,
+                name,
+                help,
+                commonLabels,
+                IndexedSeq.empty,
+                IO(NonEmptyList.of((value, ())))
+              )((_: Unit) => IndexedSeq.empty)
               .surround(
                 get.map(res => if (value >= 0) assertEquals(res, Some(value)) else assertEquals(res, Some(0.0)))
               ) >> get.map(assertEquals(_, None))
@@ -78,7 +85,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
             val get = getCounterValue(state, prefix, name, help, commonLabels, labels)
 
             reg
-              .registerLabelledDoubleCounterCallback[Map[Label.Name, String]](
+              .registerDoubleCounterCallback[Map[Label.Name, String]](
                 prefix,
                 name,
                 help,
@@ -114,7 +121,14 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
 
           callbackRegistryResource(state).use { reg =>
             reg
-              .registerDoubleGaugeCallback(prefix, name, help, commonLabels, IO(value))
+              .registerDoubleGaugeCallback[Unit](
+                prefix,
+                name,
+                help,
+                commonLabels,
+                IndexedSeq.empty,
+                IO(NonEmptyList.of((value, ())))
+              )((_: Unit) => IndexedSeq.empty)
               .surround(
                 get.map(assertEquals(_, Some(value)))
               ) >> get.map(assertEquals(_, None))
@@ -138,7 +152,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
             val get = getGaugeValue(state, prefix, name, help, commonLabels, labels)
 
             reg
-              .registerLabelledDoubleGaugeCallback[Map[Label.Name, String]](
+              .registerDoubleGaugeCallback[Map[Label.Name, String]](
                 prefix,
                 name,
                 help,
@@ -179,14 +193,15 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
             val get = getHistogramValue(state, prefix, name, help, commonLabels, buckets)
 
             reg
-              .registerDoubleHistogramCallback(
+              .registerDoubleHistogramCallback[Unit](
                 prefix,
                 name,
                 help,
                 commonLabels,
+                IndexedSeq.empty,
                 buckets,
-                IO(Histogram.Value(sum, bucketValues))
-              )
+                IO(NonEmptyList.of((Histogram.Value(sum, bucketValues), ())))
+              )((_: Unit) => IndexedSeq.empty)
               .surround(get.map { res =>
                 assertEquals(res, Some(expected))
               }) >> get.map(assertEquals(_, None))
@@ -222,7 +237,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
             val get = getHistogramValue(state, prefix, name, help, commonLabels, buckets, labels)
 
             reg
-              .registerLabelledDoubleHistogramCallback[Map[Label.Name, String]](
+              .registerDoubleHistogramCallback[Map[Label.Name, String]](
                 prefix,
                 name,
                 help,
@@ -255,13 +270,16 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
             val get = getSummaryValue(state, prefix, name, help, commonLabels, Map.empty)
 
             reg
-              .registerDoubleSummaryCallback(
+              .registerDoubleSummaryCallback[Unit](
                 prefix,
                 name,
                 help,
                 commonLabels,
-                IO(Summary.Value(count, sum, quantiles.map { case (q, v) => q.value -> v }))
-              )
+                IndexedSeq.empty,
+                IO(NonEmptyList.of(Summary.Value(count, sum, quantiles.map { case (q, v) => q.value -> v }) -> ()))
+              ) { (_: Unit) =>
+                IndexedSeq.empty
+              }
               .surround(get.map { case (q, c, s) =>
                 assertEquals(q, Some(quantiles.map { case (q, v) => q.value.toString -> v }))
                 assertEquals(c, Some(count))
@@ -293,7 +311,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
             val get = getSummaryValue(state, prefix, name, help, commonLabels, labels)
 
             reg
-              .registerLabelledDoubleSummaryCallback[Map[Label.Name, String]](
+              .registerDoubleSummaryCallback[Map[Label.Name, String]](
                 prefix,
                 name,
                 help,
@@ -440,7 +458,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
           .flatMap(callbackRegistryResource(_))
           .use { reg =>
             val callback = reg
-              .registerLabelledDoubleCounterCallback[Map[Label.Name, String]](
+              .registerDoubleCounterCallback[Map[Label.Name, String]](
                 prefix,
                 name,
                 help,
@@ -465,7 +483,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
         stateResource.use { state =>
           callbackRegistryResource(state).use { reg =>
             val callback = reg
-              .registerLabelledDoubleCounterCallback[Map[Label.Name, String]](
+              .registerDoubleCounterCallback[Map[Label.Name, String]](
                 prefix,
                 name,
                 help,
@@ -503,7 +521,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
         stateResource.use { state =>
           callbackRegistryResource(state).use { reg =>
             val callback1 = reg
-              .registerLabelledDoubleCounterCallback[Map[Label.Name, String]](
+              .registerDoubleCounterCallback[Map[Label.Name, String]](
                 prefix,
                 name,
                 help,
@@ -513,7 +531,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
               )(_.values.toIndexedSeq)
 
             val callback2 = reg
-              .registerLabelledDoubleCounterCallback[Map[Label.Name, String]](
+              .registerDoubleCounterCallback[Map[Label.Name, String]](
                 prefix,
                 name,
                 help,
@@ -551,7 +569,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
         stateResource.use { state =>
           callbackRegistryResource(state).use { reg =>
             val callback1 = reg
-              .registerLabelledDoubleCounterCallback[Map[Label.Name, String]](
+              .registerDoubleCounterCallback[Map[Label.Name, String]](
                 prefix,
                 name,
                 help,
@@ -561,7 +579,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
               )(_.values.toIndexedSeq)
 
             val callback2 = reg
-              .registerLabelledDoubleCounterCallback[Map[Label.Name, String]](
+              .registerDoubleCounterCallback[Map[Label.Name, String]](
                 prefix,
                 name,
                 help,
@@ -600,7 +618,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
         stateResource.use { state =>
           callbackRegistryResource(state).use { reg =>
             val callback1 = reg
-              .registerLabelledDoubleCounterCallback[Map[Label.Name, String]](
+              .registerDoubleCounterCallback[Map[Label.Name, String]](
                 prefix,
                 name,
                 help,
@@ -610,7 +628,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
               )(_.values.toIndexedSeq)
 
             val callback2 = reg
-              .registerLabelledDoubleCounterCallback[Map[Label.Name, String]](
+              .registerDoubleCounterCallback[Map[Label.Name, String]](
                 prefix,
                 name,
                 help,
