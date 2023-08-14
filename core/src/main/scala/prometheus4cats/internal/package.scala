@@ -291,19 +291,21 @@ object MetricDsl {
   }
 
   implicit class CounterSyntax[F[_], A](dsl: MetricDsl[F, A, Counter]) {
-    def asOutcomeRecorder(implicit F: MonadCancelThrow[F]): BuildStep[F, OutcomeRecorder.Aux[F, A, Counter]] =
+    def asOutcomeRecorder(implicit F: MonadCancelThrow[F]): BuildStep[F, OutcomeRecorder.Aux[F, A, Unit, Counter]] =
       BuildStep(
         dsl
           .makeMetric[Status](IndexedSeq(Label.Name.outcomeStatus))(status => IndexedSeq(status.show))
+          .map(_.contramapLabels[(Unit, OutcomeRecorder.Status)](_._2))
           .map(OutcomeRecorder.fromCounter(_))
       )
   }
 
   implicit class GaugeSyntax[F[_], A](dsl: MetricDsl[F, A, Gauge]) {
-    def asOutcomeRecorder(implicit F: MonadCancelThrow[F]): BuildStep[F, OutcomeRecorder.Aux[F, A, Gauge]] =
+    def asOutcomeRecorder(implicit F: MonadCancelThrow[F]): BuildStep[F, OutcomeRecorder.Aux[F, A, Unit, Gauge]] =
       BuildStep(
         dsl
           .makeMetric[Status](IndexedSeq(Label.Name.outcomeStatus))(status => IndexedSeq(status.show))
+          .map(_.contramapLabels[(Unit, OutcomeRecorder.Status)](_._2))
           .map(OutcomeRecorder.fromGauge(_))
       )
   }
@@ -327,12 +329,12 @@ object BaseLabelsBuildStep {
   ) {
     def asOutcomeRecorder(implicit
         F: MonadCancelThrow[F]
-    ): BuildStep[F, OutcomeRecorder.Labelled.Aux[F, A, T, Counter]] = BuildStep(
+    ): BuildStep[F, OutcomeRecorder.Aux[F, A, T, Counter]] = BuildStep(
       dsl
         .makeMetric[(T, Status)](dsl.labelNames.unsized :+ Label.Name.outcomeStatus) { case (t, status) =>
           dsl.f(t).unsized :+ status.show
         }
-        .map(OutcomeRecorder.Labelled.fromCounter(_))
+        .map(OutcomeRecorder.fromCounter(_))
     )
 
     def contramap[B](f: B => A): BuildStep[F, Counter[F, B, T]] = dsl.map(_.contramap(f))
@@ -343,12 +345,12 @@ object BaseLabelsBuildStep {
   ) {
     def asOutcomeRecorder(implicit
         F: MonadCancelThrow[F]
-    ): BuildStep[F, OutcomeRecorder.Labelled.Aux[F, A, T, Gauge]] = BuildStep(
+    ): BuildStep[F, OutcomeRecorder.Aux[F, A, T, Gauge]] = BuildStep(
       dsl
         .makeMetric[(T, Status)](dsl.labelNames.unsized :+ Label.Name.outcomeStatus) { case (t, status) =>
           dsl.f(t).unsized :+ status.show
         }
-        .map(OutcomeRecorder.Labelled.fromGauge(_))
+        .map(OutcomeRecorder.fromGauge(_))
     )
 
     def contramap[B](f: B => A): BuildStep[F, Gauge[F, B, T]] = dsl.map(_.contramap(f))

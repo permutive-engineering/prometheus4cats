@@ -152,7 +152,7 @@ val simpleOutcomeCounter: Resource[IO, OutcomeRecorder.Aux[IO, Long, Counter]] =
 
 ```scala mdoc:silent
 val labelledOutcomeCounter:
-  Resource[IO, OutcomeRecorder.Labelled.Aux[IO, Long, String, Counter]] = factory
+  Resource[IO, OutcomeRecorder.Aux[IO, Long, String, Counter]] = factory
     .counter("outcome_total")
     .ofLong
     .help("Records the outcome of some operation")
@@ -174,7 +174,7 @@ val simpleOutcomeGauge: Resource[IO, OutcomeRecorder.Aux[IO, Long, Gauge]] = fac
 
 ```scala mdoc:silent
 val labelledOutcomeGauge:
-  Resource[IO, OutcomeRecorder.Labelled.Aux[IO, Long, String, Gauge]] = factory
+  Resource[IO, OutcomeRecorder.Aux[IO, Long, String, Gauge]] = factory
     .gauge("outcome")
     .ofLong
     .help("Records the outcome of some operation")
