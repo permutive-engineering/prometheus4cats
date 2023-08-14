@@ -19,7 +19,8 @@ package prometheus4cats
 import cats.syntax.flatMap._
 import cats.{Applicative, Contravariant, FlatMap, ~>}
 
-import java.util.regex.Pattern
+import prometheus4cats.internal.Refined
+import prometheus4cats.internal.Refined.Regex
 
 sealed abstract class Counter[F[_], -A, B] extends Metric[A] with Metric.Labelled[B] {
   self =>
@@ -91,14 +92,11 @@ object Counter {
 
   /** Refined value class for a counter name that has been parsed from a string
     */
-  final class Name private (val value: String) extends AnyVal with internal.Refined.Value[String] {
-    override def toString: String = s"""Counter.Name("$value")"""
-  }
+  final case class Name private (val value: String) extends AnyVal with Refined.Value[String]
 
-  object Name extends internal.Refined.StringRegexRefinement[Name] with internal.CounterNameFromStringLiteral {
-    override protected val regex: Pattern = "^[a-zA-Z_:][a-zA-Z0-9_:]*_total$".r.pattern
-    override protected def make(a: String): Name = new Name(a)
-  }
+  object Name
+      extends Regex[Name]("^[a-zA-Z_:][a-zA-Z0-9_:]*_total$".r.pattern, new Name(_))
+      with internal.CounterNameFromStringLiteral
 
   implicit def catsInstances[F[_], C]: Contravariant[Counter[F, *, C]] =
     new Contravariant[Counter[F, *, C]] {

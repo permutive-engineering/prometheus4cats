@@ -19,15 +19,13 @@ package prometheus4cats.internal
 import java.util.regex.Pattern
 
 import cats.{Hash, Order, Show}
+import cats.syntax.all._
 
-abstract private[prometheus4cats] class Refined[A, B <: Refined.Value[A]](implicit
-    hashA: Hash[A],
-    orderA: Order[A],
-    showA: Show[A]
+abstract private[prometheus4cats] class Refined[A: Hash: Order: Show, B <: Refined.Value[A]](
+    make: A => B,
+    test: A => Boolean,
+    nonMatchMessage: A => String
 ) {
-  protected def make(a: A): B
-  protected def test(a: A): Boolean
-  protected def nonMatchMessage(a: A): String
 
   /** Parse from the given cakye
     *
@@ -37,11 +35,7 @@ abstract private[prometheus4cats] class Refined[A, B <: Refined.Value[A]](implic
     *   a parsed `B` or failure message, represented by an [[scala.Either]]
     */
   def from(a: A): Either[String, B] =
-    Either.cond(
-      test(a),
-      make(a),
-      nonMatchMessage(a)
-    )
+    Either.cond(test(a), make(a), nonMatchMessage(a))
 
   /** Unsafely parse a `B` from the given `A`
     *
@@ -56,24 +50,32 @@ abstract private[prometheus4cats] class Refined[A, B <: Refined.Value[A]](implic
     from(a).fold(msg => throw new IllegalArgumentException(msg), identity)
 
   implicit val catsInstances: Hash[B] with Order[B] with Show[B] = new Hash[B] with Order[B] with Show[B] {
-    override def hash(x: B): Int = hashA.hash(x.value)
 
-    override def compare(x: B, y: B): Int = orderA.compare(x.value, y.value)
+    override def hash(x: B): Int = x.value.hash
 
-    override def show(t: B): String = showA.show(t.value)
+    override def compare(x: B, y: B): Int = x.value.compare(y.value)
 
-    override def eqv(x: B, y: B): Boolean = hashA.eqv(x.value, y.value)
+    override def show(t: B): String = t.value.show
+
+    override def eqv(x: B, y: B): Boolean = Order[A].eqv(x.value, y.value)
+
   }
+
+  implicit val ordering: Ordering[B] = Order[A].contramap[B](_.value).toOrdering
+
 }
 
 object Refined {
+
   trait Value[A] extends Any {
+
     def value: A
+
+    override def toString(): String = value.toString()
+
   }
 
-  abstract class StringRegexRefinement[B <: Value[String]] extends Refined[String, B] {
-    protected def regex: Pattern
-    override protected def test(a: String): Boolean = regex.matcher(a).matches()
-    override protected def nonMatchMessage(a: String): String = s"$a must match `$regex`"
-  }
+  abstract class Regex[B <: Value[String]](regex: Pattern, make: String => B)
+      extends Refined[String, B](make, regex.matcher(_).matches(), a => s"$a must match `$regex`")
+
 }
