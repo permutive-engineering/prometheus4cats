@@ -175,11 +175,11 @@ class CallbackBuildStep[F[_], A, B] private[internal] (
 }
 
 class MetricDsl[F[_], A, L[_[_], _, _]] private[prometheus4cats] (
-    private[internal] val makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L]
+    private[internal] val makeMetric: LabelledMetricPartiallyApplied[F, A, L]
 ) extends BuildStep[F, L[F, A, Unit]] {
 
   override def build: Resource[F, L[F, A, Unit]] =
-    makeLabelledMetric.apply(IndexedSeq.empty)((_: Unit) => IndexedSeq.empty)
+    makeMetric.apply(IndexedSeq.empty)((_: Unit) => IndexedSeq.empty)
 
   /** Sets the first label of the metric. Requires either a `Show` instance for the label type, or a method converting
     * the label value to a `String`.
@@ -187,7 +187,7 @@ class MetricDsl[F[_], A, L[_[_], _, _]] private[prometheus4cats] (
   def label[B]: FirstLabelApply[F, A, B, L] =
     (name, toString) =>
       new LabelledMetricDsl(
-        makeLabelledMetric,
+        makeMetric,
         Sized(name),
         a => Sized(toString(a))
       )
@@ -205,7 +205,7 @@ class MetricDsl[F[_], A, L[_[_], _, _]] private[prometheus4cats] (
       labelNames: IndexedSeq[Label.Name]
   ): BuildStep[F, L[F, A, Map[Label.Name, String]]] =
     BuildStep[F, L[F, A, Map[Label.Name, String]]](
-      makeLabelledMetric(
+      makeMetric(
         labelNames
       )(labels => labelNames.flatMap(labels.get))
     )
@@ -241,17 +241,17 @@ class MetricDsl[F[_], A, L[_[_], _, _]] private[prometheus4cats] (
   def labels[B, N <: Nat](labelNames: Sized[IndexedSeq[Label.Name], N])(
       f: B => Sized[IndexedSeq[String], N]
   ): LabelsBuildStep[F, A, B, N, L] =
-    new LabelsBuildStep(makeLabelledMetric, labelNames, f)
+    new LabelsBuildStep(makeMetric, labelNames, f)
 }
 
 object MetricDsl {
   class WithCallbacks[F[_]: Functor, A, A0, L[_[_], _, _]](
-      makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L],
-      makeLabelledCallback: LabelledCallbackPartiallyApplied[F, A0]
-  ) extends MetricDsl[F, A, L](makeLabelledMetric)
+      makeMetric: LabelledMetricPartiallyApplied[F, A, L],
+      makeCallback: LabelledCallbackPartiallyApplied[F, A0]
+  ) extends MetricDsl[F, A, L](makeMetric)
       with CallbackStep[F, A0] {
     override protected def buildCallback: F[A0] => Resource[F, Unit] = f =>
-      makeLabelledCallback.apply(IndexedSeq.empty, f.map(a => NonEmptyList.of((a, ())))) { (_: Unit) =>
+      makeCallback.apply(IndexedSeq.empty, f.map(a => NonEmptyList.of((a, ())))) { (_: Unit) =>
         IndexedSeq.empty
       }
 
@@ -259,8 +259,8 @@ object MetricDsl {
         labelNames: IndexedSeq[Label.Name]
     ): CallbackBuildStep[F, L[F, A, Map[Label.Name, String]], NonEmptyList[(A0, Map[Label.Name, String])]] =
       new CallbackBuildStep[F, L[F, A, Map[Label.Name, String]], NonEmptyList[(A0, Map[Label.Name, String])]](
-        makeLabelledMetric(labelNames)(labels => labelNames.flatMap(labels.get)),
-        cb => makeLabelledCallback(labelNames, cb)(labels => labelNames.flatMap(labels.get))
+        makeMetric(labelNames)(labels => labelNames.flatMap(labels.get)),
+        cb => makeCallback(labelNames, cb)(labels => labelNames.flatMap(labels.get))
       )
 
     override def unsafeLabels(
@@ -273,7 +273,7 @@ object MetricDsl {
     override def labels[B, N <: Nat](labelNames: Sized[IndexedSeq[Label.Name], N])(
         f: B => Sized[IndexedSeq[String], N]
     ): LabelsBuildStep.WithCallbacks[F, A, A0, B, N, L] =
-      new LabelsBuildStep.WithCallbacks[F, A, A0, B, N, L](makeLabelledMetric, makeLabelledCallback, labelNames, f)
+      new LabelsBuildStep.WithCallbacks[F, A, A0, B, N, L](makeMetric, makeCallback, labelNames, f)
 
     override def label[B]: FirstLabelApply.WithCallbacks[F, A, A0, B, L] =
       new FirstLabelApply.WithCallbacks[F, A, A0, B, L] {
@@ -282,8 +282,8 @@ object MetricDsl {
             toString: B => String
         ): LabelledMetricDsl.WithCallbacks[F, A, A0, B, Nat._1, L] =
           new LabelledMetricDsl.WithCallbacks[F, A, A0, B, Nat._1, L](
-            makeLabelledMetric,
-            makeLabelledCallback,
+            makeMetric,
+            makeCallback,
             Sized(name),
             a => Sized(toString(a))
           )
@@ -294,7 +294,7 @@ object MetricDsl {
     def asOutcomeRecorder(implicit F: MonadCancelThrow[F]): BuildStep[F, OutcomeRecorder.Aux[F, A, Counter]] =
       BuildStep(
         dsl
-          .makeLabelledMetric[Status](IndexedSeq(Label.Name.outcomeStatus))(status => IndexedSeq(status.show))
+          .makeMetric[Status](IndexedSeq(Label.Name.outcomeStatus))(status => IndexedSeq(status.show))
           .map(OutcomeRecorder.fromCounter(_))
       )
   }
@@ -303,7 +303,7 @@ object MetricDsl {
     def asOutcomeRecorder(implicit F: MonadCancelThrow[F]): BuildStep[F, OutcomeRecorder.Aux[F, A, Gauge]] =
       BuildStep(
         dsl
-          .makeLabelledMetric[Status](IndexedSeq(Label.Name.outcomeStatus))(status => IndexedSeq(status.show))
+          .makeMetric[Status](IndexedSeq(Label.Name.outcomeStatus))(status => IndexedSeq(status.show))
           .map(OutcomeRecorder.fromGauge(_))
       )
   }
@@ -312,7 +312,7 @@ object MetricDsl {
 abstract class BaseLabelsBuildStep[F[_], A, T, N <: Nat, L[_[_], _, _]](
     fa: Resource[F, L[F, A, T]]
 ) extends BuildStep[F, L[F, A, T]] {
-  protected[internal] val makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L]
+  protected[internal] val makeMetric: LabelledMetricPartiallyApplied[F, A, L]
   protected[internal] val labelNames: Sized[IndexedSeq[Label.Name], N]
   protected[internal] val f: T => Sized[IndexedSeq[String], N]
 
@@ -329,7 +329,7 @@ object BaseLabelsBuildStep {
         F: MonadCancelThrow[F]
     ): BuildStep[F, OutcomeRecorder.Labelled.Aux[F, A, T, Counter]] = BuildStep(
       dsl
-        .makeLabelledMetric[(T, Status)](dsl.labelNames.unsized :+ Label.Name.outcomeStatus) { case (t, status) =>
+        .makeMetric[(T, Status)](dsl.labelNames.unsized :+ Label.Name.outcomeStatus) { case (t, status) =>
           dsl.f(t).unsized :+ status.show
         }
         .map(OutcomeRecorder.Labelled.fromCounter(_))
@@ -345,7 +345,7 @@ object BaseLabelsBuildStep {
         F: MonadCancelThrow[F]
     ): BuildStep[F, OutcomeRecorder.Labelled.Aux[F, A, T, Gauge]] = BuildStep(
       dsl
-        .makeLabelledMetric[(T, Status)](dsl.labelNames.unsized :+ Label.Name.outcomeStatus) { case (t, status) =>
+        .makeMetric[(T, Status)](dsl.labelNames.unsized :+ Label.Name.outcomeStatus) { case (t, status) =>
           dsl.f(t).unsized :+ status.show
         }
         .map(OutcomeRecorder.Labelled.fromGauge(_))
@@ -368,17 +368,17 @@ object BaseLabelsBuildStep {
 }
 
 class LabelsBuildStep[F[_], A, T, N <: Nat, L[_[_], _, _]] private[internal] (
-    protected[internal] val makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L],
+    protected[internal] val makeMetric: LabelledMetricPartiallyApplied[F, A, L],
     protected[internal] val labelNames: Sized[IndexedSeq[Label.Name], N],
     protected[internal] val f: T => Sized[IndexedSeq[String], N]
 ) extends BaseLabelsBuildStep[F, A, T, N, L](
-      makeLabelledMetric(labelNames.unsized)(
+      makeMetric(labelNames.unsized)(
         // avoid using andThen because it can be slow and this gets called repeatedly during runtime
         t => f(t).unsized
       )
     ) {
   override def contramapLabels[B](f0: B => T): LabelsBuildStep[F, A, B, N, L] = new LabelsBuildStep[F, A, B, N, L](
-    makeLabelledMetric,
+    makeMetric,
     labelNames,
     b => f(f0(b))
   )
@@ -386,30 +386,30 @@ class LabelsBuildStep[F[_], A, T, N <: Nat, L[_[_], _, _]] private[internal] (
 
 object LabelsBuildStep {
   final class WithCallbacks[F[_], A, A0, T, N <: Nat, L[_[_], _, _]] private[internal] (
-      makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L],
-      makeLabelledCallback: LabelledCallbackPartiallyApplied[F, A0],
+      makeMetric: LabelledMetricPartiallyApplied[F, A, L],
+      makeCallback: LabelledCallbackPartiallyApplied[F, A0],
       labelNames: Sized[IndexedSeq[Label.Name], N],
       f: T => Sized[IndexedSeq[String], N]
   ) extends LabelsBuildStep[F, A, T, N, L](
-        makeLabelledMetric,
+        makeMetric,
         labelNames,
         f
       )
       with CallbackStep[F, NonEmptyList[(A0, T)]] {
     override protected def buildCallback: F[NonEmptyList[(A0, T)]] => Resource[F, Unit] = cb =>
-      makeLabelledCallback(labelNames.unsized, cb)(f(_).unsized)
+      makeCallback(labelNames.unsized, cb)(f(_).unsized)
 
     override def contramapLabels[B](f0: B => T): LabelsBuildStep.WithCallbacks[F, A, A0, B, N, L] =
-      new WithCallbacks(makeLabelledMetric, makeLabelledCallback, labelNames, b => f(f0(b)))
+      new WithCallbacks(makeMetric, makeCallback, labelNames, b => f(f0(b)))
   }
 }
 
 class LabelledMetricDsl[F[_], A, T, N <: Nat, L[_[_], _, _]] private[internal] (
-    protected[internal] val makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L],
+    protected[internal] val makeMetric: LabelledMetricPartiallyApplied[F, A, L],
     protected[internal] val labelNames: Sized[IndexedSeq[Label.Name], N],
     protected[internal] val f: T => Sized[IndexedSeq[String], N]
 ) extends BaseLabelsBuildStep[F, A, T, N, L](
-      makeLabelledMetric(labelNames.unsized)(
+      makeMetric(labelNames.unsized)(
         // avoid using andThen because it can be slow and this gets called repeatedly during runtime
         t => f(t).unsized
       )
@@ -425,7 +425,7 @@ class LabelledMetricDsl[F[_], A, T, N <: Nat, L[_[_], _, _]] private[internal] (
           name: Label.Name,
           toString: B => String
       )(implicit initLast: InitLast.Aux[T, B, C]): LabelledMetricDsl[F, A, C, Succ[N], L] = new LabelledMetricDsl(
-        makeLabelledMetric,
+        makeMetric,
         labelNames :+ name,
         c => f(initLast.init(c)) :+ toString(initLast.last(c))
       )
@@ -433,22 +433,22 @@ class LabelledMetricDsl[F[_], A, T, N <: Nat, L[_[_], _, _]] private[internal] (
     }
 
   override def contramapLabels[B](f0: B => T): LabelledMetricDsl[F, A, B, N, L] = new LabelledMetricDsl(
-    makeLabelledMetric,
+    makeMetric,
     labelNames,
     b => f(f0(b))
   )
 }
 object LabelledMetricDsl {
   final class WithCallbacks[F[_], A, A0, T, N <: Nat, L[_[_], _, _]] private[internal] (
-      makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L],
-      makeLabelledCallback: LabelledCallbackPartiallyApplied[F, A0],
+      makeMetric: LabelledMetricPartiallyApplied[F, A, L],
+      makeCallback: LabelledCallbackPartiallyApplied[F, A0],
       labelNames: Sized[IndexedSeq[Label.Name], N],
       f: T => Sized[IndexedSeq[String], N]
-  ) extends LabelledMetricDsl[F, A, T, N, L](makeLabelledMetric, labelNames, f)
+  ) extends LabelledMetricDsl[F, A, T, N, L](makeMetric, labelNames, f)
       with CallbackStep[F, NonEmptyList[(A0, T)]] {
 
     override protected def buildCallback: F[NonEmptyList[(A0, T)]] => Resource[F, Unit] = cb =>
-      makeLabelledCallback.apply(labelNames.unsized, cb)(f(_).unsized)
+      makeCallback.apply(labelNames.unsized, cb)(f(_).unsized)
 
     /** @inheritdoc
       */
@@ -459,8 +459,8 @@ object LabelledMetricDsl {
             name: Label.Name,
             toString: B => String
         )(implicit initLast: InitLast.Aux[T, B, C]): WithCallbacks[F, A, A0, C, Succ[N], L] = new WithCallbacks(
-          makeLabelledMetric,
-          makeLabelledCallback,
+          makeMetric,
+          makeCallback,
           labelNames :+ name,
           c => f(initLast.init(c)) :+ toString(initLast.last(c))
         )
@@ -468,7 +468,7 @@ object LabelledMetricDsl {
       }
 
     override def contramapLabels[B](f0: B => T): WithCallbacks[F, A, A0, B, N, L] =
-      new WithCallbacks(makeLabelledMetric, makeLabelledCallback, labelNames, b => f(f0(b)))
+      new WithCallbacks(makeMetric, makeCallback, labelNames, b => f(f0(b)))
   }
 }
 

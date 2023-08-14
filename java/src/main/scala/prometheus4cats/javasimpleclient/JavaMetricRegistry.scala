@@ -669,7 +669,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       callback: F[NonEmptyList[(B, C)]]
   )(
       f: C => IndexedSeq[String],
-      makeLabelledFamily: (String, List[String], List[String], B) => Collector.MetricFamilySamples
+      makeFamily: (String, List[String], List[String], B) => Collector.MetricFamilySamples
   ): Resource[F, Unit] = {
     lazy val stringName = NameUtils.makeName(prefix, name)
 
@@ -678,7 +678,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     lazy val commonLabelValues: IndexedSeq[String] = commonLabels.value.values.toIndexedSeq
 
     val samples: F[NonEmptyList[MetricFamilySamples]] = callback.map(_.map { case (value, labels) =>
-      makeLabelledFamily(stringName, commonLabelNames, (f(labels) ++ commonLabelValues).toList, value)
+      makeFamily(stringName, commonLabelNames, (f(labels) ++ commonLabelValues).toList, value)
     })
 
     registerCallback(metricType, prefix, name, samples)
@@ -741,7 +741,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       buckets: NonEmptySeq[Double],
       callback: F[Histogram.Value[Double]]
   ): Resource[F, Unit] = {
-    val makeLabelledSamples = HistogramUtils.labelledHistogramSamples(help, buckets)
+    val makeSamples = HistogramUtils.labelledHistogramSamples(help, buckets)
 
     registerLabelled(
       MetricType.Histogram,
@@ -750,7 +750,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       commonLabels,
       IndexedSeq.empty,
       callback.map[NonEmptyList[(Histogram.Value[Double], Unit)]](b => NonEmptyList.one((b, ())))
-    )(_ => IndexedSeq.empty, makeLabelledSamples)
+    )(_ => IndexedSeq.empty, makeSamples)
   }
 
   override def registerLabelledDoubleHistogramCallback[A](
@@ -762,7 +762,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       buckets: NonEmptySeq[Double],
       callback: F[NonEmptyList[(Histogram.Value[Double], A)]]
   )(f: A => IndexedSeq[String]): Resource[F, Unit] = {
-    val makeLabelledSamples = HistogramUtils.labelledHistogramSamples(help, buckets)
+    val makeSamples = HistogramUtils.labelledHistogramSamples(help, buckets)
 
     registerLabelled(
       MetricType.Histogram,
@@ -771,7 +771,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       commonLabels,
       labelNames,
       callback
-    )(f, makeLabelledSamples)
+    )(f, makeSamples)
   }
 
   override def registerDoubleSummaryCallback(

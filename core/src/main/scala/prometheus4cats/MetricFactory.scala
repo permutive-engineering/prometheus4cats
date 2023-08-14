@@ -166,7 +166,7 @@ sealed abstract class MetricFactory[F[_]](
     new TypeStep[SummaryDslLambda](
       new HelpStep(help =>
         new SummaryDsl[F, Long](
-          makeLabelledSummary = (quantiles, maxAge, ageBuckets) =>
+          makeSummary = (quantiles, maxAge, ageBuckets) =>
             new LabelledMetricPartiallyApplied[F, Long, Summary] {
               override def apply[B](
                   labels: IndexedSeq[Label.Name]
@@ -186,7 +186,7 @@ sealed abstract class MetricFactory[F[_]](
       ),
       new HelpStep(help =>
         new SummaryDsl[F, Double](
-          makeLabelledSummary = (quantiles, maxAge, ageBuckets) =>
+          makeSummary = (quantiles, maxAge, ageBuckets) =>
             new LabelledMetricPartiallyApplied[F, Double, Summary] {
               override def apply[B](
                   labels: IndexedSeq[Label.Name]
@@ -452,7 +452,7 @@ object MetricFactory {
       new TypeStep[SummaryCallbackDsl](
         new HelpStep(help =>
           new SummaryDsl.WithCallbacks[F, Long, Summary.Value[Long]](
-            makeLabelledSummary = (quantiles, maxAge, ageBuckets) =>
+            makeSummary = (quantiles, maxAge, ageBuckets) =>
               new LabelledMetricPartiallyApplied[F, Long, Summary] {
                 override def apply[B](
                     labels: IndexedSeq[Label.Name]
@@ -468,7 +468,7 @@ object MetricFactory {
                     ageBuckets
                   )(f)
               },
-            makeLabelledSummaryCallback = new LabelledCallbackPartiallyApplied[F, Summary.Value[Long]] {
+            makeSummaryCallback = new LabelledCallbackPartiallyApplied[F, Summary.Value[Long]] {
               override def apply[B](
                   labels: IndexedSeq[Label.Name],
                   callback: F[NonEmptyList[(Summary.Value[Long], B)]]
@@ -488,7 +488,7 @@ object MetricFactory {
         ),
         new HelpStep(help =>
           new SummaryDsl.WithCallbacks[F, Double, Summary.Value[Double]](
-            makeLabelledSummary = (quantiles, maxAge, ageBuckets) =>
+            makeSummary = (quantiles, maxAge, ageBuckets) =>
               new LabelledMetricPartiallyApplied[F, Double, Summary] {
                 override def apply[B](
                     labels: IndexedSeq[Label.Name]
@@ -504,7 +504,7 @@ object MetricFactory {
                     ageBuckets
                   )(f)
               },
-            makeLabelledSummaryCallback = new LabelledCallbackPartiallyApplied[F, Summary.Value[Double]] {
+            makeSummaryCallback = new LabelledCallbackPartiallyApplied[F, Summary.Value[Double]] {
               override def apply[B](
                   labels: IndexedSeq[Label.Name],
                   callback: F[NonEmptyList[(Summary.Value[Double], B)]]
