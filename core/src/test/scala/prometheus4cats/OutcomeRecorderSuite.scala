@@ -71,7 +71,7 @@ class OutcomeRecorderSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
       val nonZero = Math.abs(i) + 1
 
       opCounter.flatMap { case (counter, res) =>
-        counter.surround(IO.unit, ()).replicateA(nonZero) >> res.map(
+        counter.surround(IO.unit).replicateA(nonZero) >> res.map(
           assertEquals(_, Map[Status, Int](Status.Succeeded -> nonZero))
         )
       }
@@ -83,7 +83,7 @@ class OutcomeRecorderSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
       val nonZero = Math.abs(i) + 1
 
       opGauge.flatMap { case (gauge, res) =>
-        gauge.surround(IO.unit, ()).replicateA(nonZero) >> res.map(
+        gauge.surround(IO.unit).replicateA(nonZero) >> res.map(
           assertEquals(_, Map[Status, Int](Status.Succeeded -> 1, Status.Errored -> 0, Status.Canceled -> 0))
         )
       }
@@ -97,7 +97,7 @@ class OutcomeRecorderSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
       opCounter.flatMap { case (counter, res) =>
         // the deferred in the race here gives time for the finalizers to be registered on the first IO
         IO.deferred[Unit]
-          .flatMap(wait => counter.surround(wait.complete(()) >> IO.never, ()).race(wait.get))
+          .flatMap(wait => counter.surround(wait.complete(()) >> IO.never).race(wait.get))
           .replicateA(nonZero) >> res
           .map(
             assertEquals(_, Map[Status, Int](Status.Canceled -> nonZero))
@@ -113,7 +113,7 @@ class OutcomeRecorderSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
       opGauge.flatMap { case (gauge, res) =>
         // the deferred in the race here gives time for the finalizers to be registered on the first IO
         IO.deferred[Unit]
-          .flatMap(wait => gauge.surround(wait.complete(()) >> IO.never, ()).race(wait.get))
+          .flatMap(wait => gauge.surround(wait.complete(()) >> IO.never).race(wait.get))
           .replicateA(nonZero) >> res
           .map(
             assertEquals(_, Map[Status, Int](Status.Succeeded -> 0, Status.Errored -> 0, Status.Canceled -> 1))
@@ -127,7 +127,7 @@ class OutcomeRecorderSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
       val nonZero = Math.abs(i) + 1
 
       opCounter.flatMap { case (counter, res) =>
-        counter.surround(IO.raiseError(new RuntimeException()), ()).attempt.replicateA(nonZero) >> res.map(
+        counter.surround(IO.raiseError(new RuntimeException())).attempt.replicateA(nonZero) >> res.map(
           assertEquals(_, Map[Status, Int](Status.Errored -> nonZero))
         )
       }
@@ -139,7 +139,7 @@ class OutcomeRecorderSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
       val nonZero = Math.abs(i) + 1
 
       opGauge.flatMap { case (gauge, res) =>
-        gauge.surround(IO.raiseError(new RuntimeException()), ()).attempt.replicateA(nonZero) >> res.map(
+        gauge.surround(IO.raiseError(new RuntimeException())).attempt.replicateA(nonZero) >> res.map(
           assertEquals(_, Map[Status, Int](Status.Succeeded -> 0, Status.Errored -> 1, Status.Canceled -> 0))
         )
       }

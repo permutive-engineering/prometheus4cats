@@ -23,25 +23,32 @@ import cats.{Applicative, Contravariant, ~>}
 sealed abstract class Summary[F[_], -A, B] extends Metric[A] with Metric.Labelled[B] {
   self =>
 
-  def observe(n: A, labels: B): F[Unit]
-  def observe(n: A)(implicit ev: Unit =:= B): F[Unit] = observe(n = n, labels = ev(()))
+  protected def observeImpl(n: A, labels: B): F[Unit]
 
   def contramap[C](f: C => A): Summary[F, C, B] = new Summary[F, C, B] {
-    override def observe(n: C, labels: B): F[Unit] = self.observe(f(n), labels)
+    override def observeImpl(n: C, labels: B): F[Unit] = self.observeImpl(f(n), labels)
   }
 
   def contramapLabels[C](f: C => B): Summary[F, A, C] = new Summary[F, A, C] {
-    override def observe(n: A, labels: C): F[Unit] = self.observe(n, f(labels))
+    override def observeImpl(n: A, labels: C): F[Unit] = self.observeImpl(n, f(labels))
   }
 
   final def mapK[G[_]](fk: F ~> G): Summary[G, A, B] =
     new Summary[G, A, B] {
-      override def observe(n: A, labels: B): G[Unit] = fk(self.observe(n, labels))
+      override def observeImpl(n: A, labels: B): G[Unit] = fk(self.observeImpl(n, labels))
     }
 
 }
 
 object Summary {
+  implicit class SummarySyntax[F[_], -A](summary: Summary[F, A, Unit]) {
+    def observe(n: A): F[Unit] = summary.observeImpl(n, ())
+  }
+
+  implicit class LabelledSummarySyntax[F[_], -A, B](summary: Summary[F, A, B])(implicit ev: Unit =:!= B) {
+    def observe(n: A, labels: B): F[Unit] = summary.observeImpl(n, labels)
+  }
+
   final class AgeBuckets(val value: Int) extends AnyVal with internal.Refined.Value[Int] {
     override def toString: String = s"""Summary.AgeBuckets(value: "$value")"""
   }
@@ -114,12 +121,12 @@ object Summary {
 
   def make[F[_], A, B](_observe: (A, B) => F[Unit]): Summary[F, A, B] =
     new Summary[F, A, B] {
-      override def observe(n: A, labels: B): F[Unit] = _observe(n, labels)
+      override def observeImpl(n: A, labels: B): F[Unit] = _observe(n, labels)
     }
 
   def noop[F[_]: Applicative, A, B]: Summary[F, A, B] =
     new Summary[F, A, B] {
-      override def observe(n: A, labels: B): F[Unit] = Applicative[F].unit
+      override def observeImpl(n: A, labels: B): F[Unit] = Applicative[F].unit
     }
 
 }

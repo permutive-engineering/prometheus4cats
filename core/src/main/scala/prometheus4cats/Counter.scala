@@ -55,15 +55,15 @@ sealed abstract class Counter[F[_], -A, B] extends Metric[A] with Metric.Labelle
 
 object Counter {
 
-  implicit class CounterSyntax[F[_]: FlatMap, -A](counter: Counter[F, A, Unit]) {
+  implicit class CounterSyntax[F[_], -A](counter: Counter[F, A, Unit]) {
     final def inc: F[Unit] = incWithExemplar(None)
 
     final def inc(n: A): F[Unit] = incWithExemplar(n, None)
 
-    final def incWithExemplar(implicit exemplar: Exemplar[F]): F[Unit] =
+    final def incWithExemplar(implicit F: FlatMap[F], exemplar: Exemplar[F]): F[Unit] =
       exemplar.get.flatMap(incWithExemplar)
 
-    final def incWithExemplar(n: A)(implicit exemplar: Exemplar[F]): F[Unit] =
+    final def incWithExemplar(n: A)(implicit F: FlatMap[F], exemplar: Exemplar[F]): F[Unit] =
       exemplar.get.flatMap(incWithExemplar(n, _))
 
     final def incWithExemplar(exemplar: Option[Exemplar.Labels]): F[Unit] = counter.incWithExemplarImpl((), exemplar)
@@ -71,15 +71,15 @@ object Counter {
       counter.incWithExemplarImpl(n, (), exemplar)
   }
 
-  implicit class LabelledCounterSyntax[F[_]: FlatMap, -A, B](counter: Counter[F, A, B])(implicit ev: Unit =:!= B) {
+  implicit class LabelledCounterSyntax[F[_], -A, B](counter: Counter[F, A, B])(implicit ev: Unit =:!= B) {
     final def inc(labels: B): F[Unit] = incWithExemplar(labels, None)
 
     final def inc(n: A, labels: B): F[Unit] = incWithExemplar(n, labels, None)
 
-    final def incWithExemplar(labels: B)(implicit exemplar: Exemplar[F]): F[Unit] =
+    final def incWithExemplar(labels: B)(implicit F: FlatMap[F], exemplar: Exemplar[F]): F[Unit] =
       exemplar.get.flatMap(incWithExemplar(labels, _))
 
-    final def incWithExemplar(n: A, labels: B)(implicit exemplar: Exemplar[F]): F[Unit] =
+    final def incWithExemplar(n: A, labels: B)(implicit F: FlatMap[F], exemplar: Exemplar[F]): F[Unit] =
       exemplar.get.flatMap(incWithExemplar(n, labels, _))
 
     final def incWithExemplar(labels: B, exemplar: Option[Exemplar.Labels]): F[Unit] =

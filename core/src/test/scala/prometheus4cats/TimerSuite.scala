@@ -34,7 +34,7 @@ class TimerSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
   val write: (Double, Unit) => WriterT[IO, List[Double], Unit] = (d, _: Unit) => WriterT.tell[IO, List[Double]](List(d))
 
   val hist =
-    Timer.fromHistogram(Histogram.make((d, l, _) => write(d, l)))
+    Timer.fromHistogram(Histogram.make[WriterT[IO, List[Double], *], Double, Unit]((d, l, _) => write(d, l)))
 
   val gauge =
     Timer.fromGauge(

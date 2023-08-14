@@ -19,7 +19,7 @@ package prometheus4cats.internal
 import cats.data.NonEmptyList
 import cats.effect.kernel.{Clock, MonadCancelThrow, Resource}
 import cats.syntax.all._
-import cats.{FlatMap, Functor, MonadThrow, Show}
+import cats.{FlatMap, Functor, Show}
 import prometheus4cats.OutcomeRecorder.Status
 import prometheus4cats._
 
@@ -47,7 +47,7 @@ object BuildStep {
   }
 
   implicit class DoubleGaugeSyntax[F[_]](bs: BuildStep[F, Gauge[F, Double, Unit]]) {
-    def asTimer(implicit F: MonadThrow[F], clock: Clock[F]): BuildStep[F, Timer.Aux[F, Unit, Gauge]] =
+    def asTimer: BuildStep[F, Timer.Aux[F, Unit, Gauge]] =
       bs.map(Timer.fromGauge[F, Unit])
 
     def asCurrentTimeRecorder(implicit F: FlatMap[F], clock: Clock[F]): BuildStep[F, CurrentTimeRecorder[F, Unit]] =
@@ -70,20 +70,17 @@ object BuildStep {
   }
 
   implicit class DoubleHistogramSyntax[F[_]](bs: BuildStep[F, Histogram[F, Double, Unit]]) {
-    def asTimer(implicit F: MonadThrow[F], clock: Clock[F]): BuildStep[F, Timer.Aux[F, Unit, Histogram]] =
+    def asTimer: BuildStep[F, Timer.Aux[F, Unit, Histogram]] =
       bs.map(Timer.fromHistogram[F, Unit])
 
-    def asExemplarTimer(implicit
-        F: MonadThrow[F],
-        clock: Clock[F]
-    ): BuildStep[F, Timer.Exemplar.Aux[F, Unit, Histogram]] =
+    def asExemplarTimer: BuildStep[F, Timer.Exemplar.Aux[F, Unit, Histogram]] =
       bs.map(Timer.Exemplar.fromHistogram[F, Unit])
   }
 
   implicit class DoubleLabelledGaugeSyntax[F[_], A](
       bs: BuildStep[F, Gauge[F, Double, A]]
   ) {
-    def asTimer(implicit F: MonadThrow[F], clock: Clock[F]): BuildStep[F, Timer.Aux[F, A, Gauge]] =
+    def asTimer: BuildStep[F, Timer.Aux[F, A, Gauge]] =
       bs.map(Timer.fromGauge[F, A])
 
     def asCurrentTimeRecorder(implicit
@@ -116,28 +113,22 @@ object BuildStep {
   implicit class DoubleLabelledHistogramSyntax[F[_], A](
       bs: BuildStep[F, Histogram[F, Double, A]]
   ) {
-    def asTimer(implicit
-        F: MonadThrow[F],
-        clock: Clock[F]
-    ): BuildStep[F, Timer.Aux[F, A, Histogram]] =
+    def asTimer: BuildStep[F, Timer.Aux[F, A, Histogram]] =
       bs.map(Timer.fromHistogram[F, A])
 
-    def asExemplarTimer(implicit
-        F: MonadThrow[F],
-        clock: Clock[F]
-    ): BuildStep[F, Timer.Exemplar.Aux[F, A, Histogram]] =
+    def asExemplarTimer: BuildStep[F, Timer.Exemplar.Aux[F, A, Histogram]] =
       bs.map(Timer.Exemplar.fromHistogram[F, A])
   }
 
   implicit class DoubleSummarySyntax[F[_]](bs: BuildStep[F, Summary[F, Double, Unit]]) {
-    def asTimer(implicit F: MonadThrow[F], clock: Clock[F]): BuildStep[F, Timer.Aux[F, Unit, Summary]] =
+    def asTimer: BuildStep[F, Timer.Aux[F, Unit, Summary]] =
       bs.map(Timer.fromSummary[F, Unit])
   }
 
   implicit class DoubleLabelledSummarySyntax[F[_], A](
       bs: BuildStep[F, Summary[F, Double, A]]
   ) {
-    def asTimer(implicit F: MonadThrow[F], clock: Clock[F]): BuildStep[F, Timer.Aux[F, A, Summary]] =
+    def asTimer: BuildStep[F, Timer.Aux[F, A, Summary]] =
       bs.map(Timer.fromSummary[F, A])
   }
 
@@ -291,12 +282,12 @@ object MetricDsl {
   }
 
   implicit class CounterSyntax[F[_], A](dsl: MetricDsl[F, A, Counter]) {
-    def asOutcomeRecorder(implicit F: MonadCancelThrow[F]): BuildStep[F, OutcomeRecorder.Aux[F, A, Unit, Counter]] =
+    def asOutcomeRecorder: BuildStep[F, OutcomeRecorder.Aux[F, A, Unit, Counter]] =
       BuildStep(
         dsl
           .makeMetric[Status](IndexedSeq(Label.Name.outcomeStatus))(status => IndexedSeq(status.show))
           .map(_.contramapLabels[(Unit, OutcomeRecorder.Status)](_._2))
-          .map(OutcomeRecorder.fromCounter(_))
+          .map(OutcomeRecorder.fromCounter)
       )
   }
 
@@ -327,14 +318,12 @@ object BaseLabelsBuildStep {
   implicit final class CounterSyntax[F[_], A, T, N <: Nat](
       dsl: BaseLabelsBuildStep[F, A, T, N, Counter]
   ) {
-    def asOutcomeRecorder(implicit
-        F: MonadCancelThrow[F]
-    ): BuildStep[F, OutcomeRecorder.Aux[F, A, T, Counter]] = BuildStep(
+    def asOutcomeRecorder: BuildStep[F, OutcomeRecorder.Aux[F, A, T, Counter]] = BuildStep(
       dsl
         .makeMetric[(T, Status)](dsl.labelNames.unsized :+ Label.Name.outcomeStatus) { case (t, status) =>
           dsl.f(t).unsized :+ status.show
         }
-        .map(OutcomeRecorder.fromCounter(_))
+        .map(OutcomeRecorder.fromCounter)
     )
 
     def contramap[B](f: B => A): BuildStep[F, Counter[F, B, T]] = dsl.map(_.contramap(f))
