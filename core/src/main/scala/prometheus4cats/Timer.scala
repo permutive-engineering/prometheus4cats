@@ -124,10 +124,10 @@ object Timer {
       } yield res
   }
 
-  /** Create a [[Timer]] from a [[Histogram.Timer]] instance.
+  /** Create a [[Timer]] from a [[Histogram]] instance.
     *
-    * This delegates to the underlying [[Histogram.Timer]] instance and assumes you have already set up sensible buckets
-    * for the distribution of values.
+    * This delegates to the underlying [[Histogram]] instance and assumes you have already set up sensible buckets for
+    * the distribution of values.
     *
     * Values are recorded in [[scala.Double]]s by converting a [[scala.concurrent.duration.FiniteDuration]] to seconds.
     *
@@ -135,7 +135,7 @@ object Timer {
     * [[MetricFactory]].
     *
     * @return
-    *   a [[Timer.Aux]] that is annotated with the type of underlying metrics, in this case [[Histogram.Timer]]
+    *   a [[Timer.Aux]] that is annotated with the type of underlying metrics, in this case [[Histogram]]
     */
   def fromHistogram[F[_], A](
       histogram: Histogram[F, Double, A]
@@ -410,10 +410,10 @@ object Timer {
         override def contramapLabels[A, B](fa: Exemplar[F, A])(f: B => A): Exemplar[F, B] = fa.contramapLabels(f)
       }
 
-    /** Create a [[Timer.Exemplar]] from a [[Histogram.Timer]] instance.
+    /** Create a [[Timer.Exemplar]] from a [[Histogram]] instance.
       *
-      * This delegates to the underlying [[Histogram.Timer]] instance and assumes you have already set up sensible
-      * buckets for the distribution of values.
+      * This delegates to the underlying [[Histogram]] instance and assumes you have already set up sensible buckets for
+      * the distribution of values.
       *
       * Values are recorded in [[scala.Double]]s by converting a [[scala.concurrent.duration.FiniteDuration]] to
       * seconds.
@@ -422,8 +422,7 @@ object Timer {
       * provided by [[MetricFactory]].
       *
       * @return
-      *   a [[Timer.Exemplar.Aux]] that is annotated with the type of underlying metrics, in this case
-      *   [[Histogram.Timer]]
+      *   a [[Timer.Exemplar.Aux]] that is annotated with the type of underlying metrics, in this case [[Histogram]]
       */
     def fromHistogram[F[_], A](
         histogram: Histogram[F, Double, A]
