@@ -18,7 +18,7 @@ package prometheus4cats
 
 import cats.data.NonEmptyList
 import cats.effect.kernel.{MonadCancel, Resource}
-import cats.{Functor, Monad, ~>}
+import cats.{Applicative, Functor, ~>}
 import prometheus4cats.Metric.CommonLabels
 import prometheus4cats.internal._
 import prometheus4cats.internal.histogram.BucketDsl
@@ -543,7 +543,7 @@ object MetricFactory {
   }
 
   object WithCallbacks {
-    def noop[F[_]: Monad]: WithCallbacks[F] =
+    def noop[F[_]: Applicative]: WithCallbacks[F] =
       new WithCallbacks[F](
         MetricRegistry.noop,
         CallbackRegistry.noop,
@@ -554,7 +554,7 @@ object MetricFactory {
 
   /** Create an instance of [[MetricFactory]] that performs no operations
     */
-  def noop[F[_]: Monad]: MetricFactory[F] =
+  def noop[F[_]: Applicative]: MetricFactory[F] =
     new MetricFactory[F](
       MetricRegistry.noop,
       None,
@@ -642,7 +642,7 @@ object MetricFactory {
       * @return
       *   a new [[MetricFactory]] instance that performs no operations
       */
-    def noop[F[_]: Monad]: MetricFactory.WithCallbacks[F] =
+    def noop[F[_]: Applicative]: MetricFactory.WithCallbacks[F] =
       MetricFactory.WithCallbacks.noop[F]
   }
 

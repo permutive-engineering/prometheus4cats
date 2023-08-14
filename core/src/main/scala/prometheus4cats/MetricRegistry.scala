@@ -18,7 +18,7 @@ package prometheus4cats
 
 import cats.data.NonEmptySeq
 import cats.effect.kernel.{MonadCancel, Resource}
-import cats.{Monad, ~>}
+import cats.{Applicative, ~>}
 import prometheus4cats.Metric.CommonLabels
 import prometheus4cats.Summary.QuantileDefinition
 import prometheus4cats.util.DoubleMetricRegistry
@@ -293,7 +293,7 @@ trait MetricRegistry[F[_]] {
 
 object MetricRegistry {
 
-  def noop[F[_]](implicit F: Monad[F]): MetricRegistry[F] =
+  def noop[F[_]](implicit F: Applicative[F]): MetricRegistry[F] =
     new DoubleMetricRegistry[F] {
 
       def createAndRegisterDoubleCounter[A](
