@@ -175,11 +175,11 @@ class CallbackBuildStep[F[_], A, B] private[internal] (
 }
 
 class MetricDsl[F[_], A, L[_[_], _, _]] private[prometheus4cats] (
-    makeMetric: Resource[F, L[F, A, Unit]],
     private[internal] val makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L]
 ) extends BuildStep[F, L[F, A, Unit]] {
 
-  override def build: Resource[F, L[F, A, Unit]] = makeMetric
+  override def build: Resource[F, L[F, A, Unit]] =
+    makeLabelledMetric.apply(IndexedSeq.empty)((_: Unit) => IndexedSeq.empty)
 
   /** Sets the first label of the metric. Requires either a `Show` instance for the label type, or a method converting
     * the label value to a `String`.
@@ -245,14 +245,15 @@ class MetricDsl[F[_], A, L[_[_], _, _]] private[prometheus4cats] (
 }
 
 object MetricDsl {
-  class WithCallbacks[F[_], A, A0, L[_[_], _, _]](
-      makeMetric: Resource[F, L[F, A, Unit]],
-      makeCallback: F[A0] => Resource[F, Unit],
+  class WithCallbacks[F[_]: Functor, A, A0, L[_[_], _, _]](
       makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L],
       makeLabelledCallback: LabelledCallbackPartiallyApplied[F, A0]
-  ) extends MetricDsl[F, A, L](makeMetric, makeLabelledMetric)
+  ) extends MetricDsl[F, A, L](makeLabelledMetric)
       with CallbackStep[F, A0] {
-    override protected def buildCallback: F[A0] => Resource[F, Unit] = makeCallback
+    override protected def buildCallback: F[A0] => Resource[F, Unit] = f =>
+      makeLabelledCallback.apply(IndexedSeq.empty, f.map(a => NonEmptyList.of((a, ())))) { (_: Unit) =>
+        IndexedSeq.empty
+      }
 
     override def unsafeLabels(
         labelNames: IndexedSeq[Label.Name]

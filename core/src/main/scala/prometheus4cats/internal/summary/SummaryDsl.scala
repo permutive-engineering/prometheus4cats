@@ -16,39 +16,34 @@
 
 package prometheus4cats.internal.summary
 
-import cats.effect.kernel.Resource
 import prometheus4cats.Summary.QuantileDefinition
 import prometheus4cats._
 import prometheus4cats.internal._
 
 import scala.concurrent.duration._
+import cats.Functor
 
 final class SummaryDsl[F[_], A] private[prometheus4cats] (
     quantiles: Seq[QuantileDefinition] = SummaryDsl.defaultQuantiles,
     maxAgeValue: FiniteDuration = SummaryDsl.defaultMaxAge,
     ageBucketsValue: Summary.AgeBuckets = Summary.AgeBuckets.Default,
-    makeSummary: (Seq[QuantileDefinition], FiniteDuration, Summary.AgeBuckets) => Resource[F, Summary[F, A, Unit]],
     makeLabelledSummary: (
         Seq[QuantileDefinition],
         FiniteDuration,
         Summary.AgeBuckets
     ) => LabelledMetricPartiallyApplied[F, A, Summary]
-) extends MetricDsl[F, A, Summary](
-      makeSummary(quantiles, maxAgeValue, ageBucketsValue),
-      makeLabelledSummary(quantiles, maxAgeValue, ageBucketsValue)
-    )
+) extends MetricDsl[F, A, Summary](makeLabelledSummary(quantiles, maxAgeValue, ageBucketsValue))
     with SummaryDsl.Base[F, A] {
   override def quantile(quantile: Summary.Quantile, error: Summary.AllowedError): SummaryDsl[F, A] =
     new SummaryDsl[F, A](
       quantiles :+ QuantileDefinition(quantile, error),
       maxAgeValue,
       ageBucketsValue,
-      makeSummary,
       makeLabelledSummary
     )
 
   override def maxAge(age: FiniteDuration): AgeBucketsStep[F, A] =
-    new AgeBucketsStep[F, A](quantiles, age, ageBucketsValue, makeSummary, makeLabelledSummary)
+    new AgeBucketsStep[F, A](quantiles, age, ageBucketsValue, makeLabelledSummary)
 }
 
 object SummaryDsl {
@@ -76,12 +71,10 @@ object SummaryDsl {
 
   private val defaultMaxAge: FiniteDuration = 10.minutes
 
-  final class WithCallbacks[F[_], A, A0](
+  final class WithCallbacks[F[_]: Functor, A, A0](
       quantiles: Seq[QuantileDefinition] = SummaryDsl.defaultQuantiles,
       maxAgeValue: FiniteDuration = SummaryDsl.defaultMaxAge,
       ageBucketsValue: Summary.AgeBuckets = Summary.AgeBuckets.Default,
-      makeSummary: (Seq[QuantileDefinition], FiniteDuration, Summary.AgeBuckets) => Resource[F, Summary[F, A, Unit]],
-      makeSummaryCallback: F[A0] => Resource[F, Unit],
       makeLabelledSummary: (
           Seq[QuantileDefinition],
           FiniteDuration,
@@ -89,8 +82,6 @@ object SummaryDsl {
       ) => LabelledMetricPartiallyApplied[F, A, Summary],
       makeLabelledSummaryCallback: LabelledCallbackPartiallyApplied[F, A0]
   ) extends MetricDsl.WithCallbacks[F, A, A0, Summary](
-        makeSummary(quantiles, maxAgeValue, ageBucketsValue),
-        makeSummaryCallback,
         makeLabelledSummary(quantiles, maxAgeValue, ageBucketsValue),
         makeLabelledSummaryCallback
       )
@@ -100,12 +91,11 @@ object SummaryDsl {
         quantiles :+ QuantileDefinition(quantile, error),
         maxAgeValue,
         ageBucketsValue,
-        makeSummary,
         makeLabelledSummary
       )
 
     override def maxAge(age: FiniteDuration): AgeBucketsStep[F, A] =
-      new AgeBucketsStep[F, A](quantiles, age, ageBucketsValue, makeSummary, makeLabelledSummary)
+      new AgeBucketsStep[F, A](quantiles, age, ageBucketsValue, makeLabelledSummary)
   }
 }
 
@@ -113,19 +103,16 @@ final class AgeBucketsStep[F[_], A] private[summary] (
     quantiles: Seq[QuantileDefinition],
     maxAgeValue: FiniteDuration,
     ageBucketsValue: Summary.AgeBuckets,
-    makeSummary: (Seq[QuantileDefinition], FiniteDuration, Summary.AgeBuckets) => Resource[F, Summary[F, A, Unit]],
     makeLabelledSummary: (
         Seq[QuantileDefinition],
         FiniteDuration,
         Summary.AgeBuckets
     ) => LabelledMetricPartiallyApplied[F, A, Summary]
 ) extends MetricDsl[F, A, Summary](
-      makeSummary(quantiles, maxAgeValue, ageBucketsValue),
       makeLabelledSummary(quantiles, maxAgeValue, ageBucketsValue)
     ) {
   def ageBuckets(buckets: Summary.AgeBuckets): MetricDsl[F, A, Summary] =
     new MetricDsl[F, A, Summary](
-      makeSummary(quantiles, maxAgeValue, buckets),
       makeLabelledSummary(quantiles, maxAgeValue, buckets)
     )
 }
