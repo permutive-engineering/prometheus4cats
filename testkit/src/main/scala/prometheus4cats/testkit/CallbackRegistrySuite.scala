@@ -276,7 +276,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
                 help,
                 commonLabels,
                 IndexedSeq.empty,
-                IO(NonEmptyList.of(Summary.Value(count, sum, quantiles.map { case (q, v) => q.value -> v }) -> ()))
+                IO(NonEmptyList.of((Summary.Value(count, sum, quantiles.map { case (q, v) => q.value -> v }), ())))
               ) { (_: Unit) =>
                 IndexedSeq.empty
               }

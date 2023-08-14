@@ -57,7 +57,7 @@ sealed abstract class Timer[F[_]: MonadThrow: Clock, A] extends Metric.Labelled[
     * @param fb
     *   operation to be timed
     */
-  final def time[B](fb: F[B])(implicit ev: A =:= Unit): F[B] = time(fb = fb, labels = ev.flip(()))
+  final def time[B](fb: F[B])(implicit ev: Unit =:= A): F[B] = time(fb = fb, labels = ev(()))
 
   /** Time an operation using an instance of [[cats.effect.kernel.Clock]], computing labels from the result.
     *
