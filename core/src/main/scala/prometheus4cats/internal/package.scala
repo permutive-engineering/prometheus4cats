@@ -50,22 +50,22 @@ object BuildStep {
     def asTimer(implicit F: MonadThrow[F], clock: Clock[F]): BuildStep[F, Timer.Aux[F, Unit, Gauge]] =
       bs.map(Timer.fromGauge[F, Unit])
 
-    def asCurrentTimeRecorder(implicit F: FlatMap[F], clock: Clock[F]): BuildStep[F, CurrentTimeRecorder[F]] =
+    def asCurrentTimeRecorder(implicit F: FlatMap[F], clock: Clock[F]): BuildStep[F, CurrentTimeRecorder[F, Unit]] =
       asCurrentTimeRecorder(_.toSeconds.toDouble)
 
     def asCurrentTimeRecorder(
         f: FiniteDuration => Double
-    )(implicit F: FlatMap[F], clock: Clock[F]): BuildStep[F, CurrentTimeRecorder[F]] =
+    )(implicit F: FlatMap[F], clock: Clock[F]): BuildStep[F, CurrentTimeRecorder[F, Unit]] =
       bs.map(CurrentTimeRecorder.fromDoubleGauge(_)(f))
   }
 
   implicit class LongGaugeSyntax[F[_]](bs: BuildStep[F, Gauge[F, Long, Unit]]) {
-    def asCurrentTimeRecorder(implicit F: FlatMap[F], clock: Clock[F]): BuildStep[F, CurrentTimeRecorder[F]] =
+    def asCurrentTimeRecorder(implicit F: FlatMap[F], clock: Clock[F]): BuildStep[F, CurrentTimeRecorder[F, Unit]] =
       asCurrentTimeRecorder(_.toSeconds)
 
     def asCurrentTimeRecorder(
         f: FiniteDuration => Long
-    )(implicit F: FlatMap[F], clock: Clock[F]): BuildStep[F, CurrentTimeRecorder[F]] =
+    )(implicit F: FlatMap[F], clock: Clock[F]): BuildStep[F, CurrentTimeRecorder[F, Unit]] =
       bs.map(CurrentTimeRecorder.fromLongGauge(_)(f))
   }
 
@@ -89,14 +89,14 @@ object BuildStep {
     def asCurrentTimeRecorder(implicit
         F: FlatMap[F],
         clock: Clock[F]
-    ): BuildStep[F, CurrentTimeRecorder.Labelled[F, A]] = asCurrentTimeRecorder(
+    ): BuildStep[F, CurrentTimeRecorder[F, A]] = asCurrentTimeRecorder(
       _.toSeconds.toDouble
     )
 
     def asCurrentTimeRecorder(
         f: FiniteDuration => Double
-    )(implicit F: FlatMap[F], clock: Clock[F]): BuildStep[F, CurrentTimeRecorder.Labelled[F, A]] =
-      bs.map(CurrentTimeRecorder.Labelled.fromDoubleGauge(_)(f))
+    )(implicit F: FlatMap[F], clock: Clock[F]): BuildStep[F, CurrentTimeRecorder[F, A]] =
+      bs.map(CurrentTimeRecorder.fromDoubleGauge(_)(f))
   }
 
   implicit class LongLabelledGaugeSyntax[F[_], A](
@@ -105,12 +105,12 @@ object BuildStep {
     def asCurrentTimeRecorder(implicit
         F: FlatMap[F],
         clock: Clock[F]
-    ): BuildStep[F, CurrentTimeRecorder.Labelled[F, A]] = asCurrentTimeRecorder(_.toSeconds)
+    ): BuildStep[F, CurrentTimeRecorder[F, A]] = asCurrentTimeRecorder(_.toSeconds)
 
     def asCurrentTimeRecorder(
         f: FiniteDuration => Long
-    )(implicit F: FlatMap[F], clock: Clock[F]): BuildStep[F, CurrentTimeRecorder.Labelled[F, A]] =
-      bs.map(CurrentTimeRecorder.Labelled.fromLongGauge(_)(f))
+    )(implicit F: FlatMap[F], clock: Clock[F]): BuildStep[F, CurrentTimeRecorder[F, A]] =
+      bs.map(CurrentTimeRecorder.fromLongGauge(_)(f))
   }
 
   implicit class DoubleLabelledHistogramSyntax[F[_], A](

@@ -49,7 +49,7 @@ class CurrentTimeRecorderSuite extends CatsEffectSuite with ScalaCheckEffectSuit
 
   def writeLabels[A, B]: (A, B) => WriterT[IO, List[(A, B)], Unit] = (a, b) => WriterT.tell(List(a -> b))
 
-  val labelledLongGauge = CurrentTimeRecorder.Labelled.fromLongGauge(
+  val labelledLongGauge = CurrentTimeRecorder.fromLongGauge(
     Gauge.make(
       writeLabels[Long, String],
       writeLabels[Long, String],
@@ -57,7 +57,7 @@ class CurrentTimeRecorderSuite extends CatsEffectSuite with ScalaCheckEffectSuit
     )
   )(_)
 
-  val labelledDoubleGauge = CurrentTimeRecorder.Labelled.fromDoubleGauge(
+  val labelledDoubleGauge = CurrentTimeRecorder.fromDoubleGauge(
     Gauge.make(
       writeLabels[Double, String],
       writeLabels[Double, String],

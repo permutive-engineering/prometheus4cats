@@ -112,7 +112,7 @@ val simpleCurrentTimeRecorderGauge: Resource[IO, CurrentTimeRecorder[IO]] = fact
 
 ```scala mdoc:silent
 val labelledCurrentTimeRecorderGauge:
-  Resource[IO, CurrentTimeRecorder.Labelled[IO, String]] =
+  Resource[IO, CurrentTimeRecorder[IO, String]] =
     factory
       .gauge("current_time")
       .ofDouble
