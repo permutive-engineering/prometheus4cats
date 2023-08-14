@@ -16,4 +16,14 @@
 
 import prometheus4cats.internal.ShapelessPolyfill
 
-package object prometheus4cats extends ShapelessPolyfill
+package object prometheus4cats extends ShapelessPolyfill {
+  def unexpected: Nothing = sys.error("Unexpected invocation")
+
+  trait =:!=[A, B] extends Serializable
+
+  implicit def neq[A, B]: A =:!= B = new =:!=[A, B] {}
+
+  implicit def neqAmbig1[A]: A =:!= A = unexpected
+
+  implicit def neqAmbig2[A]: A =:!= A = unexpected
+}

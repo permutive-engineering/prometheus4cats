@@ -60,6 +60,8 @@ object MetricsFactoryDslTest {
 
   val counterBuilder = factory.counter("test_total")
 
+  counterBuilder.ofDouble.help("sdfs").build.map(_.inc)
+
   val doubleCounterBuilder = counterBuilder.ofDouble.help("help")
   doubleCounterBuilder.build
   doubleCounterBuilder.asOutcomeRecorder.build
@@ -73,7 +75,12 @@ object MetricsFactoryDslTest {
 
   val longCounterBuilder = counterBuilder.ofLong.help("help")
   longCounterBuilder.build
-  longCounterBuilder.label[String]("label1").label[Int]("label2").label[BigInteger]("label3", _.toString).build
+  longCounterBuilder
+    .label[String]("label1")
+    .label[Int]("label2")
+    .label[BigInteger]("label3", _.toString)
+    .build
+    .map(_.inc(("dsfsf", 1, BigInteger.ONE)))
   longCounterBuilder.unsafeLabels(Label.Name("label1"), Label.Name("label2")).build
 
   val histogramBuilder = factory.histogram("test2")
