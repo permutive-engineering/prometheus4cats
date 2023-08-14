@@ -20,7 +20,8 @@ import cats.data.NonEmptySeq
 import cats.syntax.flatMap._
 import cats.{Applicative, Contravariant, FlatMap, ~>}
 
-import java.util.regex.Pattern
+import prometheus4cats.internal.Refined
+import prometheus4cats.internal.Refined.Regex
 
 sealed abstract class Histogram[F[_], -A, B] extends Metric[A] with Metric.Labelled[B] {
   self =>
@@ -89,14 +90,11 @@ object Histogram {
 
   /** Refined value class for a histogram name that has been parsed from a string
     */
-  final class Name private (val value: String) extends AnyVal with internal.Refined.Value[String] {
-    override def toString: String = s"""Histogram.Name("$value")"""
-  }
+  final class Name private (val value: String) extends AnyVal with Refined.Value[String]
 
-  object Name extends internal.Refined.StringRegexRefinement[Name] with internal.HistogramNameFromStringLiteral {
-    override protected val regex: Pattern = "^[a-zA-Z_:][a-zA-Z0-9_:]*$".r.pattern
-    override protected def make(a: String): Name = new Name(a)
-  }
+  object Name
+      extends Regex[Name]("^[a-zA-Z_:][a-zA-Z0-9_:]*$".r.pattern, new Name(_))
+      with internal.HistogramNameFromStringLiteral
 
   implicit def catsInstances[F[_], C]: Contravariant[Histogram[F, *, C]] =
     new Contravariant[Histogram[F, *, C]] {
