@@ -18,7 +18,7 @@ package prometheus4cats
 
 import cats.data.NonEmptyList
 import cats.effect.kernel.{MonadCancel, Resource}
-import cats.{Monad, ~>}
+import cats.{Applicative, Functor, ~>}
 import prometheus4cats.Metric.CommonLabels
 import prometheus4cats.internal._
 import prometheus4cats.internal.histogram.BucketDsl
@@ -40,7 +40,7 @@ sealed abstract class MetricFactory[F[_]](
       commonLabels
     ) {}
 
-  type GaugeDsl[MDsl[_[_], _, _[_[_], _], _[_[_], _, _]], A] = HelpStep[MDsl[F, A, Gauge, Gauge.Labelled]]
+  type GaugeDsl[MDsl[_[_], _, _[_[_], _, _]], A] = HelpStep[MDsl[F, A, Gauge]]
 
   /** Starts creating a "gauge" metric.
     *
@@ -56,29 +56,27 @@ sealed abstract class MetricFactory[F[_]](
     new TypeStep[GaugeDsl[MetricDsl, *]](
       new HelpStep(help =>
         new MetricDsl(
-          metricRegistry.createAndRegisterLongGauge(prefix, name, help, commonLabels),
-          new LabelledMetricPartiallyApplied[F, Long, Gauge.Labelled] {
+          new LabelledMetricPartiallyApplied[F, Long, Gauge] {
             override def apply[B](
                 labels: IndexedSeq[Label.Name]
-            )(f: B => IndexedSeq[String]): Resource[F, Gauge.Labelled[F, Long, B]] =
-              metricRegistry.createAndRegisterLabelledLongGauge(prefix, name, help, commonLabels, labels)(f)
+            )(f: B => IndexedSeq[String]): Resource[F, Gauge[F, Long, B]] =
+              metricRegistry.createAndRegisterLongGauge(prefix, name, help, commonLabels, labels)(f)
           }
         )
       ),
       new HelpStep(help =>
         new MetricDsl(
-          metricRegistry.createAndRegisterDoubleGauge(prefix, name, help, commonLabels),
-          new LabelledMetricPartiallyApplied[F, Double, Gauge.Labelled] {
+          new LabelledMetricPartiallyApplied[F, Double, Gauge] {
             override def apply[B](
                 labels: IndexedSeq[Label.Name]
-            )(f: B => IndexedSeq[String]): Resource[F, Gauge.Labelled[F, Double, B]] =
-              metricRegistry.createAndRegisterLabelledDoubleGauge(prefix, name, help, commonLabels, labels)(f)
+            )(f: B => IndexedSeq[String]): Resource[F, Gauge[F, Double, B]] =
+              metricRegistry.createAndRegisterDoubleGauge(prefix, name, help, commonLabels, labels)(f)
           }
         )
       )
     )
 
-  type CounterDsl[MDsl[_[_], _, _[_[_], _], _[_[_], _, _]], A] = HelpStep[MDsl[F, A, Counter, Counter.Labelled]]
+  type CounterDsl[MDsl[_[_], _, _[_[_], _, _]], A] = HelpStep[MDsl[F, A, Counter]]
 
   /** Starts creating a "counter" metric.
     *
@@ -94,30 +92,27 @@ sealed abstract class MetricFactory[F[_]](
     new TypeStep[CounterDsl[MetricDsl, *]](
       new HelpStep(help =>
         new MetricDsl(
-          metricRegistry.createAndRegisterLongCounter(prefix, name, help, commonLabels),
-          new LabelledMetricPartiallyApplied[F, Long, Counter.Labelled] {
+          new LabelledMetricPartiallyApplied[F, Long, Counter] {
             override def apply[B](
                 labels: IndexedSeq[Label.Name]
-            )(f: B => IndexedSeq[String]): Resource[F, Counter.Labelled[F, Long, B]] =
-              metricRegistry.createAndRegisterLabelledLongCounter(prefix, name, help, commonLabels, labels)(f)
+            )(f: B => IndexedSeq[String]): Resource[F, Counter[F, Long, B]] =
+              metricRegistry.createAndRegisterLongCounter(prefix, name, help, commonLabels, labels)(f)
           }
         )
       ),
       new HelpStep(help =>
         new MetricDsl(
-          metricRegistry.createAndRegisterDoubleCounter(prefix, name, help, commonLabels),
-          new LabelledMetricPartiallyApplied[F, Double, Counter.Labelled] {
+          new LabelledMetricPartiallyApplied[F, Double, Counter] {
             override def apply[B](
                 labels: IndexedSeq[Label.Name]
-            )(f: B => IndexedSeq[String]): Resource[F, Counter.Labelled[F, Double, B]] =
-              metricRegistry.createAndRegisterLabelledDoubleCounter(prefix, name, help, commonLabels, labels)(f)
+            )(f: B => IndexedSeq[String]): Resource[F, Counter[F, Double, B]] =
+              metricRegistry.createAndRegisterDoubleCounter(prefix, name, help, commonLabels, labels)(f)
           }
         )
       )
     )
 
-  type HistogramDsl[MDsl[_[_], _, _[_[_], _], _[_[_], _, _]], A] =
-    HelpStep[BucketDsl[MDsl[F, A, Histogram, Histogram.Labelled], A]]
+  type HistogramDsl[MDsl[_[_], _, _[_[_], _, _]], A] = HelpStep[BucketDsl[MDsl[F, A, Histogram], A]]
 
   /** Starts creating a "histogram" metric.
     *
@@ -132,28 +127,26 @@ sealed abstract class MetricFactory[F[_]](
   def histogram(name: Histogram.Name): TypeStep[HistogramDsl[MetricDsl, *]] =
     new TypeStep[HistogramDsl[MetricDsl, *]](
       new HelpStep(help =>
-        new BucketDsl[MetricDsl[F, Long, Histogram, Histogram.Labelled], Long](buckets =>
+        new BucketDsl[MetricDsl[F, Long, Histogram], Long](buckets =>
           new MetricDsl(
-            metricRegistry.createAndRegisterLongHistogram(prefix, name, help, commonLabels, buckets),
-            new LabelledMetricPartiallyApplied[F, Long, Histogram.Labelled] {
+            new LabelledMetricPartiallyApplied[F, Long, Histogram] {
               override def apply[B](
                   labels: IndexedSeq[Label.Name]
-              )(f: B => IndexedSeq[String]): Resource[F, Histogram.Labelled[F, Long, B]] =
+              )(f: B => IndexedSeq[String]): Resource[F, Histogram[F, Long, B]] =
                 metricRegistry
-                  .createAndRegisterLabelledLongHistogram(prefix, name, help, commonLabels, labels, buckets)(f)
+                  .createAndRegisterLongHistogram(prefix, name, help, commonLabels, labels, buckets)(f)
             }
           )
         )
       ),
       new HelpStep(help =>
-        new BucketDsl[MetricDsl[F, Double, Histogram, Histogram.Labelled], Double](buckets =>
+        new BucketDsl[MetricDsl[F, Double, Histogram], Double](buckets =>
           new MetricDsl(
-            metricRegistry.createAndRegisterDoubleHistogram(prefix, name, help, commonLabels, buckets),
-            new LabelledMetricPartiallyApplied[F, Double, Histogram.Labelled] {
+            new LabelledMetricPartiallyApplied[F, Double, Histogram] {
               override def apply[B](
                   labels: IndexedSeq[Label.Name]
-              )(f: B => IndexedSeq[String]): Resource[F, Histogram.Labelled[F, Double, B]] =
-                metricRegistry.createAndRegisterLabelledDoubleHistogram(
+              )(f: B => IndexedSeq[String]): Resource[F, Histogram[F, Double, B]] =
+                metricRegistry.createAndRegisterDoubleHistogram(
                   prefix,
                   name,
                   help,
@@ -174,14 +167,11 @@ sealed abstract class MetricFactory[F[_]](
       new HelpStep(help =>
         new SummaryDsl[F, Long](
           makeSummary = (quantiles, maxAge, ageBuckets) =>
-            metricRegistry
-              .createAndRegisterLongSummary(prefix, name, help, commonLabels, quantiles, maxAge, ageBuckets),
-          makeLabelledSummary = (quantiles, maxAge, ageBuckets) =>
-            new LabelledMetricPartiallyApplied[F, Long, Summary.Labelled] {
+            new LabelledMetricPartiallyApplied[F, Long, Summary] {
               override def apply[B](
                   labels: IndexedSeq[Label.Name]
-              )(f: B => IndexedSeq[String]): Resource[F, Summary.Labelled[F, Long, B]] =
-                metricRegistry.createAndRegisterLabelledLongSummary(
+              )(f: B => IndexedSeq[String]): Resource[F, Summary[F, Long, B]] =
+                metricRegistry.createAndRegisterLongSummary(
                   prefix,
                   name,
                   help,
@@ -197,14 +187,11 @@ sealed abstract class MetricFactory[F[_]](
       new HelpStep(help =>
         new SummaryDsl[F, Double](
           makeSummary = (quantiles, maxAge, ageBuckets) =>
-            metricRegistry
-              .createAndRegisterDoubleSummary(prefix, name, help, commonLabels, quantiles, maxAge, ageBuckets),
-          makeLabelledSummary = (quantiles, maxAge, ageBuckets) =>
-            new LabelledMetricPartiallyApplied[F, Double, Summary.Labelled] {
+            new LabelledMetricPartiallyApplied[F, Double, Summary] {
               override def apply[B](
                   labels: IndexedSeq[Label.Name]
-              )(f: B => IndexedSeq[String]): Resource[F, Summary.Labelled[F, Double, B]] =
-                metricRegistry.createAndRegisterLabelledDoubleSummary(
+              )(f: B => IndexedSeq[String]): Resource[F, Summary[F, Double, B]] =
+                metricRegistry.createAndRegisterDoubleSummary(
                   prefix,
                   name,
                   help,
@@ -258,7 +245,7 @@ object MetricFactory {
     *   Calling [[MetricFactory.WithCallbacks.mapK]] will return a [[MetricFactory]] only. To change the type of `F` and
     *   return a [[MetricFactory.WithCallbacks]] you must you [[MetricFactory.WithCallbacks.imapK]].
     */
-  sealed abstract class WithCallbacks[F[_]](
+  sealed abstract class WithCallbacks[F[_]: Functor](
       override protected[prometheus4cats] val metricRegistry: MetricRegistry[F],
       private val callbackRegistry: CallbackRegistry[F],
       prefix: Option[Metric.Prefix],
@@ -279,7 +266,7 @@ object MetricFactory {
       commonLabels
     ) {}
 
-    type SimpleCallbackDsl[G[_], A, M[_[_], _], L[_[_], _, _]] = MetricDsl.WithCallbacks[G, A, A, M, L]
+    type SimpleCallbackDsl[G[_], A, H[_[_], _, _]] = MetricDsl.WithCallbacks[G, A, A, H]
 
     /** @inheritdoc
       */
@@ -287,48 +274,40 @@ object MetricFactory {
       new TypeStep[GaugeDsl[SimpleCallbackDsl, *]](
         new HelpStep(help =>
           new MetricDsl.WithCallbacks(
-            metricRegistry.createAndRegisterLongGauge(prefix, name, help, commonLabels),
-            cb => callbackRegistry.registerLongGaugeCallback(prefix, name, help, commonLabels, cb),
-            new LabelledMetricPartiallyApplied[F, Long, Gauge.Labelled] {
+            new LabelledMetricPartiallyApplied[F, Long, Gauge] {
               override def apply[B](
                   labels: IndexedSeq[Label.Name]
-              )(f: B => IndexedSeq[String]): Resource[F, Gauge.Labelled[F, Long, B]] =
-                metricRegistry.createAndRegisterLabelledLongGauge(prefix, name, help, commonLabels, labels)(f)
+              )(f: B => IndexedSeq[String]): Resource[F, Gauge[F, Long, B]] =
+                metricRegistry.createAndRegisterLongGauge(prefix, name, help, commonLabels, labels)(f)
             },
             new LabelledCallbackPartiallyApplied[F, Long] {
               override def apply[B](labels: IndexedSeq[Label.Name], callback: F[NonEmptyList[(Long, B)]])(
                   f: B => IndexedSeq[String]
               ): Resource[F, Unit] =
-                callbackRegistry.registerLabelledLongGaugeCallback(prefix, name, help, commonLabels, labels, callback)(
-                  f
-                )
+                callbackRegistry.registerLongGaugeCallback(prefix, name, help, commonLabels, labels, callback)(f)
             }
           )
         ),
         new HelpStep(help =>
           new MetricDsl.WithCallbacks(
-            metricRegistry.createAndRegisterDoubleGauge(prefix, name, help, commonLabels),
-            cb => callbackRegistry.registerDoubleGaugeCallback(prefix, name, help, commonLabels, cb),
-            new LabelledMetricPartiallyApplied[F, Double, Gauge.Labelled] {
+            new LabelledMetricPartiallyApplied[F, Double, Gauge] {
               override def apply[B](
                   labels: IndexedSeq[Label.Name]
-              )(f: B => IndexedSeq[String]): Resource[F, Gauge.Labelled[F, Double, B]] =
-                metricRegistry.createAndRegisterLabelledDoubleGauge(prefix, name, help, commonLabels, labels)(f)
+              )(f: B => IndexedSeq[String]): Resource[F, Gauge[F, Double, B]] =
+                metricRegistry.createAndRegisterDoubleGauge(prefix, name, help, commonLabels, labels)(f)
             },
             new LabelledCallbackPartiallyApplied[F, Double] {
               override def apply[B](labels: IndexedSeq[Label.Name], callback: F[NonEmptyList[(Double, B)]])(
                   f: B => IndexedSeq[String]
               ): Resource[F, Unit] =
-                callbackRegistry.registerLabelledDoubleGaugeCallback(
+                callbackRegistry.registerDoubleGaugeCallback(
                   prefix,
                   name,
                   help,
                   commonLabels,
                   labels,
                   callback
-                )(
-                  f
-                )
+                )(f)
             }
           )
         )
@@ -340,20 +319,18 @@ object MetricFactory {
       new TypeStep[CounterDsl[SimpleCallbackDsl, *]](
         new HelpStep(help =>
           new MetricDsl.WithCallbacks(
-            metricRegistry.createAndRegisterLongCounter(prefix, name, help, commonLabels),
-            cb => callbackRegistry.registerLongCounterCallback(prefix, name, help, commonLabels, cb),
-            new LabelledMetricPartiallyApplied[F, Long, Counter.Labelled] {
+            new LabelledMetricPartiallyApplied[F, Long, Counter] {
               override def apply[B](
                   labels: IndexedSeq[Label.Name]
-              )(f: B => IndexedSeq[String]): Resource[F, Counter.Labelled[F, Long, B]] =
-                metricRegistry.createAndRegisterLabelledLongCounter(prefix, name, help, commonLabels, labels)(f)
+              )(f: B => IndexedSeq[String]): Resource[F, Counter[F, Long, B]] =
+                metricRegistry.createAndRegisterLongCounter(prefix, name, help, commonLabels, labels)(f)
             },
             new LabelledCallbackPartiallyApplied[F, Long] {
               override def apply[B](labels: IndexedSeq[Label.Name], callback: F[NonEmptyList[(Long, B)]])(
                   f: B => IndexedSeq[String]
               ): Resource[F, Unit] =
                 callbackRegistry
-                  .registerLabelledLongCounterCallback(prefix, name, help, commonLabels, labels, callback)(
+                  .registerLongCounterCallback(prefix, name, help, commonLabels, labels, callback)(
                     f
                   )
             }
@@ -361,90 +338,81 @@ object MetricFactory {
         ),
         new HelpStep(help =>
           new MetricDsl.WithCallbacks(
-            metricRegistry.createAndRegisterDoubleCounter(prefix, name, help, commonLabels),
-            cb => callbackRegistry.registerDoubleCounterCallback(prefix, name, help, commonLabels, cb),
-            new LabelledMetricPartiallyApplied[F, Double, Counter.Labelled] {
+            new LabelledMetricPartiallyApplied[F, Double, Counter] {
               override def apply[B](
                   labels: IndexedSeq[Label.Name]
-              )(f: B => IndexedSeq[String]): Resource[F, Counter.Labelled[F, Double, B]] =
-                metricRegistry.createAndRegisterLabelledDoubleCounter(prefix, name, help, commonLabels, labels)(f)
+              )(f: B => IndexedSeq[String]): Resource[F, Counter[F, Double, B]] =
+                metricRegistry.createAndRegisterDoubleCounter(prefix, name, help, commonLabels, labels)(f)
             },
             new LabelledCallbackPartiallyApplied[F, Double] {
               override def apply[B](labels: IndexedSeq[Label.Name], callback: F[NonEmptyList[(Double, B)]])(
                   f: B => IndexedSeq[String]
               ): Resource[F, Unit] =
-                callbackRegistry.registerLabelledDoubleCounterCallback(
+                callbackRegistry.registerDoubleCounterCallback(
                   prefix,
                   name,
                   help,
                   commonLabels,
                   labels,
                   callback
-                )(
-                  f
-                )
+                )(f)
             }
           )
         )
       )
 
-    type HistogramCallbackDsl[G[_], A, M[_[_], _], L[_[_], _, _]] =
-      MetricDsl.WithCallbacks[G, A, Histogram.Value[A], M, L]
+    type HistogramCallbackDsl[G[_], A, H[_[_], _, _]] =
+      MetricDsl.WithCallbacks[G, A, Histogram.Value[A], H]
 
     /** @inheritdoc
       */
     override def histogram(name: Histogram.Name): TypeStep[HistogramDsl[HistogramCallbackDsl, *]] =
       new TypeStep[HistogramDsl[HistogramCallbackDsl, *]](
         new HelpStep(help =>
-          new BucketDsl[MetricDsl.WithCallbacks[F, Long, Histogram.Value[Long], Histogram, Histogram.Labelled], Long](
-            buckets =>
-              new MetricDsl.WithCallbacks(
-                metricRegistry.createAndRegisterLongHistogram(prefix, name, help, commonLabels, buckets),
-                cb => callbackRegistry.registerLongHistogramCallback(prefix, name, help, commonLabels, buckets, cb),
-                new LabelledMetricPartiallyApplied[F, Long, Histogram.Labelled] {
-                  override def apply[B](
-                      labels: IndexedSeq[Label.Name]
-                  )(f: B => IndexedSeq[String]): Resource[F, Histogram.Labelled[F, Long, B]] =
-                    metricRegistry
-                      .createAndRegisterLabelledLongHistogram(prefix, name, help, commonLabels, labels, buckets)(f)
-                },
-                new LabelledCallbackPartiallyApplied[F, Histogram.Value[Long]] {
-                  override def apply[B](
-                      labels: IndexedSeq[Label.Name],
-                      callback: F[NonEmptyList[(Histogram.Value[Long], B)]]
-                  )(
-                      f: B => IndexedSeq[String]
-                  ): Resource[F, Unit] =
-                    callbackRegistry
-                      .registerLabelledLongHistogramCallback(
-                        prefix,
-                        name,
-                        help,
-                        commonLabels,
-                        labels,
-                        buckets,
-                        callback
-                      )(
-                        f
-                      )
-                }
-              )
+          new BucketDsl[MetricDsl.WithCallbacks[F, Long, Histogram.Value[Long], Histogram], Long](buckets =>
+            new MetricDsl.WithCallbacks(
+              new LabelledMetricPartiallyApplied[F, Long, Histogram] {
+                override def apply[B](
+                    labels: IndexedSeq[Label.Name]
+                )(f: B => IndexedSeq[String]): Resource[F, Histogram[F, Long, B]] =
+                  metricRegistry
+                    .createAndRegisterLongHistogram(prefix, name, help, commonLabels, labels, buckets)(f)
+              },
+              new LabelledCallbackPartiallyApplied[F, Histogram.Value[Long]] {
+                override def apply[B](
+                    labels: IndexedSeq[Label.Name],
+                    callback: F[NonEmptyList[(Histogram.Value[Long], B)]]
+                )(
+                    f: B => IndexedSeq[String]
+                ): Resource[F, Unit] =
+                  callbackRegistry
+                    .registerLongHistogramCallback(
+                      prefix,
+                      name,
+                      help,
+                      commonLabels,
+                      labels,
+                      buckets,
+                      callback
+                    )(
+                      f
+                    )
+              }
+            )
           )
         ),
         new HelpStep(help =>
           new BucketDsl[
-            MetricDsl.WithCallbacks[F, Double, Histogram.Value[Double], Histogram, Histogram.Labelled],
+            MetricDsl.WithCallbacks[F, Double, Histogram.Value[Double], Histogram],
             Double
           ](buckets =>
             new MetricDsl.WithCallbacks(
-              metricRegistry.createAndRegisterDoubleHistogram(prefix, name, help, commonLabels, buckets),
-              cb => callbackRegistry.registerDoubleHistogramCallback(prefix, name, help, commonLabels, buckets, cb),
-              new LabelledMetricPartiallyApplied[F, Double, Histogram.Labelled] {
+              new LabelledMetricPartiallyApplied[F, Double, Histogram] {
                 override def apply[B](
                     labels: IndexedSeq[Label.Name]
-                )(f: B => IndexedSeq[String]): Resource[F, Histogram.Labelled[F, Double, B]] =
+                )(f: B => IndexedSeq[String]): Resource[F, Histogram[F, Double, B]] =
                   metricRegistry
-                    .createAndRegisterLabelledDoubleHistogram(prefix, name, help, commonLabels, labels, buckets)(f)
+                    .createAndRegisterDoubleHistogram(prefix, name, help, commonLabels, labels, buckets)(f)
               },
               new LabelledCallbackPartiallyApplied[F, Histogram.Value[Double]] {
                 override def apply[B](
@@ -454,7 +422,7 @@ object MetricFactory {
                     f: B => IndexedSeq[String]
                 ): Resource[F, Unit] =
                   callbackRegistry
-                    .registerLabelledDoubleHistogramCallback(
+                    .registerDoubleHistogramCallback(
                       prefix,
                       name,
                       help,
@@ -479,15 +447,11 @@ object MetricFactory {
         new HelpStep(help =>
           new SummaryDsl.WithCallbacks[F, Long, Summary.Value[Long]](
             makeSummary = (quantiles, maxAge, ageBuckets) =>
-              metricRegistry
-                .createAndRegisterLongSummary(prefix, name, help, commonLabels, quantiles, maxAge, ageBuckets),
-            makeSummaryCallback = callbackRegistry.registerLongSummaryCallback(prefix, name, help, commonLabels, _),
-            makeLabelledSummary = (quantiles, maxAge, ageBuckets) =>
-              new LabelledMetricPartiallyApplied[F, Long, Summary.Labelled] {
+              new LabelledMetricPartiallyApplied[F, Long, Summary] {
                 override def apply[B](
                     labels: IndexedSeq[Label.Name]
-                )(f: B => IndexedSeq[String]): Resource[F, Summary.Labelled[F, Long, B]] =
-                  metricRegistry.createAndRegisterLabelledLongSummary(
+                )(f: B => IndexedSeq[String]): Resource[F, Summary[F, Long, B]] =
+                  metricRegistry.createAndRegisterLongSummary(
                     prefix,
                     name,
                     help,
@@ -498,14 +462,14 @@ object MetricFactory {
                     ageBuckets
                   )(f)
               },
-            makeLabelledSummaryCallback = new LabelledCallbackPartiallyApplied[F, Summary.Value[Long]] {
+            makeSummaryCallback = new LabelledCallbackPartiallyApplied[F, Summary.Value[Long]] {
               override def apply[B](
                   labels: IndexedSeq[Label.Name],
                   callback: F[NonEmptyList[(Summary.Value[Long], B)]]
               )(
                   f: B => IndexedSeq[String]
               ): Resource[F, Unit] =
-                callbackRegistry.registerLabelledLongSummaryCallback(
+                callbackRegistry.registerLongSummaryCallback(
                   prefix,
                   name,
                   help,
@@ -519,15 +483,11 @@ object MetricFactory {
         new HelpStep(help =>
           new SummaryDsl.WithCallbacks[F, Double, Summary.Value[Double]](
             makeSummary = (quantiles, maxAge, ageBuckets) =>
-              metricRegistry
-                .createAndRegisterDoubleSummary(prefix, name, help, commonLabels, quantiles, maxAge, ageBuckets),
-            makeSummaryCallback = callbackRegistry.registerDoubleSummaryCallback(prefix, name, help, commonLabels, _),
-            makeLabelledSummary = (quantiles, maxAge, ageBuckets) =>
-              new LabelledMetricPartiallyApplied[F, Double, Summary.Labelled] {
+              new LabelledMetricPartiallyApplied[F, Double, Summary] {
                 override def apply[B](
                     labels: IndexedSeq[Label.Name]
-                )(f: B => IndexedSeq[String]): Resource[F, Summary.Labelled[F, Double, B]] =
-                  metricRegistry.createAndRegisterLabelledDoubleSummary(
+                )(f: B => IndexedSeq[String]): Resource[F, Summary[F, Double, B]] =
+                  metricRegistry.createAndRegisterDoubleSummary(
                     prefix,
                     name,
                     help,
@@ -538,14 +498,14 @@ object MetricFactory {
                     ageBuckets
                   )(f)
               },
-            makeLabelledSummaryCallback = new LabelledCallbackPartiallyApplied[F, Summary.Value[Double]] {
+            makeSummaryCallback = new LabelledCallbackPartiallyApplied[F, Summary.Value[Double]] {
               override def apply[B](
                   labels: IndexedSeq[Label.Name],
                   callback: F[NonEmptyList[(Summary.Value[Double], B)]]
               )(
                   f: B => IndexedSeq[String]
               ): Resource[F, Unit] =
-                callbackRegistry.registerLabelledDoubleSummaryCallback(
+                callbackRegistry.registerDoubleSummaryCallback(
                   prefix,
                   name,
                   help,
@@ -583,7 +543,7 @@ object MetricFactory {
   }
 
   object WithCallbacks {
-    def noop[F[_]: Monad]: WithCallbacks[F] =
+    def noop[F[_]: Applicative]: WithCallbacks[F] =
       new WithCallbacks[F](
         MetricRegistry.noop,
         CallbackRegistry.noop,
@@ -594,7 +554,7 @@ object MetricFactory {
 
   /** Create an instance of [[MetricFactory]] that performs no operations
     */
-  def noop[F[_]: Monad]: MetricFactory[F] =
+  def noop[F[_]: Applicative]: MetricFactory[F] =
     new MetricFactory[F](
       MetricRegistry.noop,
       None,
@@ -643,7 +603,7 @@ object MetricFactory {
       * @return
       *   a new [[MetricFactory.WithCallbacks]] instance
       */
-    def build[F[_]](
+    def build[F[_]: Functor](
         metricRegistry: MetricRegistry[F],
         callbackRegistry: CallbackRegistry[F]
     ): MetricFactory.WithCallbacks[F] =
@@ -657,7 +617,9 @@ object MetricFactory {
       * @return
       *   a new [[MetricFactory.WithCallbacks]] instance
       */
-    def build[F[_]](metricRegistry: MetricRegistry[F] with CallbackRegistry[F]): MetricFactory.WithCallbacks[F] =
+    def build[F[_]: Functor](
+        metricRegistry: MetricRegistry[F] with CallbackRegistry[F]
+    ): MetricFactory.WithCallbacks[F] =
       new MetricFactory.WithCallbacks[F](metricRegistry, metricRegistry, prefix, commonLabels) {}
 
     /** Build a [[MetricFactory]] from an existing [[MetricFactory]] and [[CallbackRegistry]]
@@ -669,7 +631,7 @@ object MetricFactory {
       * @return
       *   a new [[MetricFactory.WithCallbacks]] instance
       */
-    def build[F[_]](
+    def build[F[_]: Functor](
         metricFactory: MetricFactory[F],
         callbackRegistry: CallbackRegistry[F]
     ): MetricFactory.WithCallbacks[F] =
@@ -680,7 +642,7 @@ object MetricFactory {
       * @return
       *   a new [[MetricFactory]] instance that performs no operations
       */
-    def noop[F[_]: Monad]: MetricFactory.WithCallbacks[F] =
+    def noop[F[_]: Applicative]: MetricFactory.WithCallbacks[F] =
       MetricFactory.WithCallbacks.noop[F]
   }
 

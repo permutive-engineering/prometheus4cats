@@ -73,6 +73,7 @@ lazy val core = project
       }
       .toList
       .flatten,
+    scalacOptions += "-Wconf:cat=unused-nowarn:s",
     scalacOptions := {
       // Scala 3 macros won't compile with the default Typelevel settings
       if (tlIsScala3.value) Seq("-Ykind-projector") else scalacOptions.value

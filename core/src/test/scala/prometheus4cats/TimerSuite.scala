@@ -31,10 +31,10 @@ import org.scalacheck.{Arbitrary, Gen}
 import scala.concurrent.duration._
 
 class TimerSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
-  val write: Double => WriterT[IO, List[Double], Unit] = d => WriterT.tell[IO, List[Double]](List(d))
+  val write: (Double, Unit) => WriterT[IO, List[Double], Unit] = (d, _: Unit) => WriterT.tell[IO, List[Double]](List(d))
 
   val hist =
-    Timer.fromHistogram(Histogram.make((d, _) => write(d)))
+    Timer.fromHistogram(Histogram.make[WriterT[IO, List[Double], *], Double, Unit]((d, l, _) => write(d, l)))
 
   val gauge =
     Timer.fromGauge(
@@ -49,10 +49,10 @@ class TimerSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
     WriterT.tell[IO, List[(Double, A)]](List(d -> a))
 
   val labelledHistogram =
-    Timer.Labelled.fromHistogram(Histogram.Labelled.make((d, a: String, _) => writeLabels[String](d, a)))
+    Timer.fromHistogram(Histogram.make((d, a: String, _) => writeLabels[String](d, a)))
 
-  val labelledGauge = Timer.Labelled.fromGauge(
-    Gauge.Labelled.make(
+  val labelledGauge = Timer.fromGauge(
+    Gauge.make(
       writeLabels[String],
       writeLabels[String],
       writeLabels[String]
@@ -105,7 +105,7 @@ class TimerSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
             } yield ()
 
           }
-      test(hist.time) >> test(gauge.time)
+      test(hist.time(_)) >> test(gauge.time(_))
     }
   }
 
@@ -131,7 +131,8 @@ class TimerSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
 
           }
 
-      test(labelledHistogram.time) >> test(labelledGauge.time)
+      test { case (fa, labels) => labelledHistogram.time(fa, labels) } >>
+        test { case (fa, labels) => labelledGauge.time(fa, labels) }
     }
   }
 
@@ -194,13 +195,13 @@ class TimerSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
         (d, s) => ref.update(_ :+ (d -> s))
 
       test((ref, s) =>
-        Timer.Labelled
-          .fromHistogram(Histogram.Labelled.make[IO, Double, String]((d, s, _) => ref.update(_ :+ (d -> s))))
+        Timer
+          .fromHistogram(Histogram.make[IO, Double, String]((d, s, _) => ref.update(_ :+ (d -> s))))
           .timeAttempt[String](s)(identity, { case th => th.getMessage })
       ) >> test((ref, s) =>
-        Timer.Labelled
+        Timer
           .fromGauge(
-            Gauge.Labelled.make[IO, Double, String](
+            Gauge.make[IO, Double, String](
               gaugeSet(ref),
               gaugeSet(ref),
               gaugeSet(ref)

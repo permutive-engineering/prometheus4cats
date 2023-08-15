@@ -17,10 +17,11 @@
 package prometheus4cats
 
 import cats.Applicative
-import cats.syntax.show._
-import prometheus4cats.internal.ExemplarLabelNameFromStringLiteral
 
-import java.util.regex.Pattern
+import prometheus4cats.internal.ExemplarLabelNameFromStringLiteral
+import prometheus4cats.internal.Refined
+import prometheus4cats.internal.Refined.Regex
+
 import scala.collection.immutable.SortedMap
 
 /** A typeclass to provide exemplars to counters and histograms, which may be used by [[MetricRegistry]]
@@ -41,17 +42,11 @@ object Exemplar {
 
   /** Refined value class for an exemplar label name that has been parsed from a string
     */
-  final class LabelName private (val value: String) extends AnyVal with internal.Refined.Value[String] {
-    override def toString: String = s"""Exemplar.LabelName("$value")"""
-  }
+  final class LabelName private (val value: String) extends AnyVal with Refined.Value[String]
 
-  object LabelName extends internal.Refined.StringRegexRefinement[LabelName] with ExemplarLabelNameFromStringLiteral {
-    protected val regex: Pattern = "^[a-zA-Z_][a-zA-Z_0-9]*$".r.pattern
-
-    implicit val ordering: Ordering[LabelName] = catsInstances.toOrdering
-
-    override protected def make(a: String): LabelName = new LabelName(a)
-  }
+  object LabelName
+      extends Regex[LabelName]("^[a-zA-Z_][a-zA-Z_0-9]*$".r.pattern, new LabelName(_))
+      with ExemplarLabelNameFromStringLiteral
 
   /** Refined value class for a set of exemplar labels.
     *
@@ -60,11 +55,15 @@ object Exemplar {
     */
   final class Labels private (val value: SortedMap[LabelName, String])
       extends AnyVal
-      with internal.Refined.Value[SortedMap[LabelName, String]] {
-    override def toString: String = s"""Exemplar.Labels("${value.show}")"""
-  }
+      with Refined.Value[SortedMap[LabelName, String]]
 
-  object Labels extends internal.Refined[SortedMap[LabelName, String], Labels] {
+  object Labels
+      extends Refined[SortedMap[LabelName, String], Labels](
+        make = new Labels(_),
+        test = a => a.nonEmpty && a.map { case (k, v) => s"${k.value}$v".length }.sum <= 128,
+        nonMatchMessage = _ =>
+          "exemplar labels must not be empty and the combined length of the label names and values must not exceed 128 UTF-8 characters"
+      ) {
     def of(first: (LabelName, String), rest: (LabelName, String)*): Either[String, Labels] =
       from(rest.foldLeft(SortedMap.empty[LabelName, String].updated(first._1, first._2)) { case (acc, (k, v)) =>
         acc.updated(k, v)
@@ -74,12 +73,5 @@ object Exemplar {
       a.foldLeft(SortedMap.empty[LabelName, String]) { case (acc, (k, v)) => acc.updated(k, v) }
     )
 
-    override protected def make(a: SortedMap[LabelName, String]): Labels = new Labels(a)
-
-    override protected def test(a: SortedMap[LabelName, String]): Boolean =
-      a.nonEmpty && a.map { case (k, v) => s"${k.value}$v".length }.sum <= 128
-
-    override protected def nonMatchMessage(a: SortedMap[LabelName, String]): String =
-      "exemplar labels must not be empty and the combined length of the label names and values must not exceed 128 UTF-8 characters"
   }
 }

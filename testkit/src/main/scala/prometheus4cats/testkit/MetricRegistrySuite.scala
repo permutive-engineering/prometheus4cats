@@ -63,7 +63,9 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
             )
 
             reg
-              .createAndRegisterDoubleCounter(prefix, name, help, commonLabels)
+              .createAndRegisterDoubleCounter(prefix, name, help, commonLabels, IndexedSeq.empty) { (_: Unit) =>
+                IndexedSeq.empty
+              }
               .evalMap(_.inc(incBy))
               .surround(
                 get.map(res => if (incBy >= 0) assertEquals(res, Some(incBy)) else assertEquals(res, Some(0.0)))
@@ -93,7 +95,9 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
             )
 
             reg
-              .createAndRegisterDoubleCounter(prefix, name, help, commonLabels)
+              .createAndRegisterDoubleCounter(prefix, name, help, commonLabels, IndexedSeq.empty) { (_: Unit) =>
+                IndexedSeq.empty
+              }
               .evalMap(_.incWithExemplar(incBy))
               .surround(
                 get.map(res =>
@@ -128,7 +132,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
             )
 
             reg
-              .createAndRegisterLabelledDoubleCounter[Map[Label.Name, String]](
+              .createAndRegisterDoubleCounter[Map[Label.Name, String]](
                 prefix,
                 name,
                 help,
@@ -166,7 +170,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
             )
 
             reg
-              .createAndRegisterLabelledDoubleCounter[Map[Label.Name, String]](
+              .createAndRegisterDoubleCounter[Map[Label.Name, String]](
                 prefix,
                 name,
                 help,
@@ -207,7 +211,9 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
             )
 
             reg
-              .createAndRegisterDoubleGauge(prefix, name, help, commonLabels)
+              .createAndRegisterDoubleGauge(prefix, name, help, commonLabels, IndexedSeq.empty) { (_: Unit) =>
+                IndexedSeq.empty
+              }
               .use(gauge =>
                 for {
                   _ <- gauge.set(set)
@@ -258,7 +264,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
             )
 
             reg
-              .createAndRegisterLabelledDoubleGauge[Map[Label.Name, String]](
+              .createAndRegisterDoubleGauge[Map[Label.Name, String]](
                 prefix,
                 name,
                 help,
@@ -317,7 +323,9 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
             )
 
             reg
-              .createAndRegisterDoubleHistogram(prefix, name, help, commonLabels, buckets)
+              .createAndRegisterDoubleHistogram(prefix, name, help, commonLabels, IndexedSeq.empty, buckets) {
+                (_: Unit) => IndexedSeq.empty
+              }
               .evalMap(_.observe(value))
               .surround(
                 get.map(res => assertEquals(res, Some(expected)))
@@ -365,7 +373,9 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
             )
 
             reg
-              .createAndRegisterDoubleHistogram(prefix, name, help, commonLabels, buckets)
+              .createAndRegisterDoubleHistogram(prefix, name, help, commonLabels, IndexedSeq.empty, buckets) {
+                (_: Unit) => IndexedSeq.empty
+              }
               .evalMap(_.observeWithExemplar(value))
               .surround(
                 get.map(res => assertEquals(res, Some(expected)))
@@ -405,7 +415,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
             )
 
             reg
-              .createAndRegisterLabelledDoubleHistogram[Map[Label.Name, String]](
+              .createAndRegisterDoubleHistogram[Map[Label.Name, String]](
                 prefix,
                 name,
                 help,
@@ -461,7 +471,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
             )
 
             reg
-              .createAndRegisterLabelledDoubleHistogram[Map[Label.Name, String]](
+              .createAndRegisterDoubleHistogram[Map[Label.Name, String]](
                 prefix,
                 name,
                 help,
@@ -499,10 +509,11 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
                 name,
                 help,
                 commonLabels,
+                IndexedSeq.empty,
                 quantiles,
                 age._1 + 1.second,
                 age._2
-              )
+              )((_: Unit) => IndexedSeq.empty)
               .evalTap(_.observe(value))
               .surround(get.map { case (q, count, sum) =>
                 assertEquals(q, Some(quantiles.map(qd => qd.value.value.toString -> value).toMap))
@@ -542,7 +553,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
             )
 
             reg
-              .createAndRegisterLabelledDoubleSummary[Map[Label.Name, String]](
+              .createAndRegisterDoubleSummary[Map[Label.Name, String]](
                 prefix,
                 name,
                 help,
@@ -612,7 +623,10 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
               commonLabels
             )
 
-            val create = reg.createAndRegisterDoubleCounter(prefix, name, help, commonLabels)
+            val create =
+              reg.createAndRegisterDoubleCounter(prefix, name, help, commonLabels, IndexedSeq.empty) { (_: Unit) =>
+                IndexedSeq.empty
+              }
 
             create.use { c =>
               c.inc(1.0) >> create.use_ >> get.map(_.isDefined).assert
@@ -640,7 +654,10 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
               commonLabels
             )
 
-            val create = reg.createAndRegisterDoubleGauge(prefix, name, help, commonLabels)
+            val create =
+              reg.createAndRegisterDoubleGauge(prefix, name, help, commonLabels, IndexedSeq.empty) { (_: Unit) =>
+                IndexedSeq.empty
+              }
 
             create.use { g =>
               g.set(1.0) >> create.use_ >> get.map(_.isDefined).assert
@@ -672,7 +689,10 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
               buckets
             )
 
-            val create = reg.createAndRegisterDoubleHistogram(prefix, name, help, commonLabels, buckets)
+            val create =
+              reg.createAndRegisterDoubleHistogram(prefix, name, help, commonLabels, IndexedSeq.empty, buckets) {
+                (_: Unit) => IndexedSeq.empty
+              }
 
             create.use { h =>
               h.observe(value) >> create.use_ >> get.map(_.isDefined).assert
@@ -703,10 +723,11 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
                 name,
                 help,
                 commonLabels,
+                IndexedSeq.empty,
                 quantiles,
                 age._1 + 1.second,
                 age._2
-              )
+              )((_: Unit) => IndexedSeq.empty)
 
             create.use { s =>
               s.observe(value) >> create.use_ >> get.map(_._2.isDefined).assert
@@ -756,7 +777,10 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
               commonLabels
             )
 
-            val create = reg.createAndRegisterDoubleCounter(prefix, name, help, commonLabels)
+            val create =
+              reg.createAndRegisterDoubleCounter(prefix, name, help, commonLabels, IndexedSeq.empty) { (_: Unit) =>
+                IndexedSeq.empty
+              }
 
             IO.deferred[Unit].flatMap { wait =>
               create.use { c =>
@@ -792,7 +816,10 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
               commonLabels
             )
 
-            val create = reg.createAndRegisterDoubleGauge(prefix, name, help, commonLabels)
+            val create =
+              reg.createAndRegisterDoubleGauge(prefix, name, help, commonLabels, IndexedSeq.empty) { (_: Unit) =>
+                IndexedSeq.empty
+              }
 
             IO.deferred[Unit].flatMap { wait =>
               create.use { g =>
@@ -832,7 +859,10 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
               buckets
             )
 
-            val create = reg.createAndRegisterDoubleHistogram(prefix, name, help, commonLabels, buckets)
+            val create =
+              reg.createAndRegisterDoubleHistogram(prefix, name, help, commonLabels, IndexedSeq.empty, buckets) {
+                (_: Unit) => IndexedSeq.empty
+              }
 
             IO.deferred[Unit].flatMap { wait =>
               create.use { h =>
@@ -871,10 +901,11 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
                 name,
                 help,
                 commonLabels,
+                IndexedSeq.empty,
                 quantiles,
                 age._1 + 1.second,
                 age._2
-              )
+              )((_: Unit) => IndexedSeq.empty)
 
             IO.deferred[Unit].flatMap { wait =>
               create.use { s =>

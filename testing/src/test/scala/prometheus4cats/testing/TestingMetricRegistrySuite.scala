@@ -25,15 +25,21 @@ import scala.concurrent.duration._
 
 class TestingMetricRegistrySuite extends CatsEffectSuite {
 
-  suite[Counter[IO, Double]]("Counter")(
+  suite[Counter[IO, Double, Unit]]("Counter")(
     (reg: TestingMetricRegistry[IO], prefix: Option[Metric.Prefix], name: String, commonLabels: Metric.CommonLabels) =>
-      reg.createAndRegisterDoubleCounter(prefix, Counter.Name.unsafeFrom(name), Metric.Help("help"), commonLabels),
-    (c: Counter[IO, Double], _: Metric.CommonLabels) => (c.inc >> c.inc(2.0), Chain(0.0, 1.0, 3.0)),
+      reg.createAndRegisterDoubleCounter(
+        prefix,
+        Counter.Name.unsafeFrom(name),
+        Metric.Help("help"),
+        commonLabels,
+        IndexedSeq.empty
+      )((_: Unit) => IndexedSeq.empty),
+    (c: Counter[IO, Double, Unit], _: Metric.CommonLabels) => (c.inc >> c.inc(2.0), Chain(0.0, 1.0, 3.0)),
     (reg: TestingMetricRegistry[IO], prefix: Option[Metric.Prefix], name: String, commonLabels: Metric.CommonLabels) =>
       reg.counterHistory(prefix, Counter.Name.unsafeFrom(name), commonLabels)
   )
 
-  labelledSuite[Counter.Labelled[IO, Double, IndexedSeq[String]]]("Counter")(
+  labelledSuite[Counter[IO, Double, IndexedSeq[String]]]("Counter")(
     (
         reg: TestingMetricRegistry[IO],
         prefix: Option[Metric.Prefix],
@@ -41,7 +47,7 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
         commonLabels: Metric.CommonLabels,
         labels: IndexedSeq[Label.Name]
     ) =>
-      reg.createAndRegisterLabelledDoubleCounter(
+      reg.createAndRegisterDoubleCounter(
         prefix,
         Counter.Name.unsafeFrom(name),
         Metric.Help("help"),
@@ -49,7 +55,7 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
         labels
       )(identity[IndexedSeq[String]](_)),
     (
-        c: Counter.Labelled[IO, Double, IndexedSeq[String]],
+        c: Counter[IO, Double, IndexedSeq[String]],
         _: Metric.CommonLabels,
         labels: IndexedSeq[String]
     ) => (c.inc(labels) >> c.inc(2.0, labels), Chain(0.0, 1.0, 3.0)),
@@ -63,16 +69,22 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
     ) => reg.counterHistory(prefix, Counter.Name.unsafeFrom(name), commonLabels, labelNames, labelValues)
   )
 
-  suite[Gauge[IO, Double]]("Gauge")(
+  suite[Gauge[IO, Double, Unit]]("Gauge")(
     (reg: TestingMetricRegistry[IO], prefix: Option[Metric.Prefix], name: String, commonLabels: Metric.CommonLabels) =>
-      reg.createAndRegisterDoubleGauge(prefix, Gauge.Name.unsafeFrom(name), Metric.Help("help"), commonLabels),
-    (g: Gauge[IO, Double], _: Metric.CommonLabels) =>
+      reg.createAndRegisterDoubleGauge(
+        prefix,
+        Gauge.Name.unsafeFrom(name),
+        Metric.Help("help"),
+        commonLabels,
+        IndexedSeq.empty
+      )((_: Unit) => IndexedSeq.empty),
+    (g: Gauge[IO, Double, Unit], _: Metric.CommonLabels) =>
       (g.inc >> g.dec >> g.inc(2.0) >> g.dec(2.0) >> g.set(-1.0) >> g.reset, Chain(0.0, 1.0, 0.0, 2.0, 0.0, -1.0, 0.0)),
     (reg: TestingMetricRegistry[IO], prefix: Option[Metric.Prefix], name: String, commonLabels: Metric.CommonLabels) =>
       reg.gaugeHistory(prefix, Gauge.Name.unsafeFrom(name), commonLabels)
   )
 
-  labelledSuite[Gauge.Labelled[IO, Double, IndexedSeq[String]]]("Gauge")(
+  labelledSuite[Gauge[IO, Double, IndexedSeq[String]]]("Gauge")(
     (
         reg: TestingMetricRegistry[IO],
         prefix: Option[Metric.Prefix],
@@ -80,7 +92,7 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
         commonLabels: Metric.CommonLabels,
         labels: IndexedSeq[Label.Name]
     ) =>
-      reg.createAndRegisterLabelledDoubleGauge(
+      reg.createAndRegisterDoubleGauge(
         prefix,
         Gauge.Name.unsafeFrom(name),
         Metric.Help("help"),
@@ -88,7 +100,7 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
         labels
       )(identity[IndexedSeq[String]](_)),
     (
-        g: Gauge.Labelled[IO, Double, IndexedSeq[String]],
+        g: Gauge[IO, Double, IndexedSeq[String]],
         _: Metric.CommonLabels,
         labels: IndexedSeq[String]
     ) =>
@@ -108,22 +120,23 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
     ) => reg.gaugeHistory(prefix, Gauge.Name.unsafeFrom(name), commonLabels, labelNames, labelValues)
   )
 
-  suite[Histogram[IO, Double]]("Histogram")(
+  suite[Histogram[IO, Double, Unit]]("Histogram")(
     (reg: TestingMetricRegistry[IO], prefix: Option[Metric.Prefix], name: String, commonLabels: Metric.CommonLabels) =>
       reg.createAndRegisterDoubleHistogram(
         prefix,
         Histogram.Name.unsafeFrom(name),
         Metric.Help("help"),
         commonLabels,
+        IndexedSeq.empty,
         NonEmptySeq.of(0.0, 5.0, 10.0)
-      ),
-    (h: Histogram[IO, Double], _: Metric.CommonLabels) =>
+      )((_: Unit) => IndexedSeq.empty),
+    (h: Histogram[IO, Double, Unit], _: Metric.CommonLabels) =>
       (h.observe(1.0) >> h.observe(2.0) >> h.observe(3.0), Chain(1.0, 2.0, 3.0)),
     (reg: TestingMetricRegistry[IO], prefix: Option[Metric.Prefix], name: String, commonLabels: Metric.CommonLabels) =>
       reg.histogramHistory(prefix, Histogram.Name.unsafeFrom(name), commonLabels)
   )
 
-  labelledSuite[Histogram.Labelled[IO, Double, IndexedSeq[String]]]("Histogram")(
+  labelledSuite[Histogram[IO, Double, IndexedSeq[String]]]("Histogram")(
     (
         reg: TestingMetricRegistry[IO],
         prefix: Option[Metric.Prefix],
@@ -131,7 +144,7 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
         commonLabels: Metric.CommonLabels,
         labels: IndexedSeq[Label.Name]
     ) =>
-      reg.createAndRegisterLabelledDoubleHistogram(
+      reg.createAndRegisterDoubleHistogram(
         prefix,
         Histogram.Name.unsafeFrom(name),
         Metric.Help("help"),
@@ -140,7 +153,7 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
         NonEmptySeq.of(0.0, 5.0, 10.0)
       )(identity[IndexedSeq[String]](_)),
     (
-        h: Histogram.Labelled[IO, Double, IndexedSeq[String]],
+        h: Histogram[IO, Double, IndexedSeq[String]],
         _: Metric.CommonLabels,
         labels: IndexedSeq[String]
     ) => (h.observe(1.0, labels) >> h.observe(2.0, labels) >> h.observe(3.0, labels), Chain(1.0, 2.0, 3.0)),
@@ -154,24 +167,25 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
     ) => reg.histogramHistory(prefix, Histogram.Name.unsafeFrom(name), commonLabels, labelNames, labelValues)
   )
 
-  suite[Summary[IO, Double]]("Summary")(
+  suite[Summary[IO, Double, Unit]]("Summary")(
     (reg: TestingMetricRegistry[IO], prefix: Option[Metric.Prefix], name: String, commonLabels: Metric.CommonLabels) =>
       reg.createAndRegisterDoubleSummary(
         prefix,
         Summary.Name.unsafeFrom(name),
         Metric.Help("help"),
         commonLabels,
+        IndexedSeq.empty,
         Seq(Summary.QuantileDefinition(Summary.Quantile(0.5), Summary.AllowedError(0.1))),
         5.seconds,
         Summary.AgeBuckets(5)
-      ),
-    (s: Summary[IO, Double], _: Metric.CommonLabels) =>
+      )((_: Unit) => IndexedSeq.empty),
+    (s: Summary[IO, Double, Unit], _: Metric.CommonLabels) =>
       (s.observe(1.0) >> s.observe(2.0) >> s.observe(3.0), Chain(1.0, 2.0, 3.0)),
     (reg: TestingMetricRegistry[IO], prefix: Option[Metric.Prefix], name: String, commonLabels: Metric.CommonLabels) =>
       reg.summaryHistory(prefix, Summary.Name.unsafeFrom(name), commonLabels)
   )
 
-  labelledSuite[Summary.Labelled[IO, Double, IndexedSeq[String]]]("Summary")(
+  labelledSuite[Summary[IO, Double, IndexedSeq[String]]]("Summary")(
     (
         reg: TestingMetricRegistry[IO],
         prefix: Option[Metric.Prefix],
@@ -179,7 +193,7 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
         commonLabels: Metric.CommonLabels,
         labels: IndexedSeq[Label.Name]
     ) =>
-      reg.createAndRegisterLabelledDoubleSummary(
+      reg.createAndRegisterDoubleSummary(
         prefix,
         Summary.Name.unsafeFrom(name),
         Metric.Help("help"),
@@ -190,7 +204,7 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
         Summary.AgeBuckets(5)
       )(identity[IndexedSeq[String]](_)),
     (
-        s: Summary.Labelled[IO, Double, IndexedSeq[String]],
+        s: Summary[IO, Double, IndexedSeq[String]],
         _: Metric.CommonLabels,
         labels: IndexedSeq[String]
     ) => (s.observe(1.0, labels) >> s.observe(2.0, labels) >> s.observe(3.0, labels), Chain(1.0, 2.0, 3.0)),
@@ -377,8 +391,20 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
     List.range(0, 100).traverse { _ =>
       TestingMetricRegistry[IO].flatMap { reg =>
         (
-          reg.createAndRegisterDoubleCounter(None, Counter.Name("test_total"), Metric.Help("help"), labels),
-          reg.createAndRegisterDoubleGauge(None, Gauge.Name("test_total"), Metric.Help("help"), labels)
+          reg.createAndRegisterDoubleCounter(
+            None,
+            Counter.Name("test_total"),
+            Metric.Help("help"),
+            labels,
+            IndexedSeq.empty
+          )((_: Unit) => IndexedSeq.empty),
+          reg.createAndRegisterDoubleGauge(
+            None,
+            Gauge.Name("test_total"),
+            Metric.Help("help"),
+            labels,
+            IndexedSeq.empty
+          )((_: Unit) => IndexedSeq.empty)
           // TODO improve assertion when we have a common interface across registry implementations for this error
         ).parTupled.use_.intercept[RuntimeException]
       }

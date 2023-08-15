@@ -19,7 +19,7 @@ package prometheus4cats.internal
 import cats.data.NonEmptyList
 import cats.effect.kernel.{Clock, MonadCancelThrow, Resource}
 import cats.syntax.all._
-import cats.{Contravariant, FlatMap, Functor, Monad, MonadThrow, Show}
+import cats.{Contravariant, FlatMap, Functor, Show}
 import prometheus4cats.OutcomeRecorder.Status
 import prometheus4cats._
 
@@ -41,108 +41,98 @@ trait BuildStep[F[_], A] { self =>
 }
 
 object BuildStep {
+
   private[prometheus4cats] def apply[F[_], A](fa: Resource[F, A]): BuildStep[F, A] = new BuildStep[F, A] {
     override def build: Resource[F, A] = fa
   }
 
-  implicit class DoubleGaugeSyntax[F[_]](bs: BuildStep[F, Gauge[F, Double]]) {
-    def asTimer(implicit F: FlatMap[F], clock: Clock[F]): BuildStep[F, Timer.Aux[F, Gauge]] = bs.map(Timer.fromGauge[F])
+  implicit class DoubleGaugeSyntax[F[_]](bs: BuildStep[F, Gauge[F, Double, Unit]]) {
+    def asTimer: BuildStep[F, Timer.Aux[F, Unit, Gauge]] =
+      bs.map(Timer.fromGauge[F, Unit])
 
-    def asCurrentTimeRecorder(implicit F: FlatMap[F], clock: Clock[F]): BuildStep[F, CurrentTimeRecorder[F]] =
+    def asCurrentTimeRecorder(implicit F: FlatMap[F], clock: Clock[F]): BuildStep[F, CurrentTimeRecorder[F, Unit]] =
       asCurrentTimeRecorder(_.toSeconds.toDouble)
 
     def asCurrentTimeRecorder(
         f: FiniteDuration => Double
-    )(implicit F: FlatMap[F], clock: Clock[F]): BuildStep[F, CurrentTimeRecorder[F]] =
+    )(implicit F: FlatMap[F], clock: Clock[F]): BuildStep[F, CurrentTimeRecorder[F, Unit]] =
       bs.map(CurrentTimeRecorder.fromDoubleGauge(_)(f))
   }
 
-  implicit class LongGaugeSyntax[F[_]](bs: BuildStep[F, Gauge[F, Long]]) {
-    def asCurrentTimeRecorder(implicit F: FlatMap[F], clock: Clock[F]): BuildStep[F, CurrentTimeRecorder[F]] =
+  implicit class LongGaugeSyntax[F[_]](bs: BuildStep[F, Gauge[F, Long, Unit]]) {
+    def asCurrentTimeRecorder(implicit F: FlatMap[F], clock: Clock[F]): BuildStep[F, CurrentTimeRecorder[F, Unit]] =
       asCurrentTimeRecorder(_.toSeconds)
 
     def asCurrentTimeRecorder(
         f: FiniteDuration => Long
-    )(implicit F: FlatMap[F], clock: Clock[F]): BuildStep[F, CurrentTimeRecorder[F]] =
+    )(implicit F: FlatMap[F], clock: Clock[F]): BuildStep[F, CurrentTimeRecorder[F, Unit]] =
       bs.map(CurrentTimeRecorder.fromLongGauge(_)(f))
   }
 
-  implicit class DoubleHistogramSyntax[F[_]](bs: BuildStep[F, Histogram[F, Double]]) {
-    def asTimer(implicit F: FlatMap[F], clock: Clock[F]): BuildStep[F, Timer.Aux[F, Histogram]] =
-      bs.map(Timer.fromHistogram[F])
+  implicit class DoubleHistogramSyntax[F[_]](bs: BuildStep[F, Histogram[F, Double, Unit]]) {
+    def asTimer: BuildStep[F, Timer.Aux[F, Unit, Histogram]] =
+      bs.map(Timer.fromHistogram[F, Unit])
 
-    def asExemplarTimer(implicit F: Monad[F], clock: Clock[F]): BuildStep[F, Timer.Exemplar.Aux[F, Histogram]] =
-      bs.map(Timer.Exemplar.fromHistogram[F])
+    def asExemplarTimer: BuildStep[F, Timer.Exemplar.Aux[F, Unit, Histogram]] =
+      bs.map(Timer.Exemplar.fromHistogram[F, Unit])
   }
 
   implicit class DoubleLabelledGaugeSyntax[F[_], A](
-      bs: BuildStep[F, Gauge.Labelled[F, Double, A]]
+      bs: BuildStep[F, Gauge[F, Double, A]]
   ) {
-    def asTimer(implicit F: MonadThrow[F], clock: Clock[F]): BuildStep[F, Timer.Labelled.Aux[F, A, Gauge.Labelled]] =
-      bs.map(Timer.Labelled.fromGauge[F, A])
+    def asTimer: BuildStep[F, Timer.Aux[F, A, Gauge]] =
+      bs.map(Timer.fromGauge[F, A])
 
     def asCurrentTimeRecorder(implicit
         F: FlatMap[F],
         clock: Clock[F]
-    ): BuildStep[F, CurrentTimeRecorder.Labelled[F, A]] = asCurrentTimeRecorder(
+    ): BuildStep[F, CurrentTimeRecorder[F, A]] = asCurrentTimeRecorder(
       _.toSeconds.toDouble
     )
 
     def asCurrentTimeRecorder(
         f: FiniteDuration => Double
-    )(implicit F: FlatMap[F], clock: Clock[F]): BuildStep[F, CurrentTimeRecorder.Labelled[F, A]] =
-      bs.map(CurrentTimeRecorder.Labelled.fromDoubleGauge(_)(f))
+    )(implicit F: FlatMap[F], clock: Clock[F]): BuildStep[F, CurrentTimeRecorder[F, A]] =
+      bs.map(CurrentTimeRecorder.fromDoubleGauge(_)(f))
   }
 
   implicit class LongLabelledGaugeSyntax[F[_], A](
-      bs: BuildStep[F, Gauge.Labelled[F, Long, A]]
+      bs: BuildStep[F, Gauge[F, Long, A]]
   ) {
     def asCurrentTimeRecorder(implicit
         F: FlatMap[F],
         clock: Clock[F]
-    ): BuildStep[F, CurrentTimeRecorder.Labelled[F, A]] = asCurrentTimeRecorder(_.toSeconds)
+    ): BuildStep[F, CurrentTimeRecorder[F, A]] = asCurrentTimeRecorder(_.toSeconds)
 
     def asCurrentTimeRecorder(
         f: FiniteDuration => Long
-    )(implicit F: FlatMap[F], clock: Clock[F]): BuildStep[F, CurrentTimeRecorder.Labelled[F, A]] =
-      bs.map(CurrentTimeRecorder.Labelled.fromLongGauge(_)(f))
+    )(implicit F: FlatMap[F], clock: Clock[F]): BuildStep[F, CurrentTimeRecorder[F, A]] =
+      bs.map(CurrentTimeRecorder.fromLongGauge(_)(f))
   }
 
   implicit class DoubleLabelledHistogramSyntax[F[_], A](
-      bs: BuildStep[F, Histogram.Labelled[F, Double, A]]
+      bs: BuildStep[F, Histogram[F, Double, A]]
   ) {
-    def asTimer(implicit
-        F: MonadThrow[F],
-        clock: Clock[F]
-    ): BuildStep[F, Timer.Labelled.Aux[F, A, Histogram.Labelled]] =
-      bs.map(Timer.Labelled.fromHistogram[F, A])
+    def asTimer: BuildStep[F, Timer.Aux[F, A, Histogram]] =
+      bs.map(Timer.fromHistogram[F, A])
 
-    def asExemplarTimer(implicit
-        F: MonadThrow[F],
-        clock: Clock[F]
-    ): BuildStep[F, Timer.Labelled.Exemplar.Aux[F, A, Histogram.Labelled]] =
-      bs.map(Timer.Labelled.Exemplar.fromHistogram[F, A])
+    def asExemplarTimer: BuildStep[F, Timer.Exemplar.Aux[F, A, Histogram]] =
+      bs.map(Timer.Exemplar.fromHistogram[F, A])
   }
 
-  implicit class DoubleSummarySyntax[F[_]](bs: BuildStep[F, Summary[F, Double]]) {
-    def asTimer(implicit F: FlatMap[F], clock: Clock[F]): BuildStep[F, Timer.Aux[F, Summary]] =
-      bs.map(Timer.fromSummary[F])
+  implicit class DoubleSummarySyntax[F[_]](bs: BuildStep[F, Summary[F, Double, Unit]]) {
+    def asTimer: BuildStep[F, Timer.Aux[F, Unit, Summary]] =
+      bs.map(Timer.fromSummary[F, Unit])
   }
 
   implicit class DoubleLabelledSummarySyntax[F[_], A](
-      bs: BuildStep[F, Summary.Labelled[F, Double, A]]
+      bs: BuildStep[F, Summary[F, Double, A]]
   ) {
-    def asTimer(implicit F: MonadThrow[F], clock: Clock[F]): BuildStep[F, Timer.Labelled.Aux[F, A, Summary.Labelled]] =
-      bs.map(Timer.Labelled.fromSummary[F, A])
+    def asTimer: BuildStep[F, Timer.Aux[F, A, Summary]] =
+      bs.map(Timer.fromSummary[F, A])
   }
 
   type Aux[F[_], M[_], A] = BuildStep[F, M[A]]
-
-  implicit def auxContravariant[F[_], M[_]: Contravariant]: Contravariant[Aux[F, M, *]] =
-    new Contravariant[Aux[F, M, *]] {
-      override def contramap[A, B](fa: Aux[F, M, A])(f: B => A): Aux[F, M, B] =
-        fa.map(_.contramap(f))
-    }
 
   implicit def auxLabelsContravariant[F[_], M[_]: LabelsContravariant]: LabelsContravariant[Aux[F, M, *]] =
     new LabelsContravariant[Aux[F, M, *]] {
@@ -150,12 +140,17 @@ object BuildStep {
         fa.map(LabelsContravariant[M].contramapLabels(_)(f))
     }
 
-  implicit class ContravariantSyntax[F[_], M[_]: Contravariant, A](bs: BuildStep[F, M[A]]) {
-    def contramap[B](f: B => A): BuildStep[F, M[B]] = bs.map(_.contramap(f))
-  }
-
   implicit class LabelsContravariantSyntax[F[_], M[_]: LabelsContravariant, A](bs: BuildStep[F, M[A]]) {
     def contramapLabels[B](f: B => A): BuildStep[F, M[B]] = bs.map(LabelsContravariant[M].contramapLabels(_)(f))
+  }
+
+  implicit def auxContravariant[F[_], M[_]: Contravariant]: Contravariant[Aux[F, M, *]] =
+    new Contravariant[Aux[F, M, *]] {
+      override def contramap[A, B](fa: Aux[F, M, A])(f: B => A): Aux[F, M, B] = fa.map(_.contramap(f))
+    }
+
+  implicit class ContravariantSyntax[F[_], M[_]: Contravariant, A](bs: BuildStep[F, M[A]]) {
+    def contramap[B](f: B => A): BuildStep[F, M[B]] = bs.map(_.contramap(f))
   }
 }
 
@@ -179,12 +174,12 @@ class CallbackBuildStep[F[_], A, B] private[internal] (
   override def build: Resource[F, A] = fa
 }
 
-class MetricDsl[F[_], A, M[_[_], _], L[_[_], _, _]] private[prometheus4cats] (
-    makeMetric: Resource[F, M[F, A]],
-    private[internal] val makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L]
-) extends BuildStep[F, M[F, A]] {
+class MetricDsl[F[_], A, L[_[_], _, _]] private[prometheus4cats] (
+    private[internal] val makeMetric: LabelledMetricPartiallyApplied[F, A, L]
+) extends BuildStep[F, L[F, A, Unit]] {
 
-  override def build: Resource[F, M[F, A]] = makeMetric
+  override def build: Resource[F, L[F, A, Unit]] =
+    makeMetric.apply(IndexedSeq.empty)((_: Unit) => IndexedSeq.empty)
 
   /** Sets the first label of the metric. Requires either a `Show` instance for the label type, or a method converting
     * the label value to a `String`.
@@ -192,7 +187,7 @@ class MetricDsl[F[_], A, M[_[_], _], L[_[_], _, _]] private[prometheus4cats] (
   def label[B]: FirstLabelApply[F, A, B, L] =
     (name, toString) =>
       new LabelledMetricDsl(
-        makeLabelledMetric,
+        makeMetric,
         Sized(name),
         a => Sized(toString(a))
       )
@@ -210,7 +205,7 @@ class MetricDsl[F[_], A, M[_[_], _], L[_[_], _, _]] private[prometheus4cats] (
       labelNames: IndexedSeq[Label.Name]
   ): BuildStep[F, L[F, A, Map[Label.Name, String]]] =
     BuildStep[F, L[F, A, Map[Label.Name, String]]](
-      makeLabelledMetric(
+      makeMetric(
         labelNames
       )(labels => labelNames.flatMap(labels.get))
     )
@@ -246,25 +241,26 @@ class MetricDsl[F[_], A, M[_[_], _], L[_[_], _, _]] private[prometheus4cats] (
   def labels[B, N <: Nat](labelNames: Sized[IndexedSeq[Label.Name], N])(
       f: B => Sized[IndexedSeq[String], N]
   ): LabelsBuildStep[F, A, B, N, L] =
-    new LabelsBuildStep(makeLabelledMetric, labelNames, f)
+    new LabelsBuildStep(makeMetric, labelNames, f)
 }
 
 object MetricDsl {
-  class WithCallbacks[F[_], A, A0, M[_[_], _], L[_[_], _, _]](
-      makeMetric: Resource[F, M[F, A]],
-      makeCallback: F[A0] => Resource[F, Unit],
-      makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L],
-      makeLabelledCallback: LabelledCallbackPartiallyApplied[F, A0]
-  ) extends MetricDsl[F, A, M, L](makeMetric, makeLabelledMetric)
+  class WithCallbacks[F[_]: Functor, A, A0, L[_[_], _, _]](
+      makeMetric: LabelledMetricPartiallyApplied[F, A, L],
+      makeCallback: LabelledCallbackPartiallyApplied[F, A0]
+  ) extends MetricDsl[F, A, L](makeMetric)
       with CallbackStep[F, A0] {
-    override protected def buildCallback: F[A0] => Resource[F, Unit] = makeCallback
+    override protected def buildCallback: F[A0] => Resource[F, Unit] = f =>
+      makeCallback.apply(IndexedSeq.empty, f.map(a => NonEmptyList.of((a, ())))) { (_: Unit) =>
+        IndexedSeq.empty
+      }
 
     override def unsafeLabels(
         labelNames: IndexedSeq[Label.Name]
     ): CallbackBuildStep[F, L[F, A, Map[Label.Name, String]], NonEmptyList[(A0, Map[Label.Name, String])]] =
       new CallbackBuildStep[F, L[F, A, Map[Label.Name, String]], NonEmptyList[(A0, Map[Label.Name, String])]](
-        makeLabelledMetric(labelNames)(labels => labelNames.flatMap(labels.get)),
-        cb => makeLabelledCallback(labelNames, cb)(labels => labelNames.flatMap(labels.get))
+        makeMetric(labelNames)(labels => labelNames.flatMap(labels.get)),
+        cb => makeCallback(labelNames, cb)(labels => labelNames.flatMap(labels.get))
       )
 
     override def unsafeLabels(
@@ -277,7 +273,7 @@ object MetricDsl {
     override def labels[B, N <: Nat](labelNames: Sized[IndexedSeq[Label.Name], N])(
         f: B => Sized[IndexedSeq[String], N]
     ): LabelsBuildStep.WithCallbacks[F, A, A0, B, N, L] =
-      new LabelsBuildStep.WithCallbacks[F, A, A0, B, N, L](makeLabelledMetric, makeLabelledCallback, labelNames, f)
+      new LabelsBuildStep.WithCallbacks[F, A, A0, B, N, L](makeMetric, makeCallback, labelNames, f)
 
     override def label[B]: FirstLabelApply.WithCallbacks[F, A, A0, B, L] =
       new FirstLabelApply.WithCallbacks[F, A, A0, B, L] {
@@ -286,37 +282,43 @@ object MetricDsl {
             toString: B => String
         ): LabelledMetricDsl.WithCallbacks[F, A, A0, B, Nat._1, L] =
           new LabelledMetricDsl.WithCallbacks[F, A, A0, B, Nat._1, L](
-            makeLabelledMetric,
-            makeLabelledCallback,
+            makeMetric,
+            makeCallback,
             Sized(name),
             a => Sized(toString(a))
           )
       }
   }
 
-  implicit class CounterSyntax[F[_], A](dsl: MetricDsl[F, A, Counter, Counter.Labelled]) {
-    def asOutcomeRecorder(implicit F: MonadCancelThrow[F]): BuildStep[F, OutcomeRecorder.Aux[F, A, Counter.Labelled]] =
+  implicit class CounterSyntax[F[_], A](dsl: MetricDsl[F, A, Counter]) {
+    def asOutcomeRecorder: BuildStep[F, OutcomeRecorder.Aux[F, A, Unit, Counter]] =
       BuildStep(
         dsl
-          .makeLabelledMetric[Status](IndexedSeq(Label.Name.outcomeStatus))(status => IndexedSeq(status.show))
-          .map(OutcomeRecorder.fromCounter(_))
+          .makeMetric[Status](IndexedSeq(Label.Name.outcomeStatus))(status => IndexedSeq(status.show))
+          .map(_.contramapLabels[(Unit, OutcomeRecorder.Status)](_._2))
+          .map(OutcomeRecorder.fromCounter)
       )
+
+    def contramap[B](f: B => A): BuildStep[F, Counter[F, B, Unit]] = dsl.map(_.contramap(f))
   }
 
-  implicit class GaugeSyntax[F[_], A](dsl: MetricDsl[F, A, Gauge, Gauge.Labelled]) {
-    def asOutcomeRecorder(implicit F: MonadCancelThrow[F]): BuildStep[F, OutcomeRecorder.Aux[F, A, Gauge.Labelled]] =
+  implicit class GaugeSyntax[F[_], A](dsl: MetricDsl[F, A, Gauge]) {
+    def asOutcomeRecorder(implicit F: MonadCancelThrow[F]): BuildStep[F, OutcomeRecorder.Aux[F, A, Unit, Gauge]] =
       BuildStep(
         dsl
-          .makeLabelledMetric[Status](IndexedSeq(Label.Name.outcomeStatus))(status => IndexedSeq(status.show))
+          .makeMetric[Status](IndexedSeq(Label.Name.outcomeStatus))(status => IndexedSeq(status.show))
+          .map(_.contramapLabels[(Unit, OutcomeRecorder.Status)](_._2))
           .map(OutcomeRecorder.fromGauge(_))
       )
+
+    def contramap[B](f: B => A): BuildStep[F, Gauge[F, B, Unit]] = dsl.map(_.contramap(f))
   }
 }
 
 abstract class BaseLabelsBuildStep[F[_], A, T, N <: Nat, L[_[_], _, _]](
     fa: Resource[F, L[F, A, T]]
 ) extends BuildStep[F, L[F, A, T]] {
-  protected[internal] val makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L]
+  protected[internal] val makeMetric: LabelledMetricPartiallyApplied[F, A, L]
   protected[internal] val labelNames: Sized[IndexedSeq[Label.Name], N]
   protected[internal] val f: T => Sized[IndexedSeq[String], N]
 
@@ -327,62 +329,60 @@ abstract class BaseLabelsBuildStep[F[_], A, T, N <: Nat, L[_[_], _, _]](
 
 object BaseLabelsBuildStep {
   implicit final class CounterSyntax[F[_], A, T, N <: Nat](
-      dsl: BaseLabelsBuildStep[F, A, T, N, Counter.Labelled]
+      dsl: BaseLabelsBuildStep[F, A, T, N, Counter]
   ) {
-    def asOutcomeRecorder(implicit
-        F: MonadCancelThrow[F]
-    ): BuildStep[F, OutcomeRecorder.Labelled.Aux[F, A, T, Counter.Labelled]] = BuildStep(
+    def asOutcomeRecorder: BuildStep[F, OutcomeRecorder.Aux[F, A, T, Counter]] = BuildStep(
       dsl
-        .makeLabelledMetric[(T, Status)](dsl.labelNames.unsized :+ Label.Name.outcomeStatus) { case (t, status) =>
+        .makeMetric[(T, Status)](dsl.labelNames.unsized :+ Label.Name.outcomeStatus) { case (t, status) =>
           dsl.f(t).unsized :+ status.show
         }
-        .map(OutcomeRecorder.Labelled.fromCounter(_))
+        .map(OutcomeRecorder.fromCounter)
     )
 
-    def contramap[B](f: B => A): BuildStep[F, Counter.Labelled[F, B, T]] = dsl.map(_.contramap(f))
+    def contramap[B](f: B => A): BuildStep[F, Counter[F, B, T]] = dsl.map(_.contramap(f))
   }
 
   implicit final class GaugeSyntax[F[_], A, T, N <: Nat](
-      dsl: BaseLabelsBuildStep[F, A, T, N, Gauge.Labelled]
+      dsl: BaseLabelsBuildStep[F, A, T, N, Gauge]
   ) {
     def asOutcomeRecorder(implicit
         F: MonadCancelThrow[F]
-    ): BuildStep[F, OutcomeRecorder.Labelled.Aux[F, A, T, Gauge.Labelled]] = BuildStep(
+    ): BuildStep[F, OutcomeRecorder.Aux[F, A, T, Gauge]] = BuildStep(
       dsl
-        .makeLabelledMetric[(T, Status)](dsl.labelNames.unsized :+ Label.Name.outcomeStatus) { case (t, status) =>
+        .makeMetric[(T, Status)](dsl.labelNames.unsized :+ Label.Name.outcomeStatus) { case (t, status) =>
           dsl.f(t).unsized :+ status.show
         }
-        .map(OutcomeRecorder.Labelled.fromGauge(_))
+        .map(OutcomeRecorder.fromGauge(_))
     )
 
-    def contramap[B](f: B => A): BuildStep[F, Gauge.Labelled[F, B, T]] = dsl.map(_.contramap(f))
+    def contramap[B](f: B => A): BuildStep[F, Gauge[F, B, T]] = dsl.map(_.contramap(f))
   }
 
   implicit final class HistogramSyntax[F[_], A, T, N <: Nat](
-      dsl: BaseLabelsBuildStep[F, A, T, N, Histogram.Labelled]
+      dsl: BaseLabelsBuildStep[F, A, T, N, Histogram]
   ) {
-    def contramap[B](f: B => A): BuildStep[F, Histogram.Labelled[F, B, T]] = dsl.map(_.contramap(f))
+    def contramap[B](f: B => A): BuildStep[F, Histogram[F, B, T]] = dsl.map(_.contramap(f))
   }
 
   implicit final class SummarySyntax[F[_], A, T, N <: Nat](
-      dsl: BaseLabelsBuildStep[F, A, T, N, Summary.Labelled]
+      dsl: BaseLabelsBuildStep[F, A, T, N, Summary]
   ) {
-    def contramap[B](f: B => A): BuildStep[F, Summary.Labelled[F, B, T]] = dsl.map(_.contramap(f))
+    def contramap[B](f: B => A): BuildStep[F, Summary[F, B, T]] = dsl.map(_.contramap(f))
   }
 }
 
 class LabelsBuildStep[F[_], A, T, N <: Nat, L[_[_], _, _]] private[internal] (
-    protected[internal] val makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L],
+    protected[internal] val makeMetric: LabelledMetricPartiallyApplied[F, A, L],
     protected[internal] val labelNames: Sized[IndexedSeq[Label.Name], N],
     protected[internal] val f: T => Sized[IndexedSeq[String], N]
 ) extends BaseLabelsBuildStep[F, A, T, N, L](
-      makeLabelledMetric(labelNames.unsized)(
+      makeMetric(labelNames.unsized)(
         // avoid using andThen because it can be slow and this gets called repeatedly during runtime
         t => f(t).unsized
       )
     ) {
   override def contramapLabels[B](f0: B => T): LabelsBuildStep[F, A, B, N, L] = new LabelsBuildStep[F, A, B, N, L](
-    makeLabelledMetric,
+    makeMetric,
     labelNames,
     b => f(f0(b))
   )
@@ -390,30 +390,30 @@ class LabelsBuildStep[F[_], A, T, N <: Nat, L[_[_], _, _]] private[internal] (
 
 object LabelsBuildStep {
   final class WithCallbacks[F[_], A, A0, T, N <: Nat, L[_[_], _, _]] private[internal] (
-      makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L],
-      makeLabelledCallback: LabelledCallbackPartiallyApplied[F, A0],
+      makeMetric: LabelledMetricPartiallyApplied[F, A, L],
+      makeCallback: LabelledCallbackPartiallyApplied[F, A0],
       labelNames: Sized[IndexedSeq[Label.Name], N],
       f: T => Sized[IndexedSeq[String], N]
   ) extends LabelsBuildStep[F, A, T, N, L](
-        makeLabelledMetric,
+        makeMetric,
         labelNames,
         f
       )
       with CallbackStep[F, NonEmptyList[(A0, T)]] {
     override protected def buildCallback: F[NonEmptyList[(A0, T)]] => Resource[F, Unit] = cb =>
-      makeLabelledCallback(labelNames.unsized, cb)(f(_).unsized)
+      makeCallback(labelNames.unsized, cb)(f(_).unsized)
 
     override def contramapLabels[B](f0: B => T): LabelsBuildStep.WithCallbacks[F, A, A0, B, N, L] =
-      new WithCallbacks(makeLabelledMetric, makeLabelledCallback, labelNames, b => f(f0(b)))
+      new WithCallbacks(makeMetric, makeCallback, labelNames, b => f(f0(b)))
   }
 }
 
 class LabelledMetricDsl[F[_], A, T, N <: Nat, L[_[_], _, _]] private[internal] (
-    protected[internal] val makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L],
+    protected[internal] val makeMetric: LabelledMetricPartiallyApplied[F, A, L],
     protected[internal] val labelNames: Sized[IndexedSeq[Label.Name], N],
     protected[internal] val f: T => Sized[IndexedSeq[String], N]
 ) extends BaseLabelsBuildStep[F, A, T, N, L](
-      makeLabelledMetric(labelNames.unsized)(
+      makeMetric(labelNames.unsized)(
         // avoid using andThen because it can be slow and this gets called repeatedly during runtime
         t => f(t).unsized
       )
@@ -429,7 +429,7 @@ class LabelledMetricDsl[F[_], A, T, N <: Nat, L[_[_], _, _]] private[internal] (
           name: Label.Name,
           toString: B => String
       )(implicit initLast: InitLast.Aux[T, B, C]): LabelledMetricDsl[F, A, C, Succ[N], L] = new LabelledMetricDsl(
-        makeLabelledMetric,
+        makeMetric,
         labelNames :+ name,
         c => f(initLast.init(c)) :+ toString(initLast.last(c))
       )
@@ -437,22 +437,22 @@ class LabelledMetricDsl[F[_], A, T, N <: Nat, L[_[_], _, _]] private[internal] (
     }
 
   override def contramapLabels[B](f0: B => T): LabelledMetricDsl[F, A, B, N, L] = new LabelledMetricDsl(
-    makeLabelledMetric,
+    makeMetric,
     labelNames,
     b => f(f0(b))
   )
 }
 object LabelledMetricDsl {
   final class WithCallbacks[F[_], A, A0, T, N <: Nat, L[_[_], _, _]] private[internal] (
-      makeLabelledMetric: LabelledMetricPartiallyApplied[F, A, L],
-      makeLabelledCallback: LabelledCallbackPartiallyApplied[F, A0],
+      makeMetric: LabelledMetricPartiallyApplied[F, A, L],
+      makeCallback: LabelledCallbackPartiallyApplied[F, A0],
       labelNames: Sized[IndexedSeq[Label.Name], N],
       f: T => Sized[IndexedSeq[String], N]
-  ) extends LabelledMetricDsl[F, A, T, N, L](makeLabelledMetric, labelNames, f)
+  ) extends LabelledMetricDsl[F, A, T, N, L](makeMetric, labelNames, f)
       with CallbackStep[F, NonEmptyList[(A0, T)]] {
 
     override protected def buildCallback: F[NonEmptyList[(A0, T)]] => Resource[F, Unit] = cb =>
-      makeLabelledCallback.apply(labelNames.unsized, cb)(f(_).unsized)
+      makeCallback.apply(labelNames.unsized, cb)(f(_).unsized)
 
     /** @inheritdoc
       */
@@ -463,8 +463,8 @@ object LabelledMetricDsl {
             name: Label.Name,
             toString: B => String
         )(implicit initLast: InitLast.Aux[T, B, C]): WithCallbacks[F, A, A0, C, Succ[N], L] = new WithCallbacks(
-          makeLabelledMetric,
-          makeLabelledCallback,
+          makeMetric,
+          makeCallback,
           labelNames :+ name,
           c => f(initLast.init(c)) :+ toString(initLast.last(c))
         )
@@ -472,7 +472,7 @@ object LabelledMetricDsl {
       }
 
     override def contramapLabels[B](f0: B => T): WithCallbacks[F, A, A0, B, N, L] =
-      new WithCallbacks(makeLabelledMetric, makeLabelledCallback, labelNames, b => f(f0(b)))
+      new WithCallbacks(makeMetric, makeCallback, labelNames, b => f(f0(b)))
   }
 }
 

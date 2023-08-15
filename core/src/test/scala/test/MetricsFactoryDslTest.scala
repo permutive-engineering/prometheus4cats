@@ -21,6 +21,7 @@ import java.math.BigInteger
 import java.util.concurrent.TimeUnit
 
 import cats.effect.IO
+
 import prometheus4cats._
 
 import scala.concurrent.duration._
@@ -34,7 +35,6 @@ object MetricsFactoryDslTest {
   doubleGaugeBuilder.build
   doubleGaugeBuilder.asCurrentTimeRecorder
   doubleGaugeBuilder.asCurrentTimeRecorder(_.toUnit(TimeUnit.NANOSECONDS))
-  doubleGaugeBuilder.contramap[Int](_.toDouble).build
   doubleGaugeBuilder.asTimer.build
   doubleGaugeBuilder.asOutcomeRecorder.build
 
@@ -60,6 +60,8 @@ object MetricsFactoryDslTest {
 
   val counterBuilder = factory.counter("test_total")
 
+  counterBuilder.ofDouble.help("sdfs").build.map(_.inc)
+
   val doubleCounterBuilder = counterBuilder.ofDouble.help("help")
   doubleCounterBuilder.build
   doubleCounterBuilder.asOutcomeRecorder.build
@@ -73,7 +75,12 @@ object MetricsFactoryDslTest {
 
   val longCounterBuilder = counterBuilder.ofLong.help("help")
   longCounterBuilder.build
-  longCounterBuilder.label[String]("label1").label[Int]("label2").label[BigInteger]("label3", _.toString).build
+  longCounterBuilder
+    .label[String]("label1")
+    .label[Int]("label2")
+    .label[BigInteger]("label3", _.toString)
+    .build
+    .map(_.inc(("dsfsf", 1, BigInteger.ONE)))
   longCounterBuilder.unsafeLabels(Label.Name("label1"), Label.Name("label2")).build
 
   val histogramBuilder = factory.histogram("test2")
@@ -98,7 +105,6 @@ object MetricsFactoryDslTest {
   longHistogramBuilder.unsafeLabels(Label.Name("label1"), Label.Name("label2")).build
 
   val infoBuilder = factory.info("test_info").help("help")
-  infoBuilder.contramap[List[(Label.Name, String)]](_.toMap)
   infoBuilder.build
 
   val doubleSummaryBuilder =
