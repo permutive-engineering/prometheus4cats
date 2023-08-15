@@ -140,7 +140,7 @@ unsafeLabelledCounter.build.evalMap(_.inc(3.0, labels))
 #### Simple Metric
 
 ```scala mdoc:silent
-val intCounter: Resource[IO, Counter[IO, Int]] = factory
+val intCounter: Resource[IO, Counter[IO, Int, Unit]] = factory
   .counter("counter_total")
   .ofLong
   .help("Describe what this metric does")
@@ -149,7 +149,7 @@ val intCounter: Resource[IO, Counter[IO, Int]] = factory
 ```
 
 ```scala mdoc:silent
-val shortCounter: Resource[IO, Counter[IO, Short]] = intCounter.map(_.contramap[Short](_.toInt))
+val shortCounter: Resource[IO, Counter[IO, Short, Unit]] = intCounter.map(_.contramap[Short](_.toInt))
 ```
 
 #### Labelled Metric

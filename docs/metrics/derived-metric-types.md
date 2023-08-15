@@ -32,7 +32,7 @@ operations.
 #### Obtaining from a `Histogram`
 
 ```scala mdoc:silent
-val simpleTimerHistogram: Resource[IO, Timer.Aux[IO, Histogram]] = factory
+val simpleTimerHistogram: Resource[IO, Timer.Aux[IO, Unit, Histogram]] = factory
   .histogram("time")
   .ofDouble
   .help("Records the how long an opertation took")
@@ -55,7 +55,7 @@ val labelledTimerHistogram: Resource[IO, Timer.Aux[IO, String, Histogram]] = fac
 #### Obtaining from a `Summary`
 
 ```scala mdoc:silent
-val simpleTimerSummary: Resource[IO, Timer.Aux[IO, Summary]] = factory
+val simpleTimerSummary: Resource[IO, Timer.Aux[IO, Unit, Summary]] = factory
   .summary("time")
   .ofDouble
   .help("Records the how long an opertation took")
@@ -76,7 +76,7 @@ val labelledTimerSummary: Resource[IO, Timer.Aux[IO, String, Summary]] = factory
 #### Obtaining from a `Gauge`
 
 ```scala mdoc:silent
-val simpleTimerGauge: Resource[IO, Timer.Aux[IO, Gauge]] = factory
+val simpleTimerGauge: Resource[IO, Timer.Aux[IO, Unit, Gauge]] = factory
   .gauge("time")
   .ofDouble
   .help("Records the how long an opertation took")
@@ -102,7 +102,7 @@ system time.
 #### Obtaining from a `Gauge`
 
 ```scala mdoc:silent
-val simpleCurrentTimeRecorderGauge: Resource[IO, CurrentTimeRecorder[IO]] = factory
+val simpleCurrentTimeRecorderGauge: Resource[IO, CurrentTimeRecorder[IO, Unit]] = factory
   .gauge("current_time")
   .ofDouble
   .help("Records the how long an opertation took")
@@ -142,7 +142,7 @@ To help disambiguate the difference in behaviour the `OutcomeRecorder` type will
 #### Obtaining from a `Counter`
 
 ```scala mdoc:silent
-val simpleOutcomeCounter: Resource[IO, OutcomeRecorder.Aux[IO, Long, Counter]] = factory
+val simpleOutcomeCounter: Resource[IO, OutcomeRecorder.Aux[IO, Long, Unit, Counter]] = factory
   .counter("outcome_total")
   .ofLong
   .help("Records the outcome of some operation")
@@ -164,7 +164,7 @@ val labelledOutcomeCounter:
 #### Obtaining from a `Gauge`
 
 ```scala mdoc:silent
-val simpleOutcomeGauge: Resource[IO, OutcomeRecorder.Aux[IO, Long, Gauge]] = factory
+val simpleOutcomeGauge: Resource[IO, OutcomeRecorder.Aux[IO, Long, Unit, Gauge]] = factory
   .gauge("outcome")
   .ofLong
   .help("Records the outcome of some operation")

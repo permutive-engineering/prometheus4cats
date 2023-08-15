@@ -19,7 +19,7 @@ package prometheus4cats.internal
 import cats.data.NonEmptyList
 import cats.effect.kernel.{Clock, MonadCancelThrow, Resource}
 import cats.syntax.all._
-import cats.{FlatMap, Functor, Show}
+import cats.{Contravariant, FlatMap, Functor, Show}
 import prometheus4cats.OutcomeRecorder.Status
 import prometheus4cats._
 
@@ -142,6 +142,15 @@ object BuildStep {
 
   implicit class LabelsContravariantSyntax[F[_], M[_]: LabelsContravariant, A](bs: BuildStep[F, M[A]]) {
     def contramapLabels[B](f: B => A): BuildStep[F, M[B]] = bs.map(LabelsContravariant[M].contramapLabels(_)(f))
+  }
+
+  implicit def auxContravariant[F[_], M[_]: Contravariant]: Contravariant[Aux[F, M, *]] =
+    new Contravariant[Aux[F, M, *]] {
+      override def contramap[A, B](fa: Aux[F, M, A])(f: B => A): Aux[F, M, B] = fa.map(_.contramap(f))
+    }
+
+  implicit class ContravariantSyntax[F[_], M[_]: Contravariant, A](bs: BuildStep[F, M[A]]) {
+    def contramap[B](f: B => A): BuildStep[F, M[B]] = bs.map(_.contramap(f))
   }
 }
 
@@ -289,6 +298,8 @@ object MetricDsl {
           .map(_.contramapLabels[(Unit, OutcomeRecorder.Status)](_._2))
           .map(OutcomeRecorder.fromCounter)
       )
+
+    def contramap[B](f: B => A): BuildStep[F, Counter[F, B, Unit]] = dsl.map(_.contramap(f))
   }
 
   implicit class GaugeSyntax[F[_], A](dsl: MetricDsl[F, A, Gauge]) {
@@ -299,6 +310,8 @@ object MetricDsl {
           .map(_.contramapLabels[(Unit, OutcomeRecorder.Status)](_._2))
           .map(OutcomeRecorder.fromGauge(_))
       )
+
+    def contramap[B](f: B => A): BuildStep[F, Gauge[F, B, Unit]] = dsl.map(_.contramap(f))
   }
 }
 
