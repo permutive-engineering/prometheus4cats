@@ -36,8 +36,4 @@ private[prometheus4cats] trait ShapelessPolyfill {
 
   val Succ = shapeless.Succ
 
-  type Sized[+Repr, L <: Nat] = shapeless.Sized[Repr, L]
-
-  val Sized = shapeless.Sized
-
 }

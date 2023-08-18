@@ -21,10 +21,6 @@ import scala.quoted.*
 
 private[prometheus4cats] trait ShapelessPolyfill {
 
-  type Represented[R] = R match {
-    case IndexedSeq[a] => a
-  }
-
   type Nat = Int
 
   object Nat {
@@ -50,24 +46,6 @@ private[prometheus4cats] trait ShapelessPolyfill {
   object GT {
     given gt1[B <: Nat]: GT[S[B], Nat._0] = new GT[S[B], Nat._0] {}
     given gt2[A <: Nat, B <: Nat](using GT[A, B]): GT[S[A], S[B]] = new GT[S[A], S[B]] {}
-  }
-
-  type TupleSized[R, A, N <: Int] <: Tuple = N match {
-    case 0 => EmptyTuple
-    case S[n] => A *: TupleSized[R, A, n]
-  }
-
-  extension [R, A, N <: Int](s: TupleSized[R, A, N]) {
-    def unsized: IndexedSeq[A] =
-      s.productIterator.toIndexedSeq.asInstanceOf[IndexedSeq[A]]
-    def :+(a: A): TupleSized[R, A, N + 1] =
-      (s :* a).asInstanceOf[TupleSized[R, A, N + 1]]
-  }
-
-  type Sized[Repr, L <: Nat] = TupleSized[Repr, Represented[Repr], L]
-
-  object Sized {
-    def apply[A](a1: A): Sized[IndexedSeq[A], 1] = Tuple1(a1)
   }
 
 }
