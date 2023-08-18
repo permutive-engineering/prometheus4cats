@@ -22,6 +22,7 @@ import cats.syntax.all._
 import cats.{Contravariant, FlatMap, Functor, Show}
 import prometheus4cats.OutcomeRecorder.Status
 import prometheus4cats._
+import prometheus4cats.internal.InitLast.Aux
 
 import scala.concurrent.duration.FiniteDuration
 
@@ -237,6 +238,8 @@ class MetricDsl[F[_], A, L[_[_], _, _]] private[prometheus4cats] (
     new LabelledMetricDsl(makeMetric, labelNames, b => labelValues.map(_(b).value))
   }
 
+  def labelsFrom[B](implicit encoder: Label.Encoder[B]): LabelledMetricDsl[F, A, B, L] = labels(encoder.toLabels: _*)
+
 }
 
 object MetricDsl {
@@ -271,6 +274,9 @@ object MetricDsl {
 
       new LabelledMetricDsl.WithCallbacks(makeMetric, makeCallback, labelNames, b => labelValues.map(_(b).value))
     }
+
+    override def labelsFrom[B](implicit encoder: Label.Encoder[B]): LabelledMetricDsl.WithCallbacks[F, A, A0, B, L] =
+      labels(encoder.toLabels: _*)
 
     override def label[B]: FirstLabelApply.WithCallbacks[F, A, A0, B, L] =
       new FirstLabelApply.WithCallbacks[F, A, A0, B, L] {
@@ -458,6 +464,18 @@ class LabelledMetricDsl[F[_], A, T, L[_[_], _, _]] private[internal] (
 
     }
 
+  def labelsFrom[B]: LabelsFromApply[F, A, T, B, L] = new LabelsFromApply[F, A, T, B, L] {
+    override def apply[C](implicit encoder: Label.Encoder[B], initLast: Aux[T, B, C]): LabelledMetricDsl[F, A, C, L] = {
+      val labels = encoder.toLabels
+
+      new LabelledMetricDsl(
+        makeMetric,
+        labelNames ++ labels.map(_._1),
+        c => f(initLast.init(c)) ++ labels.map(_._2(initLast.last(c)).value)
+      )
+    }
+  }
+
   override def contramapLabels[B](f0: B => T): LabelledMetricDsl[F, A, B, L] = new LabelledMetricDsl(
     makeMetric,
     labelNames,
@@ -507,6 +525,23 @@ object LabelledMetricDsl {
           c => f(initLast.init(c)) ++ labels.map(_._2(initLast.last(c)).value)
         )
 
+      }
+
+    override def labelsFrom[B]: LabelsFromApply.WithCallbacks[F, A, A0, T, B, L] =
+      new LabelsFromApply.WithCallbacks[F, A, A0, T, B, L] {
+        override def apply[C](implicit
+            encoder: Label.Encoder[B],
+            initLast: Aux[T, B, C]
+        ): LabelledMetricDsl.WithCallbacks[F, A, A0, C, L] = {
+          val labels = encoder.toLabels
+
+          new LabelledMetricDsl.WithCallbacks(
+            makeMetric,
+            makeCallback,
+            labelNames ++ labels.map(_._1),
+            c => f(initLast.init(c)) ++ labels.map(_._2(initLast.last(c)).value)
+          )
+        }
       }
 
     override def contramapLabels[B](f0: B => T): WithCallbacks[F, A, A0, B, L] =
@@ -595,6 +630,25 @@ object LabelsApply {
   abstract class WithCallbacks[F[_], A, A0, T, B, L[_[_], _, _]] extends LabelsApply[F, A, T, B, L] {
 
     def apply[C](labels: (Label.Name, B => Label.Value)*)(implicit
+        initLast: InitLast.Aux[T, B, C]
+    ): LabelledMetricDsl.WithCallbacks[F, A, A0, C, L]
+
+  }
+
+}
+
+abstract class LabelsFromApply[F[_], A, T, B, L[_[_], _, _]] {
+
+  def apply[C](implicit encoder: Label.Encoder[B], initLast: InitLast.Aux[T, B, C]): LabelledMetricDsl[F, A, C, L]
+
+}
+
+object LabelsFromApply {
+
+  abstract class WithCallbacks[F[_], A, A0, T, B, L[_[_], _, _]] extends LabelsFromApply[F, A, T, B, L] {
+
+    override def apply[C](implicit
+        encoder: Label.Encoder[B],
         initLast: InitLast.Aux[T, B, C]
     ): LabelledMetricDsl.WithCallbacks[F, A, A0, C, L]
 

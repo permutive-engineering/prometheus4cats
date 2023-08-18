@@ -44,12 +44,21 @@ object Label {
 
   object Value extends ValueLowPriority0 {
 
-    implicit def fromString(a: String): Value = new Value(a)
+    def apply(a: String) = new Value(a)
+    implicit def fromString(a: String): Value = apply(a)
 
   }
 
   trait ValueLowPriority0 {
-    implicit def fromShow[A: Show](a: A): Value = Value.fromString(a.show)
+    implicit def fromShow[A: Show](a: A): Value = Value(a.show)
+  }
+
+  trait Encoder[A] {
+    def toLabels: IndexedSeq[(Label.Name, A => Label.Value)]
+  }
+
+  object Encoder {
+    def apply[A: Encoder]: Encoder[A] = implicitly
   }
 
 }
