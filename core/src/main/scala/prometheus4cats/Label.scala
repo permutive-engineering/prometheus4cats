@@ -42,10 +42,14 @@ object Label {
 
   final class Value private (val value: String) extends AnyVal
 
-  object Value {
+  object Value extends ValueLowPriority0 {
 
-    implicit def fromShow[A: Show](a: A): Value = new Value(a.show)
+    implicit def fromString(a: String): Value = new Value(a)
 
+  }
+
+  trait ValueLowPriority0 {
+    implicit def fromShow[A: Show](a: A): Value = Value.fromString(a.show)
   }
 
 }

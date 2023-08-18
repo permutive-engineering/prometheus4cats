@@ -50,7 +50,7 @@ object MetricsFactoryDslTest {
   doubleLabelledGaugeBuilder.asOutcomeRecorder.build
 
   val doubleLabelsGaugeBuilder =
-    doubleGaugeBuilder.labels(Label.Name("test") -> ((s: String) => s)).label[String]("other_label").build
+    doubleGaugeBuilder.labels[String](Label.Name("test") -> (s => s)).label[String]("other_label").build
 
   val longGaugeBuilder = gaugeBuilder.ofLong.help("help")
   longGaugeBuilder.build
