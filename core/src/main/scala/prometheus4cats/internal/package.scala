@@ -218,11 +218,10 @@ class MetricDsl[F[_], A, L[_[_], _, _]] private[prometheus4cats] (
       labelNames: Label.Name*
   ): BuildStep[F, L[F, A, Map[Label.Name, String]]] = unsafeLabels(labelNames.toIndexedSeq)
 
-  /** Creates a metric whose labels comes from a single type. Takes a collection of label name and a function converting
-    * some label object `B` to a string pairs.
+  /** Sets the first labels for a metric coming from a single type. Takes a collection of label name and a function
+    * converting some label object `B` to a string pairs.
     *
-    * This is useful where a single type `B` translates to multiple labels. Once invoked, this cannot be used with the
-    * singular `.label` syntax.
+    * This is useful where a single type `B` translates to multiple labels.
     *
     * @tparam B
     *   type to convert into labels
@@ -231,11 +230,11 @@ class MetricDsl[F[_], A, L[_[_], _, _]] private[prometheus4cats] (
     * @param labelNames
     *   collection of labels name & function to convert `B` in to a label value pairs
     */
-  def labels[B](labels: (Label.Name, B => String)*): LabelsBuildStep[F, A, B, L] = {
+  def labels[B](labels: (Label.Name, B => String)*): LabelledMetricDsl[F, A, B, L] = {
     val labelNames = labels.toIndexedSeq.map(_._1)
     val labelValues = labels.toIndexedSeq.map(_._2)
 
-    new LabelsBuildStep(makeMetric, labelNames, b => labelValues.map(_(b)))
+    new LabelledMetricDsl(makeMetric, labelNames, b => labelValues.map(_(b)))
   }
 
 }
@@ -266,11 +265,11 @@ object MetricDsl {
         labelNames.toIndexedSeq
       )
 
-    override def labels[B](labels: (Label.Name, B => String)*): LabelsBuildStep.WithCallbacks[F, A, A0, B, L] = {
+    override def labels[B](labels: (Label.Name, B => String)*): LabelledMetricDsl.WithCallbacks[F, A, A0, B, L] = {
       val labelNames = labels.toIndexedSeq.map(_._1)
       val labelValues = labels.toIndexedSeq.map(_._2)
 
-      new LabelsBuildStep.WithCallbacks(makeMetric, makeCallback, labelNames, b => labelValues.map(_(b)))
+      new LabelledMetricDsl.WithCallbacks(makeMetric, makeCallback, labelNames, b => labelValues.map(_(b)))
     }
 
     override def label[B]: FirstLabelApply.WithCallbacks[F, A, A0, B, L] =
@@ -434,6 +433,31 @@ class LabelledMetricDsl[F[_], A, T, L[_[_], _, _]] private[internal] (
 
     }
 
+  /** Sets a new set of labels for the metric coming from a single type. Takes a collection of label name and a function
+    * converting some label object `B` to a string pairs.
+    *
+    * This is useful where a single type `B` translates to multiple labels.
+    *
+    * @tparam B
+    *   type to convert into labels
+    * @tparam N
+    *   size of the label collection
+    * @param labelNames
+    *   collection of labels name & function to convert `B` in to a label value pairs
+    */
+  def labels[B]: LabelsApply[F, A, T, B, L] =
+    new LabelsApply[F, A, T, B, L] {
+
+      override def apply[C](
+          labels: (Label.Name, B => String)*
+      )(implicit initLast: InitLast.Aux[T, B, C]): LabelledMetricDsl[F, A, C, L] = new LabelledMetricDsl(
+        makeMetric,
+        labelNames ++ labels.map(_._1),
+        c => f(initLast.init(c)) ++ labels.map(_._2(initLast.last(c)))
+      )
+
+    }
+
   override def contramapLabels[B](f0: B => T): LabelledMetricDsl[F, A, B, L] = new LabelledMetricDsl(
     makeMetric,
     labelNames,
@@ -465,6 +489,22 @@ object LabelledMetricDsl {
           makeCallback,
           labelNames :+ name,
           c => f(initLast.init(c)) :+ toString(initLast.last(c))
+        )
+
+      }
+
+    /** @inheritdoc
+      */
+    override def labels[B]: LabelsApply.WithCallbacks[F, A, A0, T, B, L] =
+      new LabelsApply.WithCallbacks[F, A, A0, T, B, L] {
+
+        override def apply[C](labels: (Label.Name, B => String)*)(implicit
+            initLast: InitLast.Aux[T, B, C]
+        ): WithCallbacks[F, A, A0, C, L] = new WithCallbacks(
+          makeMetric,
+          makeCallback,
+          labelNames ++ labels.map(_._1),
+          c => f(initLast.init(c)) ++ labels.map(_._2(initLast.last(c)))
         )
 
       }
@@ -540,6 +580,26 @@ object LabelApply {
     )(implicit initLast: InitLast.Aux[T, B, C]): LabelledMetricDsl.WithCallbacks[F, A, A0, C, L]
 
   }
+}
+
+abstract class LabelsApply[F[_], A, T, B, L[_[_], _, _]] {
+
+  def apply[C](labels: (Label.Name, B => String)*)(implicit
+      initLast: InitLast.Aux[T, B, C]
+  ): LabelledMetricDsl[F, A, C, L]
+
+}
+
+object LabelsApply {
+
+  abstract class WithCallbacks[F[_], A, A0, T, B, L[_[_], _, _]] extends LabelsApply[F, A, T, B, L] {
+
+    def apply[C](labels: (Label.Name, B => String)*)(implicit
+        initLast: InitLast.Aux[T, B, C]
+    ): LabelledMetricDsl.WithCallbacks[F, A, A0, C, L]
+
+  }
+
 }
 
 trait LabelledMetricPartiallyApplied[F[_], A, L[_[_], _, _]] {
