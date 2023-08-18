@@ -49,7 +49,8 @@ object MetricsFactoryDslTest {
   doubleLabelledGaugeBuilder.asCurrentTimeRecorder(_.toUnit(TimeUnit.NANOSECONDS))
   doubleLabelledGaugeBuilder.asOutcomeRecorder.build
 
-  val doubleLabelsGaugeBuilder = doubleGaugeBuilder.labels(Label.Name("test") -> ((s: String) => s)).build
+  val doubleLabelsGaugeBuilder =
+    doubleGaugeBuilder.labels(Label.Name("test") -> ((s: String) => s)).label[String]("other_label").build
 
   val longGaugeBuilder = gaugeBuilder.ofLong.help("help")
   longGaugeBuilder.build
@@ -77,10 +78,9 @@ object MetricsFactoryDslTest {
   longCounterBuilder.build
   longCounterBuilder
     .label[String]("label1")
-    .label[Int]("label2")
-    .label[BigInteger]("label3", _.toString)
+    .labels[(Int, BigInteger)](("label2", _._1.toString()), ("label3", _._2.toString()))
     .build
-    .map(_.inc(("dsfsf", 1, BigInteger.ONE)))
+    .map(_.inc(("dsfsf", (1, BigInteger.ONE))))
   longCounterBuilder.unsafeLabels(Label.Name("label1"), Label.Name("label2")).build
 
   val histogramBuilder = factory.histogram("test2")
