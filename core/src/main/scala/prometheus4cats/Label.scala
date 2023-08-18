@@ -16,6 +16,9 @@
 
 package prometheus4cats
 
+import cats.Show
+import cats.syntax.all._
+
 import prometheus4cats.internal.LabelNameFromStringLiteral
 import prometheus4cats.internal.Refined
 import prometheus4cats.internal.Refined.Regex
@@ -35,6 +38,27 @@ object Label {
     // prevents macro compilation problems with the status label
     private[prometheus4cats] val outcomeStatus = new Name("outcome_status")
 
+  }
+
+  final class Value private (val value: String) extends AnyVal
+
+  object Value extends ValueLowPriority0 {
+
+    def apply(a: String) = new Value(a)
+    implicit def fromString(a: String): Value = apply(a)
+
+  }
+
+  trait ValueLowPriority0 {
+    implicit def fromShow[A: Show](a: A): Value = Value(a.show)
+  }
+
+  trait Encoder[A] {
+    def toLabels: IndexedSeq[(Label.Name, A => Label.Value)]
+  }
+
+  object Encoder {
+    def apply[A: Encoder]: Encoder[A] = implicitly
   }
 
 }

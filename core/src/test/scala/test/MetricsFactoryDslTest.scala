@@ -50,7 +50,7 @@ object MetricsFactoryDslTest {
   doubleLabelledGaugeBuilder.asOutcomeRecorder.build
 
   val doubleLabelsGaugeBuilder =
-    doubleGaugeBuilder.labels(Label.Name("test") -> ((s: String) => s)).label[String]("other_label").build
+    doubleGaugeBuilder.labels[String](Label.Name("test") -> (s => s)).label[String]("other_label").build
 
   val longGaugeBuilder = gaugeBuilder.ofLong.help("help")
   longGaugeBuilder.build
@@ -74,13 +74,25 @@ object MetricsFactoryDslTest {
   doubleLabelledCounterBuilder.contramap[Int](_.toDouble).build
   doubleLabelledCounterBuilder.asOutcomeRecorder.build
 
+  case class LabelsClass(a: String, b: Long)
+  object LabelsClass {
+    implicit val encoder: Label.Encoder[LabelsClass] = new Label.Encoder[LabelsClass] {
+      override val toLabels: IndexedSeq[(Label.Name, LabelsClass => Label.Value)] =
+        IndexedSeq(
+          Label.Name("a") -> ((lc: LabelsClass) => Label.Value(lc.a)),
+          Label.Name("b") -> ((lc: LabelsClass) => Label.Value.fromShow(lc.b))
+        )
+    }
+  }
+
   val longCounterBuilder = counterBuilder.ofLong.help("help")
   longCounterBuilder.build
   longCounterBuilder
+    .labelsFrom[LabelsClass]
     .label[String]("label1")
-    .labels[(Int, BigInteger)](("label2", _._1.toString()), ("label3", _._2.toString()))
+    .labels[(Int, BigInteger)](("label2", _._1), ("label3", _._2.toString()))
     .build
-    .map(_.inc(("dsfsf", (1, BigInteger.ONE))))
+    .map(_.inc((LabelsClass("sdfds", 22), "dsfsf", (1, BigInteger.ONE))))
   longCounterBuilder.unsafeLabels(Label.Name("label1"), Label.Name("label2")).build
 
   val histogramBuilder = factory.histogram("test2")
