@@ -16,6 +16,9 @@
 
 package prometheus4cats
 
+import cats.Show
+import cats.syntax.all._
+
 import prometheus4cats.internal.LabelNameFromStringLiteral
 import prometheus4cats.internal.Refined
 import prometheus4cats.internal.Refined.Regex
@@ -34,6 +37,14 @@ object Label {
       with LabelNameFromStringLiteral {
     // prevents macro compilation problems with the status label
     private[prometheus4cats] val outcomeStatus = new Name("outcome_status")
+
+  }
+
+  final class Value private (val value: String) extends AnyVal
+
+  object Value {
+
+    implicit def fromShow[A: Show](a: A): Value = new Value(a.show)
 
   }
 

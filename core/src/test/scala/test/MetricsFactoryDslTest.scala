@@ -78,7 +78,7 @@ object MetricsFactoryDslTest {
   longCounterBuilder.build
   longCounterBuilder
     .label[String]("label1")
-    .labels[(Int, BigInteger)](("label2", _._1.toString()), ("label3", _._2.toString()))
+    .labels[(Int, BigInteger)](("label2", _._1), ("label3", _._2.toString()))
     .build
     .map(_.inc(("dsfsf", (1, BigInteger.ONE))))
   longCounterBuilder.unsafeLabels(Label.Name("label1"), Label.Name("label2")).build

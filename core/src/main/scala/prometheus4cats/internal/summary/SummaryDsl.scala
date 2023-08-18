@@ -62,7 +62,7 @@ object SummaryDsl {
         labelNames: Label.Name*
     ): BuildStep[F, Summary[F, A, Map[Label.Name, String]]]
 
-    def labels[B](labels: (Label.Name, B => String)*): LabelledMetricDsl[F, A, B, Summary]
+    def labels[B](labels: (Label.Name, B => Label.Value)*): LabelledMetricDsl[F, A, B, Summary]
   }
 
   private val defaultQuantiles: Seq[Summary.QuantileDefinition] = Seq.empty

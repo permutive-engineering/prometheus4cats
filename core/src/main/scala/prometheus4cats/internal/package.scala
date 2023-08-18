@@ -230,11 +230,11 @@ class MetricDsl[F[_], A, L[_[_], _, _]] private[prometheus4cats] (
     * @param labelNames
     *   collection of labels name & function to convert `B` in to a label value pairs
     */
-  def labels[B](labels: (Label.Name, B => String)*): LabelledMetricDsl[F, A, B, L] = {
+  def labels[B](labels: (Label.Name, B => Label.Value)*): LabelledMetricDsl[F, A, B, L] = {
     val labelNames = labels.toIndexedSeq.map(_._1)
     val labelValues = labels.toIndexedSeq.map(_._2)
 
-    new LabelledMetricDsl(makeMetric, labelNames, b => labelValues.map(_(b)))
+    new LabelledMetricDsl(makeMetric, labelNames, b => labelValues.map(_(b).value))
   }
 
 }
@@ -265,11 +265,11 @@ object MetricDsl {
         labelNames.toIndexedSeq
       )
 
-    override def labels[B](labels: (Label.Name, B => String)*): LabelledMetricDsl.WithCallbacks[F, A, A0, B, L] = {
+    override def labels[B](labels: (Label.Name, B => Label.Value)*): LabelledMetricDsl.WithCallbacks[F, A, A0, B, L] = {
       val labelNames = labels.toIndexedSeq.map(_._1)
       val labelValues = labels.toIndexedSeq.map(_._2)
 
-      new LabelledMetricDsl.WithCallbacks(makeMetric, makeCallback, labelNames, b => labelValues.map(_(b)))
+      new LabelledMetricDsl.WithCallbacks(makeMetric, makeCallback, labelNames, b => labelValues.map(_(b).value))
     }
 
     override def label[B]: FirstLabelApply.WithCallbacks[F, A, A0, B, L] =
@@ -449,11 +449,11 @@ class LabelledMetricDsl[F[_], A, T, L[_[_], _, _]] private[internal] (
     new LabelsApply[F, A, T, B, L] {
 
       override def apply[C](
-          labels: (Label.Name, B => String)*
+          labels: (Label.Name, B => Label.Value)*
       )(implicit initLast: InitLast.Aux[T, B, C]): LabelledMetricDsl[F, A, C, L] = new LabelledMetricDsl(
         makeMetric,
         labelNames ++ labels.map(_._1),
-        c => f(initLast.init(c)) ++ labels.map(_._2(initLast.last(c)))
+        c => f(initLast.init(c)) ++ labels.map(_._2(initLast.last(c)).value)
       )
 
     }
@@ -498,13 +498,13 @@ object LabelledMetricDsl {
     override def labels[B]: LabelsApply.WithCallbacks[F, A, A0, T, B, L] =
       new LabelsApply.WithCallbacks[F, A, A0, T, B, L] {
 
-        override def apply[C](labels: (Label.Name, B => String)*)(implicit
+        override def apply[C](labels: (Label.Name, B => Label.Value)*)(implicit
             initLast: InitLast.Aux[T, B, C]
         ): WithCallbacks[F, A, A0, C, L] = new WithCallbacks(
           makeMetric,
           makeCallback,
           labelNames ++ labels.map(_._1),
-          c => f(initLast.init(c)) ++ labels.map(_._2(initLast.last(c)))
+          c => f(initLast.init(c)) ++ labels.map(_._2(initLast.last(c)).value)
         )
 
       }
@@ -584,7 +584,7 @@ object LabelApply {
 
 abstract class LabelsApply[F[_], A, T, B, L[_[_], _, _]] {
 
-  def apply[C](labels: (Label.Name, B => String)*)(implicit
+  def apply[C](labels: (Label.Name, B => Label.Value)*)(implicit
       initLast: InitLast.Aux[T, B, C]
   ): LabelledMetricDsl[F, A, C, L]
 
@@ -594,7 +594,7 @@ object LabelsApply {
 
   abstract class WithCallbacks[F[_], A, A0, T, B, L[_[_], _, _]] extends LabelsApply[F, A, T, B, L] {
 
-    def apply[C](labels: (Label.Name, B => String)*)(implicit
+    def apply[C](labels: (Label.Name, B => Label.Value)*)(implicit
         initLast: InitLast.Aux[T, B, C]
     ): LabelledMetricDsl.WithCallbacks[F, A, A0, C, L]
 
