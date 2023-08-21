@@ -17,13 +17,11 @@
 // in a different package to the rest of the codebase to verify private annotations work
 package test
 
-import java.math.BigInteger
-import java.util.concurrent.TimeUnit
-
 import cats.effect.IO
-
 import prometheus4cats._
 
+import java.math.BigInteger
+import java.util.concurrent.TimeUnit
 import scala.concurrent.duration._
 
 object MetricsFactoryDslTest {
