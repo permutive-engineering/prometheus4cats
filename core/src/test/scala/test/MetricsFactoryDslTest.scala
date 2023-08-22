@@ -17,15 +17,15 @@
 // in a different package to the rest of the codebase to verify private annotations work
 package test
 
-import cats.effect.IO
+import cats.effect.kernel.{Clock, MonadCancelThrow}
 import prometheus4cats._
 
 import java.math.BigInteger
 import java.util.concurrent.TimeUnit
 import scala.concurrent.duration._
 
-object MetricsFactoryDslTest {
-  val factory: MetricFactory.WithCallbacks[IO] = MetricFactory.builder.withPrefix("prefix").noop[IO]
+class MetricsFactoryDslTest[F[_]: MonadCancelThrow: Clock] {
+  val factory: MetricFactory.WithCallbacks[F] = MetricFactory.builder.withPrefix("prefix").noop[F]
 
   val gaugeBuilder = factory.gauge("test")
 
@@ -64,13 +64,23 @@ object MetricsFactoryDslTest {
   val doubleCounterBuilder = counterBuilder.ofDouble.help("help")
   doubleCounterBuilder.build
   doubleCounterBuilder.asOutcomeRecorder.build
-  doubleCounterBuilder.unsafeLabels(Label.Name("label1"), Label.Name("label2")).build
+  doubleCounterBuilder.unsafeLabels(Label.Name("label1"), Label.Name("label2")).build.map(_.inc(Map.empty))
 
   val doubleLabelledCounterBuilder =
     doubleCounterBuilder.label[String]("label1").label[Int]("label2").label[BigInteger]("label3", _.toString)
-  doubleLabelledCounterBuilder.build
+  doubleLabelledCounterBuilder.build.map(_.inc(("", 1, BigInteger.TEN)))
   doubleLabelledCounterBuilder.contramap[Int](_.toDouble).build
   doubleLabelledCounterBuilder.asOutcomeRecorder.build
+
+  val longLabelledCounterBuilder =
+    counterBuilder.ofLong
+      .help("help")
+      .label[String]("label1")
+      .label[Int]("label2")
+      .label[BigInteger]("label3", _.toString)
+  longLabelledCounterBuilder.build.map(_.inc(("", 1, BigInteger.TEN)))
+  longLabelledCounterBuilder.contramap[Int](_.toLong).build
+  longLabelledCounterBuilder.asOutcomeRecorder.build
 
   case class LabelsClass(a: String, b: Long)
   object LabelsClass {

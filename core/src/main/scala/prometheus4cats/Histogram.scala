@@ -19,29 +19,28 @@ package prometheus4cats
 import cats.data.NonEmptySeq
 import cats.syntax.flatMap._
 import cats.{Applicative, Contravariant, FlatMap, ~>}
-
-import prometheus4cats.internal.Refined
+import prometheus4cats.internal.{Neq, Refined}
 import prometheus4cats.internal.Refined.Regex
 
 sealed abstract class Histogram[F[_], -A, B] extends Metric[A] with Metric.Labelled[B] {
   self =>
 
-  protected def observeWithExemplarImpl(n: A, labels: B, exemplar: Option[Exemplar.Labels]): F[Unit]
+  protected def observeProvidedExemplarImpl(n: A, labels: B, exemplar: Option[Exemplar.Labels]): F[Unit]
 
   def contramap[C](f: C => A): Histogram[F, C, B] = new Histogram[F, C, B] {
-    override def observeWithExemplarImpl(n: C, labels: B, exemplar: Option[Exemplar.Labels]): F[Unit] =
-      self.observeWithExemplarImpl(f(n), labels, exemplar)
+    override def observeProvidedExemplarImpl(n: C, labels: B, exemplar: Option[Exemplar.Labels]): F[Unit] =
+      self.observeProvidedExemplarImpl(f(n), labels, exemplar)
   }
 
   def contramapLabels[C](f: C => B): Histogram[F, A, C] = new Histogram[F, A, C] {
-    override def observeWithExemplarImpl(n: A, labels: C, exemplar: Option[Exemplar.Labels]): F[Unit] =
-      self.observeWithExemplarImpl(n, f(labels), exemplar)
+    override def observeProvidedExemplarImpl(n: A, labels: C, exemplar: Option[Exemplar.Labels]): F[Unit] =
+      self.observeProvidedExemplarImpl(n, f(labels), exemplar)
   }
 
   final def mapK[G[_]](fk: F ~> G): Histogram[G, A, B] =
     new Histogram[G, A, B] {
-      override def observeWithExemplarImpl(n: A, labels: B, exemplar: Option[Exemplar.Labels]): G[Unit] =
-        fk(self.observeWithExemplarImpl(n, labels, exemplar))
+      override def observeProvidedExemplarImpl(n: A, labels: B, exemplar: Option[Exemplar.Labels]): G[Unit] =
+        fk(self.observeProvidedExemplarImpl(n, labels, exemplar))
     }
 
 }
@@ -49,23 +48,23 @@ sealed abstract class Histogram[F[_], -A, B] extends Metric[A] with Metric.Label
 object Histogram {
 
   implicit class HistogramSyntax[F[_], -A](histogram: Histogram[F, A, Unit]) {
-    final def observe(n: A): F[Unit] = observeWithExemplar(n, None)
+    final def observe(n: A): F[Unit] = observeProvidedExemplar(n, None)
 
     final def observeWithExemplar(n: A)(implicit F: FlatMap[F], exemplar: Exemplar[F]): F[Unit] =
-      exemplar.get.flatMap(observeWithExemplar(n, _))
+      exemplar.get.flatMap(observeProvidedExemplar(n, _))
 
-    def observeWithExemplar(n: A, exemplar: Option[Exemplar.Labels]): F[Unit] =
-      histogram.observeWithExemplarImpl(n = n, labels = (), exemplar = exemplar)
+    final def observeProvidedExemplar(n: A, exemplar: Option[Exemplar.Labels]): F[Unit] =
+      histogram.observeProvidedExemplarImpl(n = n, labels = (), exemplar = exemplar)
   }
 
-  implicit class LabelledCounterSyntax[F[_], -A, B](histogram: Histogram[F, A, B])(implicit ev: Unit =:!= B) {
-    final def observe(n: A, labels: B): F[Unit] = observeWithExemplar(n, labels, None)
+  implicit class LabelledCounterSyntax[F[_], -A, B](histogram: Histogram[F, A, B])(implicit ev: Unit Neq B) {
+    final def observe(n: A, labels: B): F[Unit] = observeProvidedExemplar(n, labels, None)
 
     final def observeWithExemplar(n: A, labels: B)(implicit F: FlatMap[F], exemplar: Exemplar[F]): F[Unit] =
-      exemplar.get.flatMap(observeWithExemplar(n, labels, _))
+      exemplar.get.flatMap(observeProvidedExemplar(n, labels, _))
 
-    def observeWithExemplar(n: A, labels: B, exemplar: Option[Exemplar.Labels]): F[Unit] =
-      histogram.observeWithExemplarImpl(n = n, labels = labels, exemplar = exemplar)
+    final def observeProvidedExemplar(n: A, labels: B, exemplar: Option[Exemplar.Labels]): F[Unit] =
+      histogram.observeProvidedExemplarImpl(n = n, labels = labels, exemplar = exemplar)
   }
 
   /** A value that is produced by a histogram
@@ -110,13 +109,13 @@ object Histogram {
       _observe: (A, B, Option[Exemplar.Labels]) => F[Unit]
   ): Histogram[F, A, B] =
     new Histogram[F, A, B] {
-      override def observeWithExemplarImpl(n: A, labels: B, exemplar: Option[Exemplar.Labels]): F[Unit] =
+      override def observeProvidedExemplarImpl(n: A, labels: B, exemplar: Option[Exemplar.Labels]): F[Unit] =
         _observe(n, labels, exemplar)
     }
 
   def noop[F[_]: Applicative, A, B]: Histogram[F, A, B] =
     new Histogram[F, A, B] {
-      override def observeWithExemplarImpl(n: A, labels: B, exemplar: Option[Exemplar.Labels]): F[Unit] =
+      override def observeProvidedExemplarImpl(n: A, labels: B, exemplar: Option[Exemplar.Labels]): F[Unit] =
         Applicative[F].unit
     }
 

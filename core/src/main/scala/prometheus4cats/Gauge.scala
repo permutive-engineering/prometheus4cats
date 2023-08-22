@@ -17,7 +17,7 @@
 package prometheus4cats
 
 import cats.{Applicative, Contravariant, ~>}
-import prometheus4cats.internal.Refined
+import prometheus4cats.internal.{Neq, Refined}
 import prometheus4cats.internal.Refined.Regex
 
 abstract class Gauge[F[_], -A, B] extends Metric[A] with Metric.Labelled[B] {
@@ -103,7 +103,7 @@ object Gauge {
     def reset: F[Unit] = gauge.resetImpl(())
   }
 
-  implicit class LabelledGaugeSyntax[F[_], -A, B](gauge: Gauge[F, A, B])(implicit ev: Unit =:!= B) {
+  implicit class LabelledGaugeSyntax[F[_], -A, B](gauge: Gauge[F, A, B])(implicit ev: Unit Neq B) {
     def inc(labels: B): F[Unit] = gauge.incImpl(labels)
 
     def inc(n: A, labels: B): F[Unit] = gauge.incImpl(n, labels)

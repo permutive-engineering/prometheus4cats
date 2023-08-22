@@ -19,6 +19,7 @@ package prometheus4cats
 import cats.effect.kernel.Clock
 import cats.syntax.flatMap._
 import cats.{FlatMap, ~>}
+import prometheus4cats.internal.Neq
 
 import scala.concurrent.duration.FiniteDuration
 
@@ -46,7 +47,7 @@ object CurrentTimeRecorder {
   }
 
   implicit class LabelledCurrentTimeRecorderSyntax[F[_], A](recorder: CurrentTimeRecorder[F, A])(implicit
-      ev: Unit =:!= A
+      ev: Unit Neq A
   ) {
     def mark(labels: A): F[Unit] = recorder.markImpl(labels)
   }
