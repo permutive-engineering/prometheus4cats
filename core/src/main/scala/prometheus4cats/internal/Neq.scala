@@ -14,6 +14,16 @@
  * limitations under the License.
  */
 
-import prometheus4cats.internal.ShapelessPolyfill
+package prometheus4cats.internal
 
-package object prometheus4cats extends ShapelessPolyfill
+trait Neq[A, B] extends Serializable
+
+object Neq {
+  def unexpected: Nothing = sys.error("Unexpected invocation")
+
+  implicit def neq[A, B]: A Neq B = new Neq[A, B] {}
+
+  implicit def neqAmbig1[A]: A Neq A = unexpected
+
+  implicit def neqAmbig2[A]: A Neq A = unexpected
+}

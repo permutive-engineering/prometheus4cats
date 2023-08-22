@@ -22,6 +22,7 @@ import cats.syntax.either._
 import cats.syntax.flatMap._
 import cats.syntax.functor._
 import cats.{Applicative, FlatMap, MonadThrow, ~>}
+import prometheus4cats.internal.Neq
 
 import java.util.concurrent.TimeUnit
 import scala.concurrent.duration.FiniteDuration
@@ -101,12 +102,13 @@ object Timer {
       * @param fb
       *   operation to be timed
       */
-    final def time[B](fb: F[B])(
-        recordExemplar: (FiniteDuration, B) => Boolean
-    )(implicit F: MonadThrow[F], clock: Clock[F], exemplar: prometheus4cats.Exemplar[F]): F[B] =
-      exemplar.get.flatMap(ex => timeWithExemplar(fb)((dur, b) => if (recordExemplar(dur, b)) ex else None))
 
     final def timeWithExemplar[B](fb: F[B])(
+        recordExemplar: (FiniteDuration, B) => Boolean
+    )(implicit F: MonadThrow[F], clock: Clock[F], exemplar: prometheus4cats.Exemplar[F]): F[B] =
+      exemplar.get.flatMap(ex => timeProvidedExemplar(fb)((dur, b) => if (recordExemplar(dur, b)) ex else None))
+
+    final def timeProvidedExemplar[B](fb: F[B])(
         recordExemplar: (FiniteDuration, B) => Option[prometheus4cats.Exemplar.Labels]
     )(implicit F: MonadThrow[F], clock: Clock[F]): F[B] =
       clock.timed(fb.attempt).flatMap { case (duration, b) =>
@@ -117,7 +119,7 @@ object Timer {
       }
   }
 
-  implicit class LabelledTimerSyntax[F[_], A](timer: Timer[F, A])(implicit ev: Unit =:!= A) {
+  implicit class LabelledTimerSyntax[F[_], A](timer: Timer[F, A])(implicit ev: Unit Neq A) {
     final def recordTime(duration: FiniteDuration, labels: A): F[Unit] = timer.recordTimeImpl(duration, labels, None)
 
     /** Time an operation using an instance of [[cats.effect.kernel.Clock]].
@@ -171,7 +173,7 @@ object Timer {
       } yield res
   }
 
-  implicit class ExemplarLabelledTimerSyntax[F[_], A](timer: Timer.Aux[F, A, Histogram])(implicit ev: Unit =:!= A)
+  implicit class ExemplarLabelledTimerSyntax[F[_], A](timer: Timer.Aux[F, A, Histogram])(implicit ev: Unit Neq A)
       extends LabelledTimerSyntax[F, A](timer) {
     def recordTimeWithExemplar(duration: FiniteDuration, labels: A)(implicit
         F: FlatMap[F],
@@ -194,17 +196,17 @@ object Timer {
       * @param labels
       *   labels to add to the underlying metric
       */
-    final def time[B](fb: F[B], labels: A)(recordExemplar: (FiniteDuration, B, A) => Boolean)(implicit
+    final def timeWithExemplar[B](fb: F[B], labels: A)(recordExemplar: (FiniteDuration, B, A) => Boolean)(implicit
         F: MonadThrow[F],
         clock: Clock[F],
         exemplar: prometheus4cats.Exemplar[F]
     ): F[B] =
-      timeWithComputedLabels(fb)((_: B) => labels, recordExemplar)
+      timeWithComputedLabelsExemplar(fb)((_: B) => labels, recordExemplar)
 
     final def timeWithExemplar[B](fb: F[B], labels: A)(
         recordExemplar: (FiniteDuration, B, A) => Option[prometheus4cats.Exemplar.Labels]
     )(implicit F: MonadThrow[F], clock: Clock[F]): F[B] =
-      timeWithComputedLabelsExemplar(fb)((_: B) => labels, recordExemplar)
+      timeWithComputedLabelsProvidedExemplar(fb)((_: B) => labels, recordExemplar)
 
     /** Time an operation using an instance of [[cats.effect.kernel.Clock]], computing labels from the result.
       *
@@ -213,7 +215,7 @@ object Timer {
       * @param labels
       *   function to convert the result of `fb` to labels
       */
-    final def timeWithComputedLabels[B](
+    final def timeWithComputedLabelsExemplar[B](
         fb: F[B]
     )(labels: B => A, recordExemplar: (FiniteDuration, B, A) => Boolean)(implicit
         F: MonadThrow[F],
@@ -221,10 +223,10 @@ object Timer {
         exemplar: prometheus4cats.Exemplar[F]
     ): F[B] =
       exemplar.get.flatMap(ex =>
-        timeWithComputedLabelsExemplar(fb)(labels, (t, b, a) => ex.filter(_ => recordExemplar(t, b, a)))
+        timeWithComputedLabelsProvidedExemplar(fb)(labels, (t, b, a) => ex.filter(_ => recordExemplar(t, b, a)))
       )
 
-    final def timeWithComputedLabelsExemplar[B](
+    final def timeWithComputedLabelsProvidedExemplar[B](
         fb: F[B]
     )(labels: B => A, recordExemplar: (FiniteDuration, B, A) => Option[prometheus4cats.Exemplar.Labels])(implicit
         F: MonadThrow[F],
@@ -283,7 +285,7 @@ object Timer {
       *   partial function to convert an exception raised on unsuccessful operation of `fb`. If the exception does not
       *   match the provided [[scala.PartialFunction]] then no value will be recorded.
       */
-    final def timeAttemptWithExemplar[B](fb: F[B])(
+    final def timeAttemptProvidedExemplar[B](fb: F[B])(
         labelsSuccess: B => A,
         labelsError: PartialFunction[Throwable, A],
         recordExemplarSuccess: (FiniteDuration, B, A) => Option[prometheus4cats.Exemplar.Labels],
@@ -330,7 +332,7 @@ object Timer {
           labels: A,
           exemplar: Option[prometheus4cats.Exemplar.Labels]
       ): F[Unit] =
-        histogram.observeWithExemplar(duration.toUnit(TimeUnit.SECONDS), labels, exemplar)
+        histogram.observeProvidedExemplar(duration.toUnit(TimeUnit.SECONDS), labels, exemplar)
     }
 
   /** Create a [[Timer]] from a [[Summary]] instance.

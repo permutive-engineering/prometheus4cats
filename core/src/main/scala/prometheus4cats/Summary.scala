@@ -17,8 +17,7 @@
 package prometheus4cats
 
 import cats.{Applicative, Contravariant, ~>}
-
-import prometheus4cats.internal.Refined
+import prometheus4cats.internal.{Neq, Refined}
 import prometheus4cats.internal.Refined.Regex
 
 sealed abstract class Summary[F[_], -A, B] extends Metric[A] with Metric.Labelled[B] {
@@ -46,7 +45,7 @@ object Summary {
     def observe(n: A): F[Unit] = summary.observeImpl(n, ())
   }
 
-  implicit class LabelledSummarySyntax[F[_], -A, B](summary: Summary[F, A, B])(implicit ev: Unit =:!= B) {
+  implicit class LabelledSummarySyntax[F[_], -A, B](summary: Summary[F, A, B])(implicit ev: Unit Neq B) {
     def observe(n: A, labels: B): F[Unit] = summary.observeImpl(n, labels)
   }
 
