@@ -3,7 +3,7 @@ package fix
 import scala.meta._
 import scalafix.v1._
 
-class Prometheus4Cats20 extends SyntacticRule("Prometheus4Cats") {
+class MigrateV2_0 extends SyntacticRule("MigrateV2_0") {
 
   override def fix(implicit doc: SyntacticDocument): Patch = doc.tree.collect {
     // Counter
