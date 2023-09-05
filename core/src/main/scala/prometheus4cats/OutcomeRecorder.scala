@@ -137,7 +137,7 @@ object OutcomeRecorder {
 
     final def surroundWithSampledExemplar[B](
         fb: F[B]
-    )(implicit F: MonadCancelThrow[F], clock: Clock[F], exemplarSampler: CounterExemplarSampler[F, A]): F[B] =
+    )(implicit F: MonadCancelThrow[F], clock: Clock[F], exemplarSampler: ExemplarSampler.Counter[F, A]): F[B] =
       fb.guaranteeCase(recordWithSampledExemplar)
 
     final def surroundProvidedExemplar[C](
@@ -173,7 +173,7 @@ object OutcomeRecorder {
 
     final def recordWithSampledExemplar[B, E](
         outcome: Outcome[F, E, B]
-    )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: CounterExemplarSampler[F, A]): F[Unit] =
+    )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: ExemplarSampler.Counter[F, A]): F[Unit] =
       recorder.exemplarState.surround(exemplar => recordOutcomeProvidedExemplar(outcome, exemplar, exemplar, exemplar))
 
     final def recordOutcomeProvidedExemplar[C, E](
@@ -298,7 +298,7 @@ object OutcomeRecorder {
     final def surroundWithSampledExemplar[C](fb: F[C], labels: A)(implicit
         F: MonadCancelThrow[F],
         clock: Clock[F],
-        exemplarSampler: CounterExemplarSampler[F, B]
+        exemplarSampler: ExemplarSampler.Counter[F, B]
     ): F[C] = fb.guaranteeCase(recordOutcomeWithSampledExemplar(_, labels))
 
     final def surroundProvidedExemplar[C](
@@ -343,7 +343,7 @@ object OutcomeRecorder {
     )(implicit
         F: Monad[F],
         clock: Clock[F],
-        exemplarSampler: CounterExemplarSampler[F, B]
+        exemplarSampler: ExemplarSampler.Counter[F, B]
     ): F[Unit] =
       recorder.exemplarState.surround(next => recordOutcomeProvidedExemplar(outcome, labels, next, next, next))
 
@@ -404,7 +404,7 @@ object OutcomeRecorder {
     )(labelsSuccess: C => A, labelsError: Throwable => A)(implicit
         F: MonadCancelThrow[F],
         clock: Clock[F],
-        exemplarSampler: CounterExemplarSampler[F, B]
+        exemplarSampler: ExemplarSampler.Counter[F, B]
     ): F[C] =
       fb.guaranteeCase(
         recordOutcomeWithComputedLabelsWithExemplar(_, labelsCanceled)(labelsSuccess, labelsError)
@@ -450,7 +450,7 @@ object OutcomeRecorder {
     )(labelsSuccess: C => A, labelsError: E => A)(implicit
         F: Monad[F],
         clock: Clock[F],
-        exemplarSampler: CounterExemplarSampler[F, B]
+        exemplarSampler: ExemplarSampler.Counter[F, B]
     ): F[Unit] =
       recorder.exemplarState
         .surround(exemplar =>

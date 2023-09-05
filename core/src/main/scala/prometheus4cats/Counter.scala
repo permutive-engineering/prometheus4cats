@@ -74,11 +74,11 @@ object Counter {
   sealed trait ExemplarState[F[_]] { self =>
     def surround[A](
         fa: Option[Exemplar.Labels] => F[Unit]
-    )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: CounterExemplarSampler[F, A]): F[Unit]
+    )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: ExemplarSampler.Counter[F, A]): F[Unit]
 
     def surround[A](n: A)(
         fa: Option[Exemplar.Labels] => F[Unit]
-    )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: CounterExemplarSampler[F, A]): F[Unit]
+    )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: ExemplarSampler.Counter[F, A]): F[Unit]
 
     def mapK[G[_]](fk: F ~> G): ExemplarState[G]
   }
@@ -88,7 +88,7 @@ object Counter {
       new ExemplarState[F] {
         override def surround[A](
             fa: Option[Exemplar.Labels] => F[Unit]
-        )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: CounterExemplarSampler[F, A]): F[Unit] =
+        )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: ExemplarSampler.Counter[F, A]): F[Unit] =
           for {
             previous <- get
             next <- exemplarSampler.sample(previous)
@@ -100,7 +100,7 @@ object Counter {
 
         override def surround[A](n: A)(
             fa: Option[Exemplar.Labels] => F[Unit]
-        )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: CounterExemplarSampler[F, A]): F[Unit] =
+        )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: ExemplarSampler.Counter[F, A]): F[Unit] =
           for {
             previous <- get
             next <- exemplarSampler.sample(n, previous)
@@ -118,12 +118,12 @@ object Counter {
     def noop[F[_]]: ExemplarState[F] = new ExemplarState[F] { self =>
       override def surround[A](n: A)(
           fa: Option[Exemplar.Labels] => F[Unit]
-      )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: CounterExemplarSampler[F, A]): F[Unit] =
+      )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: ExemplarSampler.Counter[F, A]): F[Unit] =
         Applicative[F].unit
 
       override def surround[A](
           fa: Option[Exemplar.Labels] => F[Unit]
-      )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: CounterExemplarSampler[F, A]): F[Unit] =
+      )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: ExemplarSampler.Counter[F, A]): F[Unit] =
         Applicative[F].unit
 
       override def mapK[G[_]](fk: F ~> G): ExemplarState[G] = noop[G]
@@ -139,12 +139,12 @@ object Counter {
     final def incWithSampledExemplar(implicit
         F: Monad[F],
         clock: Clock[F],
-        exemplarSampler: CounterExemplarSampler[F, A]
+        exemplarSampler: ExemplarSampler.Counter[F, A]
     ): F[Unit] = counter.exemplarState.surround(incProvidedExemplar)
 
     final def incWithSampledExemplar(
         n: A
-    )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: CounterExemplarSampler[F, A]): F[Unit] =
+    )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: ExemplarSampler.Counter[F, A]): F[Unit] =
       counter.exemplarState.surround(n)(incProvidedExemplar(n, _))
 
     final def incWithExemplar(implicit F: FlatMap[F], exemplar: Exemplar[F]): F[Unit] =
@@ -169,14 +169,14 @@ object Counter {
     final def incWithSampledExemplar(labels: B)(implicit
         F: Monad[F],
         clock: Clock[F],
-        exemplarSampler: CounterExemplarSampler[F, A]
+        exemplarSampler: ExemplarSampler.Counter[F, A]
     ): F[Unit] =
       counter.exemplarState.surround(incProvidedExemplar(labels, _))
 
     final def incWithSampledExemplar(
         n: A,
         labels: B
-    )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: CounterExemplarSampler[F, A]): F[Unit] =
+    )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: ExemplarSampler.Counter[F, A]): F[Unit] =
       counter.exemplarState.surround(n)(incProvidedExemplar(n, labels, _))
 
     final def incWithExemplar(labels: B)(implicit F: FlatMap[F], exemplar: Exemplar[F]): F[Unit] =

@@ -95,7 +95,7 @@ object Timer {
     def recordTimeWithSampledExemplar(duration: FiniteDuration)(implicit
         F: Monad[F],
         clock: Clock[F],
-        exemplarSampler: HistogramExemplarSampler[F, Double]
+        exemplarSampler: ExemplarSampler.Histogram[F, Double]
     ): F[Unit] = timer.exemplarState.surround(duration.toUnit(TimeUnit.SECONDS))(recordTimeWithExemplar(duration, _))
 
     def recordTimeWithExemplar(
@@ -192,7 +192,7 @@ object Timer {
     def recordTimeWithSampledExemplar(duration: FiniteDuration, labels: A)(implicit
         F: Monad[F],
         clock: Clock[F],
-        exemplarSampler: HistogramExemplarSampler[F, Double]
+        exemplarSampler: ExemplarSampler.Histogram[F, Double]
     ): F[Unit] =
       timer.exemplarState.surround(duration.toUnit(TimeUnit.SECONDS))(recordTimeWithExemplar(duration, labels, _))
 
@@ -222,7 +222,7 @@ object Timer {
     final def timeWithSampledExemplar[B](fb: F[B], labels: A)(implicit
         F: Monad[F],
         clock: Clock[F],
-        exemplarSampler: HistogramExemplarSampler[F, Double]
+        exemplarSampler: ExemplarSampler.Histogram[F, Double]
     ): F[B] =
       for {
         durB <- Clock[F].timed(fb)
@@ -257,7 +257,7 @@ object Timer {
     )(labels: B => A)(implicit
         F: MonadThrow[F],
         clock: Clock[F],
-        exemplarSampler: HistogramExemplarSampler[F, Double]
+        exemplarSampler: ExemplarSampler.Histogram[F, Double]
     ): F[B] = for {
       durB <- Clock[F].timed(fb)
       a = labels(durB._2)
@@ -315,7 +315,7 @@ object Timer {
     final def timeAttemptWithSampledExemplar[B](fb: F[B])(
         labelsSuccess: B => A,
         labelsError: PartialFunction[Throwable, A]
-    )(implicit F: MonadThrow[F], clock: Clock[F], exemplarSampler: HistogramExemplarSampler[F, Double]): F[B] =
+    )(implicit F: MonadThrow[F], clock: Clock[F], exemplarSampler: ExemplarSampler.Histogram[F, Double]): F[B] =
       for {
         x <- clock.timed(fb.attempt)
         _ <- timer.exemplarState.surround(x._1.toUnit(TimeUnit.SECONDS))(next =>

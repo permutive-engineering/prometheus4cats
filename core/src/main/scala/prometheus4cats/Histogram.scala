@@ -59,7 +59,7 @@ object Histogram {
     self =>
     def surround[A](n: A)(
         fa: Option[Exemplar.Labels] => F[Unit]
-    )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: HistogramExemplarSampler[F, A]): F[Unit]
+    )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: ExemplarSampler.Histogram[F, A]): F[Unit]
 
     def mapK[G[_]](fk: F ~> G): ExemplarState[G]
   }
@@ -73,7 +73,7 @@ object Histogram {
       new ExemplarState[F] {
         override def surround[A](n: A)(
             fa: Option[Exemplar.Labels] => F[Unit]
-        )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: HistogramExemplarSampler[F, A]): F[Unit] =
+        )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: ExemplarSampler.Histogram[F, A]): F[Unit] =
           for {
             previous <- get
             next <- exemplarSampler.sample(n, buckets, previous)
@@ -93,7 +93,7 @@ object Histogram {
       self =>
       override def surround[A](n: A)(
           fa: Option[Exemplar.Labels] => F[Unit]
-      )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: HistogramExemplarSampler[F, A]): F[Unit] =
+      )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: ExemplarSampler.Histogram[F, A]): F[Unit] =
         Applicative[F].unit
 
       override def mapK[G[_]](fk: F ~> G): ExemplarState[G] = noop[G]
@@ -106,7 +106,7 @@ object Histogram {
 
     final def observeWithSampledExemplar(
         n: A
-    )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: HistogramExemplarSampler[F, A]): F[Unit] =
+    )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: ExemplarSampler.Histogram[F, A]): F[Unit] =
       histogram.exemplarState.surround(n)(observeProvidedExemplar(n, _))
 
     final def observeWithExemplar(n: A)(implicit F: FlatMap[F], exemplar: Exemplar[F]): F[Unit] =
@@ -122,7 +122,7 @@ object Histogram {
     final def observeWithSampledExemplar(
         n: A,
         labels: B
-    )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: HistogramExemplarSampler[F, A]): F[Unit] =
+    )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: ExemplarSampler.Histogram[F, A]): F[Unit] =
       histogram.exemplarState.surround(n)(observeProvidedExemplar(n, labels, _))
 
     final def observeWithExemplar(n: A, labels: B)(implicit F: FlatMap[F], exemplar: Exemplar[F]): F[Unit] =
