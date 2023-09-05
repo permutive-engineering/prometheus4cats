@@ -57,7 +57,7 @@ import scala.concurrent.duration.FiniteDuration
 import scala.jdk.CollectionConverters._
 
 private[javasimpleclient] class MetricCollectionProcessor[F[_]: Async: Logger] private (
-    ref: Ref[F, State],
+    ref: Ref[F, State[F]],
     callbacks: Ref[F, CallbackState[F]],
     collectionCallbackRef: Ref[F, Map[Option[
       Metric.Prefix

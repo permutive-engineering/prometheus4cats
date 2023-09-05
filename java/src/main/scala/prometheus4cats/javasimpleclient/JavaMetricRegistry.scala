@@ -159,7 +159,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
             case Some((`metricId`, (_, _, 1))) =>
               ref.set(metrics - fullName) >> Utils.unregister(collector, registry)
             case Some((`metricId`, (collector, exemplarRef, references))) =>
-              ref.set(metrics.updated(fullName, (metricId, exemplarRef, collector -> (references - 1))))
+              ref.set(metrics.updated(fullName, (metricId, (collector, exemplarRef, references - 1))))
             case _ => Applicative[F].unit
           }
         }
@@ -186,7 +186,8 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       labelNames ++ commonLabelNames
     ).map { case (counter, exemplarRef) =>
       Counter.make(
-        exemplarRef,
+        exemplarRef.get,
+        ex => exemplarRef.set(Some(ex)),
         1.0,
         (
             d: Double,
