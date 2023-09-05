@@ -19,9 +19,7 @@ package prometheus4cats
 import cats.effect.kernel.syntax.monadCancel._
 import cats.effect.kernel.{Clock, MonadCancelThrow, Outcome}
 import cats.syntax.flatMap._
-import cats.syntax.foldable._
-import cats.syntax.functor._
-import cats.{Applicative, FlatMap, Monad, Show, ~>}
+import cats.{FlatMap, Monad, Show, ~>}
 import prometheus4cats.internal.Neq
 
 /** A derived metric type that records the outcome of an operation. See [[OutcomeRecorder.fromCounter]] and
