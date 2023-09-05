@@ -17,16 +17,24 @@
 package prometheus4cats
 
 import cats.syntax.flatMap._
-import cats.{Applicative, Contravariant, FlatMap, ~>}
+import cats.syntax.functor._
+import cats.{Applicative, Contravariant, FlatMap, Functor, ~>}
 import prometheus4cats.internal.{Neq, Refined}
 import prometheus4cats.internal.Refined.Regex
 
 sealed abstract class Counter[F[_], -A, B] extends Metric[A] with Metric.Labelled[B] {
   self =>
 
-  protected def incProvidedExemplarImpl(labels: B, exemplar: Option[Exemplar.Labels]): F[Unit]
+  protected def incProvidedExemplarImpl(
+      labels: B,
+      exemplar: Option[Exemplar.Labels]
+  ): F[Option[Exemplar.Data] => F[Unit]]
 
-  protected def incProvidedExemplarImpl(n: A, labels: B, exemplar: Option[Exemplar.Labels]): F[Unit]
+  protected def incProvidedExemplarImpl(
+      n: A,
+      labels: B,
+      exemplar: Either[Option[Exemplar.Data] => F[Option[Exemplar.Labels]], Option[Exemplar.Labels]]
+  ): F[Unit]
 
   def contramap[C](f: C => A): Counter[F, C, B] = new Counter[F, C, B] {
     override def incProvidedExemplarImpl(labels: B, exemplar: Option[Exemplar.Labels]): F[Unit] =
@@ -43,10 +51,13 @@ sealed abstract class Counter[F[_], -A, B] extends Metric[A] with Metric.Labelle
       self.incProvidedExemplarImpl(n, f(labels), exemplar)
   }
 
-  final def mapK[G[_]](fk: F ~> G): Counter[G, A, B] =
+  final def mapK[G[_]: Functor](fk: F ~> G): Counter[G, A, B] =
     new Counter[G, A, B] {
-      override def incProvidedExemplarImpl(labels: B, exemplar: Option[Exemplar.Labels]): G[Unit] =
-        fk(self.incProvidedExemplarImpl(labels, exemplar))
+      override def incProvidedExemplarImpl(
+          labels: B,
+          exemplar: Option[Exemplar.Labels]
+      ): G[Option[Exemplar.Data] => G[Unit]] =
+        fk(self.incProvidedExemplarImpl(labels, exemplar)).map(x => x.andThen(fk.apply))
 
       override def incProvidedExemplarImpl(n: A, labels: B, exemplar: Option[Exemplar.Labels]): G[Unit] =
         fk(self.incProvidedExemplarImpl(n, labels, exemplar))
@@ -55,10 +66,14 @@ sealed abstract class Counter[F[_], -A, B] extends Metric[A] with Metric.Labelle
 
 object Counter {
 
-  implicit class CounterSyntax[F[_], -A](counter: Counter[F, A, Unit]) {
-    final def inc: F[Unit] = incProvidedExemplar(None)
+  implicit class CounterSyntax[F[_], -A](counter: Counter[F, A, Unit])(implicit
+      exemplarSampler: CounterExemplarSampler[F, A]
+  ) {
+    final def inc: F[Unit] =
+      counter.incProvidedExemplarImpl((), Left((data: Option[Exemplar.Data]) => exemplarSampler.sample(data)))
 
-    final def inc(n: A): F[Unit] = incProvidedExemplar(n, None)
+    final def inc(n: A): F[Unit] =
+      counter.incProvidedExemplarImpl((), Left((data: Option[Exemplar.Data]) => exemplarSampler.sample(n, data)))
 
     final def incWithExemplar(implicit F: FlatMap[F], exemplar: Exemplar[F]): F[Unit] =
       exemplar.get.flatMap(incProvidedExemplar)
@@ -67,15 +82,20 @@ object Counter {
       exemplar.get.flatMap(incProvidedExemplar(n, _))
 
     final def incProvidedExemplar(exemplar: Option[Exemplar.Labels]): F[Unit] =
-      counter.incProvidedExemplarImpl((), exemplar)
+      counter.incProvidedExemplarImpl((), Right(exemplar))
     final def incProvidedExemplar(n: A, exemplar: Option[Exemplar.Labels]): F[Unit] =
-      counter.incProvidedExemplarImpl(n, (), exemplar)
+      counter.incProvidedExemplarImpl(n, (), Right(exemplar))
   }
 
-  implicit class LabelledCounterSyntax[F[_], -A, B](counter: Counter[F, A, B])(implicit ev: Unit Neq B) {
-    final def inc(labels: B): F[Unit] = incProvidedExemplar(labels, None)
+  implicit class LabelledCounterSyntax[F[_], -A, B](counter: Counter[F, A, B])(implicit
+      ev: Unit Neq B,
+      exemplarSampler: CounterExemplarSampler[F, A]
+  ) {
+    final def inc(labels: B)(implicit F: FlatMap[F]): F[Unit] =
+      exemplarSampler.sample.flatMap(incProvidedExemplar(labels, _))
 
-    final def inc(n: A, labels: B): F[Unit] = incProvidedExemplar(n, labels, None)
+    final def inc(n: A, labels: B)(implicit F: FlatMap[F]): F[Unit] =
+      exemplarSampler.sample(n).flatMap(incProvidedExemplar(n, labels, _))
 
     final def incWithExemplar(labels: B)(implicit F: FlatMap[F], exemplar: Exemplar[F]): F[Unit] =
       exemplar.get.flatMap(incProvidedExemplar(labels, _))
@@ -108,7 +128,10 @@ object Counter {
       override def contramapLabels[A, B](fa: Counter[F, C, A])(f: B => A): Counter[F, C, B] = fa.contramapLabels(f)
     }
 
-  def make[F[_], A, B](default: A, _inc: (A, B, Option[Exemplar.Labels]) => F[Unit]): Counter[F, A, B] =
+  def make[F[_], A, B](
+      default: A,
+      _inc: (A, B, Either[Option[Exemplar.Data] => F[Option[Exemplar.Labels]], Option[Exemplar.Labels]]) => F[Unit]
+  ): Counter[F, A, B] =
     new Counter[F, A, B] {
       override def incProvidedExemplarImpl(labels: B, exemplar: Option[Exemplar.Labels]): F[Unit] =
         _inc(default, labels, exemplar)
@@ -117,7 +140,9 @@ object Counter {
         _inc(n, labels, exemplar)
     }
 
-  def make[F[_], A, B](_inc: (A, B, Option[Exemplar.Labels]) => F[Unit])(implicit
+  def make[F[_], A, B](
+      _inc: (A, B, Either[Option[Exemplar.Data] => F[Option[Exemplar.Labels]], Option[Exemplar.Labels]]) => F[Unit]
+  )(implicit
       A: Numeric[A]
   ): Counter[F, A, B] =
     make(A.one, _inc)
