@@ -139,15 +139,18 @@ object Histogram {
     }
 
   def make[F[_], A, B](
+      buckets: NonEmptySeq[Double],
+      getPreviousExemplar: F[Option[Exemplar.Data]],
+      setPreviousExemplar: Exemplar.Data => F[Unit],
       _observe: (A, B, Option[Exemplar.Labels]) => F[Unit]
   ): Histogram[F, A, B] =
-    new Histogram[F, A, B] {
+    new Histogram[F, A, B](buckets, getPreviousExemplar, setPreviousExemplar) {
       override def observeProvidedExemplarImpl(n: A, labels: B, exemplar: Option[Exemplar.Labels]): F[Unit] =
         _observe(n, labels, exemplar)
     }
 
   def noop[F[_]: Applicative, A, B]: Histogram[F, A, B] =
-    new Histogram[F, A, B] {
+    new Histogram[F, A, B](NonEmptySeq.one(0.0), Applicative[F].pure(None), _ => Applicative[F].unit) {
       override def observeProvidedExemplarImpl(n: A, labels: B, exemplar: Option[Exemplar.Labels]): F[Unit] =
         Applicative[F].unit
     }

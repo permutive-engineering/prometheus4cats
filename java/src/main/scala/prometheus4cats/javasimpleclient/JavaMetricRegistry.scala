@@ -247,23 +247,28 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     val commonLabelNames = commonLabels.value.keys.toIndexedSeq
     val commonLabelValues = commonLabels.value.values.toIndexedSeq
 
-    configureBuilderOrRetrieve(
+    configureBuilderOrRetrieveExemplar(
       PHistogram.build().withExemplars().buckets(buckets.toSeq: _*),
       MetricType.Histogram,
       prefix,
       name,
       help,
       labelNames ++ commonLabelNames
-    ).map { histogram =>
-      Histogram.make[F, Double, A](_observe = { (d: Double, labels: A, exemplar: Option[Exemplar.Labels]) =>
-        Utils.modifyMetric[F, Histogram.Name, PHistogram.Child](
-          histogram,
-          name,
-          labelNames ++ commonLabelNames,
-          f(labels) ++ commonLabelValues,
-          h => exemplar.fold(h.observe(d))(e => h.observeWithExemplar(d, transformExemplarLabels(e)))
-        )
-      })
+    ).map { case (histogram, exemplarRef) =>
+      Histogram.make[F, Double, A](
+        buckets,
+        exemplarRef.get,
+        ex => exemplarRef.set(Some(ex)),
+        _observe = { (d: Double, labels: A, exemplar: Option[Exemplar.Labels]) =>
+          Utils.modifyMetric[F, Histogram.Name, PHistogram.Child](
+            histogram,
+            name,
+            labelNames ++ commonLabelNames,
+            f(labels) ++ commonLabelValues,
+            h => exemplar.fold(h.observe(d))(e => h.observeWithExemplar(d, transformExemplarLabels(e)))
+          )
+        }
+      )
     }
   }
 

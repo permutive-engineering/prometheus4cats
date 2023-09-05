@@ -20,7 +20,7 @@ import cats.effect.kernel.Clock
 import cats.syntax.flatMap._
 import cats.syntax.foldable._
 import cats.syntax.functor._
-import cats.{Applicative, Contravariant, FlatMap, Functor, Monad, ~>}
+import cats.{Applicative, Contravariant, FlatMap, Monad, ~>}
 import prometheus4cats.internal.Refined.Regex
 import prometheus4cats.internal.{Neq, Refined}
 
@@ -57,7 +57,7 @@ sealed abstract class Counter[F[_], A, B](
       self.incProvidedExemplarImpl(n, f(labels), exemplar)
   }
 
-  final def mapK[G[_]: Functor](fk: F ~> G): Counter[G, A, B] =
+  final def mapK[G[_]](fk: F ~> G): Counter[G, A, B] =
     new Counter[G, A, B](fk(getPreviousExemplar), ex => fk(setPreviousExemplar(ex))) {
       override def incProvidedExemplarImpl(
           labels: B,

@@ -21,8 +21,8 @@ import cats.effect.kernel.Clock
 import cats.syntax.applicativeError._
 import cats.syntax.either._
 import cats.syntax.flatMap._
-import cats.syntax.functor._
 import cats.syntax.foldable._
+import cats.syntax.functor._
 import cats.{Applicative, FlatMap, Monad, MonadThrow, ~>}
 import prometheus4cats.internal.Neq
 
@@ -45,7 +45,7 @@ sealed abstract class Timer[F[_], A](
       exemplar: Option[prometheus4cats.Exemplar.Labels]
   ): F[Unit]
 
-  def contramapLabels[B](f: B => A): Timer[F, B] = new Timer[F, B] {
+  def contramapLabels[B](f: B => A): Timer[F, B] = new Timer[F, B](buckets, getPreviousExemplar, setPreviousExemplar) {
     override type Metric = self.Metric
 
     override def recordTimeImpl(
@@ -55,17 +55,18 @@ sealed abstract class Timer[F[_], A](
     ): F[Unit] = self.recordTimeImpl(duration, f(labels), exemplar)
   }
 
-  def mapK[G[_]](fk: F ~> G): Timer[G, A] = new Timer[G, A] {
-    override type Metric = self.Metric
+  def mapK[G[_]](fk: F ~> G): Timer[G, A] =
+    new Timer[G, A](buckets, fk(getPreviousExemplar), ex => fk(setPreviousExemplar(ex))) {
+      override type Metric = self.Metric
 
-    override def recordTimeImpl(
-        duration: FiniteDuration,
-        labels: A,
-        exemplar: Option[prometheus4cats.Exemplar.Labels]
-    ): G[Unit] = fk(
-      self.recordTimeImpl(duration, labels, exemplar)
-    )
-  }
+      override def recordTimeImpl(
+          duration: FiniteDuration,
+          labels: A,
+          exemplar: Option[prometheus4cats.Exemplar.Labels]
+      ): G[Unit] = fk(
+        self.recordTimeImpl(duration, labels, exemplar)
+      )
+    }
 }
 
 object Timer {
@@ -94,6 +95,19 @@ object Timer {
         duration: FiniteDuration
     )(implicit F: FlatMap[F], exemplar: prometheus4cats.Exemplar[F]): F[Unit] =
       exemplar.get.flatMap(recordTimeWithExemplar(duration, _))
+
+    def recordTimeWithSampledExemplar(duration: FiniteDuration)(implicit
+        F: Monad[F],
+        clock: Clock[F],
+        exemplarSampler: HistogramExemplarSampler[F, Double]
+    ): F[Unit] = for {
+      previous <- timer.getPreviousExemplar
+      next <- exemplarSampler.sample(duration.toUnit(TimeUnit.SECONDS), timer.buckets, previous)
+      _ <- recordTimeWithExemplar(duration, next)
+      _ <- next.traverse_(labels =>
+        Clock[F].realTimeInstant.flatMap(time => timer.setPreviousExemplar(Exemplar.Data(labels, time)))
+      )
+    } yield ()
 
     def recordTimeWithExemplar(
         duration: FiniteDuration,
@@ -222,6 +236,20 @@ object Timer {
     ): F[B] =
       timeWithComputedLabelsExemplar(fb)((_: B) => labels, recordExemplar)
 
+    final def timeWithSampledExemplar[B](fb: F[B], labels: A)(implicit
+        F: Monad[F],
+        clock: Clock[F],
+        exemplarSampler: HistogramExemplarSampler[F, Double]
+    ): F[B] = for {
+      durB <- Clock[F].timed(fb)
+      previous <- timer.getPreviousExemplar
+      next <- exemplarSampler.sample(durB._1.toUnit(TimeUnit.SECONDS), timer.buckets, previous)
+      _ <- recordTimeWithExemplar(durB._1, labels, next)
+      _ <- next.traverse_(labels =>
+        Clock[F].realTimeInstant.flatMap(time => timer.setPreviousExemplar(Exemplar.Data(labels, time)))
+      )
+    } yield durB._2
+
     final def timeWithExemplar[B](fb: F[B], labels: A)(
         recordExemplar: (FiniteDuration, B, A) => Option[prometheus4cats.Exemplar.Labels]
     )(implicit F: MonadThrow[F], clock: Clock[F]): F[B] =
@@ -244,6 +272,23 @@ object Timer {
       exemplar.get.flatMap(ex =>
         timeWithComputedLabelsProvidedExemplar(fb)(labels, (t, b, a) => ex.filter(_ => recordExemplar(t, b, a)))
       )
+
+    final def timeWithComputedLabelsSampledExemplar[B](
+        fb: F[B]
+    )(labels: B => A)(implicit
+        F: MonadThrow[F],
+        clock: Clock[F],
+        exemplarSampler: HistogramExemplarSampler[F, Double]
+    ): F[B] = for {
+      durB <- Clock[F].timed(fb)
+      a = labels(durB._2)
+      previous <- timer.getPreviousExemplar
+      next <- exemplarSampler.sample(durB._1.toUnit(TimeUnit.SECONDS), timer.buckets, previous)
+      _ <- recordTimeWithExemplar(durB._1, a, next)
+      _ <- next.traverse_(labels =>
+        Clock[F].realTimeInstant.flatMap(time => timer.setPreviousExemplar(Exemplar.Data(labels, time)))
+      )
+    } yield durB._2
 
     final def timeWithComputedLabelsProvidedExemplar[B](
         fb: F[B]
@@ -287,8 +332,29 @@ object Timer {
             val a = labelsSuccess(b)
 
             if (recordExemplarSuccess(x._1, b, a)) recordTimeWithExemplar(x._1, labelsSuccess(b))
-            else timer.recordTimeImpl(x._1, labelsSuccess(b), None)
+            else timer.recordTimeImpl(x._1, a, None)
           }
+        )
+        res <- x._2.liftTo[F]
+      } yield res
+
+    final def timeAttemptWithSampledExemplar[B](fb: F[B])(
+        labelsSuccess: B => A,
+        labelsError: PartialFunction[Throwable, A]
+    )(implicit F: MonadThrow[F], clock: Clock[F], exemplarSampler: HistogramExemplarSampler[F, Double]): F[B] =
+      for {
+        x <- clock.timed(fb.attempt)
+        previous <- timer.getPreviousExemplar
+        next <- exemplarSampler.sample(x._1.toUnit(TimeUnit.SECONDS), timer.buckets, previous)
+        _ <- x._2.fold(
+          e =>
+            labelsError
+              .lift(e)
+              .fold(Applicative[F].unit)(a => recordTimeWithExemplar(x._1, a, next)),
+          b => recordTimeWithExemplar(x._1, labelsSuccess(b), next)
+        )
+        _ <- next.traverse_(labels =>
+          Clock[F].realTimeInstant.flatMap(time => timer.setPreviousExemplar(Exemplar.Data(labels, time)))
         )
         res <- x._2.liftTo[F]
       } yield res
