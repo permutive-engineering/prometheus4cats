@@ -186,8 +186,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       labelNames ++ commonLabelNames
     ).map { case (counter, exemplarRef) =>
       Counter.make(
-        exemplarRef.get,
-        ex => exemplarRef.set(Some(ex)),
+        Counter.ExemplarState.fromRef(exemplarRef),
         1.0,
         (
             d: Double,
@@ -257,9 +256,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       labelNames ++ commonLabelNames
     ).map { case (histogram, exemplarRef) =>
       Histogram.make[F, Double, A](
-        buckets,
-        exemplarRef.get,
-        ex => exemplarRef.set(Some(ex)),
+        Histogram.ExemplarState.fromRef(buckets, exemplarRef),
         _observe = { (d: Double, labels: A, exemplar: Option[Exemplar.Labels]) =>
           Utils.modifyMetric[F, Histogram.Name, PHistogram.Child](
             histogram,

@@ -28,8 +28,7 @@ import prometheus4cats.internal.Neq
   * [[OutcomeRecorder.fromGauge]] for more information.
   */
 sealed abstract class OutcomeRecorder[F[_], -A](
-    protected val getPreviousExemplar: F[Option[Exemplar.Data]],
-    protected val setPreviousExemplar: Exemplar.Data => F[Unit]
+    protected val exemplarState: Counter.ExemplarState[F]
 ) extends Metric.Labelled[A] { self =>
   type Metric
 
@@ -40,7 +39,7 @@ sealed abstract class OutcomeRecorder[F[_], -A](
   protected def onSucceeded(labels: A, exemplar: Option[prometheus4cats.Exemplar.Labels]): F[Unit]
 
   def contramapLabels[B](f: B => A): OutcomeRecorder[F, B] =
-    new OutcomeRecorder[F, B](getPreviousExemplar, setPreviousExemplar) {
+    new OutcomeRecorder[F, B](exemplarState) {
       override protected def onCanceled(labels: B, exemplar: Option[prometheus4cats.Exemplar.Labels]): F[Unit] =
         self.onCanceled(f(labels), exemplar)
 
@@ -52,7 +51,7 @@ sealed abstract class OutcomeRecorder[F[_], -A](
     }
 
   def mapK[G[_]](fk: F ~> G): OutcomeRecorder[G, A] =
-    new OutcomeRecorder[G, A](fk(getPreviousExemplar), ex => fk(setPreviousExemplar(ex))) {
+    new OutcomeRecorder[G, A](exemplarState.mapK(fk)) {
       override type Metric = self.Metric
 
       override protected def onCanceled(labels: A, exemplar: Option[prometheus4cats.Exemplar.Labels]): G[Unit] = fk(
@@ -138,6 +137,11 @@ object OutcomeRecorder {
       recordWithExemplarOutcome(_, recordExemplarOnSucceeded, recordExemplarOnErrored, recordExemplarOnCanceled)
     )
 
+    final def surroundWithSampledExemplar[B](
+        fb: F[B]
+    )(implicit F: MonadCancelThrow[F], clock: Clock[F], exemplarSampler: CounterExemplarSampler[F, A]): F[B] =
+      fb.guaranteeCase(recordWithSampledExemplar)
+
     final def surroundProvidedExemplar[C](
         fb: F[C],
         exemplarOnSucceeded: Option[Exemplar.Labels] = None,
@@ -168,6 +172,11 @@ object OutcomeRecorder {
         ex.filter(_ => recordExemplarOnCanceled)
       )
     )
+
+    final def recordWithSampledExemplar[B, E](
+        outcome: Outcome[F, E, B]
+    )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: CounterExemplarSampler[F, A]): F[Unit] =
+      recorder.exemplarState.surround(exemplar => recordOutcomeProvidedExemplar(outcome, exemplar, exemplar, exemplar))
 
     final def recordOutcomeProvidedExemplar[C, E](
         outcome: Outcome[F, E, C],
@@ -337,14 +346,8 @@ object OutcomeRecorder {
         F: Monad[F],
         clock: Clock[F],
         exemplarSampler: CounterExemplarSampler[F, B]
-    ): F[Unit] = for {
-      previous <- recorder.getPreviousExemplar
-      next <- exemplarSampler.sample(previous)
-      _ <- recordOutcomeProvidedExemplar(outcome, labels, next, next, next)
-      _ <- next.traverse_(labels =>
-        Clock[F].realTimeInstant.flatMap(time => recorder.setPreviousExemplar(Exemplar.Data(labels, time)))
-      )
-    } yield ()
+    ): F[Unit] =
+      recorder.exemplarState.surround(next => recordOutcomeProvidedExemplar(outcome, labels, next, next, next))
 
     final def recordOutcomeProvidedExemplar[C, E](
         outcome: Outcome[F, E, C],
@@ -450,17 +453,14 @@ object OutcomeRecorder {
         F: Monad[F],
         clock: Clock[F],
         exemplarSampler: CounterExemplarSampler[F, B]
-    ): F[Unit] = for {
-      previous <- recorder.getPreviousExemplar
-      next <- exemplarSampler.sample(previous)
-      _ <- recordOutcomeWithComputedLabelsProvidedExemplar(outcome, labelsCanceled, next, next, next)(
-        labelsSuccess,
-        labelsError
-      )
-      _ <- next.traverse_(labels =>
-        Clock[F].realTimeInstant.flatMap(time => recorder.setPreviousExemplar(Exemplar.Data(labels, time)))
-      )
-    } yield ()
+    ): F[Unit] =
+      recorder.exemplarState
+        .surround(exemplar =>
+          recordOutcomeWithComputedLabelsProvidedExemplar(outcome, labelsCanceled, exemplar, exemplar, exemplar)(
+            labelsSuccess,
+            labelsError
+          )
+        )
 
     /** Record the result of provided [[cats.effect.kernel.Outcome]] computing additional labels from the result.
       *
@@ -515,7 +515,7 @@ object OutcomeRecorder {
   def fromCounter[F[_], A, B](
       counter: Counter[F, A, (B, Status)]
   ): OutcomeRecorder.Aux[F, A, B, Counter] =
-    new OutcomeRecorder[F, B](counter.getPreviousExemplar, counter.setPreviousExemplar) {
+    new OutcomeRecorder[F, B](counter.exemplarState) {
       override type Metric = Counter[F, A, (B, Status)]
 
       override protected def onCanceled(labels: B, exemplar: Option[prometheus4cats.Exemplar.Labels]): F[Unit] =
@@ -543,7 +543,7 @@ object OutcomeRecorder {
   def fromGauge[F[_]: MonadCancelThrow, A, B](
       gauge: Gauge[F, A, (B, Status)]
   ): OutcomeRecorder.Aux[F, A, B, Gauge] =
-    new OutcomeRecorder[F, B](Applicative[F].pure(None), _ => Applicative[F].unit) {
+    new OutcomeRecorder[F, B](Counter.ExemplarState.noop) {
       override type Metric = Gauge[F, A, (B, Status)]
 
       private def setOutcome(labels: B, status: Status): F[Unit] =

@@ -17,7 +17,6 @@
 // in a different package to the rest of the codebase to verify private annotations work
 package test
 
-import cats.data.NonEmptySeq
 import cats.effect.kernel.{Clock, MonadCancelThrow}
 import prometheus4cats._
 
@@ -59,14 +58,6 @@ class MetricsFactoryDslTest[F[_]: MonadCancelThrow: Clock] {
   longGaugeBuilder.unsafeLabels(Label.Name("label1"), Label.Name("label2")).build
 
   val counterBuilder = factory.counter("test_total")
-
-  implicit val sampler = new ExemplarSampler[F, Double] {
-    override def sample(previous: Option[Exemplar.Data]): F[Option[Exemplar.Labels]] = ???
-
-    override def sample(value: Double, previous: Option[Exemplar.Data]): F[Option[Exemplar.Labels]] = ???
-
-    override def sample(value: Double, buckets: NonEmptySeq[Double], previous: Option[Exemplar.Data]): F[Option[Exemplar.Labels]] = ???
-  }
 
   counterBuilder.ofDouble.help("sdfs").build.map(_.inc)
 

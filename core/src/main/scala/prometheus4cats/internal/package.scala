@@ -19,7 +19,7 @@ package prometheus4cats.internal
 import cats.data.NonEmptyList
 import cats.effect.kernel.{Clock, MonadCancelThrow, Resource}
 import cats.syntax.all._
-import cats.{Applicative, Contravariant, FlatMap, Functor, Show}
+import cats.{Contravariant, FlatMap, Functor, Show}
 import prometheus4cats.OutcomeRecorder.Status
 import prometheus4cats._
 import prometheus4cats.internal.InitLast.Aux
@@ -48,7 +48,7 @@ object BuildStep {
   }
 
   implicit class DoubleGaugeSyntax[F[_]](bs: BuildStep[F, Gauge[F, Double, Unit]]) {
-    def asTimer(implicit F: Applicative[F]): BuildStep[F, Timer.Aux[F, Unit, Gauge]] =
+    def asTimer: BuildStep[F, Timer.Aux[F, Unit, Gauge]] =
       bs.map(Timer.fromGauge[F, Unit])
 
     def asCurrentTimeRecorder(implicit F: FlatMap[F], clock: Clock[F]): BuildStep[F, CurrentTimeRecorder[F, Unit]] =
@@ -78,7 +78,7 @@ object BuildStep {
   implicit class DoubleLabelledGaugeSyntax[F[_], A](
       bs: BuildStep[F, Gauge[F, Double, A]]
   ) {
-    def asTimer(implicit F: Applicative[F]): BuildStep[F, Timer.Aux[F, A, Gauge]] =
+    def asTimer: BuildStep[F, Timer.Aux[F, A, Gauge]] =
       bs.map(Timer.fromGauge[F, A])
 
     def asCurrentTimeRecorder(implicit
@@ -116,14 +116,14 @@ object BuildStep {
   }
 
   implicit class DoubleSummarySyntax[F[_]](bs: BuildStep[F, Summary[F, Double, Unit]]) {
-    def asTimer(implicit F: Applicative[F]): BuildStep[F, Timer.Aux[F, Unit, Summary]] =
+    def asTimer: BuildStep[F, Timer.Aux[F, Unit, Summary]] =
       bs.map(Timer.fromSummary[F, Unit])
   }
 
   implicit class DoubleLabelledSummarySyntax[F[_], A](
       bs: BuildStep[F, Summary[F, Double, A]]
   ) {
-    def asTimer(implicit F: Applicative[F]): BuildStep[F, Timer.Aux[F, A, Summary]] =
+    def asTimer: BuildStep[F, Timer.Aux[F, A, Summary]] =
       bs.map(Timer.fromSummary[F, A])
   }
 
