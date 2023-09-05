@@ -29,8 +29,6 @@ val Scala213 = "2.13.11"
 
 val Cats = "2.10.0"
 
-val CatsMtl = "1.3.0"
-
 val CatsEffect = "3.5.1"
 
 val Log4Cats = "2.6.0"
@@ -56,7 +54,6 @@ lazy val core = project
     name := "prometheus4cats",
     libraryDependencies ++= Seq(
       "org.typelevel" %%% "cats-core" % Cats,
-      "org.typelevel" %%% "cats-mtl" % CatsMtl,
       "org.typelevel" %%% "cats-effect-kernel" % CatsEffect,
       "org.typelevel" %%% "cats-effect" % CatsEffect % Test,
       "org.typelevel" %% "cats-effect-testkit" % CatsEffect % Test,

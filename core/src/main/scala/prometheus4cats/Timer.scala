@@ -16,12 +16,14 @@
 
 package prometheus4cats
 
+import cats.data.NonEmptySeq
 import cats.effect.kernel.Clock
 import cats.syntax.applicativeError._
 import cats.syntax.either._
 import cats.syntax.flatMap._
 import cats.syntax.functor._
-import cats.{Applicative, FlatMap, MonadThrow, ~>}
+import cats.syntax.foldable._
+import cats.{Applicative, FlatMap, Monad, MonadThrow, ~>}
 import prometheus4cats.internal.Neq
 
 import java.util.concurrent.TimeUnit
@@ -30,7 +32,11 @@ import scala.concurrent.duration.FiniteDuration
 /** A derived metric type that can time a given operation. See [[Timer.fromHistogram]] and [[Timer.fromGauge]] for more
   * information.
   */
-sealed abstract class Timer[F[_], A] extends Metric.Labelled[A] { self =>
+sealed abstract class Timer[F[_], A](
+    protected val buckets: NonEmptySeq[Double],
+    protected val getPreviousExemplar: F[Option[Exemplar.Data]],
+    protected val setPreviousExemplar: Exemplar.Data => F[Unit]
+) extends Metric.Labelled[A] { self =>
   type Metric
 
   protected def recordTimeImpl(
@@ -180,6 +186,19 @@ object Timer {
         exemplar: prometheus4cats.Exemplar[F]
     ): F[Unit] = exemplar.get.flatMap(recordTimeWithExemplar(duration, labels, _))
 
+    def recordTimeWithSampledExemplar(duration: FiniteDuration, labels: A)(implicit
+        F: Monad[F],
+        clock: Clock[F],
+        exemplarSampler: HistogramExemplarSampler[F, Double]
+    ): F[Unit] = for {
+      previous <- timer.getPreviousExemplar
+      next <- exemplarSampler.sample(duration.toUnit(TimeUnit.SECONDS), timer.buckets, previous)
+      _ <- recordTimeWithExemplar(duration, labels, next)
+      _ <- next.traverse_(labels =>
+        Clock[F].realTimeInstant.flatMap(time => timer.setPreviousExemplar(Exemplar.Data(labels, time)))
+      )
+    } yield ()
+
     def recordTimeWithExemplar(
         duration: FiniteDuration,
         labels: A,
@@ -324,7 +343,7 @@ object Timer {
   def fromHistogram[F[_], A](
       histogram: Histogram[F, Double, A]
   ): Timer.Aux[F, A, Histogram] =
-    new Timer[F, A] {
+    new Timer[F, A](histogram.buckets, histogram.getPreviousExemplar, histogram.setPreviousExemplar) {
       override type Metric = Histogram[F, Double, A]
 
       override def recordTimeImpl(
@@ -348,10 +367,10 @@ object Timer {
     * @return
     *   a [[Timer.Aux]] that is annotated with the type of underlying metrics, in this case [[Summary]]
     */
-  def fromSummary[F[_], A](
+  def fromSummary[F[_]: Applicative, A](
       summary: Summary[F, Double, A]
   ): Timer.Aux[F, A, Summary] =
-    new Timer[F, A] {
+    new Timer[F, A](NonEmptySeq.one(0.0), Applicative[F].pure(None), _ => Applicative[F].unit) {
       override type Metric = Summary[F, Double, A]
 
       override def recordTimeImpl(
@@ -375,18 +394,19 @@ object Timer {
     * @return
     *   a [[Timer.Aux]] that is annotated with the type of underlying metrics, in this case [[Gauge]]
     */
-  def fromGauge[F[_], A](
+  def fromGauge[F[_]: Applicative, A](
       gauge: Gauge[F, Double, A]
-  ): Timer.Aux[F, A, Gauge] = new Timer[F, A] {
-    override type Metric = Gauge[F, Double, A]
+  ): Timer.Aux[F, A, Gauge] =
+    new Timer[F, A](NonEmptySeq.one(0.0), Applicative[F].pure(None), _ => Applicative[F].unit) {
+      override type Metric = Gauge[F, Double, A]
 
-    override def recordTimeImpl(
-        duration: FiniteDuration,
-        labels: A,
-        exemplar: Option[prometheus4cats.Exemplar.Labels]
-    ): F[Unit] =
-      gauge.set(duration.toUnit(TimeUnit.SECONDS), labels)
-  }
+      override def recordTimeImpl(
+          duration: FiniteDuration,
+          labels: A,
+          exemplar: Option[prometheus4cats.Exemplar.Labels]
+      ): F[Unit] =
+        gauge.set(duration.toUnit(TimeUnit.SECONDS), labels)
+    }
 
   implicit def labelsContravariant[F[_]]: LabelsContravariant[Timer[F, *]] =
     new LabelsContravariant[Timer[F, *]] {

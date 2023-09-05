@@ -186,35 +186,19 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       labelNames ++ commonLabelNames
     ).map { case (counter, exemplarRef) =>
       Counter.make(
+        exemplarRef,
         1.0,
         (
             d: Double,
             labels: A,
-            exemplar: Either[Option[Exemplar.Data] => F[Option[Exemplar.Labels]], Option[Exemplar.Labels]]
+            exemplar: Option[Exemplar.Labels]
         ) =>
-          Utils.modifyMetricF[F, Counter.Name, PCounter.Child](
+          Utils.modifyMetric[F, Counter.Name, PCounter.Child](
             counter,
             name,
             labelNames ++ commonLabelNames,
             f(labels) ++ commonLabelValues,
-            c => {
-              def record(ex: Option[Exemplar.Labels]): F[Unit] =
-                Sync[F]
-                  .delay(ex.fold(c.inc(d))(e => c.incWithExemplar(d, transformExemplarLabels(e))))
-                  .flatTap(_ =>
-                    ex.traverse_(labels =>
-                      Clock[F].realTimeInstant.flatMap(ts => exemplarRef.set(Some(Exemplar.Data(labels, ts))))
-                    )
-                  )
-
-              exemplar match {
-                case Left(sample) =>
-                  exemplarRef.get.flatMap { previous =>
-                    sample(previous).flatMap(record)
-                  }
-                case Right(ex) => record(ex)
-              }
-            }
+            c => exemplar.fold(c.inc(d))(e => c.incWithExemplar(d, transformExemplarLabels(e)))
           )
       )
     }

@@ -17,28 +17,38 @@
 package prometheus4cats
 
 import cats.data.NonEmptySeq
+import cats.effect.kernel.Clock
 import cats.syntax.flatMap._
-import cats.{Applicative, Contravariant, FlatMap, ~>}
+import cats.syntax.foldable._
+import cats.syntax.functor._
+import cats.{Applicative, Contravariant, FlatMap, Monad, ~>}
 import prometheus4cats.internal.{Neq, Refined}
 import prometheus4cats.internal.Refined.Regex
 
-sealed abstract class Histogram[F[_], -A, B] extends Metric[A] with Metric.Labelled[B] {
+sealed abstract class Histogram[F[_], A, B](
+    protected[prometheus4cats] val buckets: NonEmptySeq[Double],
+    protected[prometheus4cats] val getPreviousExemplar: F[Option[Exemplar.Data]],
+    protected[prometheus4cats] val setPreviousExemplar: Exemplar.Data => F[Unit]
+) extends Metric[A]
+    with Metric.Labelled[B] {
   self =>
 
   protected def observeProvidedExemplarImpl(n: A, labels: B, exemplar: Option[Exemplar.Labels]): F[Unit]
 
-  def contramap[C](f: C => A): Histogram[F, C, B] = new Histogram[F, C, B] {
-    override def observeProvidedExemplarImpl(n: C, labels: B, exemplar: Option[Exemplar.Labels]): F[Unit] =
-      self.observeProvidedExemplarImpl(f(n), labels, exemplar)
-  }
+  def contramap[C](f: C => A): Histogram[F, C, B] =
+    new Histogram[F, C, B](buckets, getPreviousExemplar, setPreviousExemplar) {
+      override def observeProvidedExemplarImpl(n: C, labels: B, exemplar: Option[Exemplar.Labels]): F[Unit] =
+        self.observeProvidedExemplarImpl(f(n), labels, exemplar)
+    }
 
-  def contramapLabels[C](f: C => B): Histogram[F, A, C] = new Histogram[F, A, C] {
-    override def observeProvidedExemplarImpl(n: A, labels: C, exemplar: Option[Exemplar.Labels]): F[Unit] =
-      self.observeProvidedExemplarImpl(n, f(labels), exemplar)
-  }
+  def contramapLabels[C](f: C => B): Histogram[F, A, C] =
+    new Histogram[F, A, C](buckets, getPreviousExemplar, setPreviousExemplar) {
+      override def observeProvidedExemplarImpl(n: A, labels: C, exemplar: Option[Exemplar.Labels]): F[Unit] =
+        self.observeProvidedExemplarImpl(n, f(labels), exemplar)
+    }
 
   final def mapK[G[_]](fk: F ~> G): Histogram[G, A, B] =
-    new Histogram[G, A, B] {
+    new Histogram[G, A, B](buckets, fk(getPreviousExemplar), ex => fk(setPreviousExemplar(ex))) {
       override def observeProvidedExemplarImpl(n: A, labels: B, exemplar: Option[Exemplar.Labels]): G[Unit] =
         fk(self.observeProvidedExemplarImpl(n, labels, exemplar))
     }
@@ -47,8 +57,19 @@ sealed abstract class Histogram[F[_], -A, B] extends Metric[A] with Metric.Label
 
 object Histogram {
 
-  implicit class HistogramSyntax[F[_], -A](histogram: Histogram[F, A, Unit]) {
+  implicit class HistogramSyntax[F[_], A](histogram: Histogram[F, A, Unit]) {
     final def observe(n: A): F[Unit] = observeProvidedExemplar(n, None)
+
+    final def observeWithSampledExemplar(
+        n: A
+    )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: HistogramExemplarSampler[F, A]): F[Unit] = for {
+      previous <- histogram.getPreviousExemplar
+      next <- exemplarSampler.sample(n, histogram.buckets, previous)
+      _ <- observeProvidedExemplar(n, next)
+      _ <- next.traverse_(labels =>
+        Clock[F].realTimeInstant.flatMap(time => histogram.setPreviousExemplar(Exemplar.Data(labels, time)))
+      )
+    } yield ()
 
     final def observeWithExemplar(n: A)(implicit F: FlatMap[F], exemplar: Exemplar[F]): F[Unit] =
       exemplar.get.flatMap(observeProvidedExemplar(n, _))
@@ -57,8 +78,20 @@ object Histogram {
       histogram.observeProvidedExemplarImpl(n = n, labels = (), exemplar = exemplar)
   }
 
-  implicit class LabelledCounterSyntax[F[_], -A, B](histogram: Histogram[F, A, B])(implicit ev: Unit Neq B) {
+  implicit class LabelledCounterSyntax[F[_], A, B](histogram: Histogram[F, A, B])(implicit ev: Unit Neq B) {
     final def observe(n: A, labels: B): F[Unit] = observeProvidedExemplar(n, labels, None)
+
+    final def observeWithSampledExemplar(
+        n: A,
+        labels: B
+    )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: HistogramExemplarSampler[F, A]): F[Unit] = for {
+      previous <- histogram.getPreviousExemplar
+      next <- exemplarSampler.sample(n, histogram.buckets, previous)
+      _ <- observeProvidedExemplar(n, labels, next)
+      _ <- next.traverse_(labels =>
+        Clock[F].realTimeInstant.flatMap(time => histogram.setPreviousExemplar(Exemplar.Data(labels, time)))
+      )
+    } yield ()
 
     final def observeWithExemplar(n: A, labels: B)(implicit F: FlatMap[F], exemplar: Exemplar[F]): F[Unit] =
       exemplar.get.flatMap(observeProvidedExemplar(n, labels, _))
