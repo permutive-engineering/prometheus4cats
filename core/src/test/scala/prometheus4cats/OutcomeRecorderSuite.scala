@@ -28,7 +28,7 @@ class OutcomeRecorderSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
     Ref.of[IO, Map[Status, Int]](Map.empty).map { ref =>
       OutcomeRecorder.fromCounter(
         Counter.make[IO, Int, (Unit, Status)](
-          Counter.ExemplarState.noop,
+          Counter.ExemplarState.noop[IO],
           (i: Int, labels: (Unit, Status), _: Option[Exemplar.Labels]) => ref.update(_ |+| Map(labels._2 -> i))
         )
       ) -> ref.get
@@ -49,7 +49,7 @@ class OutcomeRecorderSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
     Ref.of[IO, Map[(String, Status), Int]](Map.empty).map { ref =>
       OutcomeRecorder.fromCounter(
         Counter.make[IO, Int, (String, Status)](
-          Counter.ExemplarState.noop,
+          Counter.ExemplarState.noop[IO],
           (i: Int, s: (String, Status), _: Option[Exemplar.Labels]) => ref.update(_ |+| Map(s -> i))
         )
       ) -> ref.get

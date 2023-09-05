@@ -123,8 +123,14 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
               case Some((expected, (collector, exemplarRef, references))) =>
                 if (metricId == expected)
                   Applicative[F].pure(
-                    metrics.updated(fullName, (expected, (collector, exemplarRef, references + 1))) -> (collector
-                      .asInstanceOf[C], exemplarRef)
+                    (
+                      metrics.updated(fullName, (expected, (collector, exemplarRef, references + 1))),
+                      (
+                        collector
+                          .asInstanceOf[C],
+                        exemplarRef
+                      )
+                    )
                   )
                 else
                   ApplicativeThrow[F].raiseError(
@@ -146,7 +152,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
 
                     b.register(registry)
                   }
-                } yield metrics.updated(fullName, (metricId, (collector, exemplarRef, 1))) -> (collector, exemplarRef)
+                } yield (metrics.updated(fullName, (metricId, (collector, exemplarRef, 1))), (collector, exemplarRef))
             }
           }
           .flatMap { case (state, collector) => ref.set(state).as(collector) }

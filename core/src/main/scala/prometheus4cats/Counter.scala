@@ -140,7 +140,7 @@ object Counter {
         F: Monad[F],
         clock: Clock[F],
         exemplarSampler: ExemplarSampler.Counter[F, A]
-    ): F[Unit] = counter.exemplarState.surround(incProvidedExemplar)
+    ): F[Unit] = counter.exemplarState.surround(incProvidedExemplar(_))
 
     final def incWithSampledExemplar(
         n: A
