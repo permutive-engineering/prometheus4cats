@@ -17,13 +17,13 @@
 package prometheus4cats
 
 import cats.data.NonEmptySeq
-import cats.effect.kernel.{Clock, Ref}
+import cats.effect.kernel.Ref
 import cats.syntax.flatMap._
 import cats.syntax.foldable._
 import cats.syntax.functor._
 import cats.{Applicative, Contravariant, FlatMap, Monad, ~>}
-import prometheus4cats.internal.{Neq, Refined}
 import prometheus4cats.internal.Refined.Regex
+import prometheus4cats.internal.{Neq, Refined}
 
 sealed abstract class Histogram[F[_], A, B](
     protected[prometheus4cats] val exemplarState: Histogram.ExemplarState[F]
@@ -59,7 +59,7 @@ object Histogram {
     self =>
     def surround[A](n: A)(
         fa: Option[Exemplar.Labels] => F[Unit]
-    )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: ExemplarSampler.Histogram[F, A]): F[Unit]
+    )(implicit F: Monad[F], exemplarSampler: ExemplarSampler.Histogram[F, A]): F[Unit]
 
     def mapK[G[_]](fk: F ~> G): ExemplarState[G]
   }
@@ -73,14 +73,12 @@ object Histogram {
       new ExemplarState[F] {
         override def surround[A](n: A)(
             fa: Option[Exemplar.Labels] => F[Unit]
-        )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: ExemplarSampler.Histogram[F, A]): F[Unit] =
+        )(implicit F: Monad[F], exemplarSampler: ExemplarSampler.Histogram[F, A]): F[Unit] =
           for {
             previous <- get
             next <- exemplarSampler.sample(n, buckets, previous)
-            _ <- fa(next)
-            _ <- next.traverse_(labels =>
-              Clock[F].realTimeInstant.flatMap(time => set(Some(Exemplar.Data(labels, time))))
-            )
+            _ <- fa(next.map(_.labels))
+            _ <- next.traverse_(data => set(Some(data)))
           } yield ()
 
         def mapK[G[_]](fk: F ~> G): ExemplarState[G] = getSet(buckets, fk(get), ex => fk(set(ex)))
@@ -93,7 +91,7 @@ object Histogram {
       self =>
       override def surround[A](n: A)(
           fa: Option[Exemplar.Labels] => F[Unit]
-      )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: ExemplarSampler.Histogram[F, A]): F[Unit] =
+      )(implicit F: Monad[F], exemplarSampler: ExemplarSampler.Histogram[F, A]): F[Unit] =
         Applicative[F].unit
 
       override def mapK[G[_]](fk: F ~> G): ExemplarState[G] = noop[G]
@@ -106,7 +104,7 @@ object Histogram {
 
     final def observeWithSampledExemplar(
         n: A
-    )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: ExemplarSampler.Histogram[F, A]): F[Unit] =
+    )(implicit F: Monad[F], exemplarSampler: ExemplarSampler.Histogram[F, A]): F[Unit] =
       histogram.exemplarState.surround(n)(observeProvidedExemplar(n, _))
 
     final def observeWithExemplar(n: A)(implicit F: FlatMap[F], exemplar: Exemplar[F]): F[Unit] =
@@ -122,7 +120,7 @@ object Histogram {
     final def observeWithSampledExemplar(
         n: A,
         labels: B
-    )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: ExemplarSampler.Histogram[F, A]): F[Unit] =
+    )(implicit F: Monad[F], exemplarSampler: ExemplarSampler.Histogram[F, A]): F[Unit] =
       histogram.exemplarState.surround(n)(observeProvidedExemplar(n, labels, _))
 
     final def observeWithExemplar(n: A, labels: B)(implicit F: FlatMap[F], exemplar: Exemplar[F]): F[Unit] =

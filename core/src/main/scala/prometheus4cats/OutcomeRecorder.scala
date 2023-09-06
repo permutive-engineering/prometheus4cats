@@ -17,7 +17,7 @@
 package prometheus4cats
 
 import cats.effect.kernel.syntax.monadCancel._
-import cats.effect.kernel.{Clock, MonadCancelThrow, Outcome}
+import cats.effect.kernel.{MonadCancelThrow, Outcome}
 import cats.syntax.flatMap._
 import cats.{FlatMap, Monad, Show, ~>}
 import prometheus4cats.internal.Neq
@@ -137,7 +137,7 @@ object OutcomeRecorder {
 
     final def surroundWithSampledExemplar[B](
         fb: F[B]
-    )(implicit F: MonadCancelThrow[F], clock: Clock[F], exemplarSampler: ExemplarSampler.Counter[F, A]): F[B] =
+    )(implicit F: MonadCancelThrow[F], exemplarSampler: ExemplarSampler.Counter[F, A]): F[B] =
       fb.guaranteeCase(recordWithSampledExemplar)
 
     final def surroundProvidedExemplar[C](
@@ -173,7 +173,7 @@ object OutcomeRecorder {
 
     final def recordWithSampledExemplar[B, E](
         outcome: Outcome[F, E, B]
-    )(implicit F: Monad[F], clock: Clock[F], exemplarSampler: ExemplarSampler.Counter[F, A]): F[Unit] =
+    )(implicit F: Monad[F], exemplarSampler: ExemplarSampler.Counter[F, A]): F[Unit] =
       recorder.exemplarState.surround(exemplar => recordOutcomeProvidedExemplar(outcome, exemplar, exemplar, exemplar))
 
     final def recordOutcomeProvidedExemplar[C, E](
@@ -297,7 +297,6 @@ object OutcomeRecorder {
 
     final def surroundWithSampledExemplar[C](fb: F[C], labels: A)(implicit
         F: MonadCancelThrow[F],
-        clock: Clock[F],
         exemplarSampler: ExemplarSampler.Counter[F, B]
     ): F[C] = fb.guaranteeCase(recordOutcomeWithSampledExemplar(_, labels))
 
@@ -342,7 +341,6 @@ object OutcomeRecorder {
         labels: A
     )(implicit
         F: Monad[F],
-        clock: Clock[F],
         exemplarSampler: ExemplarSampler.Counter[F, B]
     ): F[Unit] =
       recorder.exemplarState.surround(next => recordOutcomeProvidedExemplar(outcome, labels, next, next, next))
@@ -403,7 +401,6 @@ object OutcomeRecorder {
         labelsCanceled: A
     )(labelsSuccess: C => A, labelsError: Throwable => A)(implicit
         F: MonadCancelThrow[F],
-        clock: Clock[F],
         exemplarSampler: ExemplarSampler.Counter[F, B]
     ): F[C] =
       fb.guaranteeCase(
@@ -449,7 +446,6 @@ object OutcomeRecorder {
         labelsCanceled: A
     )(labelsSuccess: C => A, labelsError: E => A)(implicit
         F: Monad[F],
-        clock: Clock[F],
         exemplarSampler: ExemplarSampler.Counter[F, B]
     ): F[Unit] =
       recorder.exemplarState
