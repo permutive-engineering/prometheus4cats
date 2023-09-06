@@ -26,9 +26,9 @@ import prometheus4cats.util.NameUtils
 package object javasimpleclient {
   private[javasimpleclient] type StateKey = (Option[Metric.Prefix], String) // TODO allow specific names maybe
   private[javasimpleclient] type MetricID = (IndexedSeq[Label.Name], MetricType)
-  private[javasimpleclient] type StateValue = (MetricID, (SimpleCollector[_], Int))
+  private[javasimpleclient] type StateValue[F[_]] = (MetricID, (SimpleCollector[_], Ref[F, Option[Exemplar.Data]], Int))
 
-  private[javasimpleclient] type State = Map[StateKey, StateValue]
+  private[javasimpleclient] type State[F[_]] = Map[StateKey, StateValue[F]]
 
   private[javasimpleclient] val duplicateShow: Show[(Option[Metric.Prefix], String)] = Show.show {
     case (prefix, name) =>

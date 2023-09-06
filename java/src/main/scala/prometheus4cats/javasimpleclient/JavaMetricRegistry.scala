@@ -51,7 +51,7 @@ import scala.jdk.CollectionConverters._
 
 class JavaMetricRegistry[F[_]: Async: Logger] private (
     private val registry: CollectorRegistry,
-    private val ref: Ref[F, State],
+    private val ref: Ref[F, State[F]],
     private val callbackState: Ref[F, CallbackState[F]],
     private val callbackTimeoutState: Ref[F, Set[String]],
     private val callbackErrorState: Ref[F, Set[String]],
@@ -80,7 +80,22 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       help: Metric.Help,
       labels: IndexedSeq[Label.Name],
       modifyBuilder: Option[B => B] = None
-  ): Resource[F, C] = {
+  ): Resource[F, C] =
+    configureBuilderOrRetrieveExemplar(builder, metricType, metricPrefix, name, help, labels, modifyBuilder).map(_._1)
+
+  protected def configureBuilderOrRetrieveExemplar[
+      A: Show,
+      B <: SimpleCollector.Builder[B, C],
+      C <: SimpleCollector[_]
+  ](
+      builder: SimpleCollector.Builder[B, C],
+      metricType: MetricType,
+      metricPrefix: Option[Metric.Prefix],
+      name: A,
+      help: Metric.Help,
+      labels: IndexedSeq[Label.Name],
+      modifyBuilder: Option[B => B] = None
+  ): Resource[F, (C, Ref[F, Option[Exemplar.Data]])] = {
     lazy val n = counterName(name)
 
     lazy val metricId: MetricID = (labels, metricType)
@@ -103,12 +118,19 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
         }
       } >>
         ref.get
-          .flatMap[(State, C)] { (metrics: State) =>
+          .flatMap[(State[F], (C, Ref[F, Option[Exemplar.Data]]))] { (metrics: State[F]) =>
             metrics.get(fullName) match {
-              case Some((expected, (collector, references))) =>
+              case Some((expected, (collector, exemplarRef, references))) =>
                 if (metricId == expected)
                   Applicative[F].pure(
-                    metrics.updated(fullName, (expected, (collector, references + 1))) -> collector.asInstanceOf[C]
+                    (
+                      metrics.updated(fullName, (expected, (collector, exemplarRef, references + 1))),
+                      (
+                        collector
+                          .asInstanceOf[C],
+                        exemplarRef
+                      )
+                    )
                   )
                 else
                   ApplicativeThrow[F].raiseError(
@@ -117,32 +139,33 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
                     )
                   )
               case None =>
-                Sync[F].delay {
-                  val b: B =
-                    builder
-                      .name(NameUtils.makeName(metricPrefix, name))
-                      .help(help.value)
-                      .labelNames(labels.map(_.value): _*)
+                for {
+                  exemplarRef <- Ref.of[F, Option[Exemplar.Data]](None)
+                  collector <- Sync[F].delay {
+                    val b: B =
+                      builder
+                        .name(NameUtils.makeName(metricPrefix, name))
+                        .help(help.value)
+                        .labelNames(labels.map(_.value): _*)
 
-                  modifyBuilder.foreach(f => f(b))
+                    modifyBuilder.foreach(f => f(b))
 
-                  b.register(registry)
-                }.map { collector =>
-                  metrics.updated(fullName, (metricId, collector -> 1)) -> collector
-                }
+                    b.register(registry)
+                  }
+                } yield (metrics.updated(fullName, (metricId, (collector, exemplarRef, 1))), (collector, exemplarRef))
             }
           }
           .flatMap { case (state, collector) => ref.set(state).as(collector) }
     )
 
-    Resource.make(acquire) { collector =>
+    Resource.make(acquire) { case (collector, _) =>
       sem.permit.surround {
         ref.get.flatMap { metrics =>
           metrics.get(fullName) match {
-            case Some((`metricId`, (_, 1))) =>
+            case Some((`metricId`, (_, _, 1))) =>
               ref.set(metrics - fullName) >> Utils.unregister(collector, registry)
-            case Some((`metricId`, (collector, references))) =>
-              ref.set(metrics.updated(fullName, (metricId, collector -> (references - 1))))
+            case Some((`metricId`, (collector, exemplarRef, references))) =>
+              ref.set(metrics.updated(fullName, (metricId, (collector, exemplarRef, references - 1))))
             case _ => Applicative[F].unit
           }
         }
@@ -160,17 +183,22 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     val commonLabelNames = commonLabels.value.keys.toIndexedSeq
     val commonLabelValues = commonLabels.value.values.toIndexedSeq
 
-    configureBuilderOrRetrieve(
-      PCounter.build(),
+    configureBuilderOrRetrieveExemplar(
+      PCounter.build().withExemplars(),
       MetricType.Counter,
       prefix,
       name,
       help,
       labelNames ++ commonLabelNames
-    ).map { counter =>
+    ).map { case (counter, exemplarRef) =>
       Counter.make(
+        Counter.ExemplarState.fromRef(exemplarRef),
         1.0,
-        (d: Double, labels: A, exemplar: Option[Exemplar.Labels]) =>
+        (
+            d: Double,
+            labels: A,
+            exemplar: Option[Exemplar.Labels]
+        ) =>
           Utils.modifyMetric[F, Counter.Name, PCounter.Child](
             counter,
             name,
@@ -225,23 +253,26 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     val commonLabelNames = commonLabels.value.keys.toIndexedSeq
     val commonLabelValues = commonLabels.value.values.toIndexedSeq
 
-    configureBuilderOrRetrieve(
-      PHistogram.build().buckets(buckets.toSeq: _*),
+    configureBuilderOrRetrieveExemplar(
+      PHistogram.build().withExemplars().buckets(buckets.toSeq: _*),
       MetricType.Histogram,
       prefix,
       name,
       help,
       labelNames ++ commonLabelNames
-    ).map { histogram =>
-      Histogram.make[F, Double, A](_observe = { (d: Double, labels: A, exemplar: Option[Exemplar.Labels]) =>
-        Utils.modifyMetric[F, Histogram.Name, PHistogram.Child](
-          histogram,
-          name,
-          labelNames ++ commonLabelNames,
-          f(labels) ++ commonLabelValues,
-          h => exemplar.fold(h.observe(d))(e => h.observeWithExemplar(d, transformExemplarLabels(e)))
-        )
-      })
+    ).map { case (histogram, exemplarRef) =>
+      Histogram.make[F, Double, A](
+        Histogram.ExemplarState.fromRef(buckets, exemplarRef),
+        _observe = { (d: Double, labels: A, exemplar: Option[Exemplar.Labels]) =>
+          Utils.modifyMetric[F, Histogram.Name, PHistogram.Child](
+            histogram,
+            name,
+            labelNames ++ commonLabelNames,
+            f(labels) ++ commonLabelValues,
+            h => exemplar.fold(h.observe(d))(e => h.observeWithExemplar(d, transformExemplarLabels(e)))
+          )
+        }
+      )
     }
   }
 
@@ -669,7 +700,7 @@ object JavaMetricRegistry {
             .create()
 
         val acquire = for {
-          ref <- Ref.of[F, State](Map.empty)
+          ref <- Ref.of[F, State[F]](Map.empty)
           metricsGauge = makeMetricsGauge(dis, ref)
           _ <- Sync[F].delay(promRegistry.register(metricsGauge))
           callbackState <- Ref.of[F, CallbackState[F]](Map.empty)
@@ -723,7 +754,7 @@ object JavaMetricRegistry {
                   metrics.values
                     .map(_._2)
                     .toList
-                    .traverse_ { case (collector, _) =>
+                    .traverse_ { case (collector, _, _) =>
                       Utils.unregister(collector, promRegistry)
                     }
                 else Applicative[F].unit
@@ -809,7 +840,7 @@ object JavaMetricRegistry {
     )
   }
 
-  private def makeMetricsGauge[F[_]: Monad](dis: Dispatcher[F], state: Ref[F, State]) = new Collector {
+  private def makeMetricsGauge[F[_]: Monad](dis: Dispatcher[F], state: Ref[F, State[F]]) = new Collector {
     override def collect(): util.List[MetricFamilySamples] = dis.unsafeRunSync(state.get.map { s =>
       val allMetrics = new GaugeMetricFamily(
         "prometheus4cats_registered_metrics",
@@ -823,7 +854,7 @@ object JavaMetricRegistry {
           "Number of claims on each metric registered in the Prometheus Java registry by Prometheus4Cats",
           List("metric_name", "metric_type").asJava
         )
-      ) { case (gauge, ((prefix, name), ((_, metricType), (_, claims)))) =>
+      ) { case (gauge, ((prefix, name), ((_, metricType), (_, _, claims)))) =>
         gauge.addMetric(List(NameUtils.makeName(prefix, name), metricType.toString).asJava, claims.toDouble)
       }
 

@@ -16,8 +16,6 @@
 
 package prometheus4cats
 
-import java.util.concurrent.TimeUnit
-
 import cats.Id
 import cats.data.{NonEmptyList, WriterT}
 import cats.effect.kernel.Outcome.Succeeded
@@ -28,13 +26,19 @@ import munit.{CatsEffectSuite, ScalaCheckEffectSuite}
 import org.scalacheck.effect.PropF._
 import org.scalacheck.{Arbitrary, Gen}
 
+import java.util.concurrent.TimeUnit
 import scala.concurrent.duration._
 
 class TimerSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
   val write: (Double, Unit) => WriterT[IO, List[Double], Unit] = (d, _: Unit) => WriterT.tell[IO, List[Double]](List(d))
 
   val hist =
-    Timer.fromHistogram(Histogram.make[WriterT[IO, List[Double], *], Double, Unit]((d, l, _) => write(d, l)))
+    Timer.fromHistogram(
+      Histogram.make[WriterT[IO, List[Double], *], Double, Unit](
+        Histogram.ExemplarState.noop,
+        (d, l, _) => write(d, l)
+      )
+    )
 
   val gauge =
     Timer.fromGauge(
@@ -49,7 +53,12 @@ class TimerSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
     WriterT.tell[IO, List[(Double, A)]](List(d -> a))
 
   val labelledHistogram =
-    Timer.fromHistogram(Histogram.make((d, a: String, _) => writeLabels[String](d, a)))
+    Timer.fromHistogram(
+      Histogram.make(
+        Histogram.ExemplarState.noop,
+        (d, a: String, _) => writeLabels[String](d, a)
+      )
+    )
 
   val labelledGauge = Timer.fromGauge(
     Gauge.make(
@@ -196,7 +205,12 @@ class TimerSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
 
       test((ref, s) =>
         Timer
-          .fromHistogram(Histogram.make[IO, Double, String]((d, s, _) => ref.update(_ :+ (d -> s))))
+          .fromHistogram(
+            Histogram.make[IO, Double, String](
+              Histogram.ExemplarState.noop,
+              (d, s, _) => ref.update(_ :+ (d -> s))
+            )
+          )
           .timeAttempt[String](s)(identity, { case th => th.getMessage })
       ) >> test((ref, s) =>
         Timer

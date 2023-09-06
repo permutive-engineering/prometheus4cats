@@ -27,9 +27,19 @@ import prometheus4cats.util.{DoubleCallbackRegistry, DoubleMetricRegistry, NameU
 import scala.concurrent.duration.FiniteDuration
 
 sealed abstract class TestingMetricRegistry[F[_]] private (
-    private val underlying: MapRef[F, (String, List[String]), Option[
-      (Int, MetricType, Metric[Double], MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]])
-    ]],
+    private val underlying: MapRef[
+      F,
+      (String, List[String]),
+      Option[
+        (
+            Int,
+            MetricType,
+            Metric[Double],
+            MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]],
+            Ref[F, Option[Exemplar.Data]]
+        )
+      ]
+    ],
     private val info: MapRef[F, String, Option[(Int, Info[F, Map[Label.Name, String]])]]
 )(implicit override val F: Concurrent[F])
     extends DoubleMetricRegistry[F]
@@ -267,9 +277,11 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       NameUtils.makeName(prefix, name.value),
       names(commonLabels, labelNames),
       MetricType.Counter,
-      (ref: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]]) =>
-        Counter.make[F, Double, A]((d: Double, a: A, e: Option[Exemplar.Labels]) =>
-          ref(values(commonLabels, f(a))).update(c => c.append((c.lastOption.get._1 + d, e)))
+      (ref: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]], ex: Ref[F, Option[Exemplar.Data]]) =>
+        Counter.make[F, Double, A](
+          Counter.ExemplarState.fromRef(ex),
+          (d: Double, a: A, e: Option[Exemplar.Labels]) =>
+            ref(values(commonLabels, f(a))).update(c => c.append((c.lastOption.get._1 + d, e)))
         ),
       Chain.one(0.0 -> None)
     )
@@ -285,7 +297,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       NameUtils.makeName(prefix, name.value),
       names(commonLabels, labelNames),
       MetricType.Gauge,
-      (ref: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]]) =>
+      (ref: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]], _) =>
         Gauge.make[F, Double, A](
           (d: Double, a: A) => ref(values(commonLabels, f(a))).update(c => c.append((c.lastOption.get._1 + d, None))),
           (d: Double, a: A) => ref(values(commonLabels, f(a))).update(c => c.append((c.lastOption.get._1 - d, None))),
@@ -306,9 +318,10 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       NameUtils.makeName(prefix, name.value),
       names(commonLabels, labelNames),
       MetricType.Histogram,
-      (ref: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]]) =>
-        Histogram.make[F, Double, A]((d: Double, a: A, e: Option[Exemplar.Labels]) =>
-          ref(values(commonLabels, f(a))).update(_.append(d -> e))
+      (ref: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]], ex: Ref[F, Option[Exemplar.Data]]) =>
+        Histogram.make[F, Double, A](
+          Histogram.ExemplarState.fromRef(buckets, ex),
+          (d: Double, a: A, e: Option[Exemplar.Labels]) => ref(values(commonLabels, f(a))).update(_.append(d -> e))
         ),
       Chain.nil
     )
@@ -327,7 +340,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       NameUtils.makeName(prefix, name.value),
       names(commonLabels, labelNames),
       MetricType.Summary,
-      (ref: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]]) =>
+      (ref: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]], _) =>
         Summary.make[F, Double, A]((d: Double, a: A) => ref(values(commonLabels, f(a))).update(_.append(d -> None))),
       Chain.nil
     )
@@ -399,44 +412,47 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       name: String,
       labels: List[String],
       tpe: MetricType,
-      create: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]] => M,
+      create: (MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]], Ref[F, Option[Exemplar.Data]]) => M,
       initial: Chain[(Double, Option[Exemplar.Labels])]
   ): Resource[F, M] =
     Resource
       .eval(
-        MapRef
-          .ofShardedImmutableMap[F, List[String], Chain[(Double, Option[Exemplar.Labels])]](32)
-          .map(r => MapRef.defaultedMapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]](r, initial))
-          .flatMap { ref =>
-            val release =
-              underlying(name -> labels).update {
-                case None => throw new RuntimeException("This should be unreachable - our reference counting has a bug")
-                case Some((n, t, c, h)) => if (n == 1) None else Some((n - 1, t, c, h))
-              }
+        Ref.of[F, Option[Exemplar.Data]](None).flatMap { exRef =>
+          MapRef
+            .ofShardedImmutableMap[F, List[String], Chain[(Double, Option[Exemplar.Labels])]](32)
+            .map(r => MapRef.defaultedMapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]](r, initial))
+            .flatMap { ref =>
+              val release =
+                underlying(name -> labels).update {
+                  case None =>
+                    throw new RuntimeException("This should be unreachable - our reference counting has a bug")
+                  case Some((n, t, c, h, ex)) => if (n == 1) None else Some((n - 1, t, c, h, ex))
+                }
 
-            underlying(name -> labels).modify {
-              case None =>
-                val m = create(ref)
-                Some((1, tpe, m, ref)) -> F.pure(
-                  Resource.make(F.pure(m))(_ => release)
-                )
-              case curr @ Some((n, t, m, h)) =>
-                if (t == tpe)
-                  Some((n + 1, t, m, h)) ->
-                    F.pure(
-                      Resource.make(
-                        // Cast safe by construction
-                        F.pure(m.asInstanceOf[M])
-                      )(_ => release)
-                    )
-                else
-                  curr -> F.raiseError[Resource[F, M]](
-                    new RuntimeException(
-                      s"Cannot create metric of type $tpe as metric of type $t already exists with the same name and labels"
-                    )
+              underlying(name -> labels).modify {
+                case None =>
+                  val m = create(ref, exRef)
+                  Some((1, tpe, m, ref, exRef)) -> F.pure(
+                    Resource.make(F.pure(m))(_ => release)
                   )
-            }.flatten
-          }
+                case curr @ Some((n, t, m, h, e)) =>
+                  if (t == tpe)
+                    Some((n + 1, t, m, h, e)) ->
+                      F.pure(
+                        Resource.make(
+                          // Cast safe by construction
+                          F.pure(m.asInstanceOf[M])
+                        )(_ => release)
+                      )
+                  else
+                    curr -> F.raiseError[Resource[F, M]](
+                      new RuntimeException(
+                        s"Cannot create metric of type $tpe as metric of type $t already exists with the same name and labels"
+                      )
+                    )
+              }.flatten
+            }
+        }
       )
       .flatten
 
@@ -447,7 +463,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       tpe: MetricType
   ): F[Option[Chain[(Double, Option[Exemplar.Labels])]]] =
     underlying(name -> labelNames).get.flatMap(_.flatTraverse {
-      case (_, t, _, r) if t == tpe =>
+      case (_, t, _, r, _) if t == tpe =>
         r(labelValues).get.map(_.some)
       case _ => Option.empty[Chain[(Double, Option[Exemplar.Labels])]].pure[F]
     })
@@ -472,7 +488,13 @@ object TestingMetricRegistry {
       .ofShardedImmutableMap[
         F,
         (String, List[String]),
-        (Int, MetricType, Metric[Double], MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]])
+        (
+            Int,
+            MetricType,
+            Metric[Double],
+            MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]],
+            Ref[F, Option[Exemplar.Data]]
+        )
       ](256),
     MapRef.ofShardedImmutableMap[F, String, (Int, Info[F, Map[Label.Name, String]])](64)
   ).mapN { case (m, i) => new TestingMetricRegistry(m, i) {} }

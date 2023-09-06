@@ -17,11 +17,11 @@
 package prometheus4cats
 
 import cats.Applicative
-
 import prometheus4cats.internal.ExemplarLabelNameFromStringLiteral
 import prometheus4cats.internal.Refined
 import prometheus4cats.internal.Refined.Regex
 
+import java.time.Instant
 import scala.collection.immutable.SortedMap
 
 /** A typeclass to provide exemplars to counters and histograms, which may be used by [[MetricRegistry]]
@@ -38,6 +38,12 @@ object Exemplar {
     implicit def noop[F[_]: Applicative]: Exemplar[F] = new Exemplar[F] {
       override def get: F[Option[Labels]] = Applicative[F].pure(None)
     }
+  }
+
+  sealed abstract class Data(val labels: Exemplar.Labels, val timestamp: Instant) extends Serializable
+
+  object Data {
+    def apply(labels: Labels, timestamp: Instant): Data = new Data(labels, timestamp) {}
   }
 
   /** Refined value class for an exemplar label name that has been parsed from a string
