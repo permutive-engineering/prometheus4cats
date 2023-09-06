@@ -21,9 +21,9 @@ import cats.data.NonEmptySeq
 
 trait ExemplarSampler[F[_], -A] extends ExemplarSampler.Counter[F, A] with ExemplarSampler.Histogram[F, A] { self =>
   override def mapK[G[_]](fk: F ~> G): ExemplarSampler[G, A] = new ExemplarSampler[G, A] {
-    override def sample(previous: Option[Exemplar.Data]): G[Option[Exemplar.Labels]] = fk(self.sample(previous))
+    override def sample(previous: Option[Exemplar.Data]): G[Option[Exemplar.Data]] = fk(self.sample(previous))
 
-    override def sample(value: A, previous: Option[Exemplar.Data]): G[Option[Exemplar.Labels]] = fk(
+    override def sample(value: A, previous: Option[Exemplar.Data]): G[Option[Exemplar.Data]] = fk(
       self.sample(value, previous)
     )
 
@@ -31,21 +31,21 @@ trait ExemplarSampler[F[_], -A] extends ExemplarSampler.Counter[F, A] with Exemp
         value: A,
         buckets: NonEmptySeq[Double],
         previous: Option[Exemplar.Data]
-    ): G[Option[Exemplar.Labels]] = fk(self.sample(value, buckets, previous))
+    ): G[Option[Exemplar.Data]] = fk(self.sample(value, buckets, previous))
   }
 }
 
 object ExemplarSampler extends Common {
   trait Counter[F[_], -A] {
     self =>
-    def sample(previous: Option[Exemplar.Data]): F[Option[Exemplar.Labels]]
+    def sample(previous: Option[Exemplar.Data]): F[Option[Exemplar.Data]]
 
-    def sample(value: A, previous: Option[Exemplar.Data]): F[Option[Exemplar.Labels]]
+    def sample(value: A, previous: Option[Exemplar.Data]): F[Option[Exemplar.Data]]
 
     def mapK[G[_]](fk: F ~> G): Counter[G, A] = new Counter[G, A] {
-      override def sample(previous: Option[Exemplar.Data]): G[Option[Exemplar.Labels]] = fk(self.sample(previous))
+      override def sample(previous: Option[Exemplar.Data]): G[Option[Exemplar.Data]] = fk(self.sample(previous))
 
-      override def sample(value: A, previous: Option[Exemplar.Data]): G[Option[Exemplar.Labels]] = fk(
+      override def sample(value: A, previous: Option[Exemplar.Data]): G[Option[Exemplar.Data]] = fk(
         self.sample(value, previous)
       )
     }
@@ -57,14 +57,14 @@ object ExemplarSampler extends Common {
 
   trait Histogram[F[_], -A] {
     self =>
-    def sample(value: A, buckets: NonEmptySeq[Double], previous: Option[Exemplar.Data]): F[Option[Exemplar.Labels]]
+    def sample(value: A, buckets: NonEmptySeq[Double], previous: Option[Exemplar.Data]): F[Option[Exemplar.Data]]
 
     def mapK[G[_]](fk: F ~> G): Histogram[G, A] = new Histogram[G, A] {
       override def sample(
           value: A,
           buckets: NonEmptySeq[Double],
           previous: Option[Exemplar.Data]
-      ): G[Option[Exemplar.Labels]] =
+      ): G[Option[Exemplar.Data]] =
         fk(self.sample(value, buckets, previous))
     }
   }
@@ -79,16 +79,16 @@ object ExemplarSampler extends Common {
 trait Common {
   object Implicits {
     implicit def noop[F[_]: Applicative, A]: ExemplarSampler[F, A] = new ExemplarSampler[F, A] {
-      override def sample(previous: Option[Exemplar.Data]): F[Option[Exemplar.Labels]] = Applicative[F].pure(None)
+      override def sample(previous: Option[Exemplar.Data]): F[Option[Exemplar.Data]] = Applicative[F].pure(None)
 
-      override def sample(value: A, previous: Option[Exemplar.Data]): F[Option[Exemplar.Labels]] =
+      override def sample(value: A, previous: Option[Exemplar.Data]): F[Option[Exemplar.Data]] =
         Applicative[F].pure(None)
 
       override def sample(
           value: A,
           buckets: NonEmptySeq[Double],
           previous: Option[Exemplar.Data]
-      ): F[Option[Exemplar.Labels]] = Applicative[F].pure(None)
+      ): F[Option[Exemplar.Data]] = Applicative[F].pure(None)
     }
   }
 }

@@ -94,7 +94,6 @@ object Timer {
 
     def recordTimeWithSampledExemplar(duration: FiniteDuration)(implicit
         F: Monad[F],
-        clock: Clock[F],
         exemplarSampler: ExemplarSampler.Histogram[F, Double]
     ): F[Unit] = timer.exemplarState.surround(duration.toUnit(TimeUnit.SECONDS))(recordTimeWithExemplar(duration, _))
 
@@ -116,6 +115,16 @@ object Timer {
         recordExemplar: (FiniteDuration, B) => Boolean
     )(implicit F: MonadThrow[F], clock: Clock[F], exemplar: prometheus4cats.Exemplar[F]): F[B] =
       exemplar.get.flatMap(ex => timeProvidedExemplar(fb)((dur, b) => if (recordExemplar(dur, b)) ex else None))
+
+    final def timeWithSampledExemplar[B](
+        fb: F[B]
+    )(implicit F: MonadThrow[F], clock: Clock[F], exemplarSampler: ExemplarSampler.Histogram[F, Double]) =
+      clock.timed(fb.attempt).flatMap { case (duration, b) =>
+        b match {
+          case Left(_) => recordTimeWithExemplar(duration, None).flatMap(_ => b.liftTo[F])
+          case Right(value) => recordTimeWithSampledExemplar(duration).as(value)
+        }
+      }
 
     final def timeProvidedExemplar[B](fb: F[B])(
         recordExemplar: (FiniteDuration, B) => Option[prometheus4cats.Exemplar.Labels]
@@ -191,7 +200,6 @@ object Timer {
 
     def recordTimeWithSampledExemplar(duration: FiniteDuration, labels: A)(implicit
         F: Monad[F],
-        clock: Clock[F],
         exemplarSampler: ExemplarSampler.Histogram[F, Double]
     ): F[Unit] =
       timer.exemplarState.surround(duration.toUnit(TimeUnit.SECONDS))(recordTimeWithExemplar(duration, labels, _))
