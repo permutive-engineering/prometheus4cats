@@ -45,11 +45,19 @@ private[javasimpleclient] object Utils {
       labelNames: IndexedSeq[Label.Name],
       labels: IndexedSeq[String],
       modify: B => Unit
+  ): F[Unit] = modifyMetricF[F, A, B](c, metricName, labelNames, labels, b => Sync[F].delay(modify(b)))
+
+  private[javasimpleclient] def modifyMetricF[F[_]: Sync: Logger, A: Show, B](
+      c: SimpleCollector[B],
+      metricName: A,
+      labelNames: IndexedSeq[Label.Name],
+      labels: IndexedSeq[String],
+      modify: B => F[Unit]
   ): F[Unit] = {
     val mod: F[Unit] =
       for {
         a <- retrieveCollectorForLabels(c, metricName, labelNames, labels)
-        _ <- handlePrometheusCollectorErrors(Sync[F].delay(modify(a)), c, metricName, labelNames, labels)
+        _ <- handlePrometheusCollectorErrors(modify(a), c, metricName, labelNames, labels)
       } yield ()
 
     mod.recoverWith { case e: PrometheusException[_] =>

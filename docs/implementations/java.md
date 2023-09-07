@@ -3,6 +3,8 @@
 The Java registry implements both [`MetricRegistry`] and [`CallbackRegistry`], wrapping the [Prometheus Java library].
 This provides interoperability with anything that depends on the Java library.
 
+> ℹ️ As of version `1.1.0` of Prometheus4Cats, the Java registry now supports [Exemplars](../interface/exemplar.md)
+
 > ℹ️ The Java Registry does add a runtime constraint that go beyond constraints that Prometheus itself imposes:
 > You cannot have two metrics of the same name with different labels.
 > [This issue](https://github.com/prometheus/client_java/issues/696) describes the problem.

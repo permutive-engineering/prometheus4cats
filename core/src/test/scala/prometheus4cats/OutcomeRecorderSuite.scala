@@ -24,35 +24,41 @@ import org.scalacheck.{Arbitrary, Gen}
 import prometheus4cats.OutcomeRecorder.Status
 
 class OutcomeRecorderSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
-  val opCounter: IO[(OutcomeRecorder[IO], IO[Map[Status, Int]])] =
+  val opCounter: IO[(OutcomeRecorder[IO, Unit], IO[Map[Status, Int]])] =
     Ref.of[IO, Map[Status, Int]](Map.empty).map { ref =>
       OutcomeRecorder.fromCounter(
-        Counter.Labelled.make[IO, Int, Status]((i: Int, s: Status) => ref.update(_ |+| Map(s -> i)))
-      ) -> ref.get
-    }
-
-  val opGauge: IO[(OutcomeRecorder[IO], IO[Map[Status, Int]])] =
-    Ref.of[IO, Map[Status, Int]](Map.empty).map { ref =>
-      OutcomeRecorder.fromGauge(
-        Gauge.Labelled.make[IO, Int, Status](
-          (i: Int, s: Status) => ref.update(_ |+| Map(s -> i)),
-          (i: Int, s: Status) => ref.update(_ |+| Map(s -> -i)),
-          (i: Int, s: Status) => ref.update(_.updated(s, i))
+        Counter.make[IO, Int, (Unit, Status)](
+          Counter.ExemplarState.noop[IO],
+          (i: Int, labels: (Unit, Status), _: Option[Exemplar.Labels]) => ref.update(_ |+| Map(labels._2 -> i))
         )
       ) -> ref.get
     }
 
-  val labelledOpCounter: IO[(OutcomeRecorder.Labelled[IO, String], IO[Map[(String, Status), Int]])] =
-    Ref.of[IO, Map[(String, Status), Int]](Map.empty).map { ref =>
-      OutcomeRecorder.Labelled.fromCounter(
-        Counter.Labelled.make[IO, Int, (String, Status)]((i: Int, s: (String, Status)) => ref.update(_ |+| Map(s -> i)))
+  val opGauge: IO[(OutcomeRecorder[IO, Unit], IO[Map[Status, Int]])] =
+    Ref.of[IO, Map[Status, Int]](Map.empty).map { ref =>
+      OutcomeRecorder.fromGauge(
+        Gauge.make[IO, Int, (Unit, Status)](
+          (i: Int, labels: (Unit, Status)) => ref.update(_ |+| Map(labels._2 -> i)),
+          (i: Int, labels: (Unit, Status)) => ref.update(_ |+| Map(labels._2 -> -i)),
+          (i: Int, labels: (Unit, Status)) => ref.update(_.updated(labels._2, i))
+        )
       ) -> ref.get
     }
 
-  val labelledOpGauge: IO[(OutcomeRecorder.Labelled[IO, String], IO[Map[(String, Status), Int]])] =
+  val labelledOpCounter: IO[(OutcomeRecorder[IO, String], IO[Map[(String, Status), Int]])] =
     Ref.of[IO, Map[(String, Status), Int]](Map.empty).map { ref =>
-      OutcomeRecorder.Labelled.fromGauge(
-        Gauge.Labelled.make[IO, Int, (String, Status)](
+      OutcomeRecorder.fromCounter(
+        Counter.make[IO, Int, (String, Status)](
+          Counter.ExemplarState.noop[IO],
+          (i: Int, s: (String, Status), _: Option[Exemplar.Labels]) => ref.update(_ |+| Map(s -> i))
+        )
+      ) -> ref.get
+    }
+
+  val labelledOpGauge: IO[(OutcomeRecorder[IO, String], IO[Map[(String, Status), Int]])] =
+    Ref.of[IO, Map[(String, Status), Int]](Map.empty).map { ref =>
+      OutcomeRecorder.fromGauge(
+        Gauge.make[IO, Int, (String, Status)](
           (i: Int, s: (String, Status)) => ref.update(_ |+| Map(s -> i)),
           (i: Int, s: (String, Status)) => ref.update(_ |+| Map(s -> -i)),
           (i: Int, s: (String, Status)) => ref.update(_.updated(s, i))

@@ -16,9 +16,10 @@
 
 package prometheus4cats
 
-import java.util.regex.Pattern
-
 import cats.{Applicative, Contravariant, ~>}
+
+import prometheus4cats.internal.Refined
+import prometheus4cats.internal.Refined.Regex
 
 sealed abstract class Info[F[_], -A] extends Metric[A] { self =>
 
@@ -37,14 +38,11 @@ object Info {
 
   /** Refined value class for a info name that has been parsed from a string
     */
-  final class Name private (val value: String) extends AnyVal with internal.Refined.Value[String] {
-    override def toString: String = s"""Info.Name("$value")"""
-  }
+  final class Name private (val value: String) extends AnyVal with Refined.Value[String]
 
-  object Name extends internal.Refined.StringRegexRefinement[Name] with internal.InfoNameFromStringLiteral {
-    override protected val regex: Pattern = "^[a-zA-Z_:][a-zA-Z0-9_:]*_info$".r.pattern
-    override protected def make(a: String): Name = new Name(a)
-  }
+  object Name
+      extends Regex[Name]("^[a-zA-Z_:][a-zA-Z0-9_:]*_info$".r.pattern, new Name(_))
+      with internal.InfoNameFromStringLiteral
 
   implicit def catsInstances[F[_]]: Contravariant[Info[F, *]] = new Contravariant[Info[F, *]] {
     override def contramap[A, B](fa: Info[F, A])(f: B => A): Info[F, B] = fa.contramap(f)

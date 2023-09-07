@@ -22,6 +22,7 @@ See the example below on how to obtain a `Counter` from a [`MetricFactory`]:
 factory.counter("my_counter_total").ofLong.help("Metric description")
 ```
 
+
 ### `Gauge`
 
 This implements an [OpenMetrics] gauge, allowing a number to be incremented and decremented by `1` or some positive
@@ -168,5 +169,6 @@ val info = factory
 
 [Metrics DSL]: ../interface/dsl.md
 [`MetricFactory`]: ../interface/metric-factory.md
+[exemplars]: ../interface/exemplar.md
 
 [OpenMetrics]: https://github.com/OpenObservability/OpenMetrics

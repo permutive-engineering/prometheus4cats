@@ -25,22 +25,14 @@ import prometheus4cats._
 trait DoubleCallbackRegistry[F[_]] extends CallbackRegistry[F] {
   implicit protected val F: Functor[F]
 
-  override def registerLongCounterCallback(
-      prefix: Option[Metric.Prefix],
-      name: Counter.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels,
-      callback: F[Long]
-  ): Resource[F, Unit] = registerDoubleCounterCallback(prefix, name, help, commonLabels, callback.map(_.toDouble))
-
-  override def registerLabelledLongCounterCallback[A](
+  override def registerLongCounterCallback[A](
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
       callback: F[NonEmptyList[(Long, A)]]
-  )(f: A => IndexedSeq[String]): Resource[F, Unit] = registerLabelledDoubleCounterCallback(
+  )(f: A => IndexedSeq[String]): Resource[F, Unit] = registerDoubleCounterCallback(
     prefix,
     name,
     help,
@@ -49,22 +41,14 @@ trait DoubleCallbackRegistry[F[_]] extends CallbackRegistry[F] {
     callback.map(_.map { case (v, a) => v.toDouble -> a })
   )(f)
 
-  override def registerLongGaugeCallback(
-      prefix: Option[Metric.Prefix],
-      name: Gauge.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels,
-      callback: F[Long]
-  ): Resource[F, Unit] = registerDoubleGaugeCallback(prefix, name, help, commonLabels, callback.map(_.toDouble))
-
-  override def registerLabelledLongGaugeCallback[A](
+  override def registerLongGaugeCallback[A](
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
       callback: F[NonEmptyList[(Long, A)]]
-  )(f: A => IndexedSeq[String]): Resource[F, Unit] = registerLabelledDoubleGaugeCallback(
+  )(f: A => IndexedSeq[String]): Resource[F, Unit] = registerDoubleGaugeCallback(
     prefix,
     name,
     help,
@@ -73,23 +57,7 @@ trait DoubleCallbackRegistry[F[_]] extends CallbackRegistry[F] {
     callback.map(_.map { case (v, a) => v.toDouble -> a })
   )(f)
 
-  override def registerLongHistogramCallback(
-      prefix: Option[Metric.Prefix],
-      name: Histogram.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels,
-      buckets: NonEmptySeq[Long],
-      callback: F[Histogram.Value[Long]]
-  ): Resource[F, Unit] = registerDoubleHistogramCallback(
-    prefix,
-    name,
-    help,
-    commonLabels,
-    buckets.map(_.toDouble),
-    callback.map(_.map(_.toDouble))
-  )
-
-  override def registerLabelledLongHistogramCallback[A](
+  override def registerLongHistogramCallback[A](
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
       help: Metric.Help,
@@ -97,7 +65,7 @@ trait DoubleCallbackRegistry[F[_]] extends CallbackRegistry[F] {
       labelNames: IndexedSeq[Label.Name],
       buckets: NonEmptySeq[Long],
       callback: F[NonEmptyList[(Histogram.Value[Long], A)]]
-  )(f: A => IndexedSeq[String]): Resource[F, Unit] = registerLabelledDoubleHistogramCallback(
+  )(f: A => IndexedSeq[String]): Resource[F, Unit] = registerDoubleHistogramCallback(
     prefix,
     name,
     help,
@@ -107,28 +75,14 @@ trait DoubleCallbackRegistry[F[_]] extends CallbackRegistry[F] {
     callback.map(_.map { case (v, a) => v.map(_.toDouble) -> a })
   )(f)
 
-  override def registerLongSummaryCallback(
-      prefix: Option[Metric.Prefix],
-      name: Summary.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels,
-      callback: F[Summary.Value[Long]]
-  ): Resource[F, Unit] = registerDoubleSummaryCallback(
-    prefix,
-    name,
-    help,
-    commonLabels,
-    callback.map(_.map(_.toDouble))
-  )
-
-  override def registerLabelledLongSummaryCallback[A](
+  override def registerLongSummaryCallback[A](
       prefix: Option[Metric.Prefix],
       name: Summary.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
       callback: F[NonEmptyList[(Summary.Value[Long], A)]]
-  )(f: A => IndexedSeq[String]): Resource[F, Unit] = registerLabelledDoubleSummaryCallback(
+  )(f: A => IndexedSeq[String]): Resource[F, Unit] = registerDoubleSummaryCallback(
     prefix,
     name,
     help,

@@ -16,35 +16,49 @@
 
 package prometheus4cats
 
-import java.util.regex.Pattern
+import cats.Show
+import cats.syntax.all._
 
 import prometheus4cats.internal.LabelNameFromStringLiteral
+import prometheus4cats.internal.Refined
+import prometheus4cats.internal.Refined.Regex
 
 object Label {
 
   /** Refined value class for a label name that has been parsed from a string
     */
-  final class Name private (val value: String) extends AnyVal with internal.Refined.Value[String] {
+  final class Name private (val value: String) extends AnyVal with Refined.Value[String]
 
-    override def toString: String = s"""Label.Name("$value")"""
-
-  }
-
-  object Name extends internal.Refined[String, Name] with LabelNameFromStringLiteral {
+  object Name
+      extends Regex[Name](
+        "^(?!quantile$|le$)[a-zA-Z_:][a-zA-Z0-9_:]*$".r.pattern,
+        new Name(_)
+      )
+      with LabelNameFromStringLiteral {
     // prevents macro compilation problems with the status label
     private[prometheus4cats] val outcomeStatus = new Name("outcome_status")
 
-    private val invalidNames: Set[String] = Set("quantile", "le")
+  }
 
-    protected val regex: Pattern = "^[a-zA-Z_:][a-zA-Z0-9_:]*$".r.pattern
+  final class Value private (val value: String) extends AnyVal
 
-    override protected def make(a: String): Name = new Name(a)
+  object Value extends ValueLowPriority0 {
 
-    override protected def test(a: String): Boolean =
-      !invalidNames.contains(a) && regex.matcher(a).matches()
+    def apply(a: String) = new Value(a)
+    implicit def fromString(a: String): Value = apply(a)
 
-    override protected def nonMatchMessage(a: String): String =
-      s"Label.Name must match pattern `$regex` and not be one of ${invalidNames.mkString(",")}"
+  }
+
+  trait ValueLowPriority0 {
+    implicit def fromShow[A: Show](a: A): Value = Value(a.show)
+  }
+
+  trait Encoder[A] {
+    def toLabels: IndexedSeq[(Label.Name, A => Label.Value)]
+  }
+
+  object Encoder {
+    def apply[A: Encoder]: Encoder[A] = implicitly
   }
 
 }

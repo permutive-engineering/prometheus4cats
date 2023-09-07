@@ -57,7 +57,7 @@ import scala.concurrent.duration.FiniteDuration
 import scala.jdk.CollectionConverters._
 
 private[javasimpleclient] class MetricCollectionProcessor[F[_]: Async: Logger] private (
-    ref: Ref[F, State],
+    ref: Ref[F, State[F]],
     callbacks: Ref[F, CallbackState[F]],
     collectionCallbackRef: Ref[F, Map[Option[
       Metric.Prefix
@@ -433,7 +433,7 @@ private[javasimpleclient] object MetricCollectionProcessor {
     "Number of times a metric collection callback has been executed, with a status (success, error, timeout)"
 
   def create[F[_]: Async: Logger](
-      ref: Ref[F, State],
+      ref: Ref[F, State[F]],
       callbacks: Ref[F, CallbackState[F]],
       dispatcher: Dispatcher[F],
       callbackTimeout: FiniteDuration,

@@ -16,22 +16,21 @@
 
 package prometheus4cats
 
-import java.util.regex.Pattern
-
 import cats.Hash
 import cats.syntax.traverse._
 import prometheus4cats.internal.{MetricHelpFromStringLiteral, MetricPrefixFromStringLiteral}
+import prometheus4cats.internal.Refined
+import prometheus4cats.internal.Refined.Regex
 
 private[prometheus4cats] trait Metric[-A] {
   def contramap[B](f: B => A): Metric[B]
 }
 
 object Metric {
-  final class CommonLabels private (val value: Map[Label.Name, String]) extends AnyVal {
-    override def toString: String = s"Metric.CommonLabels([${value.map { case (name, value) =>
-        s"""$name -> "$value""""
-      }.mkString(",")}])"
-  }
+
+  final class CommonLabels private (val value: Map[Label.Name, String])
+      extends AnyVal
+      with Refined.Value[Map[Label.Name, String]]
 
   // There is no macro for this as we believe that these labels will likely come from bits of runtime information
   object CommonLabels {
@@ -57,34 +56,23 @@ object Metric {
       fromStrings(labels.toMap)
 
     implicit val catsInstances: Hash[CommonLabels] = Hash.by(_.value)
+
   }
 
   /** Refined value class for a help message that has been parsed from a string
     */
-  final class Help private (val value: String) extends AnyVal with internal.Refined.Value[String] {
-    override def toString: String = s"""Metric.Help("$value")"""
-  }
+  final class Help private (val value: String) extends AnyVal with Refined.Value[String]
 
-  object Help extends internal.Refined[String, Help] with MetricHelpFromStringLiteral {
-    override protected def make(a: String): Help = new Help(a)
-
-    override protected def test(a: String): Boolean = a.nonEmpty
-
-    override protected def nonMatchMessage(a: String): String = "Help must not be blank"
-  }
+  object Help extends Regex[Help]("^(?!\\s*$).+".r.pattern, new Help(_)) with MetricHelpFromStringLiteral
 
   /** Refined value class that can be used with [[MetricFactory]] to prefix every metric name with a certain string
     * value
     */
-  final class Prefix private (val value: String) extends AnyVal with internal.Refined.Value[String] {
-    override def toString: String = s"""Metric.Prefix("$value")"""
-  }
+  final class Prefix private (val value: String) extends AnyVal with Refined.Value[String]
 
-  object Prefix extends internal.Refined.StringRegexRefinement[Prefix] with MetricPrefixFromStringLiteral {
-    protected val regex: Pattern = "^[a-zA-Z_:][a-zA-Z0-9_:]*$".r.pattern
-
-    override protected def make(a: String): Prefix = new Prefix(a)
-  }
+  object Prefix
+      extends Regex[Prefix]("^[a-zA-Z_:][a-zA-Z0-9_:]*$".r.pattern, new Prefix(_))
+      with MetricPrefixFromStringLiteral
 
   private[prometheus4cats] trait Labelled[-A] {
     def contramapLabels[B](f: B => A): Labelled[B]
