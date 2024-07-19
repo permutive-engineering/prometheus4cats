@@ -27,7 +27,7 @@ ThisBuild / tlSonatypeUseLegacyHost := false
 
 val Scala213 = "2.13.14"
 
-val Cats = "2.10.0"
+val Cats = "2.12.0"
 
 val CatsEffect = "3.5.1"
 
