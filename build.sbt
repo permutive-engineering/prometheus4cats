@@ -68,7 +68,7 @@ lazy val core = project
       .condOpt(CrossVersion.partialVersion(scalaVersion.value)) { case Some((2, _)) =>
         Seq(
           "org.scala-lang" % "scala-reflect" % scalaVersion.value,
-          "com.chuusai" %% "shapeless" % "2.3.10"
+          "com.chuusai" %% "shapeless" % "2.3.12"
         )
       }
       .toList
