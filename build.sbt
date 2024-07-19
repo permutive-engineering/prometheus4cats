@@ -25,7 +25,7 @@ ThisBuild / developers := List(
 // publish to s01.oss.sonatype.org (set to true to publish to oss.sonatype.org instead)
 ThisBuild / tlSonatypeUseLegacyHost := false
 
-val Scala213 = "2.13.11"
+val Scala213 = "2.13.14"
 
 val Cats = "2.10.0"
 
