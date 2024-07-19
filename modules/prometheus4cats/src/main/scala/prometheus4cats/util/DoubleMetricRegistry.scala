@@ -68,4 +68,5 @@ trait DoubleMetricRegistry[F[_]] extends MetricRegistry[F] {
     createAndRegisterDoubleSummary(prefix, name, help, commonLabels, labelNames, quantiles, maxAge, ageBuckets)(
       f
     ).map(_.contramap(_.toDouble))
+
 }

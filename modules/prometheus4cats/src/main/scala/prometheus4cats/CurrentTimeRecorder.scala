@@ -18,38 +18,46 @@ package prometheus4cats
 
 import cats.effect.kernel.Clock
 import cats.syntax.flatMap._
-import cats.{FlatMap, ~>}
+import cats.FlatMap
+import cats.~>
 import prometheus4cats.internal.Neq
 
 import scala.concurrent.duration.FiniteDuration
 
-/** A derived metric type that sets an underlying [[Gauge]] to the current system time.
-  */
+/** A derived metric type that sets an underlying [[Gauge]] to the current system time. */
 trait CurrentTimeRecorder[F[_], A] extends Metric.Labelled[A] { self =>
 
-  /** Set the underlying [[Gauge]] to the current system time.
-    */
+  /** Set the underlying [[Gauge]] to the current system time. */
   protected def markImpl(labels: A): F[Unit]
 
   def contramapLabels[B](f: B => A): CurrentTimeRecorder[F, B] = new CurrentTimeRecorder[F, B] {
+
     override def markImpl(labels: B): F[Unit] = self.markImpl(f(labels))
+
   }
 
   def mapK[G[_]](fk: F ~> G): CurrentTimeRecorder[G, A] = new CurrentTimeRecorder[G, A] {
+
     override def markImpl(labels: A): G[Unit] = fk(self.markImpl(labels))
+
   }
+
 }
 
 object CurrentTimeRecorder {
 
   implicit class CurrentTimeRecorderSyntax[F[_]](recorder: CurrentTimeRecorder[F, Unit]) {
+
     def mark: F[Unit] = recorder.markImpl(())
+
   }
 
   implicit class LabelledCurrentTimeRecorderSyntax[F[_], A](recorder: CurrentTimeRecorder[F, A])(implicit
       ev: Unit Neq A
   ) {
+
     def mark(labels: A): F[Unit] = recorder.markImpl(labels)
+
   }
 
   /** Create a [[CurrentTimeRecorder]] from a [[Gauge]] that records [[scala.Long]] values
@@ -67,7 +75,9 @@ object CurrentTimeRecorder {
       gauge: Gauge[F, Long, A]
   )(f: FiniteDuration => Long): CurrentTimeRecorder[F, A] =
     new CurrentTimeRecorder[F, A] {
+
       override def markImpl(labels: A): F[Unit] = Clock[F].monotonic.flatMap(dur => gauge.set(f(dur), labels))
+
     }
 
   /** Create a [[CurrentTimeRecorder]] from a [[Gauge]] that records [[scala.Double]] values
@@ -84,13 +94,17 @@ object CurrentTimeRecorder {
   def fromDoubleGauge[F[_]: FlatMap: Clock, A](
       gauge: Gauge[F, Double, A]
   )(f: FiniteDuration => Double): CurrentTimeRecorder[F, A] = new CurrentTimeRecorder[F, A] {
+
     override def markImpl(labels: A): F[Unit] = Clock[F].monotonic.flatMap(dur => gauge.set(f(dur), labels))
+
   }
 
   implicit def labelsContravariant[F[_]]: LabelsContravariant[CurrentTimeRecorder[F, *]] =
     new LabelsContravariant[CurrentTimeRecorder[F, *]] {
+
       override def contramapLabels[A, B](fa: CurrentTimeRecorder[F, A])(f: B => A): CurrentTimeRecorder[F, B] =
         fa.contramapLabels(f)
+
     }
 
 }

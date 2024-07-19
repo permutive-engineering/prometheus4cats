@@ -20,14 +20,19 @@ import alleycats.std.set._
 import cats.Show
 import cats.syntax.foldable._
 import cats.syntax.show._
-import prometheus4cats.{Label, Metric}
+import prometheus4cats.Label
+import prometheus4cats.Metric
 
 object Exceptions {
 
   sealed trait PrometheusException[A] extends Throwable {
+
     def className: String
+
     def metricName: A
+
     def labels: Map[Label.Name, String]
+
   }
 
   case class UnhandledPrometheusException[A: Show](

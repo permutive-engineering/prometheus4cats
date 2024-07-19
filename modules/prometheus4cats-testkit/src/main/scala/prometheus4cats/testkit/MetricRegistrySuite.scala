@@ -55,11 +55,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
         stateResource.use { state =>
           metricRegistryResource(state).use { reg =>
             val get = getCounterValue(
-              state,
-              prefix,
-              name,
-              help,
-              commonLabels
+              state, prefix, name, help, commonLabels
             )
 
             reg
@@ -87,11 +83,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
         stateResource.use { state =>
           metricRegistryResource(state).use { reg =>
             val get = getExemplarCounterValue(
-              state,
-              prefix,
-              name,
-              help,
-              commonLabels
+              state, prefix, name, help, commonLabels
             )
 
             reg
@@ -123,12 +115,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
         stateResource.use { state =>
           metricRegistryResource(state).use { reg =>
             val get = getCounterValue(
-              state,
-              prefix,
-              name,
-              help,
-              commonLabels,
-              labels
+              state, prefix, name, help, commonLabels, labels
             )
 
             reg
@@ -161,12 +148,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
         stateResource.use { state =>
           metricRegistryResource(state).use { reg =>
             val get = getExemplarCounterValue(
-              state,
-              prefix,
-              name,
-              help,
-              commonLabels,
-              labels
+              state, prefix, name, help, commonLabels, labels
             )
 
             reg
@@ -203,11 +185,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
         stateResource.use { state =>
           metricRegistryResource(state).use { reg =>
             val get = getGaugeValue(
-              state,
-              prefix,
-              name,
-              help,
-              commonLabels
+              state, prefix, name, help, commonLabels
             )
 
             reg
@@ -216,16 +194,16 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
               }
               .use(gauge =>
                 for {
-                  _ <- gauge.set(set)
-                  setValue <- get
-                  _ <- gauge.inc
+                  _           <- gauge.set(set)
+                  setValue    <- get
+                  _           <- gauge.inc
                   incOneValue <- get
-                  _ <- gauge.inc(inc)
-                  incValue <- get
-                  _ <- gauge.dec
+                  _           <- gauge.inc(inc)
+                  incValue    <- get
+                  _           <- gauge.dec
                   decOneValue <- get
-                  _ <- gauge.dec(dec)
-                  decValue <- get
+                  _           <- gauge.dec(dec)
+                  decValue    <- get
                 } yield (setValue, incOneValue, incValue, decOneValue, decValue)
               )
               .map { case (setValue, incOneValue, incValue, decOneValue, decValue) =>
@@ -255,12 +233,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
         stateResource.use { state =>
           metricRegistryResource(state).use { reg =>
             val get = getGaugeValue(
-              state,
-              prefix,
-              name,
-              help,
-              commonLabels,
-              labels
+              state, prefix, name, help, commonLabels, labels
             )
 
             reg
@@ -273,16 +246,16 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
               )(_.values.toIndexedSeq)
               .use { gauge =>
                 for {
-                  _ <- gauge.set(set, labels)
-                  setValue <- get
-                  _ <- gauge.inc(labels = labels)
+                  _           <- gauge.set(set, labels)
+                  setValue    <- get
+                  _           <- gauge.inc(labels = labels)
                   incOneValue <- get
-                  _ <- gauge.inc(inc, labels)
-                  incValue <- get
-                  _ <- gauge.dec(labels = labels)
+                  _           <- gauge.inc(inc, labels)
+                  incValue    <- get
+                  _           <- gauge.dec(labels = labels)
                   decOneValue <- get
-                  _ <- gauge.dec(dec, labels)
-                  decValue <- get
+                  _           <- gauge.dec(dec, labels)
+                  decValue    <- get
                 } yield {
                   assertEquals(setValue, Some(set))
                   assertEquals(incOneValue, setValue.map(_ + 1))
@@ -311,15 +284,10 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
 
             val expected =
               if (value > 0) Map("0.0" -> 0.0, value.toString -> 1.0, "+Inf" -> 1.0)
-              else Map(value.toString -> 1.0, "0.0" -> 1.0, "+Inf" -> 1.0)
+              else Map(value.toString  -> 1.0, "0.0"          -> 1.0, "+Inf" -> 1.0)
 
             val get = getHistogramValue(
-              state,
-              prefix,
-              name,
-              help,
-              commonLabels,
-              buckets
+              state, prefix, name, help, commonLabels, buckets
             )
 
             reg
@@ -364,12 +332,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
                 )
 
             val get = getExemplarHistogramValue(
-              state,
-              prefix,
-              name,
-              help,
-              commonLabels,
-              buckets
+              state, prefix, name, help, commonLabels, buckets
             )
 
             reg
@@ -402,16 +365,10 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
 
             val expected =
               if (value > 0) Map("0.0" -> 0.0, value.toString -> 1.0, "+Inf" -> 1.0)
-              else Map(value.toString -> 1.0, "0.0" -> 1.0, "+Inf" -> 1.0)
+              else Map(value.toString  -> 1.0, "0.0"          -> 1.0, "+Inf" -> 1.0)
 
             val get = getHistogramValue(
-              state,
-              prefix,
-              name,
-              help,
-              commonLabels,
-              buckets,
-              labels
+              state, prefix, name, help, commonLabels, buckets, labels
             )
 
             reg
@@ -461,13 +418,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
                 )
 
             val get = getExemplarHistogramValue(
-              state,
-              prefix,
-              name,
-              help,
-              commonLabels,
-              buckets,
-              labels
+              state, prefix, name, help, commonLabels, buckets, labels
             )
 
             reg
@@ -544,12 +495,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
         stateResource.use { state =>
           metricRegistryResource(state).use { reg =>
             val get = getSummaryValue(
-              state,
-              prefix,
-              name,
-              help,
-              commonLabels,
-              labels
+              state, prefix, name, help, commonLabels, labels
             )
 
             reg
@@ -616,11 +562,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
         stateResource.use { state =>
           metricRegistryResource(state).use { reg =>
             val get = getCounterValue(
-              state,
-              prefix,
-              name,
-              help,
-              commonLabels
+              state, prefix, name, help, commonLabels
             )
 
             val create =
@@ -647,11 +589,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
         stateResource.use { state =>
           metricRegistryResource(state).use { reg =>
             val get = getGaugeValue(
-              state,
-              prefix,
-              name,
-              help,
-              commonLabels
+              state, prefix, name, help, commonLabels
             )
 
             val create =
@@ -681,12 +619,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
             val buckets = NonEmptySeq.of[Double](0, value).sorted
 
             val get = getHistogramValue(
-              state,
-              prefix,
-              name,
-              help,
-              commonLabels,
-              buckets
+              state, prefix, name, help, commonLabels, buckets
             )
 
             val create =
@@ -770,11 +703,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
         stateResource.use { state =>
           metricRegistryResource(state).use { reg =>
             val get = getCounterValue(
-              state,
-              prefix,
-              name,
-              help,
-              commonLabels
+              state, prefix, name, help, commonLabels
             )
 
             val create =
@@ -809,11 +738,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
         stateResource.use { state =>
           metricRegistryResource(state).use { reg =>
             val get = getGaugeValue(
-              state,
-              prefix,
-              name,
-              help,
-              commonLabels
+              state, prefix, name, help, commonLabels
             )
 
             val create =
@@ -851,12 +776,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
             val buckets = NonEmptySeq.of[Double](0, value).sorted
 
             val get = getHistogramValue(
-              state,
-              prefix,
-              name,
-              help,
-              commonLabels,
-              buckets
+              state, prefix, name, help, commonLabels, buckets
             )
 
             val create =

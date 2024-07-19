@@ -32,23 +32,23 @@ import cats.syntax.functor._
 import cats.syntax.monoid._
 import cats.syntax.show._
 import cats.syntax.traverse._
-import cats.{Applicative, Show}
+import cats.Applicative
+import cats.Show
 import io.prometheus.client.Collector.MetricFamilySamples
-import io.prometheus.client.{
-  Collector,
-  CollectorRegistry,
-  CounterMetricFamily,
-  GaugeMetricFamily,
-  SummaryMetricFamily,
-  Counter => PCounter,
-  Gauge => PGauge,
-  Histogram => PHistogram
-}
+import io.prometheus.client.Collector
+import io.prometheus.client.CollectorRegistry
+import io.prometheus.client.CounterMetricFamily
+import io.prometheus.client.GaugeMetricFamily
+import io.prometheus.client.SummaryMetricFamily
+import io.prometheus.client.{Counter => PCounter}
+import io.prometheus.client.{Gauge => PGauge}
+import io.prometheus.client.{Histogram => PHistogram}
 import org.typelevel.log4cats.Logger
 import prometheus4cats.MetricCollection.Value
 import prometheus4cats._
 import prometheus4cats.javasimpleclient.models.Exceptions.DuplicateMetricsException
-import prometheus4cats.javasimpleclient.{CallbackState, State}
+import prometheus4cats.javasimpleclient.CallbackState
+import prometheus4cats.javasimpleclient.State
 import prometheus4cats.util.NameUtils
 
 import scala.collection.mutable.ListBuffer
@@ -120,7 +120,7 @@ private[javasimpleclient] class MetricCollectionProcessor[F[_]: Async: Logger] p
       values.lastOption.map { last =>
         values.foldLeft(new CounterMetricFamily(makeName(name), last.help.value, allLabelNames)) { (sample, value) =>
           val v = value match {
-            case v: MetricCollection.Value.LongCounter => v.value.toDouble
+            case v: MetricCollection.Value.LongCounter   => v.value.toDouble
             case v: MetricCollection.Value.DoubleCounter => v.value
           }
 
@@ -137,7 +137,7 @@ private[javasimpleclient] class MetricCollectionProcessor[F[_]: Async: Logger] p
       values.lastOption.map { last =>
         values.foldLeft(new GaugeMetricFamily(makeName(name), last.help.value, allLabelNames)) { (sample, value) =>
           val v = value match {
-            case v: MetricCollection.Value.LongGauge => v.value.toDouble
+            case v: MetricCollection.Value.LongGauge   => v.value.toDouble
             case v: MetricCollection.Value.DoubleGauge => v.value
           }
 
@@ -151,13 +151,13 @@ private[javasimpleclient] class MetricCollectionProcessor[F[_]: Async: Logger] p
     ] = { case ((name, labelNames), values) =>
       values.lastOption.map { last =>
         val buckets = last match {
-          case v: Value.LongHistogram => v.buckets.map(_.toDouble)
+          case v: Value.LongHistogram   => v.buckets.map(_.toDouble)
           case v: Value.DoubleHistogram => v.buckets
         }
 
         HistogramUtils.histogramSamples(prefix, name, last.help, commonLabels, labelNames, buckets)(values.map {
-          case v: Value.LongHistogram => v.value.map(_.toDouble) -> v.labelValues
-          case v: Value.DoubleHistogram => v.value -> v.labelValues
+          case v: Value.LongHistogram   => v.value.map(_.toDouble) -> v.labelValues
+          case v: Value.DoubleHistogram => v.value                 -> v.labelValues
         })
       }
     }
@@ -235,7 +235,7 @@ private[javasimpleclient] class MetricCollectionProcessor[F[_]: Async: Logger] p
 
             if (state.contains(prefix -> nameString) || callbackState.contains(prefix -> nameString))
               (names, registryDuplicates + (prefix -> nameString), samples)
-            else (names + (prefix -> nameString), registryDuplicates, samples ++ f(x, v))
+            else (names + (prefix                  -> nameString), registryDuplicates, samples ++ f(x, v))
         }
       }
 
@@ -294,7 +294,7 @@ private[javasimpleclient] class MetricCollectionProcessor[F[_]: Async: Logger] p
       hasLoggedError: Boolean
   ): F[(Boolean, Boolean, MetricCollection)] = {
     def incTimeout = incSingleCallbackCounter("timeout")
-    def incError = incSingleCallbackCounter("error")
+    def incError   = incSingleCallbackCounter("error")
 
     collectionF
       .flatTap(_ => incSingleCallbackCounter("success"))
@@ -366,7 +366,7 @@ private[javasimpleclient] class MetricCollectionProcessor[F[_]: Async: Logger] p
 
   private def timeoutCallbacks[A](fa: F[A], empty: A): A = {
     def incTimeout = incCallbackCounter("timeout")
-    def incError = incCallbackCounter("error")
+    def incError   = incCallbackCounter("error")
 
     Utils
       .timeoutCallback(
@@ -415,20 +415,27 @@ private[javasimpleclient] class MetricCollectionProcessor[F[_]: Async: Logger] p
 }
 
 private[javasimpleclient] object MetricCollectionProcessor {
+
   private val callbackTimerName = "prometheus4cats_collection_callback_duration"
+
   private val callbackTimerHelp = "Time it takes to run all metric collection callbacks"
 
   private val duplicatesGaugeName = "prometheus4cats_collection_callback_duplicates"
+
   private val duplicatesGaugeHelp =
     "Duplicate metrics with different types detected in metric collections callbacks"
+
   private val duplicatesLabelNames = List("duplicate_type", "metric_prefix")
 
   private val callbackCounterName = "prometheus4cats_combined_collection_callback_total"
+
   private val callbackCounterHelp =
     "Number of times all of the metric collection callbacks have been executed, with a status (success, error, timeout)"
+
   private val callbackCounterLabel = "status"
 
   private val singleCallbackCounterName = "prometheus4cats_collection_callback_total"
+
   private val singleCallbackCounterHelp =
     "Number of times a metric collection callback has been executed, with a status (success, error, timeout)"
 
@@ -460,28 +467,17 @@ private[javasimpleclient] object MetricCollectionProcessor {
       _ <- Sync[F].delay(promRegistry.register(allCallbacksCounter))
       _ <- Sync[F].delay(promRegistry.register(singleCallbackCounter))
       collectionCallbackRef <- Ref.of[F, Map[Option[
-        Metric.Prefix
-      ], (Map[Label.Name, String], Map[Unique.Token, F[MetricCollection]])]](Map.empty)
-      duplicatesRef <- Ref.of[F, Set[(Option[Metric.Prefix], String)]](Set.empty)
+                                 Metric.Prefix
+                               ], (Map[Label.Name, String], Map[Unique.Token, F[MetricCollection]])]](Map.empty)
+      duplicatesRef          <- Ref.of[F, Set[(Option[Metric.Prefix], String)]](Set.empty)
       callbackHasTimedOutRef <- Ref.of[F, Boolean](false)
-      callbackHasErroredRef <- Ref.of[F, Boolean](false)
-      singleTimeoutErrorRef <- Ref.of[F, (Boolean, Boolean)]((false, false))
+      callbackHasErroredRef  <- Ref.of[F, Boolean](false)
+      singleTimeoutErrorRef  <- Ref.of[F, (Boolean, Boolean)]((false, false))
       proc = new MetricCollectionProcessor(
-        ref,
-        callbacks,
-        collectionCallbackRef,
-        duplicatesRef,
-        dispatcher,
-        callbackTimeout,
-        combinedCallbackTimeout,
-        callbackHasTimedOutRef,
-        callbackHasErroredRef,
-        singleTimeoutErrorRef,
-        allCallbacksCounter,
-        singleCallbackCounter,
-        callbackHist,
-        duplicateGauge
-      )
+               ref, callbacks, collectionCallbackRef, duplicatesRef, dispatcher, callbackTimeout,
+               combinedCallbackTimeout, callbackHasTimedOutRef, callbackHasErroredRef, singleTimeoutErrorRef,
+               allCallbacksCounter, singleCallbackCounter, callbackHist, duplicateGauge
+             )
       _ <- Sync[F].delay(promRegistry.register(proc))
     } yield proc
 
@@ -495,4 +491,5 @@ private[javasimpleclient] object MetricCollectionProcessor {
       ) >> Utils.unregister(proc, promRegistry)
     }
   }
+
 }

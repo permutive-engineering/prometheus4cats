@@ -17,9 +17,13 @@
 package prometheus4cats
 
 trait LabelsContravariant[F[_]] {
+
   def contramapLabels[A, B](fa: F[A])(f: B => A): F[B]
+
 }
 
 object LabelsContravariant {
+
   def apply[F[_]: LabelsContravariant]: LabelsContravariant[F] = implicitly
+
 }

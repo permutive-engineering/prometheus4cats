@@ -25,13 +25,11 @@ final class BucketDsl[+A, N] private[prometheus4cats] (
     f: NonEmptySeq[N] => A
 )(implicit N: Numeric[N]) {
 
-  /** Provides the list of buckets for the histogram as a non-empty sequence.
-    */
+  /** Provides the list of buckets for the histogram as a non-empty sequence. */
   def buckets(list: NonEmptySeq[N]): A =
     f(list)
 
-  /** Provides the list of buckets for the histogram as parameters.
-    */
+  /** Provides the list of buckets for the histogram as parameters. */
   def buckets(head: N, rest: N*): A = buckets(
     NonEmptySeq.of(head, rest: _*)
   )
@@ -45,9 +43,11 @@ final class BucketDsl[+A, N] private[prometheus4cats] (
 
     buckets(seq)
   }
+
 }
 
 object BucketDsl {
+
   implicit class DoubleSyntax[A](dsl: BucketDsl[A, Double]) {
 
     /** Initialise this histogram with the default HTTP buckets list.
@@ -70,5 +70,7 @@ object BucketDsl {
 
       dsl.buckets(seq)
     }
+
   }
+
 }

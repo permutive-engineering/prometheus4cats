@@ -16,8 +16,10 @@
 
 package prometheus4cats
 
-import cats.data.{NonEmptyList, NonEmptySeq}
-import cats.effect.kernel.{MonadCancel, Resource}
+import cats.data.NonEmptyList
+import cats.data.NonEmptySeq
+import cats.effect.kernel.MonadCancel
+import cats.effect.kernel.Resource
 import cats.~>
 
 /** Trait for registering callbacks against different backends. May be implemented by anyone for use with
@@ -276,9 +278,11 @@ trait CallbackRegistry[F[_]] {
       F: MonadCancel[F, _],
       G: MonadCancel[G, _]
   ): CallbackRegistry[G] = CallbackRegistry.imapK(this, fk, gk)
+
 }
 
 object CallbackRegistry {
+
   def noop[F[_]]: CallbackRegistry[F] = new CallbackRegistry[F] {
 
     override def registerDoubleCounterCallback[A](
@@ -360,6 +364,7 @@ object CallbackRegistry {
         commonLabels: Metric.CommonLabels,
         callback: F[MetricCollection]
     ): Resource[F, Unit] = Resource.unit
+
   }
 
   def imapK[F[_], G[_]](
@@ -495,5 +500,7 @@ object CallbackRegistry {
           commonLabels: Metric.CommonLabels,
           callback: G[MetricCollection]
       ): Resource[G, Unit] = self.registerMetricCollectionCallback(prefix, commonLabels, gk(callback)).mapK(fk)
+
     }
+
 }

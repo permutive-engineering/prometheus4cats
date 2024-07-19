@@ -20,10 +20,13 @@ import java.util.concurrent.TimeoutException
 
 import cats.Show
 import cats.effect.kernel.syntax.temporal._
-import cats.effect.kernel.{Sync, Temporal}
+import cats.effect.kernel.Sync
+import cats.effect.kernel.Temporal
 import cats.effect.std.Dispatcher
 import cats.syntax.all._
-import io.prometheus.client.{Collector, CollectorRegistry, SimpleCollector}
+import io.prometheus.client.Collector
+import io.prometheus.client.CollectorRegistry
+import io.prometheus.client.SimpleCollector
 import org.typelevel.log4cats.Logger
 import prometheus4cats.Label
 import prometheus4cats.javasimpleclient.models.Exceptions._
@@ -31,6 +34,7 @@ import prometheus4cats.javasimpleclient.models.Exceptions._
 import scala.concurrent.duration.FiniteDuration
 
 private[javasimpleclient] object Utils {
+
   private[javasimpleclient] def unregister[F[_]: Sync: Logger](
       collector: Collector,
       registry: CollectorRegistry
@@ -73,12 +77,12 @@ private[javasimpleclient] object Utils {
   )(implicit F: Sync[F]): F[B] =
     for {
       child <- handlePrometheusCollectorErrors(
-        F.delay(c.labels(labels: _*)),
-        c,
-        metricName,
-        labelNames,
-        labels
-      )
+                 F.delay(c.labels(labels: _*)),
+                 c,
+                 metricName,
+                 labelNames,
+                 labels
+               )
     } yield child
 
   private def handlePrometheusCollectorErrors[F[_], A: Show, B](
@@ -107,6 +111,7 @@ private[javasimpleclient] object Utils {
   ): A =
     dispatcher.unsafeRunSync(fa.timeout(callbackTimeout).handleErrorWith {
       case th: TimeoutException => onTimeout(th)
-      case th => onError(th)
+      case th                   => onError(th)
     })
+
 }

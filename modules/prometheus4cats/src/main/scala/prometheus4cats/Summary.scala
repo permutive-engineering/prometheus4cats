@@ -16,8 +16,11 @@
 
 package prometheus4cats
 
-import cats.{Applicative, Contravariant, ~>}
-import prometheus4cats.internal.{Neq, Refined}
+import cats.Applicative
+import cats.Contravariant
+import cats.~>
+import prometheus4cats.internal.Neq
+import prometheus4cats.internal.Refined
 import prometheus4cats.internal.Refined.Regex
 
 sealed abstract class Summary[F[_], -A, B] extends Metric[A] with Metric.Labelled[B] {
@@ -26,27 +29,38 @@ sealed abstract class Summary[F[_], -A, B] extends Metric[A] with Metric.Labelle
   protected def observeImpl(n: A, labels: B): F[Unit]
 
   def contramap[C](f: C => A): Summary[F, C, B] = new Summary[F, C, B] {
+
     override def observeImpl(n: C, labels: B): F[Unit] = self.observeImpl(f(n), labels)
+
   }
 
   def contramapLabels[C](f: C => B): Summary[F, A, C] = new Summary[F, A, C] {
+
     override def observeImpl(n: A, labels: C): F[Unit] = self.observeImpl(n, f(labels))
+
   }
 
   final def mapK[G[_]](fk: F ~> G): Summary[G, A, B] =
     new Summary[G, A, B] {
+
       override def observeImpl(n: A, labels: B): G[Unit] = fk(self.observeImpl(n, labels))
+
     }
 
 }
 
 object Summary {
+
   implicit class SummarySyntax[F[_], -A](summary: Summary[F, A, Unit]) {
+
     def observe(n: A): F[Unit] = summary.observeImpl(n, ())
+
   }
 
   implicit class LabelledSummarySyntax[F[_], -A, B](summary: Summary[F, A, B])(implicit ev: Unit Neq B) {
+
     def observe(n: A, labels: B): F[Unit] = summary.observeImpl(n, labels)
+
   }
 
   final class AgeBuckets(val value: Int) extends AnyVal with Refined.Value[Int]
@@ -91,8 +105,7 @@ object Summary {
 
   }
 
-  /** Refined value class for a gauge name that has been parsed from a string
-    */
+  /** Refined value class for a gauge name that has been parsed from a string */
   final class Name private (val value: String) extends AnyVal with Refined.Value[String]
 
   object Name
@@ -101,22 +114,30 @@ object Summary {
 
   implicit def catsInstances[F[_], C]: Contravariant[Summary[F, *, C]] =
     new Contravariant[Summary[F, *, C]] {
+
       override def contramap[A, B](fa: Summary[F, A, C])(f: B => A): Summary[F, B, C] = fa.contramap(f)
+
     }
 
   implicit def labelsContravariant[F[_], C]: LabelsContravariant[Summary[F, C, *]] =
     new LabelsContravariant[Summary[F, C, *]] {
+
       override def contramapLabels[A, B](fa: Summary[F, C, A])(f: B => A): Summary[F, C, B] = fa.contramapLabels(f)
+
     }
 
   def make[F[_], A, B](_observe: (A, B) => F[Unit]): Summary[F, A, B] =
     new Summary[F, A, B] {
+
       override def observeImpl(n: A, labels: B): F[Unit] = _observe(n, labels)
+
     }
 
   def noop[F[_]: Applicative, A, B]: Summary[F, A, B] =
     new Summary[F, A, B] {
+
       override def observeImpl(n: A, labels: B): F[Unit] = Applicative[F].unit
+
     }
 
 }

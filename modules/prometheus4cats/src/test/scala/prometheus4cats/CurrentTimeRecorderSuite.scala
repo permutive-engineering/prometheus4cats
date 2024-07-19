@@ -21,13 +21,16 @@ import cats.data.WriterT
 import cats.effect.IO
 import cats.effect.kernel.Outcome.Succeeded
 import cats.effect.testkit.TestControl
-import munit.{CatsEffectSuite, ScalaCheckEffectSuite}
+import munit.CatsEffectSuite
+import munit.ScalaCheckEffectSuite
 import org.scalacheck.effect.PropF._
-import org.scalacheck.{Arbitrary, Gen}
+import org.scalacheck.Arbitrary
+import org.scalacheck.Gen
 
 import scala.concurrent.duration._
 
 class CurrentTimeRecorderSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
+
   def write[A]: (A, Unit) => WriterT[IO, List[A], Unit] = (d, _: Unit) => WriterT.tell(List(d))
 
   val longGauge =
@@ -73,8 +76,8 @@ class CurrentTimeRecorderSuite extends CatsEffectSuite with ScalaCheckEffectSuit
         _ <- control.tick
         _ <- control.advanceAndTick(tickBy)
         _ <- control.results.assertEquals(
-          Some(Succeeded[Id, Throwable, List[A]](List(expected)))
-        )
+               Some(Succeeded[Id, Throwable, List[A]](List(expected)))
+             )
       } yield ()
 
     }
@@ -118,4 +121,5 @@ class CurrentTimeRecorderSuite extends CatsEffectSuite with ScalaCheckEffectSuit
       )
     }
   }
+
 }

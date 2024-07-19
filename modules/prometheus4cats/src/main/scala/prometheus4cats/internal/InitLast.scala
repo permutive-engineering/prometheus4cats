@@ -16,8 +16,7 @@
 
 package prometheus4cats.internal
 
-/** Type class supporting accessing both the init (all but the last element) and the last element of a tuple.
-  */
+/** Type class supporting accessing both the init (all but the last element) and the last element of a tuple. */
 sealed private[prometheus4cats] trait InitLast[A, B] extends Serializable {
 
   type C <: Product
@@ -48,8 +47,13 @@ private[prometheus4cats] object InitLast extends PlatformSpecificInitLast {
       _last: Out => B
   ): InitLast.Aux[A, B, Out] =
     new InitLast[A, B] {
+
       override type C = Out
+
       override def init(c: C): A = _init(c)
+
       override def last(c: C): B = _last(c)
+
     }
+
 }

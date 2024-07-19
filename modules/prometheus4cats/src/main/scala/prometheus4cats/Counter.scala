@@ -20,10 +20,15 @@ import cats.effect.kernel.Ref
 import cats.syntax.flatMap._
 import cats.syntax.foldable._
 import cats.syntax.functor._
-import cats.{Applicative, Contravariant, FlatMap, Monad, ~>}
+import cats.Applicative
+import cats.Contravariant
+import cats.FlatMap
+import cats.Monad
+import cats.~>
 import prometheus4cats.Counter.ExemplarState
 import prometheus4cats.internal.Refined.Regex
-import prometheus4cats.internal.{Neq, Refined}
+import prometheus4cats.internal.Neq
+import prometheus4cats.internal.Refined
 
 sealed abstract class Counter[F[_], A, B](
     protected[prometheus4cats] val exemplarState: ExemplarState[F]
@@ -43,22 +48,28 @@ sealed abstract class Counter[F[_], A, B](
   ): F[Unit]
 
   def contramap[C](f: C => A): Counter[F, C, B] = new Counter[F, C, B](exemplarState) {
+
     override def incProvidedExemplarImpl(labels: B, exemplar: Option[Exemplar.Labels]): F[Unit] =
       self.incProvidedExemplarImpl(labels, exemplar)
 
     override def incProvidedExemplarImpl(n: C, labels: B, exemplar: Option[Exemplar.Labels]): F[Unit] =
       self.incProvidedExemplarImpl(f(n), labels, exemplar)
+
   }
 
   def contramapLabels[C](f: C => B): Counter[F, A, C] = new Counter[F, A, C](exemplarState) {
+
     override def incProvidedExemplarImpl(labels: C, exemplar: Option[Exemplar.Labels]): F[Unit] =
       self.incProvidedExemplarImpl(f(labels), exemplar)
+
     override def incProvidedExemplarImpl(n: A, labels: C, exemplar: Option[Exemplar.Labels]): F[Unit] =
       self.incProvidedExemplarImpl(n, f(labels), exemplar)
+
   }
 
   final def mapK[G[_]](fk: F ~> G): Counter[G, A, B] =
     new Counter[G, A, B](exemplarState.mapK(fk)) {
+
       override def incProvidedExemplarImpl(
           labels: B,
           exemplar: Option[Exemplar.Labels]
@@ -67,11 +78,15 @@ sealed abstract class Counter[F[_], A, B](
 
       override def incProvidedExemplarImpl(n: A, labels: B, exemplar: Option[Exemplar.Labels]): G[Unit] =
         fk(self.incProvidedExemplarImpl(n, labels, exemplar))
+
     }
+
 }
 
 object Counter {
+
   sealed trait ExemplarState[F[_]] { self =>
+
     def surround[A](
         fa: Option[Exemplar.Labels] => F[Unit]
     )(implicit F: Monad[F], exemplarSampler: ExemplarSampler.Counter[F, A]): F[Unit]
@@ -81,19 +96,22 @@ object Counter {
     )(implicit F: Monad[F], exemplarSampler: ExemplarSampler.Counter[F, A]): F[Unit]
 
     def mapK[G[_]](fk: F ~> G): ExemplarState[G]
+
   }
 
   object ExemplarState {
+
     def getSet[F[_]](get: F[Option[Exemplar.Data]], set: Option[Exemplar.Data] => F[Unit]): ExemplarState[F] =
       new ExemplarState[F] {
+
         override def surround[A](
             fa: Option[Exemplar.Labels] => F[Unit]
         )(implicit F: Monad[F], exemplarSampler: ExemplarSampler.Counter[F, A]): F[Unit] =
           for {
             previous <- get
-            next <- exemplarSampler.sample(previous)
-            _ <- fa(next.map(_.labels))
-            _ <- next.traverse_(data => set(Some(data)))
+            next     <- exemplarSampler.sample(previous)
+            _        <- fa(next.map(_.labels))
+            _        <- next.traverse_(data => set(Some(data)))
           } yield ()
 
         override def surround[A](n: A)(
@@ -101,17 +119,19 @@ object Counter {
         )(implicit F: Monad[F], exemplarSampler: ExemplarSampler.Counter[F, A]): F[Unit] =
           for {
             previous <- get
-            next <- exemplarSampler.sample(n, previous)
-            _ <- fa(next.map(_.labels))
-            _ <- next.traverse_(data => set(Some(data)))
+            next     <- exemplarSampler.sample(n, previous)
+            _        <- fa(next.map(_.labels))
+            _        <- next.traverse_(data => set(Some(data)))
           } yield ()
 
         def mapK[G[_]](fk: F ~> G): ExemplarState[G] = getSet(fk(get), ex => fk(set(ex)))
+
       }
 
     def fromRef[F[_]](ref: Ref[F, Option[Exemplar.Data]]): ExemplarState[F] = getSet(ref.get, ref.set)
 
     def noop[F[_]]: ExemplarState[F] = new ExemplarState[F] { self =>
+
       override def surround[A](n: A)(
           fa: Option[Exemplar.Labels] => F[Unit]
       )(implicit F: Monad[F], exemplarSampler: ExemplarSampler.Counter[F, A]): F[Unit] =
@@ -125,9 +145,11 @@ object Counter {
       override def mapK[G[_]](fk: F ~> G): ExemplarState[G] = noop[G]
 
     }
+
   }
 
   implicit class CounterSyntax[F[_], A](counter: Counter[F, A, Unit]) {
+
     final def inc: F[Unit] = incProvidedExemplar(None)
 
     final def inc(n: A): F[Unit] = incProvidedExemplar(n, None)
@@ -150,13 +172,16 @@ object Counter {
 
     final def incProvidedExemplar(exemplar: Option[Exemplar.Labels]): F[Unit] =
       counter.incProvidedExemplarImpl((), exemplar)
+
     final def incProvidedExemplar(n: A, exemplar: Option[Exemplar.Labels]): F[Unit] =
       counter.incProvidedExemplarImpl(n, (), exemplar)
+
   }
 
   implicit class LabelledCounterSyntax[F[_], A, B](counter: Counter[F, A, B])(implicit
       ev: Unit Neq B
   ) {
+
     final def inc(labels: B): F[Unit] = incProvidedExemplar(labels, None)
 
     final def inc(n: A, labels: B): F[Unit] = incProvidedExemplar(n, labels, None)
@@ -184,10 +209,10 @@ object Counter {
 
     final def incProvidedExemplar(n: A, labels: B, exemplar: Option[Exemplar.Labels]): F[Unit] =
       counter.incProvidedExemplarImpl(n, labels, exemplar)
+
   }
 
-  /** Refined value class for a counter name that has been parsed from a string
-    */
+  /** Refined value class for a counter name that has been parsed from a string */
   final case class Name private (val value: String) extends AnyVal with Refined.Value[String]
 
   object Name
@@ -196,12 +221,16 @@ object Counter {
 
   implicit def catsInstances[F[_], C]: Contravariant[Counter[F, *, C]] =
     new Contravariant[Counter[F, *, C]] {
+
       override def contramap[A, B](fa: Counter[F, A, C])(f: B => A): Counter[F, B, C] = fa.contramap(f)
+
     }
 
   implicit def labelsContravariant[F[_], C]: LabelsContravariant[Counter[F, C, *]] =
     new LabelsContravariant[Counter[F, C, *]] {
+
       override def contramapLabels[A, B](fa: Counter[F, C, A])(f: B => A): Counter[F, C, B] = fa.contramapLabels(f)
+
     }
 
   def make[F[_], A, B](
@@ -210,11 +239,13 @@ object Counter {
       _inc: (A, B, Option[Exemplar.Labels]) => F[Unit]
   ): Counter[F, A, B] =
     new Counter[F, A, B](exemplarState) {
+
       override def incProvidedExemplarImpl(labels: B, exemplar: Option[Exemplar.Labels]): F[Unit] =
         _inc(default, labels, exemplar)
 
       override def incProvidedExemplarImpl(n: A, labels: B, exemplar: Option[Exemplar.Labels]): F[Unit] =
         _inc(n, labels, exemplar)
+
     }
 
   def make[F[_], A, B](
@@ -227,11 +258,13 @@ object Counter {
 
   def noop[F[_]: Applicative, A, B]: Counter[F, A, B] =
     new Counter[F, A, B](ExemplarState.noop[F]) {
+
       override def incProvidedExemplarImpl(labels: B, exemplar: Option[Exemplar.Labels]): F[Unit] =
         Applicative[F].unit
 
       override def incProvidedExemplarImpl(n: A, labels: B, exemplar: Option[Exemplar.Labels]): F[Unit] =
         Applicative[F].unit
+
     }
 
 }

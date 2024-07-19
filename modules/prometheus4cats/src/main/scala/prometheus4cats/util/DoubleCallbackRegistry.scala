@@ -17,12 +17,14 @@
 package prometheus4cats.util
 
 import cats.Functor
-import cats.data.{NonEmptyList, NonEmptySeq}
+import cats.data.NonEmptyList
+import cats.data.NonEmptySeq
 import cats.effect.kernel.Resource
 import cats.syntax.functor._
 import prometheus4cats._
 
 trait DoubleCallbackRegistry[F[_]] extends CallbackRegistry[F] {
+
   implicit protected val F: Functor[F]
 
   override def registerLongCounterCallback[A](
@@ -90,4 +92,5 @@ trait DoubleCallbackRegistry[F[_]] extends CallbackRegistry[F] {
     labelNames,
     callback.map(_.map { case (v, a) => v.map(_.toDouble) -> a })
   )(f)
+
 }

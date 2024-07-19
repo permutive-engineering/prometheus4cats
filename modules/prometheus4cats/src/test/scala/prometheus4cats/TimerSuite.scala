@@ -17,19 +17,24 @@
 package prometheus4cats
 
 import cats.Id
-import cats.data.{NonEmptyList, WriterT}
+import cats.data.NonEmptyList
+import cats.data.WriterT
 import cats.effect.kernel.Outcome.Succeeded
 import cats.effect.testkit.TestControl
-import cats.effect.{IO, Ref}
+import cats.effect.IO
+import cats.effect.Ref
 import cats.syntax.traverse._
-import munit.{CatsEffectSuite, ScalaCheckEffectSuite}
+import munit.CatsEffectSuite
+import munit.ScalaCheckEffectSuite
 import org.scalacheck.effect.PropF._
-import org.scalacheck.{Arbitrary, Gen}
+import org.scalacheck.Arbitrary
+import org.scalacheck.Gen
 
 import java.util.concurrent.TimeUnit
 import scala.concurrent.duration._
 
 class TimerSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
+
   val write: (Double, Unit) => WriterT[IO, List[Double], Unit] = (d, _: Unit) => WriterT.tell[IO, List[Double]](List(d))
 
   val hist =
@@ -182,8 +187,8 @@ class TimerSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
           .execute(for {
             ref <- Ref.of[IO, List[(Double, String)]](List.empty)
             _ <- NonEmptyList(dur, durs).traverse { case (d, s) =>
-              f(ref, IO.sleep(d) >> IO.raiseError(new RuntimeException(s))).attempt
-            }
+                   f(ref, IO.sleep(d) >> IO.raiseError(new RuntimeException(s))).attempt
+                 }
             res <- ref.get
           } yield res)
           .flatMap { control =>

@@ -25,8 +25,7 @@ import prometheus4cats.internal.Refined.Regex
 
 object Label {
 
-  /** Refined value class for a label name that has been parsed from a string
-    */
+  /** Refined value class for a label name that has been parsed from a string */
   final class Name private (val value: String) extends AnyVal with Refined.Value[String]
 
   object Name
@@ -35,6 +34,7 @@ object Label {
         new Name(_)
       )
       with LabelNameFromStringLiteral {
+
     // prevents macro compilation problems with the status label
     private[prometheus4cats] val outcomeStatus = new Name("outcome_status")
 
@@ -44,21 +44,28 @@ object Label {
 
   object Value extends ValueLowPriority0 {
 
-    def apply(a: String) = new Value(a)
+    def apply(a: String)                      = new Value(a)
+
     implicit def fromString(a: String): Value = apply(a)
 
   }
 
   trait ValueLowPriority0 {
+
     implicit def fromShow[A: Show](a: A): Value = Value(a.show)
+
   }
 
   trait Encoder[A] {
+
     def toLabels: IndexedSeq[(Label.Name, A => Label.Value)]
+
   }
 
   object Encoder {
+
     def apply[A: Encoder]: Encoder[A] = implicitly
+
   }
 
 }

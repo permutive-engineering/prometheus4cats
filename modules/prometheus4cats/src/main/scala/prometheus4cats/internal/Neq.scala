@@ -19,6 +19,7 @@ package prometheus4cats.internal
 trait Neq[A, B] extends Serializable
 
 object Neq {
+
   def unexpected: Nothing = sys.error("Unexpected invocation")
 
   implicit def neq[A, B]: A Neq B = new Neq[A, B] {}
@@ -26,4 +27,5 @@ object Neq {
   implicit def neqAmbig1[A]: A Neq A = unexpected
 
   implicit def neqAmbig2[A]: A Neq A = unexpected
+
 }

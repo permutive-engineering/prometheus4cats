@@ -21,6 +21,8 @@ import cats.syntax.show._
 import prometheus4cats.Metric
 
 object NameUtils {
+
   def makeName[A: Show](prefix: Option[Metric.Prefix], name: A): String =
     prefix.fold(name.show)(p => show"${p}_$name")
+
 }

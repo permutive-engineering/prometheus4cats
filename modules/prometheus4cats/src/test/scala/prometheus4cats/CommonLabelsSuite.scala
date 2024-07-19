@@ -20,13 +20,15 @@ import munit.ScalaCheckSuite
 import prometheus4cats.Fixtures.ordinaryChars
 import prometheus4cats.Metric.CommonLabels
 import org.scalacheck.Prop._
-import org.scalacheck.{Arbitrary, Gen}
+import org.scalacheck.Arbitrary
+import org.scalacheck.Gen
 
 class CommonLabelsSuite extends ScalaCheckSuite {
+
   implicit val labelNameArb: Arbitrary[Label.Name] = Arbitrary((for {
     c1 <- Gen.alphaChar
     c2 <- Gen.alphaChar
-    s <- Gen.alphaNumStr
+    s  <- Gen.alphaNumStr
   } yield Label.Name.from(s"$c1$c2$s").toOption).suchThat(_.nonEmpty).map(_.get))
 
   test("labels can be empty") {
@@ -38,7 +40,7 @@ class CommonLabelsSuite extends ScalaCheckSuite {
       Arbitrary(
         for {
           size <- Gen.choose(1, 10)
-          map <- Gen.mapOfN(size, Arbitrary.arbitrary[(Label.Name, String)])
+          map  <- Gen.mapOfN(size, Arbitrary.arbitrary[(Label.Name, String)])
         } yield map
       )
 
@@ -52,7 +54,7 @@ class CommonLabelsSuite extends ScalaCheckSuite {
       Arbitrary(
         for {
           size <- Gen.choose(11, 100)
-          map <- Gen.mapOfN(size, Arbitrary.arbitrary[(Label.Name, String)])
+          map  <- Gen.mapOfN(size, Arbitrary.arbitrary[(Label.Name, String)])
         } yield map
       )
 
@@ -68,7 +70,7 @@ class CommonLabelsSuite extends ScalaCheckSuite {
       Arbitrary(
         for {
           size <- Gen.choose(1, 10)
-          map <- Gen.mapOfN(size, Arbitrary.arbitrary[(String, String)])
+          map  <- Gen.mapOfN(size, Arbitrary.arbitrary[(String, String)])
         } yield map
       )
 
@@ -76,4 +78,5 @@ class CommonLabelsSuite extends ScalaCheckSuite {
       assert(CommonLabels.fromStrings(ls).isLeft)
     }
   }
+
 }

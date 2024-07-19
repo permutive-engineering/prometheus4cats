@@ -21,7 +21,11 @@ import cats.syntax.applicativeError._
 import cats.syntax.either._
 import cats.syntax.flatMap._
 import cats.syntax.functor._
-import cats.{Applicative, FlatMap, Monad, MonadThrow, ~>}
+import cats.Applicative
+import cats.FlatMap
+import cats.Monad
+import cats.MonadThrow
+import cats.~>
 import prometheus4cats.internal.Neq
 
 import java.util.concurrent.TimeUnit
@@ -33,6 +37,7 @@ import scala.concurrent.duration.FiniteDuration
 sealed abstract class Timer[F[_], A](
     protected val exemplarState: Histogram.ExemplarState[F]
 ) extends Metric.Labelled[A] { self =>
+
   type Metric
 
   protected def recordTimeImpl(
@@ -42,6 +47,7 @@ sealed abstract class Timer[F[_], A](
   ): F[Unit]
 
   def contramapLabels[B](f: B => A): Timer[F, B] = new Timer[F, B](exemplarState) {
+
     override type Metric = self.Metric
 
     override def recordTimeImpl(
@@ -49,10 +55,12 @@ sealed abstract class Timer[F[_], A](
         labels: B,
         exemplar: Option[prometheus4cats.Exemplar.Labels]
     ): F[Unit] = self.recordTimeImpl(duration, f(labels), exemplar)
+
   }
 
   def mapK[G[_]](fk: F ~> G): Timer[G, A] =
     new Timer[G, A](exemplarState.mapK(fk)) {
+
       override type Metric = self.Metric
 
       override def recordTimeImpl(
@@ -62,7 +70,9 @@ sealed abstract class Timer[F[_], A](
       ): G[Unit] = fk(
         self.recordTimeImpl(duration, labels, exemplar)
       )
+
     }
+
 }
 
 object Timer {
@@ -72,6 +82,7 @@ object Timer {
   }
 
   implicit class TimerSyntax[F[_]](timer: Timer[F, Unit]) {
+
     final def recordTime(duration: FiniteDuration): F[Unit] = timer.recordTimeImpl(duration, (), None)
 
     /** Time an operation using an instance of [[cats.effect.kernel.Clock]].
@@ -84,9 +95,11 @@ object Timer {
       */
     final def time[B](fb: F[B])(implicit F: MonadThrow[F], clock: Clock[F]): F[B] =
       clock.timed(fb.attempt).flatMap { case (duration, b) => recordTime(duration).flatMap(_ => b.liftTo[F]) }
+
   }
 
   implicit class ExemplarTimerSyntax[F[_]](timer: Timer.Aux[F, Unit, Histogram]) extends TimerSyntax[F](timer) {
+
     def recordTimeWithExemplar(
         duration: FiniteDuration
     )(implicit F: FlatMap[F], exemplar: prometheus4cats.Exemplar[F]): F[Unit] =
@@ -121,7 +134,7 @@ object Timer {
     )(implicit F: MonadThrow[F], clock: Clock[F], exemplarSampler: ExemplarSampler.Histogram[F, Double]) =
       clock.timed(fb.attempt).flatMap { case (duration, b) =>
         b match {
-          case Left(_) => recordTimeWithExemplar(duration, None).flatMap(_ => b.liftTo[F])
+          case Left(_)      => recordTimeWithExemplar(duration, None).flatMap(_ => b.liftTo[F])
           case Right(value) => recordTimeWithSampledExemplar(duration).as(value)
         }
       }
@@ -131,13 +144,15 @@ object Timer {
     )(implicit F: MonadThrow[F], clock: Clock[F]): F[B] =
       clock.timed(fb.attempt).flatMap { case (duration, b) =>
         b match {
-          case Left(_) => recordTimeWithExemplar(duration, None).flatMap(_ => b.liftTo[F])
+          case Left(_)      => recordTimeWithExemplar(duration, None).flatMap(_ => b.liftTo[F])
           case Right(value) => recordTimeWithExemplar(duration, recordExemplar(duration, value)).as(value)
         }
       }
+
   }
 
   implicit class LabelledTimerSyntax[F[_], A](timer: Timer[F, A])(implicit ev: Unit Neq A) {
+
     final def recordTime(duration: FiniteDuration, labels: A): F[Unit] = timer.recordTimeImpl(duration, labels, None)
 
     /** Time an operation using an instance of [[cats.effect.kernel.Clock]].
@@ -181,18 +196,20 @@ object Timer {
       for {
         x <- clock.timed(fb.attempt)
         _ <- x._2.fold(
-          e =>
-            labelsError
-              .lift(e)
-              .fold(Applicative[F].unit)(b => recordTime(x._1, b)),
-          a => recordTime(x._1, labelsSuccess(a))
-        )
+               e =>
+                 labelsError
+                   .lift(e)
+                   .fold(Applicative[F].unit)(b => recordTime(x._1, b)),
+               a => recordTime(x._1, labelsSuccess(a))
+             )
         res <- x._2.liftTo[F]
       } yield res
+
   }
 
   implicit class ExemplarLabelledTimerSyntax[F[_], A](timer: Timer.Aux[F, A, Histogram])(implicit ev: Unit Neq A)
       extends LabelledTimerSyntax[F, A](timer) {
+
     def recordTimeWithExemplar(duration: FiniteDuration, labels: A)(implicit
         F: FlatMap[F],
         exemplar: prometheus4cats.Exemplar[F]
@@ -234,7 +251,7 @@ object Timer {
     ): F[B] =
       for {
         durB <- Clock[F].timed(fb)
-        _ <- timer.exemplarState.surround(durB._1.toUnit(TimeUnit.SECONDS))(recordTimeWithExemplar(durB._1, labels, _))
+        _    <- timer.exemplarState.surround(durB._1.toUnit(TimeUnit.SECONDS))(recordTimeWithExemplar(durB._1, labels, _))
       } yield durB._2
 
     final def timeWithExemplar[B](fb: F[B], labels: A)(
@@ -268,8 +285,8 @@ object Timer {
         exemplarSampler: ExemplarSampler.Histogram[F, Double]
     ): F[B] = for {
       durB <- Clock[F].timed(fb)
-      a = labels(durB._2)
-      _ <- timer.exemplarState.surround(durB._1.toUnit(TimeUnit.SECONDS))(recordTimeWithExemplar(durB._1, a, _))
+      a     = labels(durB._2)
+      _    <- timer.exemplarState.surround(durB._1.toUnit(TimeUnit.SECONDS))(recordTimeWithExemplar(durB._1, a, _))
     } yield durB._2
 
     final def timeWithComputedLabelsProvidedExemplar[B](
@@ -303,20 +320,20 @@ object Timer {
       for {
         x <- clock.timed(fb.attempt)
         _ <- x._2.fold(
-          e =>
-            labelsError
-              .lift(e)
-              .fold(Applicative[F].unit)(a =>
-                if (recordExemplarFailure(x._1, e, a)) recordTimeWithExemplar(x._1, a)
-                else timer.recordTimeImpl(x._1, a, None)
-              ),
-          b => {
-            val a = labelsSuccess(b)
+               e =>
+                 labelsError
+                   .lift(e)
+                   .fold(Applicative[F].unit)(a =>
+                     if (recordExemplarFailure(x._1, e, a)) recordTimeWithExemplar(x._1, a)
+                     else timer.recordTimeImpl(x._1, a, None)
+                   ),
+               b => {
+                 val a = labelsSuccess(b)
 
-            if (recordExemplarSuccess(x._1, b, a)) recordTimeWithExemplar(x._1, labelsSuccess(b))
-            else timer.recordTimeImpl(x._1, a, None)
-          }
-        )
+                 if (recordExemplarSuccess(x._1, b, a)) recordTimeWithExemplar(x._1, labelsSuccess(b))
+                 else timer.recordTimeImpl(x._1, a, None)
+               }
+             )
         res <- x._2.liftTo[F]
       } yield res
 
@@ -327,14 +344,14 @@ object Timer {
       for {
         x <- clock.timed(fb.attempt)
         _ <- timer.exemplarState.surround(x._1.toUnit(TimeUnit.SECONDS))(next =>
-          x._2.fold(
-            e =>
-              labelsError
-                .lift(e)
-                .fold(Applicative[F].unit)(a => recordTimeWithExemplar(x._1, a, next)),
-            b => recordTimeWithExemplar(x._1, labelsSuccess(b), next)
-          )
-        )
+               x._2.fold(
+                 e =>
+                   labelsError
+                     .lift(e)
+                     .fold(Applicative[F].unit)(a => recordTimeWithExemplar(x._1, a, next)),
+                 b => recordTimeWithExemplar(x._1, labelsSuccess(b), next)
+               )
+             )
         res <- x._2.liftTo[F]
       } yield res
 
@@ -358,18 +375,19 @@ object Timer {
       for {
         x <- clock.timed(fb.attempt)
         _ <- x._2.fold(
-          e =>
-            labelsError
-              .lift(e)
-              .fold(Applicative[F].unit)(a => recordTimeWithExemplar(x._1, a, recordExemplarFailure(x._1, e, a))),
-          b => {
-            val a = labelsSuccess(b)
+               e =>
+                 labelsError
+                   .lift(e)
+                   .fold(Applicative[F].unit)(a => recordTimeWithExemplar(x._1, a, recordExemplarFailure(x._1, e, a))),
+               b => {
+                 val a = labelsSuccess(b)
 
-            recordTimeWithExemplar(x._1, labelsSuccess(b), recordExemplarSuccess(x._1, b, a))
-          }
-        )
+                 recordTimeWithExemplar(x._1, labelsSuccess(b), recordExemplarSuccess(x._1, b, a))
+               }
+             )
         res <- x._2.liftTo[F]
       } yield res
+
   }
 
   /** Create a [[Timer]] from a [[Histogram]] instance.
@@ -389,6 +407,7 @@ object Timer {
       histogram: Histogram[F, Double, A]
   ): Timer.Aux[F, A, Histogram] =
     new Timer[F, A](histogram.exemplarState) {
+
       override type Metric = Histogram[F, Double, A]
 
       override def recordTimeImpl(
@@ -397,6 +416,7 @@ object Timer {
           exemplar: Option[prometheus4cats.Exemplar.Labels]
       ): F[Unit] =
         histogram.observeProvidedExemplar(duration.toUnit(TimeUnit.SECONDS), labels, exemplar)
+
     }
 
   /** Create a [[Timer]] from a [[Summary]] instance.
@@ -416,6 +436,7 @@ object Timer {
       summary: Summary[F, Double, A]
   ): Timer.Aux[F, A, Summary] =
     new Timer[F, A](Histogram.ExemplarState.noop) {
+
       override type Metric = Summary[F, Double, A]
 
       override def recordTimeImpl(
@@ -424,6 +445,7 @@ object Timer {
           exemplar: Option[prometheus4cats.Exemplar.Labels]
       ): F[Unit] =
         summary.observe(duration.toUnit(TimeUnit.SECONDS), labels)
+
     }
 
   /** Create a [[Timer]] from a [[Gauge]] instance.
@@ -443,6 +465,7 @@ object Timer {
       gauge: Gauge[F, Double, A]
   ): Timer.Aux[F, A, Gauge] =
     new Timer[F, A](Histogram.ExemplarState.noop) {
+
       override type Metric = Gauge[F, Double, A]
 
       override def recordTimeImpl(
@@ -451,11 +474,14 @@ object Timer {
           exemplar: Option[prometheus4cats.Exemplar.Labels]
       ): F[Unit] =
         gauge.set(duration.toUnit(TimeUnit.SECONDS), labels)
+
     }
 
   implicit def labelsContravariant[F[_]]: LabelsContravariant[Timer[F, *]] =
     new LabelsContravariant[Timer[F, *]] {
+
       override def contramapLabels[A, B](fa: Timer[F, A])(f: B => A): Timer[F, B] = fa.contramapLabels(f)
+
     }
 
 }

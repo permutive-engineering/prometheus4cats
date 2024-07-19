@@ -18,13 +18,17 @@ package prometheus4cats.javasimpleclient.internal
 
 import cats.data.NonEmptySeq
 import io.prometheus.client.Collector
-import io.prometheus.client.Collector.{MetricFamilySamples, Type}
+import io.prometheus.client.Collector.MetricFamilySamples
+import io.prometheus.client.Collector.Type
 import prometheus4cats.util.NameUtils
-import prometheus4cats.{Histogram, Label, Metric}
+import prometheus4cats.Histogram
+import prometheus4cats.Label
+import prometheus4cats.Metric
 
 import scala.jdk.CollectionConverters._
 
 private[javasimpleclient] object HistogramUtils {
+
   private[javasimpleclient] def histogramSamples(
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
@@ -33,7 +37,7 @@ private[javasimpleclient] object HistogramUtils {
       labelNames: IndexedSeq[Label.Name],
       buckets: NonEmptySeq[Double]
   ): Seq[(Histogram.Value[Double], IndexedSeq[String])] => Collector.MetricFamilySamples = {
-    lazy val stringName = NameUtils.makeName(prefix, name)
+    lazy val stringName    = NameUtils.makeName(prefix, name)
     lazy val allLabelNames = labelNames.map(_.value).toList ++ commonLabels.keys.map(_.value).toList
     values => {
       val samples = values.flatMap { case (value, labelValues) =>
@@ -89,4 +93,5 @@ private[javasimpleclient] object HistogramUtils {
     )).toList
 
   }
+
 }

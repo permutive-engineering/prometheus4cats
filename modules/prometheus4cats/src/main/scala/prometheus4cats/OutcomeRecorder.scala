@@ -17,9 +17,13 @@
 package prometheus4cats
 
 import cats.effect.kernel.syntax.monadCancel._
-import cats.effect.kernel.{MonadCancelThrow, Outcome}
+import cats.effect.kernel.MonadCancelThrow
+import cats.effect.kernel.Outcome
 import cats.syntax.flatMap._
-import cats.{FlatMap, Monad, Show, ~>}
+import cats.FlatMap
+import cats.Monad
+import cats.Show
+import cats.~>
 import prometheus4cats.internal.Neq
 
 /** A derived metric type that records the outcome of an operation. See [[OutcomeRecorder.fromCounter]] and
@@ -28,6 +32,7 @@ import prometheus4cats.internal.Neq
 sealed abstract class OutcomeRecorder[F[_], -A](
     protected val exemplarState: Counter.ExemplarState[F]
 ) extends Metric.Labelled[A] { self =>
+
   type Metric
 
   protected def onCanceled(labels: A, exemplar: Option[prometheus4cats.Exemplar.Labels]): F[Unit]
@@ -38,6 +43,7 @@ sealed abstract class OutcomeRecorder[F[_], -A](
 
   def contramapLabels[B](f: B => A): OutcomeRecorder[F, B] =
     new OutcomeRecorder[F, B](exemplarState) {
+
       override protected def onCanceled(labels: B, exemplar: Option[prometheus4cats.Exemplar.Labels]): F[Unit] =
         self.onCanceled(f(labels), exemplar)
 
@@ -46,10 +52,12 @@ sealed abstract class OutcomeRecorder[F[_], -A](
 
       override protected def onSucceeded(labels: B, exemplar: Option[prometheus4cats.Exemplar.Labels]): F[Unit] =
         self.onSucceeded(f(labels), exemplar)
+
     }
 
   def mapK[G[_]](fk: F ~> G): OutcomeRecorder[G, A] =
     new OutcomeRecorder[G, A](exemplarState.mapK(fk)) {
+
       override type Metric = self.Metric
 
       override protected def onCanceled(labels: A, exemplar: Option[prometheus4cats.Exemplar.Labels]): G[Unit] = fk(
@@ -63,7 +71,9 @@ sealed abstract class OutcomeRecorder[F[_], -A](
       override protected def onSucceeded(labels: A, exemplar: Option[prometheus4cats.Exemplar.Labels]): G[Unit] = fk(
         self.onSucceeded(labels, exemplar)
       )
+
     }
+
 }
 
 object OutcomeRecorder {
@@ -71,6 +81,7 @@ object OutcomeRecorder {
   sealed trait Status
 
   object Status {
+
     case object Succeeded extends Status
 
     case object Errored extends Status
@@ -79,9 +90,10 @@ object OutcomeRecorder {
 
     implicit val catsInstances: Show[Status] = Show.show {
       case Status.Succeeded => "succeeded"
-      case Status.Errored => "errored"
-      case Status.Canceled => "canceled"
+      case Status.Errored   => "errored"
+      case Status.Canceled  => "canceled"
     }
+
   }
 
   type Aux[F[_], A, B, M[_[_], _, _]] = OutcomeRecorder[F, B] {
@@ -111,9 +123,10 @@ object OutcomeRecorder {
     final def recordOutcome[B, E](outcome: Outcome[F, E, B]): F[Unit] =
       outcome match {
         case Outcome.Succeeded(_) => recorder.onSucceeded((), None)
-        case Outcome.Errored(_) => recorder.onErrored((), None)
-        case Outcome.Canceled() => recorder.onCanceled((), None)
+        case Outcome.Errored(_)   => recorder.onErrored((), None)
+        case Outcome.Canceled()   => recorder.onCanceled((), None)
       }
+
   }
 
   implicit class ExemplarOutcomeRecorderSyntax[F[_], A](recorder: OutcomeRecorder.Aux[F, A, Unit, Counter]) {
@@ -190,6 +203,7 @@ object OutcomeRecorder {
         case Outcome.Canceled() =>
           recorder.onCanceled((), exemplarOnCanceled)
       }
+
   }
 
   implicit class LabelledOutcomeRecorder[F[_], -A](recorder: OutcomeRecorder[F, A])(implicit ev: Unit Neq A) {
@@ -220,8 +234,8 @@ object OutcomeRecorder {
     final def recordOutcome[B, E](outcome: Outcome[F, E, B], labels: A): F[Unit] =
       outcome match {
         case Outcome.Succeeded(_) => recorder.onSucceeded(labels, None)
-        case Outcome.Errored(_) => recorder.onErrored(labels, None)
-        case Outcome.Canceled() => recorder.onCanceled(labels, None)
+        case Outcome.Errored(_)   => recorder.onErrored(labels, None)
+        case Outcome.Canceled()   => recorder.onCanceled(labels, None)
       }
 
     /** Surround an operation and evaluate its outcome using an instance of [[cats.effect.kernel.MonadCancel]],
@@ -265,8 +279,8 @@ object OutcomeRecorder {
     )(labelsSuccess: B => A, labelsError: E => A)(implicit F: FlatMap[F]): F[Unit] =
       outcome match {
         case Outcome.Succeeded(fb) => fb.flatMap(b => recorder.onSucceeded(labelsSuccess(b), None))
-        case Outcome.Errored(th) => recorder.onErrored(labelsError(th), None)
-        case Outcome.Canceled() => recorder.onCanceled(labelsCanceled, None)
+        case Outcome.Errored(th)   => recorder.onErrored(labelsError(th), None)
+        case Outcome.Canceled()    => recorder.onCanceled(labelsCanceled, None)
       }
 
   }
@@ -388,11 +402,7 @@ object OutcomeRecorder {
     ): F[C] =
       fb.guaranteeCase(
         recordOutcomeWithComputedLabelsWithExemplar(
-          _,
-          labelsCanceled,
-          recordExemplarOnSucceeded,
-          recordExemplarOnErrored,
-          recordExemplarOnCanceled
+          _, labelsCanceled, recordExemplarOnSucceeded, recordExemplarOnErrored, recordExemplarOnCanceled
         )(labelsSuccess, labelsError)
       )
 
@@ -490,8 +500,10 @@ object OutcomeRecorder {
 
   implicit def labelsContravariant[F[_]]: LabelsContravariant[OutcomeRecorder[F, *]] =
     new LabelsContravariant[OutcomeRecorder[F, *]] {
+
       override def contramapLabels[A, B](fa: OutcomeRecorder[F, A])(f: B => A): OutcomeRecorder[F, B] =
         fa.contramapLabels(f)
+
     }
 
   /** Create an [[OutcomeRecorder]] from a [[Counter]] instance, where its labels type is a tuple of the original labels
@@ -510,6 +522,7 @@ object OutcomeRecorder {
       counter: Counter[F, A, (B, Status)]
   ): OutcomeRecorder.Aux[F, A, B, Counter] =
     new OutcomeRecorder[F, B](counter.exemplarState) {
+
       override type Metric = Counter[F, A, (B, Status)]
 
       override protected def onCanceled(labels: B, exemplar: Option[prometheus4cats.Exemplar.Labels]): F[Unit] =
@@ -520,6 +533,7 @@ object OutcomeRecorder {
 
       override protected def onSucceeded(labels: B, exemplar: Option[prometheus4cats.Exemplar.Labels]): F[Unit] =
         counter.incProvidedExemplar((labels, Status.Succeeded), exemplar)
+
     }
 
   /** Create an [[OutcomeRecorder]] from a [[Gauge]] instance, where its only label type is a tuple of the original
@@ -538,6 +552,7 @@ object OutcomeRecorder {
       gauge: Gauge[F, A, (B, Status)]
   ): OutcomeRecorder.Aux[F, A, B, Gauge] =
     new OutcomeRecorder[F, B](Counter.ExemplarState.noop) {
+
       override type Metric = Gauge[F, A, (B, Status)]
 
       private def setOutcome(labels: B, status: Status): F[Unit] =
@@ -554,6 +569,7 @@ object OutcomeRecorder {
 
       override protected def onSucceeded(labels: B, exemplar: Option[prometheus4cats.Exemplar.Labels]): F[Unit] =
         setOutcome(labels, Status.Succeeded)
+
     }
 
 }

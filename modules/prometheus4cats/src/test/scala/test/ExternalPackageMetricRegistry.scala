@@ -16,7 +16,8 @@
 
 package test
 
-import cats.data.{NonEmptyList, NonEmptySeq}
+import cats.data.NonEmptyList
+import cats.data.NonEmptySeq
 import cats.effect.IO
 import cats.effect.kernel.Resource
 import prometheus4cats._
@@ -183,4 +184,5 @@ class ExternalPackageMetricRegistry extends MetricRegistry[IO] with CallbackRegi
       commonLabels: Metric.CommonLabels,
       callback: IO[MetricCollection]
   ): Resource[IO, Unit] = ???
+
 }

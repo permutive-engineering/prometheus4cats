@@ -18,12 +18,15 @@ package prometheus4cats
 
 import cats.Hash
 import cats.syntax.traverse._
-import prometheus4cats.internal.{MetricHelpFromStringLiteral, MetricPrefixFromStringLiteral}
+import prometheus4cats.internal.MetricHelpFromStringLiteral
+import prometheus4cats.internal.MetricPrefixFromStringLiteral
 import prometheus4cats.internal.Refined
 import prometheus4cats.internal.Refined.Regex
 
 private[prometheus4cats] trait Metric[-A] {
+
   def contramap[B](f: B => A): Metric[B]
+
 }
 
 object Metric {
@@ -59,8 +62,7 @@ object Metric {
 
   }
 
-  /** Refined value class for a help message that has been parsed from a string
-    */
+  /** Refined value class for a help message that has been parsed from a string */
   final class Help private (val value: String) extends AnyVal with Refined.Value[String]
 
   object Help extends Regex[Help]("^(?!\\s*$).+".r.pattern, new Help(_)) with MetricHelpFromStringLiteral
@@ -75,6 +77,9 @@ object Metric {
       with MetricPrefixFromStringLiteral
 
   private[prometheus4cats] trait Labelled[-A] {
+
     def contramapLabels[B](f: B => A): Labelled[B]
+
   }
+
 }

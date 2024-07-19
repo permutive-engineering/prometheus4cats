@@ -16,8 +16,11 @@
 
 package prometheus4cats
 
-import cats.{Applicative, Contravariant, ~>}
-import prometheus4cats.internal.{Neq, Refined}
+import cats.Applicative
+import cats.Contravariant
+import cats.~>
+import prometheus4cats.internal.Neq
+import prometheus4cats.internal.Refined
 import prometheus4cats.internal.Refined.Regex
 
 abstract class Gauge[F[_], -A, B] extends Metric[A] with Metric.Labelled[B] {
@@ -36,6 +39,7 @@ abstract class Gauge[F[_], -A, B] extends Metric[A] with Metric.Labelled[B] {
   protected def resetImpl(labels: B): F[Unit]
 
   def contramap[C](f: C => A): Gauge[F, C, B] = new Gauge[F, C, B] {
+
     override def incImpl(labels: B): F[Unit] = self.incImpl(labels)
 
     override def incImpl(n: C, labels: B): F[Unit] = self.incImpl(f(n), labels)
@@ -47,9 +51,11 @@ abstract class Gauge[F[_], -A, B] extends Metric[A] with Metric.Labelled[B] {
     override def setImpl(n: C, labels: B): F[Unit] = self.setImpl(f(n), labels)
 
     override def resetImpl(labels: B): F[Unit] = self.resetImpl(labels)
+
   }
 
   def contramapLabels[C](f: C => B): Gauge[F, A, C] = new Gauge[F, A, C] {
+
     override def incImpl(labels: C): F[Unit] = self.incImpl(f(labels))
 
     override def incImpl(n: A, labels: C): F[Unit] = self.incImpl(n, f(labels))
@@ -61,6 +67,7 @@ abstract class Gauge[F[_], -A, B] extends Metric[A] with Metric.Labelled[B] {
     override def setImpl(n: A, labels: C): F[Unit] = self.setImpl(n, f(labels))
 
     override def resetImpl(labels: C): F[Unit] = self.resetImpl(f(labels))
+
   }
 
   final def mapK[G[_]](fk: F ~> G): Gauge[G, A, B] =
@@ -83,6 +90,7 @@ abstract class Gauge[F[_], -A, B] extends Metric[A] with Metric.Labelled[B] {
       )
 
       override def resetImpl(labels: B): G[Unit] = fk(self.resetImpl(labels))
+
     }
 
 }
@@ -90,6 +98,7 @@ abstract class Gauge[F[_], -A, B] extends Metric[A] with Metric.Labelled[B] {
 object Gauge {
 
   implicit class GaugeSyntax[F[_], -A](gauge: Gauge[F, A, Unit]) {
+
     def inc: F[Unit] = gauge.incImpl(())
 
     def inc(n: A): F[Unit] = gauge.incImpl(n, ())
@@ -101,9 +110,11 @@ object Gauge {
     def set(n: A): F[Unit] = gauge.setImpl(n, ())
 
     def reset: F[Unit] = gauge.resetImpl(())
+
   }
 
   implicit class LabelledGaugeSyntax[F[_], -A, B](gauge: Gauge[F, A, B])(implicit ev: Unit Neq B) {
+
     def inc(labels: B): F[Unit] = gauge.incImpl(labels)
 
     def inc(n: A, labels: B): F[Unit] = gauge.incImpl(n, labels)
@@ -115,10 +126,10 @@ object Gauge {
     def set(n: A, labels: B): F[Unit] = gauge.setImpl(n, labels)
 
     def reset(labels: B): F[Unit] = gauge.resetImpl(labels)
+
   }
 
-  /** Refined value class for a gauge name that has been parsed from a string
-    */
+  /** Refined value class for a gauge name that has been parsed from a string */
   final class Name private (val value: String) extends AnyVal with Refined.Value[String]
 
   object Name
@@ -127,12 +138,16 @@ object Gauge {
 
   implicit def catsInstances[F[_], C]: Contravariant[Gauge[F, *, C]] =
     new Contravariant[Gauge[F, *, C]] {
+
       override def contramap[A, B](fa: Gauge[F, A, C])(f: B => A): Gauge[F, B, C] = fa.contramap(f)
+
     }
 
   implicit def labelsContravariant[F[_], C]: LabelsContravariant[Gauge[F, C, *]] =
     new LabelsContravariant[Gauge[F, C, *]] {
+
       override def contramapLabels[A, B](fa: Gauge[F, C, A])(f: B => A): Gauge[F, C, B] = fa.contramapLabels(f)
+
     }
 
   def make[F[_], A, B](
@@ -142,6 +157,7 @@ object Gauge {
       _set: (A, B) => F[Unit],
       _reset: B => F[Unit]
   ): Gauge[F, A, B] = new Gauge[F, A, B] {
+
     override def incImpl(labels: B): F[Unit] = incImpl(default, labels)
 
     override def incImpl(n: A, labels: B): F[Unit] = _inc(n, labels)
@@ -153,6 +169,7 @@ object Gauge {
     override def setImpl(n: A, labels: B): F[Unit] = _set(n, labels)
 
     override def resetImpl(labels: B): F[Unit] = _reset(labels)
+
   }
 
   def make[F[_], A, B](
@@ -163,6 +180,7 @@ object Gauge {
     make(A.one, _incImpl, _dec, _set, _set(A.zero, _))
 
   def noop[F[_]: Applicative, A, B]: Gauge[F, A, B] = new Gauge[F, A, B] {
+
     override def incImpl(labels: B): F[Unit] = Applicative[F].unit
 
     override def incImpl(n: A, labels: B): F[Unit] = Applicative[F].unit
@@ -174,6 +192,7 @@ object Gauge {
     override def setImpl(n: A, labels: B): F[Unit] = Applicative[F].unit
 
     override def resetImpl(labels: B): F[Unit] = Applicative[F].unit
+
   }
 
 }

@@ -34,6 +34,7 @@ final class SummaryDsl[F[_], A] private[prometheus4cats] (
     ) => LabelledMetricPartiallyApplied[F, A, Summary]
 ) extends MetricDsl[F, A, Summary](makeSummary(quantiles, maxAgeValue, ageBucketsValue))
     with SummaryDsl.Base[F, A] {
+
   override def quantile(quantile: Summary.Quantile, error: Summary.AllowedError): SummaryDsl[F, A] =
     new SummaryDsl[F, A](
       quantiles :+ QuantileDefinition(quantile, error),
@@ -44,12 +45,16 @@ final class SummaryDsl[F[_], A] private[prometheus4cats] (
 
   override def maxAge(age: FiniteDuration): AgeBucketsStep[F, A] =
     new AgeBucketsStep[F, A](quantiles, age, ageBucketsValue, makeSummary)
+
 }
 
 object SummaryDsl {
+
   trait Base[F[_], A] extends BuildStep[F, Summary[F, A, Unit]] {
     self: MetricDsl[F, A, Summary] =>
+
     def quantile(quantile: Summary.Quantile, error: Summary.AllowedError): SummaryDsl[F, A]
+
     def maxAge(age: FiniteDuration): AgeBucketsStep[F, A]
 
     def label[B]: FirstLabelApply[F, A, B, Summary]
@@ -65,6 +70,7 @@ object SummaryDsl {
     def labels[B](labels: (Label.Name, B => Label.Value)*): LabelledMetricDsl[F, A, B, Summary]
 
     def labelsFrom[B](implicit encoder: Label.Encoder[B]): LabelledMetricDsl[F, A, B, Summary]
+
   }
 
   private val defaultQuantiles: Seq[Summary.QuantileDefinition] = Seq.empty
@@ -86,6 +92,7 @@ object SummaryDsl {
         makeSummaryCallback
       )
       with Base[F, A] {
+
     override def quantile(quantile: Summary.Quantile, error: Summary.AllowedError): SummaryDsl[F, A] =
       new SummaryDsl[F, A](
         quantiles :+ QuantileDefinition(quantile, error),
@@ -96,7 +103,9 @@ object SummaryDsl {
 
     override def maxAge(age: FiniteDuration): AgeBucketsStep[F, A] =
       new AgeBucketsStep[F, A](quantiles, age, ageBucketsValue, makeSummary)
+
   }
+
 }
 
 final class AgeBucketsStep[F[_], A] private[summary] (
@@ -111,8 +120,10 @@ final class AgeBucketsStep[F[_], A] private[summary] (
 ) extends MetricDsl[F, A, Summary](
       makeSummary(quantiles, maxAgeValue, ageBucketsValue)
     ) {
+
   def ageBuckets(buckets: Summary.AgeBuckets): MetricDsl[F, A, Summary] =
     new MetricDsl[F, A, Summary](
       makeSummary(quantiles, maxAgeValue, buckets)
     )
+
 }

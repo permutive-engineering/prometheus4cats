@@ -17,8 +17,10 @@
 package prometheus4cats
 
 import cats.data.NonEmptySeq
-import cats.effect.kernel.{MonadCancel, Resource}
-import cats.{Applicative, ~>}
+import cats.effect.kernel.MonadCancel
+import cats.effect.kernel.Resource
+import cats.Applicative
+import cats.~>
 import prometheus4cats.Metric.CommonLabels
 import prometheus4cats.Summary.QuantileDefinition
 import prometheus4cats.util.DoubleMetricRegistry
@@ -289,6 +291,7 @@ trait MetricRegistry[F[_]] {
 
   def mapK[G[_]](fk: F ~> G)(implicit F: MonadCancel[F, _], G: MonadCancel[G, _]): MetricRegistry[G] =
     MetricRegistry.mapK(this, fk)
+
 }
 
 object MetricRegistry {
@@ -341,6 +344,7 @@ object MetricRegistry {
           name: Info.Name,
           help: Metric.Help
       ): Resource[F, Info[F, Map[Label.Name, String]]] = Resource.pure(Info.noop)
+
     }
 
   private[prometheus4cats] def mapK[F[_], G[_]](
@@ -358,11 +362,7 @@ object MetricRegistry {
       )(f: A => IndexedSeq[String]): Resource[G, Counter[G, Double, A]] =
         self
           .createAndRegisterDoubleCounter(
-            prefix,
-            name,
-            help,
-            commonLabels,
-            labelNames
+            prefix, name, help, commonLabels, labelNames
           )(f)
           .mapK(fk)
           .map(_.mapK(fk))
@@ -376,11 +376,7 @@ object MetricRegistry {
       )(f: A => IndexedSeq[String]): Resource[G, Gauge[G, Double, A]] =
         self
           .createAndRegisterDoubleGauge(
-            prefix,
-            name,
-            help,
-            commonLabels,
-            labelNames
+            prefix, name, help, commonLabels, labelNames
           )(f)
           .mapK(fk)
           .map(_.mapK(fk))
@@ -395,12 +391,7 @@ object MetricRegistry {
       )(f: A => IndexedSeq[String]): Resource[G, Histogram[G, Double, A]] =
         self
           .createAndRegisterDoubleHistogram(
-            prefix,
-            name,
-            help,
-            commonLabels,
-            labelNames,
-            buckets
+            prefix, name, help, commonLabels, labelNames, buckets
           )(f)
           .mapK(fk)
           .map(_.mapK(fk))
@@ -454,14 +445,7 @@ object MetricRegistry {
       )(f: A => IndexedSeq[String]): Resource[G, Summary[G, Double, A]] =
         self
           .createAndRegisterDoubleSummary(
-            prefix,
-            name,
-            help,
-            commonLabels,
-            labelNames,
-            quantiles,
-            maxAge,
-            ageBuckets
+            prefix, name, help, commonLabels, labelNames, quantiles, maxAge, ageBuckets
           )(f)
           .mapK(fk)
           .map(_.mapK(fk))
@@ -478,14 +462,7 @@ object MetricRegistry {
       )(f: A => IndexedSeq[String]): Resource[G, Summary[G, Long, A]] =
         self
           .createAndRegisterLongSummary(
-            prefix,
-            name,
-            help,
-            commonLabels,
-            labelNames,
-            quantiles,
-            maxAge,
-            ageBuckets
+            prefix, name, help, commonLabels, labelNames, quantiles, maxAge, ageBuckets
           )(f)
           .mapK(fk)
           .map(_.mapK(fk))
@@ -498,4 +475,5 @@ object MetricRegistry {
         self.createAndRegisterInfo(prefix, name, help).mapK(fk).map(_.mapK(fk))
 
     }
+
 }

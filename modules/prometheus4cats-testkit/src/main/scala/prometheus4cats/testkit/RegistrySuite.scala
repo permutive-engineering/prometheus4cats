@@ -19,8 +19,10 @@ package prometheus4cats.testkit
 import cats.data.NonEmptySeq
 import cats.effect.IO
 import cats.effect.kernel.Resource
-import munit.{CatsEffectSuite, ScalaCheckEffectSuite}
-import org.scalacheck.{Arbitrary, Gen}
+import munit.CatsEffectSuite
+import munit.ScalaCheckEffectSuite
+import org.scalacheck.Arbitrary
+import org.scalacheck.Gen
 import prometheus4cats.Metric.CommonLabels
 import prometheus4cats._
 
@@ -34,7 +36,7 @@ trait RegistrySuite[State] extends ScalaCheckEffectSuite {
   private def niceStringGen(initialChar: Option[Gen[Char]] = None): Gen[String] = for {
     c1 <- initialChar.getOrElse(Gen.alphaChar)
     c2 <- Gen.alphaChar
-    s <- Gen.alphaNumStr
+    s  <- Gen.alphaNumStr
   } yield s"$c1$c2$s"
 
   protected def niceStringArb[A](f: String => Either[String, A], initialChar: Option[Gen[Char]] = None): Arbitrary[A] =
@@ -75,7 +77,7 @@ trait RegistrySuite[State] extends ScalaCheckEffectSuite {
 
   def prefixedLabelMapArb(initialChar: Gen[Char]): Arbitrary[Map[Label.Name, String]] = Arbitrary(for {
     size <- Gen.choose(0, 10)
-    map <- Gen.mapOfN(size, Gen.zip(niceStringArb(Label.Name.from, Some(initialChar)).arbitrary, niceStringGen()))
+    map  <- Gen.mapOfN(size, Gen.zip(niceStringArb(Label.Name.from, Some(initialChar)).arbitrary, niceStringGen()))
   } yield map)
 
   implicit val labelMapArb: Arbitrary[Map[Label.Name, String]] = prefixedLabelMapArb(Gen.oneOf('a', 'b', 'c'))
@@ -142,4 +144,5 @@ trait RegistrySuite[State] extends ScalaCheckEffectSuite {
       commonLabels: CommonLabels,
       extraLabels: Map[Label.Name, String]
   ): IO[(Option[Map[String, Double]], Option[Double], Option[Double])]
+
 }

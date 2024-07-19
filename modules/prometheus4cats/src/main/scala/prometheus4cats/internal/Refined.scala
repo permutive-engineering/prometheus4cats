@@ -18,7 +18,9 @@ package prometheus4cats.internal
 
 import java.util.regex.Pattern
 
-import cats.{Hash, Order, Show}
+import cats.Hash
+import cats.Order
+import cats.Show
 import cats.syntax.all._
 
 abstract private[prometheus4cats] class Refined[A: Hash: Order: Show, B <: Refined.Value[A]](

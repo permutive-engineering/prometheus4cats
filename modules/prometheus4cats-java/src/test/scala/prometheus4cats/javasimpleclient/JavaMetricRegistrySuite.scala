@@ -17,7 +17,8 @@
 package prometheus4cats.javasimpleclient
 
 import cats.Show
-import cats.data.{NonEmptyList, NonEmptySeq}
+import cats.data.NonEmptyList
+import cats.data.NonEmptySeq
 import cats.effect.IO
 import cats.effect.kernel.Resource
 import cats.syntax.either._
@@ -30,7 +31,8 @@ import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.noop.NoOpLogger
 import prometheus4cats.Metric.CommonLabels
 import prometheus4cats._
-import prometheus4cats.testkit.{CallbackRegistrySuite, MetricRegistrySuite}
+import prometheus4cats.testkit.CallbackRegistrySuite
+import prometheus4cats.testkit.MetricRegistrySuite
 import prometheus4cats.util.NameUtils
 
 import scala.jdk.CollectionConverters._
@@ -44,9 +46,11 @@ class JavaMetricRegistrySuite
   implicit val logger: Logger[IO] = NoOpLogger.impl
 
   implicit override val exemplar: Exemplar[IO] = new Exemplar[IO] {
+
     override def get: IO[Option[Exemplar.Labels]] = IO(
       Exemplar.Labels.of(Exemplar.LabelName("test") -> "test").toOption
     )
+
   }
 
   override val stateResource: Resource[IO, CollectorRegistry] = Resource.eval(IO.delay(new CollectorRegistry()))
@@ -389,7 +393,7 @@ class JavaMetricRegistrySuite
           labels: Set[Label.Name]
       ) =>
         val counterName = Counter.Name.from(s"${name.value}_total").toOption.get
-        val gaugeName = Gauge.Name.from(name.value).toOption.get
+        val gaugeName   = Gauge.Name.from(name.value).toOption.get
 
         stateResource
           .flatMap(metricRegistryResource)
@@ -421,4 +425,5 @@ class JavaMetricRegistrySuite
           }
     }
   }
+
 }

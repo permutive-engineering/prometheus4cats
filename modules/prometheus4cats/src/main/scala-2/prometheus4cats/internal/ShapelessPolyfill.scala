@@ -19,17 +19,23 @@ package prometheus4cats.internal
 private[prometheus4cats] trait ShapelessPolyfill {
 
   type Nat = shapeless.Nat
+
   object Nat {
+
     type _0 = shapeless.Nat._0
+
     type _1 = shapeless.Nat._1
 
     def toInt[N <: Nat](implicit toIntN: ToInt[N]): Int = shapeless.Nat.toInt[N]
+
   }
 
   type ToInt[N <: Nat] = shapeless.ops.nat.ToInt[N]
+
   val ToInt = shapeless.ops.nat.ToInt
 
   type GT[A <: Nat, B <: Nat] = shapeless.ops.nat.GT[A, B]
+
   val GT = shapeless.ops.nat.GT
 
   type Succ[N <: Nat] = shapeless.Succ[N]

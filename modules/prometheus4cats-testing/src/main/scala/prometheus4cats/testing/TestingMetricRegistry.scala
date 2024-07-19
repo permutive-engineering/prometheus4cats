@@ -17,12 +17,16 @@
 package prometheus4cats
 package testing
 
-import cats.data.{Chain, NonEmptyList, NonEmptySeq}
+import cats.data.Chain
+import cats.data.NonEmptyList
+import cats.data.NonEmptySeq
 import cats.effect.kernel._
 import cats.effect.std.MapRef
 import cats.syntax.all._
 import prometheus4cats.testing.TestingMetricRegistry._
-import prometheus4cats.util.{DoubleCallbackRegistry, DoubleMetricRegistry, NameUtils}
+import prometheus4cats.util.DoubleCallbackRegistry
+import prometheus4cats.util.DoubleMetricRegistry
+import prometheus4cats.util.NameUtils
 
 import scala.concurrent.duration.FiniteDuration
 
@@ -351,7 +355,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       help: Metric.Help
   ): Resource[F, Info[F, Map[Label.Name, String]]] = {
     val release = info(NameUtils.makeName(prefix, name.value)).update {
-      case None => throw new RuntimeException("This should be unreachable - our reference counting has a bug")
+      case None         => throw new RuntimeException("This should be unreachable - our reference counting has a bug")
       case Some((n, i)) => if (n == 1) None else Some(n - 1 -> i)
 
     }
@@ -479,6 +483,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
 
   private def values(comonLabels: Metric.CommonLabels, labels: IndexedSeq[String]): List[String] =
     values(comonLabels) ++ labels
+
 }
 
 object TestingMetricRegistry {
@@ -500,11 +505,15 @@ object TestingMetricRegistry {
   ).mapN { case (m, i) => new TestingMetricRegistry(m, i) {} }
 
   sealed trait MetricType
+
   object MetricType {
-    case object Counter extends MetricType
-    case object Gauge extends MetricType
+
+    case object Counter   extends MetricType
+    case object Gauge     extends MetricType
     case object Histogram extends MetricType
-    case object Summary extends MetricType
-    case object Info extends MetricType
+    case object Summary   extends MetricType
+    case object Info      extends MetricType
+
   }
+
 }

@@ -28,7 +28,7 @@ private[prometheus4cats] trait MacroUtils {
 
   def literal[A](t: c.Expr[A], or: String): A = t.tree match {
     case Literal(Constant(value)) => value.asInstanceOf[A]
-    case _ => abort(s"compile-time refinement only works with literals, use $or instead")
+    case _                        => abort(s"compile-time refinement only works with literals, use $or instead")
   }
 
 }

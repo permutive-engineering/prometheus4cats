@@ -16,7 +16,9 @@
 
 package prometheus4cats
 
-import cats.{Applicative, Contravariant, ~>}
+import cats.Applicative
+import cats.Contravariant
+import cats.~>
 
 import prometheus4cats.internal.Refined
 import prometheus4cats.internal.Refined.Regex
@@ -26,18 +28,22 @@ sealed abstract class Info[F[_], -A] extends Metric[A] { self =>
   def info(labels: A): F[Unit]
 
   override def contramap[B](f: B => A): Info[F, B] = new Info[F, B] {
+
     override def info(labels: B): F[Unit] = self.info(f(labels))
+
   }
 
   final def mapK[G[_]](fk: F ~> G): Info[G, A] = new Info[G, A] {
+
     override def info(labels: A): G[Unit] = fk(self.info(labels))
+
   }
+
 }
 
 object Info {
 
-  /** Refined value class for a info name that has been parsed from a string
-    */
+  /** Refined value class for a info name that has been parsed from a string */
   final class Name private (val value: String) extends AnyVal with Refined.Value[String]
 
   object Name
@@ -45,18 +51,27 @@ object Info {
       with internal.InfoNameFromStringLiteral
 
   implicit def catsInstances[F[_]]: Contravariant[Info[F, *]] = new Contravariant[Info[F, *]] {
+
     override def contramap[A, B](fa: Info[F, A])(f: B => A): Info[F, B] = fa.contramap(f)
+
   }
 
   implicit class InfoMapSyntax[F[_]](info: Info[F, Map[Label.Name, String]]) {
+
     def info(labels: (Label.Name, String)*): F[Unit] = info.info(labels.toMap)
+
   }
 
   def make[F[_], A](_info: A => F[Unit]): Info[F, A] = new Info[F, A] {
+
     override def info(labels: A): F[Unit] = _info(labels)
+
   }
 
   def noop[F[_]: Applicative, A]: Info[F, A] = new Info[F, A] {
+
     override def info(labels: A): F[Unit] = Applicative[F].unit
+
   }
+
 }

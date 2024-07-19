@@ -16,14 +16,18 @@
 
 package prometheus4cats
 
-import cats.effect.{IO, Ref}
+import cats.effect.IO
+import cats.effect.Ref
 import cats.syntax.semigroup._
-import munit.{CatsEffectSuite, ScalaCheckEffectSuite}
+import munit.CatsEffectSuite
+import munit.ScalaCheckEffectSuite
 import org.scalacheck.effect.PropF._
-import org.scalacheck.{Arbitrary, Gen}
+import org.scalacheck.Arbitrary
+import org.scalacheck.Gen
 import prometheus4cats.OutcomeRecorder.Status
 
 class OutcomeRecorderSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
+
   val opCounter: IO[(OutcomeRecorder[IO, Unit], IO[Map[Status, Int]])] =
     Ref.of[IO, Map[Status, Int]](Map.empty).map { ref =>
       OutcomeRecorder.fromCounter(
@@ -170,8 +174,8 @@ class OutcomeRecorderSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
             _,
             Map[(String, Status), Int](
               (s, Status.Succeeded) -> 1,
-              (s, Status.Errored) -> 0,
-              (s, Status.Canceled) -> 0
+              (s, Status.Errored)   -> 0,
+              (s, Status.Canceled)  -> 0
             )
           )
         )
@@ -207,8 +211,8 @@ class OutcomeRecorderSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
             _,
             Map[(String, Status), Int](
               (s, Status.Succeeded) -> 0,
-              (s, Status.Errored) -> 0,
-              (s, Status.Canceled) -> 1
+              (s, Status.Errored)   -> 0,
+              (s, Status.Canceled)  -> 1
             )
           )
         )
@@ -238,12 +242,13 @@ class OutcomeRecorderSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
             _,
             Map[(String, Status), Int](
               (s, Status.Succeeded) -> 0,
-              (s, Status.Errored) -> 1,
-              (s, Status.Canceled) -> 0
+              (s, Status.Errored)   -> 1,
+              (s, Status.Canceled)  -> 0
             )
           )
         )
       }
     }
   }
+
 }

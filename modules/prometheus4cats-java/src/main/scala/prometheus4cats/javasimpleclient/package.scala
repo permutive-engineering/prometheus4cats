@@ -18,14 +18,19 @@ package prometheus4cats
 
 import cats.Show
 import cats.data.NonEmptyList
-import cats.effect.kernel.{Ref, Unique}
-import io.prometheus.client.{Collector, SimpleCollector}
+import cats.effect.kernel.Ref
+import cats.effect.kernel.Unique
+import io.prometheus.client.Collector
+import io.prometheus.client.SimpleCollector
 import prometheus4cats.javasimpleclient.models.MetricType
 import prometheus4cats.util.NameUtils
 
 package object javasimpleclient {
-  private[javasimpleclient] type StateKey = (Option[Metric.Prefix], String) // TODO allow specific names maybe
-  private[javasimpleclient] type MetricID = (IndexedSeq[Label.Name], MetricType)
+
+  private[javasimpleclient] type StateKey         = (Option[Metric.Prefix], String) // TODO allow specific names maybe
+
+  private[javasimpleclient] type MetricID         = (IndexedSeq[Label.Name], MetricType)
+
   private[javasimpleclient] type StateValue[F[_]] = (MetricID, (SimpleCollector[_], Ref[F, Option[Exemplar.Data]], Int))
 
   private[javasimpleclient] type State[F[_]] = Map[StateKey, StateValue[F]]

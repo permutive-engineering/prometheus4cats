@@ -16,13 +16,15 @@
 
 package prometheus4cats.testkit
 
-import cats.data.{NonEmptyList, NonEmptySeq}
+import cats.data.NonEmptyList
+import cats.data.NonEmptySeq
 import cats.syntax.all._
 import cats.effect.IO
 import cats.effect.kernel.Resource
 import munit.CatsEffectSuite
 import org.scalacheck.effect.PropF._
-import org.scalacheck.{Arbitrary, Gen}
+import org.scalacheck.Arbitrary
+import org.scalacheck.Gen
 import prometheus4cats._
 
 trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffectSuite =>
@@ -45,11 +47,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
         stateResource.use { state =>
           callbackRegistryResource(state).use { reg =>
             val get = getCounterValue(
-              state,
-              prefix,
-              name,
-              help,
-              commonLabels
+              state, prefix, name, help, commonLabels
             )
 
             reg
@@ -112,11 +110,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
       ) =>
         stateResource.use { state =>
           val get = getGaugeValue(
-            state,
-            prefix,
-            name,
-            help,
-            commonLabels
+            state, prefix, name, help, commonLabels
           )
 
           callbackRegistryResource(state).use { reg =>
@@ -184,7 +178,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
 
             val expected =
               if (value > 0) Map("0.0" -> 0.0, value.toString -> 1.0, "+Inf" -> 1.0)
-              else Map(value.toString -> 1.0, "0.0" -> 1.0, "+Inf" -> 1.0)
+              else Map(value.toString  -> 1.0, "0.0"          -> 1.0, "+Inf" -> 1.0)
 
             val bucketValues =
               if (value > 0) NonEmptySeq.of(0.0, 1.0, 1.0)
@@ -228,7 +222,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
 
             val expected =
               if (value > 0) Map("0.0" -> 0.0, value.toString -> 1.0, "+Inf" -> 1.0)
-              else Map(value.toString -> 1.0, "0.0" -> 1.0, "+Inf" -> 1.0)
+              else Map(value.toString  -> 1.0, "0.0"          -> 1.0, "+Inf" -> 1.0)
 
             val bucketValues =
               if (value > 0) NonEmptySeq.of(0.0, 1.0, 1.0)
@@ -347,21 +341,11 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
       ) =>
         stateResource.use { state =>
           val get1 = getCounterValue(
-            state,
-            prefix,
-            name1,
-            help,
-            commonLabels,
-            labels1
+            state, prefix, name1, help, commonLabels, labels1
           )
 
           val get2 = getCounterValue(
-            state,
-            prefix,
-            name2,
-            help,
-            commonLabels,
-            labels2
+            state, prefix, name2, help, commonLabels, labels2
           )
 
           callbackRegistryResource(state).use { reg =>
@@ -400,21 +384,11 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
         stateResource.use { state =>
           callbackRegistryResource(state).use { reg =>
             val get1 = getCounterValue(
-              state,
-              prefix,
-              name,
-              help,
-              commonLabels,
-              labels1
+              state, prefix, name, help, commonLabels, labels1
             )
 
             val get2 = getCounterValue(
-              state,
-              prefix,
-              name,
-              help,
-              commonLabels,
-              labels2
+              state, prefix, name, help, commonLabels, labels2
             )
 
             reg
@@ -639,12 +613,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
 
             (callback1 >> callback2).use { _ =>
               def get(labels: Map[Label.Name, String]) = getCounterValue(
-                state,
-                prefix,
-                name,
-                help,
-                commonLabels,
-                labels
+                state, prefix, name, help, commonLabels, labels
               )
 
               get(Map(Label.Name("label1") -> "one")).assertEquals(Some(0.0)) >> get(
@@ -656,4 +625,5 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
         }
     }
   }
+
 }

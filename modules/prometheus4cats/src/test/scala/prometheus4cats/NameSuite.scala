@@ -17,14 +17,18 @@
 package prometheus4cats
 
 import munit.ScalaCheckSuite
-import prometheus4cats.Fixtures.{alphaChars, ordinaryChars}
+import prometheus4cats.Fixtures.alphaChars
+import prometheus4cats.Fixtures.ordinaryChars
 import org.scalacheck.Prop._
-import org.scalacheck.{Arbitrary, Gen}
+import org.scalacheck.Arbitrary
+import org.scalacheck.Gen
 
 trait NameSuite[A] { self: ScalaCheckSuite =>
+
   val suffix = ""
 
   def make(str: String): Either[String, A]
+
   def stringValue(result: A): String
 
   implicit val stringArb: Arbitrary[String] = Arbitrary(Gen.alphaNumStr)
@@ -46,10 +50,11 @@ trait NameSuite[A] { self: ScalaCheckSuite =>
 
   property("names must not contain special chars") {
     implicit val stringArb: Arbitrary[String] = Arbitrary(Gen.asciiStr.suchThat(!_.forall(ordinaryChars.contains)))
-    implicit val charArb: Arbitrary[Char] = Arbitrary(Gen.asciiChar.suchThat(!ordinaryChars.contains(_)))
+    implicit val charArb: Arbitrary[Char]     = Arbitrary(Gen.asciiChar.suchThat(!ordinaryChars.contains(_)))
 
     forAll { (s: String, c: Char) =>
       assert(make(s"$c$s$suffix").isLeft)
     }
   }
+
 }
