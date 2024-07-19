@@ -35,7 +35,7 @@ val Log4Cats = "2.7.0"
 
 val Munit = "1.0.0"
 
-val MunitCe3 = "1.0.7"
+val MunitCe3 = "2.0.0"
 
 val ScalacheckEffect = "1.0.4"
 
@@ -59,7 +59,7 @@ lazy val core = project
       "org.typelevel" %% "cats-effect-testkit" % CatsEffect % Test,
       "org.typelevel" %%% "cats-laws" % Cats % Test,
       "org.scalameta" %%% "munit" % Munit % Test,
-      "org.typelevel" %% "munit-cats-effect-3" % MunitCe3 % Test,
+      "org.typelevel" %% "munit-cats-effect" % MunitCe3 % Test,
       "org.typelevel" %%% "discipline-munit" % "2.0.0" % Test,
       "org.scalameta" %% "munit-scalacheck" % Munit % Test,
       "org.typelevel" %% "scalacheck-effect-munit" % ScalacheckEffect % Test
@@ -87,7 +87,7 @@ lazy val testkit = project
     libraryDependencies ++= Seq(
       "org.typelevel" %% "cats-effect-testkit" % CatsEffect,
       "org.scalameta" %% "munit" % Munit,
-      "org.typelevel" %% "munit-cats-effect-3" % MunitCe3,
+      "org.typelevel" %% "munit-cats-effect" % MunitCe3,
       "org.scalameta" %% "munit-scalacheck" % Munit,
       "org.typelevel" %% "scalacheck-effect-munit" % ScalacheckEffect
     )
@@ -101,7 +101,7 @@ lazy val testing = project
     libraryDependencies ++= Seq(
       "org.typelevel" %% "cats-effect-testkit" % CatsEffect,
       "org.scalameta" %% "munit" % Munit,
-      "org.typelevel" %% "munit-cats-effect-3" % MunitCe3,
+      "org.typelevel" %% "munit-cats-effect" % MunitCe3,
       "org.scalameta" %% "munit-scalacheck" % Munit,
       "org.typelevel" %% "scalacheck-effect-munit" % ScalacheckEffect
     )
