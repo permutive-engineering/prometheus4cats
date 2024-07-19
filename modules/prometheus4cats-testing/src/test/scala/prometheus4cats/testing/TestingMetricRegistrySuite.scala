@@ -17,12 +17,15 @@
 package prometheus4cats.testing
 
 import cats.syntax.all._
-import cats.data.{Chain, NonEmptySeq}
+import cats.data.Chain
+import cats.data.NonEmptySeq
 import cats.effect._
 import munit.CatsEffectSuite
 import prometheus4cats._
 import scala.concurrent.duration._
+import scala.annotation.nowarn
 
+@nowarn("msg=unused value")
 class TestingMetricRegistrySuite extends CatsEffectSuite {
 
   suite[Counter[IO, Double, Unit]]("Counter")(
@@ -383,7 +386,6 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
       .infoValue(None, "test_info")
       // All scopes which reference metric have closed so it should be removed from registry
       .assertEquals(None)
-
   }
 
   test("Error if registering same name and labels but different type") {

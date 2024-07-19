@@ -23,7 +23,9 @@ import prometheus4cats._
 import java.math.BigInteger
 import java.util.concurrent.TimeUnit
 import scala.concurrent.duration._
+import scala.annotation.nowarn
 
+@nowarn("msg=unused value")
 class MetricsFactoryDslTest[F[_]: MonadCancelThrow: Clock] {
   val factory: MetricFactory.WithCallbacks[F] = MetricFactory.builder.withPrefix("prefix").noop[F]
 
