@@ -28,7 +28,7 @@ import org.scalacheck.{Arbitrary, Gen}
 import scala.concurrent.duration._
 
 class CurrentTimeRecorderSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
-  def write[A]: A => WriterT[IO, List[A], Unit] = d => WriterT.tell(List(d))
+  def write[A]: (A, Unit) => WriterT[IO, List[A], Unit] = (d, _: Unit) => WriterT.tell(List(d))
 
   val longGauge =
     CurrentTimeRecorder.fromLongGauge(
@@ -49,16 +49,16 @@ class CurrentTimeRecorderSuite extends CatsEffectSuite with ScalaCheckEffectSuit
 
   def writeLabels[A, B]: (A, B) => WriterT[IO, List[(A, B)], Unit] = (a, b) => WriterT.tell(List(a -> b))
 
-  val labelledLongGauge = CurrentTimeRecorder.Labelled.fromLongGauge(
-    Gauge.Labelled.make(
+  val labelledLongGauge = CurrentTimeRecorder.fromLongGauge(
+    Gauge.make(
       writeLabels[Long, String],
       writeLabels[Long, String],
       writeLabels[Long, String]
     )
   )(_)
 
-  val labelledDoubleGauge = CurrentTimeRecorder.Labelled.fromDoubleGauge(
-    Gauge.Labelled.make(
+  val labelledDoubleGauge = CurrentTimeRecorder.fromDoubleGauge(
+    Gauge.make(
       writeLabels[Double, String],
       writeLabels[Double, String],
       writeLabels[Double, String]

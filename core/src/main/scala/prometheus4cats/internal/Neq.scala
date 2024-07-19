@@ -16,24 +16,14 @@
 
 package prometheus4cats.internal
 
-private[prometheus4cats] trait ShapelessPolyfill {
+trait Neq[A, B] extends Serializable
 
-  type Nat = shapeless.Nat
-  object Nat {
-    type _0 = shapeless.Nat._0
-    type _1 = shapeless.Nat._1
+object Neq {
+  def unexpected: Nothing = sys.error("Unexpected invocation")
 
-    def toInt[N <: Nat](implicit toIntN: ToInt[N]): Int = shapeless.Nat.toInt[N]
-  }
+  implicit def neq[A, B]: A Neq B = new Neq[A, B] {}
 
-  type ToInt[N <: Nat] = shapeless.ops.nat.ToInt[N]
-  val ToInt = shapeless.ops.nat.ToInt
+  implicit def neqAmbig1[A]: A Neq A = unexpected
 
-  type GT[A <: Nat, B <: Nat] = shapeless.ops.nat.GT[A, B]
-  val GT = shapeless.ops.nat.GT
-
-  type Succ[N <: Nat] = shapeless.Succ[N]
-
-  val Succ = shapeless.Succ
-
+  implicit def neqAmbig2[A]: A Neq A = unexpected
 }

@@ -16,134 +16,107 @@
 
 package prometheus4cats
 
-import java.util.regex.Pattern
-
 import cats.{Applicative, Contravariant, ~>}
+import prometheus4cats.internal.{Neq, Refined}
+import prometheus4cats.internal.Refined.Regex
 
-sealed abstract class Summary[F[_], -A] extends Metric[A] { self =>
-  def observe(n: A): F[Unit]
+sealed abstract class Summary[F[_], -A, B] extends Metric[A] with Metric.Labelled[B] {
+  self =>
 
-  override def contramap[B](f: B => A): Summary[F, B] = new Summary[F, B] {
-    override def observe(n: B): F[Unit] = self.observe(f(n))
+  protected def observeImpl(n: A, labels: B): F[Unit]
+
+  def contramap[C](f: C => A): Summary[F, C, B] = new Summary[F, C, B] {
+    override def observeImpl(n: C, labels: B): F[Unit] = self.observeImpl(f(n), labels)
   }
 
-  def mapK[G[_]](fk: F ~> G): Summary[G, A] = new Summary[G, A] {
-    override def observe(n: A): G[Unit] = fk(self.observe(n))
+  def contramapLabels[C](f: C => B): Summary[F, A, C] = new Summary[F, A, C] {
+    override def observeImpl(n: A, labels: C): F[Unit] = self.observeImpl(n, f(labels))
   }
+
+  final def mapK[G[_]](fk: F ~> G): Summary[G, A, B] =
+    new Summary[G, A, B] {
+      override def observeImpl(n: A, labels: B): G[Unit] = fk(self.observeImpl(n, labels))
+    }
+
 }
 
 object Summary {
-  final class AgeBuckets(val value: Int) extends AnyVal with internal.Refined.Value[Int] {
-    override def toString: String = s"""Summary.AgeBuckets(value: "$value")"""
+  implicit class SummarySyntax[F[_], -A](summary: Summary[F, A, Unit]) {
+    def observe(n: A): F[Unit] = summary.observeImpl(n, ())
   }
 
-  object AgeBuckets extends internal.Refined[Int, AgeBuckets] with internal.SummaryAgeBucketsFromIntLiteral {
+  implicit class LabelledSummarySyntax[F[_], -A, B](summary: Summary[F, A, B])(implicit ev: Unit Neq B) {
+    def observe(n: A, labels: B): F[Unit] = summary.observeImpl(n, labels)
+  }
+
+  final class AgeBuckets(val value: Int) extends AnyVal with Refined.Value[Int]
+
+  object AgeBuckets
+      extends Refined[Int, AgeBuckets](
+        make = new AgeBuckets(_),
+        test = _ > 0,
+        nonMatchMessage = a => s"AgeBuckets value $a must be greater than 0"
+      )
+      with internal.SummaryAgeBucketsFromIntLiteral {
 
     val Default: AgeBuckets = new AgeBuckets(5)
 
-    override protected def make(a: Int): AgeBuckets = new AgeBuckets(a)
-
-    override protected def test(a: Int): Boolean = a > 0
-
-    override protected def nonMatchMessage(a: Int): String = s"AgeBuckets value $a must be greater than 0"
   }
 
-  final class Quantile(val value: Double) extends AnyVal with internal.Refined.Value[Double] {
-    override def toString: String = s"""Summary.Quantile(value: "$value")"""
-  }
+  final class Quantile(val value: Double) extends AnyVal with Refined.Value[Double]
 
-  object Quantile extends internal.Refined[Double, Quantile] with internal.SummaryQuantileFromDoubleLiteral {
-    override protected def make(a: Double): Quantile = new Quantile(a)
+  object Quantile
+      extends Refined[Double, Quantile](
+        make = new Quantile(_),
+        test = a => a >= 0.0 && a <= 1.0,
+        nonMatchMessage = a => s"Quantile value $a must be between 0.0 and 1.0"
+      )
+      with internal.SummaryQuantileFromDoubleLiteral
 
-    override protected def test(a: Double): Boolean = a >= 0.0 && a <= 1.0
-
-    override protected def nonMatchMessage(a: Double): String = s"Quantile value $a must be between 0.0 and 1.0"
-  }
-
-  final class AllowedError(val value: Double) extends AnyVal with internal.Refined.Value[Double] {
-    override def toString: String = s"""Summary.ErrorRate(value: "$value")"""
-  }
+  final class AllowedError(val value: Double) extends AnyVal with Refined.Value[Double]
 
   object AllowedError
-      extends internal.Refined[Double, AllowedError]
-      with internal.SummaryAllowedErrorFromDoubleLiteral {
-    override protected def make(a: Double): AllowedError = new AllowedError(a)
+      extends Refined[Double, AllowedError](
+        make = new AllowedError(_),
+        test = a => a >= 0.0 && a <= 1.0,
+        nonMatchMessage = a => s"AllowedError value $a must be between 0.0 and 1.0"
+      )
+      with internal.SummaryAllowedErrorFromDoubleLiteral
 
-    override protected def test(a: Double): Boolean = a >= 0.0 && a <= 1.0
-
-    override protected def nonMatchMessage(a: Double): String = s"AllowedError value $a must be between 0.0 and 1.0"
-  }
-
-  final case class QuantileDefinition(value: Quantile, error: AllowedError) {
-    override def toString: String = s"""Summary.QuantileDefinition(value: "${value.value}", error: "${error.value}")"""
-  }
+  final case class QuantileDefinition(value: Quantile, error: AllowedError)
 
   case class Value[A](count: A, sum: A, quantiles: Map[Double, A] = Map.empty) {
+
     def map[B](f: A => B): Value[B] = Value(f(count), f(sum), quantiles.map { case (q, v) => q -> f(v) })
+
   }
 
   /** Refined value class for a gauge name that has been parsed from a string
     */
-  final class Name private (val value: String) extends AnyVal with internal.Refined.Value[String] {
-    override def toString: String = s"""Summary.Name("$value")"""
-  }
+  final class Name private (val value: String) extends AnyVal with Refined.Value[String]
 
-  object Name extends internal.Refined.StringRegexRefinement[Name] with internal.SummaryNameFromStringLiteral {
-    final override protected val regex: Pattern = "^[a-zA-Z_:][a-zA-Z0-9_:]*$".r.pattern
-    final override protected def make(a: String): Name = new Name(a)
-  }
+  object Name
+      extends Regex[Name]("^[a-zA-Z_:][a-zA-Z0-9_:]*$".r.pattern, new Name(_))
+      with internal.SummaryNameFromStringLiteral
 
-  implicit def catsInstances[F[_]]: Contravariant[Summary[F, *]] = new Contravariant[Summary[F, *]] {
-    override def contramap[A, B](fa: Summary[F, A])(f: B => A): Summary[F, B] = fa.contramap(f)
-  }
-
-  def make[F[_], A](_observe: A => F[Unit]): Summary[F, A] = new Summary[F, A] {
-    override def observe(n: A): F[Unit] = _observe(n)
-  }
-
-  def noop[F[_]: Applicative, A]: Summary[F, A] = new Summary[F, A] {
-    override def observe(n: A): F[Unit] = Applicative[F].unit
-  }
-
-  sealed abstract class Labelled[F[_], -A, -B] extends Metric[A] with Metric.Labelled[B] {
-    self =>
-
-    def observe(n: A, labels: B): F[Unit]
-
-    def contramap[C](f: C => A): Labelled[F, C, B] = new Labelled[F, C, B] {
-      override def observe(n: C, labels: B): F[Unit] = self.observe(f(n), labels)
+  implicit def catsInstances[F[_], C]: Contravariant[Summary[F, *, C]] =
+    new Contravariant[Summary[F, *, C]] {
+      override def contramap[A, B](fa: Summary[F, A, C])(f: B => A): Summary[F, B, C] = fa.contramap(f)
     }
 
-    def contramapLabels[C](f: C => B): Labelled[F, A, C] = new Labelled[F, A, C] {
-      override def observe(n: A, labels: C): F[Unit] = self.observe(n, f(labels))
+  implicit def labelsContravariant[F[_], C]: LabelsContravariant[Summary[F, C, *]] =
+    new LabelsContravariant[Summary[F, C, *]] {
+      override def contramapLabels[A, B](fa: Summary[F, C, A])(f: B => A): Summary[F, C, B] = fa.contramapLabels(f)
     }
 
-    final def mapK[G[_]](fk: F ~> G): Labelled[G, A, B] =
-      new Labelled[G, A, B] {
-        override def observe(n: A, labels: B): G[Unit] = fk(self.observe(n, labels))
-      }
+  def make[F[_], A, B](_observe: (A, B) => F[Unit]): Summary[F, A, B] =
+    new Summary[F, A, B] {
+      override def observeImpl(n: A, labels: B): F[Unit] = _observe(n, labels)
+    }
 
-  }
+  def noop[F[_]: Applicative, A, B]: Summary[F, A, B] =
+    new Summary[F, A, B] {
+      override def observeImpl(n: A, labels: B): F[Unit] = Applicative[F].unit
+    }
 
-  object Labelled {
-    implicit def catsInstances[F[_], C]: Contravariant[Labelled[F, *, C]] =
-      new Contravariant[Labelled[F, *, C]] {
-        override def contramap[A, B](fa: Labelled[F, A, C])(f: B => A): Labelled[F, B, C] = fa.contramap(f)
-      }
-
-    implicit def labelsContravariant[F[_], C]: LabelsContravariant[Labelled[F, C, *]] =
-      new LabelsContravariant[Labelled[F, C, *]] {
-        override def contramapLabels[A, B](fa: Labelled[F, C, A])(f: B => A): Labelled[F, C, B] = fa.contramapLabels(f)
-      }
-
-    def make[F[_], A, B](_observe: (A, B) => F[Unit]): Labelled[F, A, B] =
-      new Labelled[F, A, B] {
-        override def observe(n: A, labels: B): F[Unit] = _observe(n, labels)
-      }
-
-    def noop[F[_]: Applicative, A, B]: Labelled[F, A, B] =
-      new Labelled[F, A, B] {
-        override def observe(n: A, labels: B): F[Unit] = Applicative[F].unit
-      }
-  }
 }

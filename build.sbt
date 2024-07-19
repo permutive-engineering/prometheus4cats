@@ -11,7 +11,7 @@ import laika.rewrite.link._
 import org.typelevel.sbt.site.TypelevelProject
 
 // https://typelevel.org/sbt-typelevel/faq.html#what-is-a-base-version-anyway
-ThisBuild / tlBaseVersion := "1.0" // your current series x.y
+ThisBuild / tlBaseVersion := "2.0" // your current series x.y
 
 ThisBuild / organization := "com.permutive"
 ThisBuild / organizationName := "Permutive"
@@ -27,9 +27,9 @@ ThisBuild / tlSonatypeUseLegacyHost := false
 
 val Scala213 = "2.13.11"
 
-val Cats = "2.9.0"
+val Cats = "2.10.0"
 
-val CatsEffect = "3.4.11"
+val CatsEffect = "3.5.1"
 
 val Log4Cats = "2.6.0"
 
@@ -73,6 +73,7 @@ lazy val core = project
       }
       .toList
       .flatten,
+    scalacOptions += "-Wconf:cat=unused-nowarn:s",
     scalacOptions := {
       // Scala 3 macros won't compile with the default Typelevel settings
       if (tlIsScala3.value) Seq("-Ykind-projector") else scalacOptions.value

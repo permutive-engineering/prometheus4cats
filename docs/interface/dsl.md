@@ -115,8 +115,9 @@ val classLabelledCounter = factory
   .counter("counter_total")
   .ofDouble
   .help("Describe what this metric does")
-  .labels(Sized(Label.Name("label1"), Label.Name("label2")))((x: MyMultiClass) =>
-    Sized(x.value1, x.value2.toString)
+  .labels[MyMultiClass](
+    Label.Name("label1") -> (_.value1),
+    Label.Name("label2") -> (_.value2.toString)
   )
 
 classLabelledCounter.build.evalMap(_.inc(2.0, MyMultiClass("label_value", 42)))
@@ -140,7 +141,7 @@ unsafeLabelledCounter.build.evalMap(_.inc(3.0, labels))
 #### Simple Metric
 
 ```scala mdoc:silent
-val intCounter: Resource[IO, Counter[IO, Int]] = factory
+val intCounter: Resource[IO, Counter[IO, Int, Unit]] = factory
   .counter("counter_total")
   .ofLong
   .help("Describe what this metric does")
@@ -149,13 +150,13 @@ val intCounter: Resource[IO, Counter[IO, Int]] = factory
 ```
 
 ```scala mdoc:silent
-val shortCounter: Resource[IO, Counter[IO, Short]] = intCounter.map(_.contramap[Short](_.toInt))
+val shortCounter: Resource[IO, Counter[IO, Short, Unit]] = intCounter.map(_.contramap[Short](_.toInt))
 ```
 
 #### Labelled Metric
 
 ```scala mdoc:silent
-val intLabelledCounter: Resource[IO, Counter.Labelled[IO, Int, (String, Int)]] = factory
+val intLabelledCounter: Resource[IO, Counter[IO, Int, (String, Int)]] = factory
   .counter("counter_total")
   .ofLong
   .help("Describe what this metric does")
@@ -166,7 +167,7 @@ val intLabelledCounter: Resource[IO, Counter.Labelled[IO, Int, (String, Int)]] =
 ```
 
 ```scala mdoc:silent
-val shortLabelledCounter: Resource[IO, Counter.Labelled[IO, Short, (String, Int)]] =
+val shortLabelledCounter: Resource[IO, Counter[IO, Short, (String, Int)]] =
   intLabelledCounter.map(_.contramap[Short](_.toInt))
 ```
 
@@ -178,7 +179,7 @@ This can work as a nice alternative to
 ```scala mdoc:silent
 case class LabelsClass(string: String, int: Int)
 
-val updatedLabelsCounter: Resource[IO, Counter.Labelled[IO, Long, LabelsClass]] = factory
+val updatedLabelsCounter: Resource[IO, Counter[IO, Long, LabelsClass]] = factory
   .counter("counter_total")
   .ofLong
   .help("Describe what this metric does")

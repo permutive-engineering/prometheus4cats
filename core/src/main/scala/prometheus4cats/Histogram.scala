@@ -16,25 +16,119 @@
 
 package prometheus4cats
 
-import java.util.regex.Pattern
-
 import cats.data.NonEmptySeq
-import cats.{Applicative, Contravariant, ~>}
+import cats.effect.kernel.Ref
+import cats.syntax.flatMap._
+import cats.syntax.foldable._
+import cats.syntax.functor._
+import cats.{Applicative, Contravariant, FlatMap, Monad, ~>}
+import prometheus4cats.internal.Refined.Regex
+import prometheus4cats.internal.{Neq, Refined}
 
-sealed abstract class Histogram[F[_], -A] extends Metric[A] { self =>
+sealed abstract class Histogram[F[_], A, B](
+    protected[prometheus4cats] val exemplarState: Histogram.ExemplarState[F]
+) extends Metric[A]
+    with Metric.Labelled[B] {
+  self =>
 
-  def observe(n: A): F[Unit]
+  protected def observeProvidedExemplarImpl(n: A, labels: B, exemplar: Option[Exemplar.Labels]): F[Unit]
 
-  def contramap[B](f: B => A): Histogram[F, B] = new Histogram[F, B] {
-    override def observe(n: B): F[Unit] = self.observe(f(n))
-  }
+  def contramap[C](f: C => A): Histogram[F, C, B] =
+    new Histogram[F, C, B](exemplarState) {
+      override def observeProvidedExemplarImpl(n: C, labels: B, exemplar: Option[Exemplar.Labels]): F[Unit] =
+        self.observeProvidedExemplarImpl(f(n), labels, exemplar)
+    }
 
-  final def mapK[G[_]](fk: F ~> G): Histogram[G, A] = new Histogram[G, A] {
-    override def observe(n: A): G[Unit] = fk(self.observe(n))
-  }
+  def contramapLabels[C](f: C => B): Histogram[F, A, C] =
+    new Histogram[F, A, C](exemplarState) {
+      override def observeProvidedExemplarImpl(n: A, labels: C, exemplar: Option[Exemplar.Labels]): F[Unit] =
+        self.observeProvidedExemplarImpl(n, f(labels), exemplar)
+    }
+
+  final def mapK[G[_]](fk: F ~> G): Histogram[G, A, B] =
+    new Histogram[G, A, B](exemplarState.mapK(fk)) {
+      override def observeProvidedExemplarImpl(n: A, labels: B, exemplar: Option[Exemplar.Labels]): G[Unit] =
+        fk(self.observeProvidedExemplarImpl(n, labels, exemplar))
+    }
+
 }
 
 object Histogram {
+
+  sealed trait ExemplarState[F[_]] {
+    self =>
+    def surround[A](n: A)(
+        fa: Option[Exemplar.Labels] => F[Unit]
+    )(implicit F: Monad[F], exemplarSampler: ExemplarSampler.Histogram[F, A]): F[Unit]
+
+    def mapK[G[_]](fk: F ~> G): ExemplarState[G]
+  }
+
+  object ExemplarState {
+    def getSet[F[_]](
+        buckets: NonEmptySeq[Double],
+        get: F[Option[Exemplar.Data]],
+        set: Option[Exemplar.Data] => F[Unit]
+    ): ExemplarState[F] =
+      new ExemplarState[F] {
+        override def surround[A](n: A)(
+            fa: Option[Exemplar.Labels] => F[Unit]
+        )(implicit F: Monad[F], exemplarSampler: ExemplarSampler.Histogram[F, A]): F[Unit] =
+          for {
+            previous <- get
+            next <- exemplarSampler.sample(n, buckets, previous)
+            _ <- fa(next.map(_.labels))
+            _ <- next.traverse_(data => set(Some(data)))
+          } yield ()
+
+        def mapK[G[_]](fk: F ~> G): ExemplarState[G] = getSet(buckets, fk(get), ex => fk(set(ex)))
+      }
+
+    def fromRef[F[_]](buckets: NonEmptySeq[Double], ref: Ref[F, Option[Exemplar.Data]]): ExemplarState[F] =
+      getSet(buckets, ref.get, ref.set)
+
+    def noop[F[_]]: ExemplarState[F] = new ExemplarState[F] {
+      self =>
+      override def surround[A](n: A)(
+          fa: Option[Exemplar.Labels] => F[Unit]
+      )(implicit F: Monad[F], exemplarSampler: ExemplarSampler.Histogram[F, A]): F[Unit] =
+        Applicative[F].unit
+
+      override def mapK[G[_]](fk: F ~> G): ExemplarState[G] = noop[G]
+
+    }
+  }
+
+  implicit class HistogramSyntax[F[_], A](histogram: Histogram[F, A, Unit]) {
+    final def observe(n: A): F[Unit] = observeProvidedExemplar(n, None)
+
+    final def observeWithSampledExemplar(
+        n: A
+    )(implicit F: Monad[F], exemplarSampler: ExemplarSampler.Histogram[F, A]): F[Unit] =
+      histogram.exemplarState.surround(n)(observeProvidedExemplar(n, _))
+
+    final def observeWithExemplar(n: A)(implicit F: FlatMap[F], exemplar: Exemplar[F]): F[Unit] =
+      exemplar.get.flatMap(observeProvidedExemplar(n, _))
+
+    final def observeProvidedExemplar(n: A, exemplar: Option[Exemplar.Labels]): F[Unit] =
+      histogram.observeProvidedExemplarImpl(n = n, labels = (), exemplar = exemplar)
+  }
+
+  implicit class LabelledCounterSyntax[F[_], A, B](histogram: Histogram[F, A, B])(implicit ev: Unit Neq B) {
+    final def observe(n: A, labels: B): F[Unit] = observeProvidedExemplar(n, labels, None)
+
+    final def observeWithSampledExemplar(
+        n: A,
+        labels: B
+    )(implicit F: Monad[F], exemplarSampler: ExemplarSampler.Histogram[F, A]): F[Unit] =
+      histogram.exemplarState.surround(n)(observeProvidedExemplar(n, labels, _))
+
+    final def observeWithExemplar(n: A, labels: B)(implicit F: FlatMap[F], exemplar: Exemplar[F]): F[Unit] =
+      exemplar.get.flatMap(observeProvidedExemplar(n, labels, _))
+
+    final def observeProvidedExemplar(n: A, labels: B, exemplar: Option[Exemplar.Labels]): F[Unit] =
+      histogram.observeProvidedExemplarImpl(n = n, labels = labels, exemplar = exemplar)
+  }
 
   /** A value that is produced by a histogram
     *
@@ -58,74 +152,35 @@ object Histogram {
 
   /** Refined value class for a histogram name that has been parsed from a string
     */
-  final class Name private (val value: String) extends AnyVal with internal.Refined.Value[String] {
-    override def toString: String = s"""Histogram.Name("$value")"""
-  }
+  final class Name private (val value: String) extends AnyVal with Refined.Value[String]
 
-  object Name extends internal.Refined.StringRegexRefinement[Name] with internal.HistogramNameFromStringLiteral {
-    override protected val regex: Pattern = "^[a-zA-Z_:][a-zA-Z0-9_:]*$".r.pattern
-    override protected def make(a: String): Name = new Name(a)
-  }
+  object Name
+      extends Regex[Name]("^[a-zA-Z_:][a-zA-Z0-9_:]*$".r.pattern, new Name(_))
+      with internal.HistogramNameFromStringLiteral
 
-  implicit def catsInstances[F[_]]: Contravariant[Histogram[F, *]] = new Contravariant[Histogram[F, *]] {
-    override def contramap[A, B](fa: Histogram[F, A])(f: B => A): Histogram[F, B] = fa.contramap(f)
-  }
-
-  def make[F[_], A](_observe: A => F[Unit]): Histogram[F, A] =
-    new Histogram[F, A] {
-      override def observe(n: A): F[Unit] = _observe(n)
+  implicit def catsInstances[F[_], C]: Contravariant[Histogram[F, *, C]] =
+    new Contravariant[Histogram[F, *, C]] {
+      override def contramap[A, B](fa: Histogram[F, A, C])(f: B => A): Histogram[F, B, C] = fa.contramap(f)
     }
 
-  def noop[F[_]: Applicative, A]: Histogram[F, A] =
-    new Histogram[F, A] {
-      override def observe(n: A): F[Unit] = Applicative[F].unit
+  implicit def labelsContravariant[F[_], C]: LabelsContravariant[Histogram[F, C, *]] =
+    new LabelsContravariant[Histogram[F, C, *]] {
+      override def contramapLabels[A, B](fa: Histogram[F, C, A])(f: B => A): Histogram[F, C, B] = fa.contramapLabels(f)
     }
 
-  sealed abstract class Labelled[F[_], -A, -B] extends Metric[A] with Metric.Labelled[B] {
-    self =>
-
-    def observe(n: A, labels: B): F[Unit]
-
-    def contramap[C](f: C => A): Labelled[F, C, B] = new Labelled[F, C, B] {
-      override def observe(n: C, labels: B): F[Unit] = self.observe(f(n), labels)
+  def make[F[_], A, B](
+      exemplarState: ExemplarState[F],
+      _observe: (A, B, Option[Exemplar.Labels]) => F[Unit]
+  ): Histogram[F, A, B] =
+    new Histogram[F, A, B](exemplarState) {
+      override def observeProvidedExemplarImpl(n: A, labels: B, exemplar: Option[Exemplar.Labels]): F[Unit] =
+        _observe(n, labels, exemplar)
     }
 
-    def contramapLabels[C](f: C => B): Labelled[F, A, C] = new Labelled[F, A, C] {
-      override def observe(n: A, labels: C): F[Unit] = self.observe(n, f(labels))
+  def noop[F[_]: Applicative, A, B]: Histogram[F, A, B] =
+    new Histogram[F, A, B](ExemplarState.noop[F]) {
+      override def observeProvidedExemplarImpl(n: A, labels: B, exemplar: Option[Exemplar.Labels]): F[Unit] =
+        Applicative[F].unit
     }
 
-    final def mapK[G[_]](fk: F ~> G): Labelled[G, A, B] =
-      new Labelled[G, A, B] {
-        override def observe(n: A, labels: B): G[Unit] = fk(
-          self.observe(n, labels)
-        )
-      }
-
-  }
-
-  object Labelled {
-    implicit def catsInstances[F[_], C]: Contravariant[Labelled[F, *, C]] =
-      new Contravariant[Labelled[F, *, C]] {
-        override def contramap[A, B](fa: Labelled[F, A, C])(f: B => A): Labelled[F, B, C] = fa.contramap(f)
-      }
-
-    implicit def labelsContravariant[F[_], C]: LabelsContravariant[Labelled[F, C, *]] =
-      new LabelsContravariant[Labelled[F, C, *]] {
-        override def contramapLabels[A, B](fa: Labelled[F, C, A])(f: B => A): Labelled[F, C, B] = fa.contramapLabels(f)
-      }
-
-    def make[F[_], A, B](
-        _observe: (A, B) => F[Unit]
-    ): Labelled[F, A, B] =
-      new Labelled[F, A, B] {
-        override def observe(n: A, labels: B): F[Unit] =
-          _observe(n, labels)
-      }
-
-    def noop[F[_]: Applicative, A, B]: Labelled[F, A, B] =
-      new Labelled[F, A, B] {
-        override def observe(n: A, labels: B): F[Unit] =
-          Applicative[F].unit
-      }
-  }
 }
