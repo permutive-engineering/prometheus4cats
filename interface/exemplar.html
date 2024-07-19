@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="generator" content="Laika 0.18.1 + Helium Theme" />
-  <title>Prometheus4Cats</title>
+  <title>Exemplar</title>
   
   
   <meta name="description" content="docs"/>
@@ -20,11 +20,11 @@
   
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/tonsky/FiraCode@1.207/distr/fira_code.css">
   
-  <link rel="stylesheet" type="text/css" href="helium/icofont.min.css" />
-    <link rel="stylesheet" type="text/css" href="helium/laika-helium.css" />
-    <link rel="stylesheet" type="text/css" href="css/permutive.css" />
-    <link rel="stylesheet" type="text/css" href="site/styles.css" />
-  <script src="helium/laika-helium.js"></script>
+  <link rel="stylesheet" type="text/css" href="../helium/icofont.min.css" />
+    <link rel="stylesheet" type="text/css" href="../helium/laika-helium.css" />
+    <link rel="stylesheet" type="text/css" href="../css/permutive.css" />
+    <link rel="stylesheet" type="text/css" href="../site/styles.css" />
+  <script src="../helium/laika-helium.js"></script>
   
   
   <script> /* for avoiding page load transitions */ </script>
@@ -43,7 +43,7 @@
     
   </div>
 
-  <a class="image-link" href="https://permutive.com"><img src="img/symbol.svg"></a>
+  <a class="image-link" href="https://permutive.com"><img src="../img/symbol.svg"></a>
 
   <span class="row links"><a class="icon-link svg-link" href="https://www.javadoc.io/doc/com.permutive/prometheus4cats-docs_2.13/2.0.0/prometheus4cats/index.html"><span title="API"><svg class="svg-icon" width="100%" height="100%" viewBox="0 0 100 100" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linejoin:round;stroke-miterlimit:2;">
   <g class="svg-shape">
@@ -72,21 +72,21 @@
   </div>
 
   <ul class="nav-list">
-    <li class="level1 active"><a href="#">Prometheus4Cats</a></li>
+    <li class="level1"><a href="../index.html">Prometheus4Cats</a></li>
     <li class="level1 nav-header">design</li>
-    <li class="level2"><a href="design/design.html">Design</a></li>
+    <li class="level2"><a href="../design/design.html">Design</a></li>
     <li class="level1 nav-header">implementations</li>
-    <li class="level2"><a href="implementations/java.html">Java Registry</a></li>
-    <li class="level2"><a href="implementations/testing.html">Testing Registry</a></li>
+    <li class="level2"><a href="../implementations/java.html">Java Registry</a></li>
+    <li class="level2"><a href="../implementations/testing.html">Testing Registry</a></li>
     <li class="level1 nav-header">interface</li>
-    <li class="level2"><a href="interface/callback-registry.html">Callback Registry</a></li>
-    <li class="level2"><a href="interface/dsl.html">Metrics DSL</a></li>
-    <li class="level2"><a href="interface/exemplar.html">Exemplar</a></li>
-    <li class="level2"><a href="interface/metric-factory.html">Metric Factory</a></li>
-    <li class="level2"><a href="interface/metric-registry.html">Metric Registry</a></li>
+    <li class="level2"><a href="callback-registry.html">Callback Registry</a></li>
+    <li class="level2"><a href="dsl.html">Metrics DSL</a></li>
+    <li class="level2 active"><a href="#">Exemplar</a></li>
+    <li class="level2"><a href="metric-factory.html">Metric Factory</a></li>
+    <li class="level2"><a href="metric-registry.html">Metric Registry</a></li>
     <li class="level1 nav-header">metrics</li>
-    <li class="level2"><a href="metrics/derived-metric-types.html">Derived Metric Types</a></li>
-    <li class="level2"><a href="metrics/primitive-metric-types.html">Primitive Metric Types</a></li>
+    <li class="level2"><a href="../metrics/derived-metric-types.html">Derived Metric Types</a></li>
+    <li class="level2"><a href="../metrics/primitive-metric-types.html">Primitive Metric Types</a></li>
   </ul>
 
   <ul class="nav-list">
@@ -105,11 +105,9 @@
 <div id="container">
 
   <nav id="page-nav">
-    <p class="header"><a href="#">Prometheus4Cats</a></p>
+    <p class="header"><a href="#">Exemplar</a></p>
 
     <ul class="nav-list">
-      <li class="level1"><a href="#features">Features</a></li>
-      <li class="level1"><a href="#quickstart-usage">Quickstart Usage</a></li>
     </ul>
 
     <p class="footer"></p>
@@ -117,46 +115,16 @@
 
   <main class="content">
 
-    <h1 id="prometheus4cats" class="title">Prometheus4Cats</h1>
-    <p>This library is designed to provide a tasteful Scala API for exposing <a href="https://prometheus.io">Prometheus</a> metrics using <a href="https://typelevel.org/cats-effect">Cats-Effect</a>. It is a
-    mix between Permutive&#39;s internal library and <a href="https://github.com/davenverse/epimetheus">Epimetheus</a>. See the <a href="design/design.html">design page</a> for more information.</p>
-    
-    <h3 id="features" class="section">Features<a class="anchor-link right" href="#features"><i class="icofont-laika">&#xef71;</i></a></h3>
-    <ul>
-      <li><a href="interface/dsl.html">A fluent metric builder DSL</a></li>
-      <li><a href="interface/metric-factory.html">Metric name prefix and common labels</a></li>
-      <li><a href="interface/metric-registry.html">Decoupled backend for registering metrics</a></li>
-    </ul>
-    
-    <h3 id="quickstart-usage" class="section">Quickstart Usage<a class="anchor-link right" href="#quickstart-usage"><i class="icofont-laika">&#xef71;</i></a></h3>
-    <p>This library is currently available for Scala binary versions 2.12 and 2.13 and 3.2.</p>
-    <p><strong>For detailed code examples see the <a href="interface/dsl.html">metrics DSL</a> documentation.</strong></p>
-    <p>To use the latest version, include the following in your <code>build.sbt</code>:</p>
-    <pre class="keep-together pdf epub"><code class="nohighlight"><span class="identifier">libraryDependencies</span><span> ++= </span><span class="type-name">Seq</span><span>(
-  </span><span class="string-literal">&quot;com.permutive&quot;</span><span> %% </span><span class="string-literal">&quot;prometheus4cats&quot;</span><span> % </span><span class="string-literal">&quot;2.0.0&quot;</span><span>,
-  </span><span class="string-literal">&quot;com.permutive&quot;</span><span> %% </span><span class="string-literal">&quot;prometheus4cats-java&quot;</span><span> % </span><span class="string-literal">&quot;2.0.0&quot;</span><span>
-)</span></code></pre>
-    <pre><code class="nohighlight"><span class="keyword">import</span><span> </span><span class="identifier">cats</span><span>.</span><span class="identifier">effect</span><span>.</span><span class="identifier">_</span><span>
-</span><span class="keyword">import</span><span> </span><span class="identifier">org</span><span>.</span><span class="identifier">typelevel</span><span>.</span><span class="identifier">log4cats</span><span>.</span><span class="identifier">_</span><span>
-</span><span class="keyword">import</span><span> </span><span class="identifier">org</span><span>.</span><span class="identifier">typelevel</span><span>.</span><span class="identifier">log4cats</span><span>.</span><span class="identifier">noop</span><span>.</span><span class="type-name">NoOpLogger</span><span>
-</span><span class="keyword">import</span><span> </span><span class="identifier">prometheus4cats</span><span>.</span><span class="identifier">_</span><span>
-</span><span class="keyword">import</span><span> </span><span class="identifier">prometheus4cats</span><span>.</span><span class="identifier">javasimpleclient</span><span>.</span><span class="identifier">_</span><span>
-
-</span><span class="comment">// Java client requires a logger
-</span><span class="keyword">implicit</span><span> </span><span class="keyword">val</span><span> </span><span class="identifier">logger</span><span>: </span><span class="type-name">Logger</span><span>[</span><span class="type-name">IO</span><span>] = </span><span class="type-name">NoOpLogger</span><span>.</span><span class="identifier">impl</span><span>
-
-</span><span class="keyword">val</span><span> </span><span class="identifier">counterResource</span><span> =
-  </span><span class="keyword">for</span><span> {
-    </span><span class="identifier">registry</span><span> &lt;- </span><span class="type-name">JavaMetricRegistry</span><span>.</span><span class="keyword">default</span><span>[</span><span class="type-name">IO</span><span>]()
-    </span><span class="identifier">factory</span><span> = </span><span class="type-name">MetricFactory</span><span>.</span><span class="identifier">builder</span><span>.</span><span class="identifier">build</span><span>(</span><span class="identifier">registry</span><span>)
-    </span><span class="identifier">counter</span><span> &lt;- </span><span class="identifier">factory</span><span>.</span><span class="identifier">counter</span><span>(</span><span class="string-literal">&quot;my_counter_total&quot;</span><span>)
-                 .</span><span class="identifier">ofLong</span><span>
-                 .</span><span class="identifier">help</span><span>(</span><span class="string-literal">&quot;My Counter&quot;</span><span>)
-                 .</span><span class="identifier">label</span><span>[</span><span class="type-name">String</span><span>](</span><span class="string-literal">&quot;some_label&quot;</span><span>)
-                 .</span><span class="identifier">build</span><span>
-  } </span><span class="keyword">yield</span><span> </span><span class="identifier">counter</span><span>
-
-</span><span class="identifier">counterResource</span><span>.</span><span class="identifier">use</span><span> { </span><span class="identifier">counter</span><span> =&gt; </span><span class="identifier">counter</span><span>.</span><span class="identifier">inc</span><span>(</span><span class="string-literal">&quot;Some label value&quot;</span><span>) }</span></code></pre>
+    <h1 id="exemplar" class="title">Exemplar</h1>
+    <p>Exemplars provide a way of linking trace information to metrics. For a detailed explainer see the 
+    <a href="https://grafana.com/docs/grafana/latest/fundamentals/exemplars/">Grafana labs introduction to exemplars</a>.</p>
+    <p>Exemplars are implemented in Prometheus4Cats using the <code>Exemplar</code> typeclass, which returns an optional map of exemplar
+    labels. You can provide your own implementation for this, but beware that your label names and values can&#39;t be any
+    longer than 128 UTF-8 characters.</p>
+    <p>The <code>Exemplar</code> typeclass contains two methods in order to get the exemplar labels; where the rendered metric name, its
+    labels and value must be passed so the decision whether an exemplar should be recorded can be made by the implementer.
+    This helps keep the churn of exemplars to a minimum and allows implementers to link traces for certain metrics only
+    and under certain circumstances.</p>
 
     <hr style="margin-top: 30px"/>
     <footer style="font-size: 90%; text-align: center">
