@@ -27,18 +27,6 @@ ThisBuild / tlSonatypeUseLegacyHost := false
 
 val Scala213 = "2.13.14"
 
-val Cats = "2.12.0"
-
-val CatsEffect = "3.5.4"
-
-val Log4Cats = "2.7.0"
-
-val Munit = "1.0.0"
-
-val MunitCe3 = "2.0.0"
-
-val ScalacheckEffect = "1.0.4"
-
 ThisBuild / crossScalaVersions := Seq("2.12.19", "3.3.3", Scala213)
 ThisBuild / scalaVersion := crossScalaVersions.value.last
 
@@ -52,23 +40,12 @@ lazy val core = project
   .in(file("core"))
   .settings(
     name := "prometheus4cats",
-    libraryDependencies ++= Seq(
-      "org.typelevel" %%% "cats-core" % Cats,
-      "org.typelevel" %%% "cats-effect-kernel" % CatsEffect,
-      "org.typelevel" %%% "cats-effect" % CatsEffect % Test,
-      "org.typelevel" %% "cats-effect-testkit" % CatsEffect % Test,
-      "org.typelevel" %%% "cats-laws" % Cats % Test,
-      "org.scalameta" %%% "munit" % Munit % Test,
-      "org.typelevel" %% "munit-cats-effect" % MunitCe3 % Test,
-      "org.typelevel" %%% "discipline-munit" % "2.0.0" % Test,
-      "org.scalameta" %% "munit-scalacheck" % Munit % Test,
-      "org.typelevel" %% "scalacheck-effect-munit" % ScalacheckEffect % Test
-    ),
+    libraryDependencies ++= Dependencies.prometheus4cats,
     libraryDependencies ++= PartialFunction
       .condOpt(CrossVersion.partialVersion(scalaVersion.value)) { case Some((2, _)) =>
         Seq(
           "org.scala-lang" % "scala-reflect" % scalaVersion.value,
-          "com.chuusai" %% "shapeless" % "2.3.12"
+          Dependencies.shapeless
         )
       }
       .toList
@@ -84,13 +61,7 @@ lazy val testkit = project
   .in(file("testkit"))
   .settings(
     name := "prometheus4cats-testkit",
-    libraryDependencies ++= Seq(
-      "org.typelevel" %% "cats-effect-testkit" % CatsEffect,
-      "org.scalameta" %% "munit" % Munit,
-      "org.typelevel" %% "munit-cats-effect" % MunitCe3,
-      "org.scalameta" %% "munit-scalacheck" % Munit,
-      "org.typelevel" %% "scalacheck-effect-munit" % ScalacheckEffect
-    )
+    libraryDependencies ++= Dependencies.`prometheus4cats-testkit`
   )
   .dependsOn(core)
 
@@ -98,13 +69,7 @@ lazy val testing = project
   .in(file("testing"))
   .settings(
     name := "prometheus4cats-testing",
-    libraryDependencies ++= Seq(
-      "org.typelevel" %% "cats-effect-testkit" % CatsEffect,
-      "org.scalameta" %% "munit" % Munit,
-      "org.typelevel" %% "munit-cats-effect" % MunitCe3,
-      "org.scalameta" %% "munit-scalacheck" % Munit,
-      "org.typelevel" %% "scalacheck-effect-munit" % ScalacheckEffect
-    )
+    libraryDependencies ++= Dependencies.`prometheus4cats-testing`
   )
   .dependsOn(core)
 
@@ -113,16 +78,10 @@ lazy val java =
     .in(file("java"))
     .settings(
       name := "prometheus4cats-java",
-      libraryDependencies ++= Seq(
-        "org.typelevel" %%% "alleycats-core" % Cats,
-        "org.typelevel" %% "cats-effect-std" % CatsEffect,
-        "org.typelevel" %% "log4cats-core" % Log4Cats,
-        "io.prometheus" % "simpleclient" % "0.16.0",
-        "org.typelevel" %% "log4cats-noop" % Log4Cats % Test
-      ),
+      libraryDependencies ++= Dependencies.`prometheus4cats-java`,
       libraryDependencies ++= PartialFunction
         .condOpt(CrossVersion.partialVersion(scalaVersion.value)) { case Some((2, 12)) =>
-          "org.scala-lang.modules" %% "scala-collection-compat" % "2.12.0"
+          Dependencies.`scala-collection-compat`
         }
         .toList
     )
@@ -198,10 +157,6 @@ lazy val docs = project
     tlSiteRelatedProjects ++= Seq(
       TypelevelProject.CatsEffect,
       ("epimetheus", new URL("https://github.com/davenverse/epimetheus"))
-    ),
-    libraryDependencies ++= Seq(
-      "org.typelevel" %%% "cats-effect" % CatsEffect,
-      "org.typelevel" %% "log4cats-noop" % Log4Cats
     ),
     scalacOptions := Seq()
   )
