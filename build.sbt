@@ -1,176 +1,32 @@
-import laika.ast.LengthUnit._
-import laika.ast.{Path => LPath, _}
-import laika.helium.Helium
-import laika.helium.config.Favicon
-import laika.helium.config.HeliumIcon
-import laika.helium.config.IconLink
-import laika.helium.config.ImageLink
-import laika.theme.config.Color
-import laika.config._
-import laika.rewrite.link._
-import org.typelevel.sbt.site.TypelevelProject
+ThisBuild / scalaVersion           := "2.13.14"
+ThisBuild / crossScalaVersions     := Seq("2.12.19", "2.13.14", "3.3.3")
+ThisBuild / organization           := "com.permutive"
+ThisBuild / versionPolicyIntention := Compatibility.BinaryCompatible
 
-// https://typelevel.org/sbt-typelevel/faq.html#what-is-a-base-version-anyway
-ThisBuild / tlBaseVersion := "2.0" // your current series x.y
+addCommandAlias("ci-test", "fix --check; versionPolicyCheck; mdoc; publishLocal; +test")
+addCommandAlias("ci-docs", "github; mdoc; headerCreateAll")
+addCommandAlias("ci-publish", "versionCheck; github; ci-release")
 
-ThisBuild / organization := "com.permutive"
-ThisBuild / organizationName := "Permutive"
-ThisBuild / startYear := Some(2022)
-ThisBuild / licenses := Seq(License.Apache2)
-ThisBuild / developers := List(
-  tlGitHubDev("janstenpickle", "Chris Jansen"),
-  tlGitHubDev("TimWSpence", "Tim Spence")
-)
+lazy val documentation = project
+  .enablePlugins(MdocPlugin)
 
-// publish to s01.oss.sonatype.org (set to true to publish to oss.sonatype.org instead)
-ThisBuild / tlSonatypeUseLegacyHost := false
+lazy val prometheus4cats = module
+  .settings(libraryDependencies ++= Dependencies.prometheus4cats)
+  .settings(libraryDependencies ++= scalaVersion.value.on(2)("org.scala-lang" % "scala-reflect" % scalaVersion.value))
+  .settings(libraryDependencies ++= scalaVersion.value.on(2)(Dependencies.shapeless))
+  .settings(libraryDependencies ++= scalaVersion.value.on(2)(Dependencies.`kind-projector`))
+  .settings(scalacOptions += "-Wconf:cat=unused-nowarn:s")
+  .settings(scalacOptions ++= scalaVersion.value.on(3)("-Ykind-projector"))
 
-val Scala213 = "2.13.14"
+lazy val `prometheus4cats-testkit` = module
+  .settings(libraryDependencies ++= Dependencies.`prometheus4cats-testkit`)
+  .dependsOn(prometheus4cats)
 
-ThisBuild / crossScalaVersions := Seq("2.12.19", "3.3.3", Scala213)
-ThisBuild / scalaVersion := crossScalaVersions.value.last
+lazy val `prometheus4cats-testing` = module
+  .settings(libraryDependencies ++= Dependencies.`prometheus4cats-testing`)
+  .dependsOn(prometheus4cats)
 
-ThisBuild / tlSitePublishBranch := Some("main")
-
-ThisBuild / tlSonatypeUseLegacyHost := true
-
-lazy val root = tlCrossRootProject.aggregate(core, testkit, testing, java, unidocs)
-
-lazy val core = project
-  .in(file("core"))
-  .settings(
-    name := "prometheus4cats",
-    libraryDependencies ++= Dependencies.prometheus4cats,
-    libraryDependencies ++= PartialFunction
-      .condOpt(CrossVersion.partialVersion(scalaVersion.value)) { case Some((2, _)) =>
-        Seq(
-          "org.scala-lang" % "scala-reflect" % scalaVersion.value,
-          Dependencies.shapeless
-        )
-      }
-      .toList
-      .flatten,
-    scalacOptions += "-Wconf:cat=unused-nowarn:s",
-    scalacOptions := {
-      // Scala 3 macros won't compile with the default Typelevel settings
-      if (tlIsScala3.value) Seq("-Ykind-projector") else scalacOptions.value
-    }
-  )
-
-lazy val testkit = project
-  .in(file("testkit"))
-  .settings(
-    name := "prometheus4cats-testkit",
-    libraryDependencies ++= Dependencies.`prometheus4cats-testkit`
-  )
-  .dependsOn(core)
-
-lazy val testing = project
-  .in(file("testing"))
-  .settings(
-    name := "prometheus4cats-testing",
-    libraryDependencies ++= Dependencies.`prometheus4cats-testing`
-  )
-  .dependsOn(core)
-
-lazy val java =
-  project
-    .in(file("java"))
-    .settings(
-      name := "prometheus4cats-java",
-      libraryDependencies ++= Dependencies.`prometheus4cats-java`,
-      libraryDependencies ++= PartialFunction
-        .condOpt(CrossVersion.partialVersion(scalaVersion.value)) { case Some((2, 12)) =>
-          Dependencies.`scala-collection-compat`
-        }
-        .toList
-    )
-    .dependsOn(core, testkit % "test->compile")
-
-lazy val docs = project
-  .in(file("site"))
-  .settings(
-    tlSiteHeliumConfig := Helium.defaults.site
-      .metadata(
-        title = Some("Prometheus4Cats"),
-        language = Some("en")
-      )
-      .site
-      .darkMode
-      .disabled
-      .site
-      .themeColors(
-        primary = Color.hex("000000"),
-        primaryMedium = Color.hex("ffcee3"),
-        primaryLight = Color.hex("ffcee3"),
-        secondary = Color.hex("8ed1fc"),
-        text = Color.hex("000000"),
-        background = Color.rgba(0, 0, 0, 0),
-        bgGradient = (Color.hex("ffffff"), Color.hex("ffffff"))
-      )
-      .site
-      .layout(
-        contentWidth = px(860),
-        navigationWidth = px(275),
-        topBarHeight = px(50),
-        defaultBlockSpacing = px(10),
-        defaultLineHeight = 1.5,
-        anchorPlacement = laika.helium.config.AnchorPlacement.Right
-      )
-      .site
-      .favIcons(
-        Favicon.internal(LPath.Root / "img" / "icon-150x150.png", "32x32"),
-        Favicon.internal(LPath.Root / "img" / "icon-300x300.png", "192x192")
-      )
-      .site
-      .topNavigationBar(
-        homeLink = ImageLink.external(
-          "https://permutive.com",
-          Image.internal(LPath.Root / "img" / "symbol.svg")
-        ),
-        navLinks = tlSiteApiUrl.value.toList.map { url =>
-          IconLink.external(
-            url.toString,
-            HeliumIcon.api,
-            options = Styles("svg-link")
-          )
-        } ++ List(
-          IconLink.external(
-            scmInfo.value.fold("https://github.com/permutive-engineering")(_.browseUrl.toString),
-            HeliumIcon.github,
-            options = Styles("svg-link")
-          )
-        )
-      ),
-    laikaConfig := LaikaConfig.defaults
-      .withConfigValue(
-        LinkConfig(
-          targets = Seq(
-            TargetDefinition("Prometheus Java Client", ExternalTarget("https://github.com/prometheus/client_java/")),
-            TargetDefinition("Prometheus", ExternalTarget("https://prometheus.io"))
-          ),
-          sourceLinks =
-            Seq(SourceLinks(baseUri = "https://github.com/permutive-engineering/prometheus4cats", suffix = "scala"))
-        )
-      ),
-    tlSiteApiPackage := Some("prometheus4cats"),
-    tlSiteRelatedProjects ++= Seq(
-      TypelevelProject.CatsEffect,
-      ("epimetheus", new URL("https://github.com/davenverse/epimetheus"))
-    ),
-    scalacOptions := Seq()
-  )
-  .dependsOn(core, java, testing)
-  .enablePlugins(TypelevelSitePlugin)
-
-lazy val unidocs = project
-  .in(file("unidocs"))
-  .enablePlugins(TypelevelUnidocPlugin) // also enables the ScalaUnidocPlugin
-  .settings(
-    name := "prometheus4cats-docs",
-    ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(
-      core,
-      testkit,
-      java
-    )
-  )
+lazy val `prometheus4cats-java` = module
+  .settings(libraryDependencies ++= Dependencies.`prometheus4cats-java`)
+  .settings(libraryDependencies ++= scalaVersion.value.on(2, 12)(Dependencies.`scala-collection-compat`))
+  .dependsOn(prometheus4cats, `prometheus4cats-testkit` % "test->compile")
