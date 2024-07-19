@@ -21,6 +21,7 @@ import cats.data.NonEmptyList
 import cats.data.NonEmptySeq
 import cats.effect.kernel.Resource
 import cats.syntax.functor._
+
 import prometheus4cats._
 
 trait DoubleCallbackRegistry[F[_]] extends CallbackRegistry[F] {

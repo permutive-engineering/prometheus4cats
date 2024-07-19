@@ -19,6 +19,7 @@ package prometheus4cats
 import cats.Applicative
 import cats.Contravariant
 import cats.~>
+
 import prometheus4cats.internal.Neq
 import prometheus4cats.internal.Refined
 import prometheus4cats.internal.Refined.Regex

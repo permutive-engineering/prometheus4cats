@@ -16,10 +16,11 @@
 
 package prometheus4cats.internal.histogram
 
-import cats.data.NonEmptySeq
-import prometheus4cats._
-
 import scala.annotation.nowarn
+
+import cats.data.NonEmptySeq
+
+import prometheus4cats._
 
 final class BucketDsl[+A, N] private[prometheus4cats] (
     f: NonEmptySeq[N] => A

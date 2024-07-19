@@ -16,6 +16,9 @@
 
 package prometheus4cats.javasimpleclient
 
+import scala.concurrent.duration._
+import scala.jdk.CollectionConverters._
+
 import cats.Show
 import cats.data.NonEmptyList
 import cats.data.NonEmptySeq
@@ -24,6 +27,7 @@ import cats.effect.kernel.Resource
 import cats.syntax.either._
 import cats.syntax.flatMap._
 import cats.syntax.show._
+
 import io.prometheus.client.CollectorRegistry
 import munit.CatsEffectSuite
 import org.scalacheck.effect.PropF._
@@ -34,9 +38,6 @@ import prometheus4cats._
 import prometheus4cats.testkit.CallbackRegistrySuite
 import prometheus4cats.testkit.MetricRegistrySuite
 import prometheus4cats.util.NameUtils
-
-import scala.jdk.CollectionConverters._
-import scala.concurrent.duration._
 
 class JavaMetricRegistrySuite
     extends CatsEffectSuite

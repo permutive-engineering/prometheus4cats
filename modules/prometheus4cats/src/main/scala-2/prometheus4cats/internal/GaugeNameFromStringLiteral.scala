@@ -16,9 +16,9 @@
 
 package prometheus4cats.internal
 
-import prometheus4cats.Gauge
-
 import scala.reflect.macros.blackbox
+
+import prometheus4cats.Gauge
 
 private[prometheus4cats] trait GaugeNameFromStringLiteral {
 

@@ -16,14 +16,16 @@
 
 package prometheus4cats.testing
 
-import cats.syntax.all._
+import scala.annotation.nowarn
+import scala.concurrent.duration._
+
 import cats.data.Chain
 import cats.data.NonEmptySeq
 import cats.effect._
+import cats.syntax.all._
+
 import munit.CatsEffectSuite
 import prometheus4cats._
-import scala.concurrent.duration._
-import scala.annotation.nowarn
 
 @nowarn("msg=unused value")
 class TestingMetricRegistrySuite extends CatsEffectSuite {

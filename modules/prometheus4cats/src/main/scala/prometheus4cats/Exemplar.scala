@@ -16,13 +16,15 @@
 
 package prometheus4cats
 
+import java.time.Instant
+
+import scala.collection.immutable.SortedMap
+
 import cats.Applicative
+
 import prometheus4cats.internal.ExemplarLabelNameFromStringLiteral
 import prometheus4cats.internal.Refined
 import prometheus4cats.internal.Refined.Regex
-
-import java.time.Instant
-import scala.collection.immutable.SortedMap
 
 /** A typeclass to provide exemplars to counters and histograms, which may be used by [[MetricRegistry]]
   * implementations.

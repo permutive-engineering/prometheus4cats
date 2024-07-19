@@ -16,20 +16,22 @@
 
 package prometheus4cats
 
+import java.util.concurrent.TimeUnit
+
+import scala.concurrent.duration.FiniteDuration
+
+import cats.Applicative
+import cats.FlatMap
+import cats.Monad
+import cats.MonadThrow
 import cats.effect.kernel.Clock
 import cats.syntax.applicativeError._
 import cats.syntax.either._
 import cats.syntax.flatMap._
 import cats.syntax.functor._
-import cats.Applicative
-import cats.FlatMap
-import cats.Monad
-import cats.MonadThrow
 import cats.~>
-import prometheus4cats.internal.Neq
 
-import java.util.concurrent.TimeUnit
-import scala.concurrent.duration.FiniteDuration
+import prometheus4cats.internal.Neq
 
 /** A derived metric type that can time a given operation. See [[Timer.fromHistogram]] and [[Timer.fromGauge]] for more
   * information.

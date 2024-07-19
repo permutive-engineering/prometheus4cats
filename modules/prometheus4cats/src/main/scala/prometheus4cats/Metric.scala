@@ -18,6 +18,7 @@ package prometheus4cats
 
 import cats.Hash
 import cats.syntax.traverse._
+
 import prometheus4cats.internal.MetricHelpFromStringLiteral
 import prometheus4cats.internal.MetricPrefixFromStringLiteral
 import prometheus4cats.internal.Refined

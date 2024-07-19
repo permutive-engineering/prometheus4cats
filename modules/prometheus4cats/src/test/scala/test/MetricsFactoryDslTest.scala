@@ -17,14 +17,16 @@
 // in a different package to the rest of the codebase to verify private annotations work
 package test
 
-import cats.effect.kernel.Clock
-import cats.effect.kernel.MonadCancelThrow
-import prometheus4cats._
-
 import java.math.BigInteger
 import java.util.concurrent.TimeUnit
-import scala.concurrent.duration._
+
 import scala.annotation.nowarn
+import scala.concurrent.duration._
+
+import cats.effect.kernel.Clock
+import cats.effect.kernel.MonadCancelThrow
+
+import prometheus4cats._
 
 @nowarn("msg=unused value")
 class MetricsFactoryDslTest[F[_]: MonadCancelThrow: Clock] {

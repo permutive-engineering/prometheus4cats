@@ -16,22 +16,24 @@
 
 package prometheus4cats
 
+import java.util.concurrent.TimeUnit
+
+import scala.concurrent.duration._
+
 import cats.Id
 import cats.data.NonEmptyList
 import cats.data.WriterT
-import cats.effect.kernel.Outcome.Succeeded
-import cats.effect.testkit.TestControl
 import cats.effect.IO
 import cats.effect.Ref
+import cats.effect.kernel.Outcome.Succeeded
+import cats.effect.testkit.TestControl
 import cats.syntax.traverse._
+
 import munit.CatsEffectSuite
 import munit.ScalaCheckEffectSuite
-import org.scalacheck.effect.PropF._
 import org.scalacheck.Arbitrary
 import org.scalacheck.Gen
-
-import java.util.concurrent.TimeUnit
-import scala.concurrent.duration._
+import org.scalacheck.effect.PropF._
 
 class TimerSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
 

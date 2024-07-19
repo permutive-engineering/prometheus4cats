@@ -16,19 +16,20 @@
 
 package prometheus4cats
 
-import cats.effect.kernel.Ref
-import cats.syntax.flatMap._
-import cats.syntax.foldable._
-import cats.syntax.functor._
 import cats.Applicative
 import cats.Contravariant
 import cats.FlatMap
 import cats.Monad
+import cats.effect.kernel.Ref
+import cats.syntax.flatMap._
+import cats.syntax.foldable._
+import cats.syntax.functor._
 import cats.~>
+
 import prometheus4cats.Counter.ExemplarState
-import prometheus4cats.internal.Refined.Regex
 import prometheus4cats.internal.Neq
 import prometheus4cats.internal.Refined
+import prometheus4cats.internal.Refined.Regex
 
 sealed abstract class Counter[F[_], A, B](
     protected[prometheus4cats] val exemplarState: ExemplarState[F]

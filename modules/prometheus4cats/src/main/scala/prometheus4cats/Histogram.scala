@@ -16,19 +16,20 @@
 
 package prometheus4cats
 
+import cats.Applicative
+import cats.Contravariant
+import cats.FlatMap
+import cats.Monad
 import cats.data.NonEmptySeq
 import cats.effect.kernel.Ref
 import cats.syntax.flatMap._
 import cats.syntax.foldable._
 import cats.syntax.functor._
-import cats.Applicative
-import cats.Contravariant
-import cats.FlatMap
-import cats.Monad
 import cats.~>
-import prometheus4cats.internal.Refined.Regex
+
 import prometheus4cats.internal.Neq
 import prometheus4cats.internal.Refined
+import prometheus4cats.internal.Refined.Regex
 
 sealed abstract class Histogram[F[_], A, B](
     protected[prometheus4cats] val exemplarState: Histogram.ExemplarState[F]

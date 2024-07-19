@@ -16,16 +16,17 @@
 
 package prometheus4cats.javasimpleclient.internal
 
+import scala.jdk.CollectionConverters._
+
 import cats.data.NonEmptySeq
+
 import io.prometheus.client.Collector
 import io.prometheus.client.Collector.MetricFamilySamples
 import io.prometheus.client.Collector.Type
-import prometheus4cats.util.NameUtils
 import prometheus4cats.Histogram
 import prometheus4cats.Label
 import prometheus4cats.Metric
-
-import scala.jdk.CollectionConverters._
+import prometheus4cats.util.NameUtils
 
 private[javasimpleclient] object HistogramUtils {
 

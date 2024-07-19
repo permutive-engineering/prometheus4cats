@@ -16,11 +16,12 @@
 
 package prometheus4cats.util
 
+import scala.concurrent.duration.FiniteDuration
+
 import cats.data.NonEmptySeq
 import cats.effect.kernel.Resource
-import prometheus4cats._
 
-import scala.concurrent.duration.FiniteDuration
+import prometheus4cats._
 
 trait DoubleMetricRegistry[F[_]] extends MetricRegistry[F] {
 

@@ -16,9 +16,9 @@
 
 package prometheus4cats.internal
 
-import prometheus4cats.Summary
-
 import scala.reflect.macros.blackbox
+
+import prometheus4cats.Summary
 
 private[prometheus4cats] trait SummaryQuantileFromDoubleLiteral {
 

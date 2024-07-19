@@ -19,11 +19,12 @@ package prometheus4cats
 import cats.effect.IO
 import cats.effect.Ref
 import cats.syntax.semigroup._
+
 import munit.CatsEffectSuite
 import munit.ScalaCheckEffectSuite
-import org.scalacheck.effect.PropF._
 import org.scalacheck.Arbitrary
 import org.scalacheck.Gen
+import org.scalacheck.effect.PropF._
 import prometheus4cats.OutcomeRecorder.Status
 
 class OutcomeRecorderSuite extends CatsEffectSuite with ScalaCheckEffectSuite {

@@ -16,12 +16,13 @@
 
 package prometheus4cats
 
+import cats.Applicative
+import cats.Functor
 import cats.data.NonEmptyList
 import cats.effect.kernel.MonadCancel
 import cats.effect.kernel.Resource
-import cats.Applicative
-import cats.Functor
 import cats.~>
+
 import prometheus4cats.Metric.CommonLabels
 import prometheus4cats.internal._
 import prometheus4cats.internal.histogram.BucketDsl

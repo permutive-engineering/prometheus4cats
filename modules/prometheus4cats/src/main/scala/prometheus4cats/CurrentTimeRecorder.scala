@@ -16,13 +16,14 @@
 
 package prometheus4cats
 
+import scala.concurrent.duration.FiniteDuration
+
+import cats.FlatMap
 import cats.effect.kernel.Clock
 import cats.syntax.flatMap._
-import cats.FlatMap
 import cats.~>
-import prometheus4cats.internal.Neq
 
-import scala.concurrent.duration.FiniteDuration
+import prometheus4cats.internal.Neq
 
 /** A derived metric type that sets an underlying [[Gauge]] to the current system time. */
 trait CurrentTimeRecorder[F[_], A] extends Metric.Labelled[A] { self =>

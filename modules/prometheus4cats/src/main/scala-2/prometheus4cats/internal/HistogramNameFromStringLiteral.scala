@@ -16,9 +16,9 @@
 
 package prometheus4cats.internal
 
-import prometheus4cats.Histogram
-
 import scala.reflect.macros.blackbox
+
+import prometheus4cats.Histogram
 
 private[prometheus4cats] trait HistogramNameFromStringLiteral {
 

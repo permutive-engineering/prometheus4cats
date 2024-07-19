@@ -20,6 +20,7 @@ import cats.Show
 import cats.data.NonEmptyList
 import cats.effect.kernel.Ref
 import cats.effect.kernel.Unique
+
 import io.prometheus.client.Collector
 import io.prometheus.client.SimpleCollector
 import prometheus4cats.javasimpleclient.models.MetricType

@@ -16,9 +16,9 @@
 
 package prometheus4cats.internal
 
-import prometheus4cats.Label
-
 import scala.reflect.macros.blackbox
+
+import prometheus4cats.Label
 
 private[prometheus4cats] trait LabelNameFromStringLiteral {
 

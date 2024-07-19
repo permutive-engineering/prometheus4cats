@@ -16,10 +16,11 @@
 
 package prometheus4cats.javasimpleclient.models
 
-import alleycats.std.set._
 import cats.Show
 import cats.syntax.foldable._
 import cats.syntax.show._
+
+import alleycats.std.set._
 import prometheus4cats.Label
 import prometheus4cats.Metric
 

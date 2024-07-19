@@ -16,16 +16,17 @@
 
 package prometheus4cats.testkit
 
+import scala.concurrent.duration._
+
 import cats.data.NonEmptySeq
 import cats.effect.IO
 import cats.effect.kernel.Resource
+
 import munit.CatsEffectSuite
 import org.scalacheck.Arbitrary
 import org.scalacheck.effect.PropF._
 import prometheus4cats.Summary.QuantileDefinition
 import prometheus4cats._
-
-import scala.concurrent.duration._
 
 trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffectSuite =>
 

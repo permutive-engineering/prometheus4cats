@@ -16,9 +16,9 @@
 
 package prometheus4cats.internal
 
-import prometheus4cats.Counter
-
 import scala.reflect.macros.blackbox
+
+import prometheus4cats.Counter
 
 private[prometheus4cats] trait CounterNameFromStringLiteral {
 

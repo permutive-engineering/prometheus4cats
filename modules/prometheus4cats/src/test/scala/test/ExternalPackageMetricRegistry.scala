@@ -16,13 +16,14 @@
 
 package test
 
+import scala.concurrent.duration.FiniteDuration
+
 import cats.data.NonEmptyList
 import cats.data.NonEmptySeq
 import cats.effect.IO
 import cats.effect.kernel.Resource
-import prometheus4cats._
 
-import scala.concurrent.duration.FiniteDuration
+import prometheus4cats._
 
 // Functions as a compile-time test to ensure methods are implementable outside of `prometheus4cats` package scope
 class ExternalPackageMetricRegistry extends MetricRegistry[IO] with CallbackRegistry[IO] {

@@ -16,18 +16,19 @@
 
 package prometheus4cats
 
+import scala.concurrent.duration._
+
 import cats.Id
 import cats.data.WriterT
 import cats.effect.IO
 import cats.effect.kernel.Outcome.Succeeded
 import cats.effect.testkit.TestControl
+
 import munit.CatsEffectSuite
 import munit.ScalaCheckEffectSuite
-import org.scalacheck.effect.PropF._
 import org.scalacheck.Arbitrary
 import org.scalacheck.Gen
-
-import scala.concurrent.duration._
+import org.scalacheck.effect.PropF._
 
 class CurrentTimeRecorderSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
 

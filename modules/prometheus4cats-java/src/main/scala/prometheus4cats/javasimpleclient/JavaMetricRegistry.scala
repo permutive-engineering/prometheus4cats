@@ -16,7 +16,17 @@
 
 package prometheus4cats.javasimpleclient
 
-import alleycats.std.iterable._
+import java.util
+
+import scala.concurrent.TimeoutException
+import scala.concurrent.duration._
+import scala.jdk.CollectionConverters._
+
+import cats.Applicative
+import cats.ApplicativeThrow
+import cats.Functor
+import cats.Monad
+import cats.Show
 import cats.data.NonEmptyList
 import cats.data.NonEmptySeq
 import cats.effect.kernel._
@@ -25,13 +35,10 @@ import cats.effect.kernel.syntax.temporal._
 import cats.effect.std.Dispatcher
 import cats.effect.std.Semaphore
 import cats.syntax.all._
-import cats.Applicative
-import cats.ApplicativeThrow
-import cats.Functor
-import cats.Monad
-import cats.Show
-import io.prometheus.client.Collector.MetricFamilySamples
+
+import alleycats.std.iterable._
 import io.prometheus.client.Collector
+import io.prometheus.client.Collector.MetricFamilySamples
 import io.prometheus.client.CollectorRegistry
 import io.prometheus.client.CounterMetricFamily
 import io.prometheus.client.GaugeMetricFamily
@@ -51,11 +58,6 @@ import prometheus4cats.javasimpleclient.models.MetricType
 import prometheus4cats.util.DoubleCallbackRegistry
 import prometheus4cats.util.DoubleMetricRegistry
 import prometheus4cats.util.NameUtils
-
-import java.util
-import scala.concurrent.TimeoutException
-import scala.concurrent.duration._
-import scala.jdk.CollectionConverters._
 
 class JavaMetricRegistry[F[_]: Async: Logger] private (
     private val registry: CollectorRegistry,

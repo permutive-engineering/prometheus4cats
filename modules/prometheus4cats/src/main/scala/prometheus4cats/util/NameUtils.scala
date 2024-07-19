@@ -18,6 +18,7 @@ package prometheus4cats.util
 
 import cats.Show
 import cats.syntax.show._
+
 import prometheus4cats.Metric
 
 object NameUtils {

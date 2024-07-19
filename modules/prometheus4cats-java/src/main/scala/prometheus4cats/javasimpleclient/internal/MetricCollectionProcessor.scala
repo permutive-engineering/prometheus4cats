@@ -18,8 +18,13 @@ package prometheus4cats.javasimpleclient.internal
 
 import java.util
 
-import alleycats.std.iterable._
-import alleycats.std.set._
+import scala.collection.mutable.ListBuffer
+import scala.concurrent.TimeoutException
+import scala.concurrent.duration.FiniteDuration
+import scala.jdk.CollectionConverters._
+
+import cats.Applicative
+import cats.Show
 import cats.effect.kernel._
 import cats.effect.kernel.syntax.monadCancel._
 import cats.effect.kernel.syntax.temporal._
@@ -32,10 +37,11 @@ import cats.syntax.functor._
 import cats.syntax.monoid._
 import cats.syntax.show._
 import cats.syntax.traverse._
-import cats.Applicative
-import cats.Show
-import io.prometheus.client.Collector.MetricFamilySamples
+
+import alleycats.std.iterable._
+import alleycats.std.set._
 import io.prometheus.client.Collector
+import io.prometheus.client.Collector.MetricFamilySamples
 import io.prometheus.client.CollectorRegistry
 import io.prometheus.client.CounterMetricFamily
 import io.prometheus.client.GaugeMetricFamily
@@ -46,15 +52,10 @@ import io.prometheus.client.{Histogram => PHistogram}
 import org.typelevel.log4cats.Logger
 import prometheus4cats.MetricCollection.Value
 import prometheus4cats._
-import prometheus4cats.javasimpleclient.models.Exceptions.DuplicateMetricsException
 import prometheus4cats.javasimpleclient.CallbackState
 import prometheus4cats.javasimpleclient.State
+import prometheus4cats.javasimpleclient.models.Exceptions.DuplicateMetricsException
 import prometheus4cats.util.NameUtils
-
-import scala.collection.mutable.ListBuffer
-import scala.concurrent.TimeoutException
-import scala.concurrent.duration.FiniteDuration
-import scala.jdk.CollectionConverters._
 
 private[javasimpleclient] class MetricCollectionProcessor[F[_]: Async: Logger] private (
     ref: Ref[F, State[F]],

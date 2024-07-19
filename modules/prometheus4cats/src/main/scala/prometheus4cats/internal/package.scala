@@ -16,20 +16,21 @@
 
 package prometheus4cats.internal
 
+import scala.concurrent.duration.FiniteDuration
+
+import cats.Contravariant
+import cats.FlatMap
+import cats.Functor
+import cats.Show
 import cats.data.NonEmptyList
 import cats.effect.kernel.Clock
 import cats.effect.kernel.MonadCancelThrow
 import cats.effect.kernel.Resource
 import cats.syntax.all._
-import cats.Contravariant
-import cats.FlatMap
-import cats.Functor
-import cats.Show
+
 import prometheus4cats.OutcomeRecorder.Status
 import prometheus4cats._
 import prometheus4cats.internal.InitLast.Aux
-
-import scala.concurrent.duration.FiniteDuration
 
 trait BuildStep[F[_], A] { self =>
 

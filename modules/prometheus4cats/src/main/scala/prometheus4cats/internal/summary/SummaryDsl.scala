@@ -16,12 +16,13 @@
 
 package prometheus4cats.internal.summary
 
+import scala.concurrent.duration._
+
+import cats.Functor
+
 import prometheus4cats.Summary.QuantileDefinition
 import prometheus4cats._
 import prometheus4cats.internal._
-
-import scala.concurrent.duration._
-import cats.Functor
 
 final class SummaryDsl[F[_], A] private[prometheus4cats] (
     quantiles: Seq[QuantileDefinition] = SummaryDsl.defaultQuantiles,

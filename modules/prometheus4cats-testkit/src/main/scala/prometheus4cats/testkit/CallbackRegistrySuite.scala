@@ -18,13 +18,14 @@ package prometheus4cats.testkit
 
 import cats.data.NonEmptyList
 import cats.data.NonEmptySeq
-import cats.syntax.all._
 import cats.effect.IO
 import cats.effect.kernel.Resource
+import cats.syntax.all._
+
 import munit.CatsEffectSuite
-import org.scalacheck.effect.PropF._
 import org.scalacheck.Arbitrary
 import org.scalacheck.Gen
+import org.scalacheck.effect.PropF._
 import prometheus4cats._
 
 trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffectSuite =>

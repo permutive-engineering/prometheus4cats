@@ -17,11 +17,11 @@
 package prometheus4cats
 
 import munit.ScalaCheckSuite
-import prometheus4cats.Fixtures.ordinaryChars
-import prometheus4cats.Metric.CommonLabels
-import org.scalacheck.Prop._
 import org.scalacheck.Arbitrary
 import org.scalacheck.Gen
+import org.scalacheck.Prop._
+import prometheus4cats.Fixtures.ordinaryChars
+import prometheus4cats.Metric.CommonLabels
 
 class CommonLabelsSuite extends ScalaCheckSuite {
 

@@ -17,8 +17,8 @@
 package prometheus4cats
 
 import cats.Applicative
-import cats.~>
 import cats.data.NonEmptySeq
+import cats.~>
 
 trait ExemplarSampler[F[_], -A] extends ExemplarSampler.Counter[F, A] with ExemplarSampler.Histogram[F, A] { self =>
 

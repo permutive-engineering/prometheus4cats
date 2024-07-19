@@ -18,20 +18,21 @@ package prometheus4cats.javasimpleclient.internal
 
 import java.util.concurrent.TimeoutException
 
+import scala.concurrent.duration.FiniteDuration
+
 import cats.Show
-import cats.effect.kernel.syntax.temporal._
 import cats.effect.kernel.Sync
 import cats.effect.kernel.Temporal
+import cats.effect.kernel.syntax.temporal._
 import cats.effect.std.Dispatcher
 import cats.syntax.all._
+
 import io.prometheus.client.Collector
 import io.prometheus.client.CollectorRegistry
 import io.prometheus.client.SimpleCollector
 import org.typelevel.log4cats.Logger
 import prometheus4cats.Label
 import prometheus4cats.javasimpleclient.models.Exceptions._
-
-import scala.concurrent.duration.FiniteDuration
 
 private[javasimpleclient] object Utils {
 

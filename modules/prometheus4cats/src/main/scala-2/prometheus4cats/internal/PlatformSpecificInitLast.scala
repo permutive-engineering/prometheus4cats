@@ -16,9 +16,9 @@
 
 package prometheus4cats.internal
 
-import shapeless.ops.tuple._
-
 import scala.annotation.nowarn
+
+import shapeless.ops.tuple._
 
 private[prometheus4cats] trait PlatformSpecificInitLast extends LowPriorityInitLast {
 

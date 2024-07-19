@@ -16,9 +16,9 @@
 
 package prometheus4cats.internal
 
-import prometheus4cats.Info
-
 import scala.reflect.macros.blackbox
+
+import prometheus4cats.Info
 
 private[prometheus4cats] trait InfoNameFromStringLiteral {
 

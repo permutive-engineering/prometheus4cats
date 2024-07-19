@@ -16,16 +16,17 @@
 
 package prometheus4cats
 
+import scala.concurrent.duration.FiniteDuration
+
+import cats.Applicative
 import cats.data.NonEmptySeq
 import cats.effect.kernel.MonadCancel
 import cats.effect.kernel.Resource
-import cats.Applicative
 import cats.~>
+
 import prometheus4cats.Metric.CommonLabels
 import prometheus4cats.Summary.QuantileDefinition
 import prometheus4cats.util.DoubleMetricRegistry
-
-import scala.concurrent.duration.FiniteDuration
 
 /** Trait for registering metrics against different backends. May be implemented by anyone for use with
   * [[MetricFactory]]
