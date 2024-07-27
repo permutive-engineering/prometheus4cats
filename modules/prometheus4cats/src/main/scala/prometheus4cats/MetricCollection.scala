@@ -255,28 +255,28 @@ object MetricCollection {
 
   object Value {
 
-    sealed trait Counter                                                                        extends Value
+    sealed trait Counter extends Value
 
-    case class LongCounter(help: Metric.Help, labelValues: IndexedSeq[String], value: Long)     extends Counter
+    final case class LongCounter(help: Metric.Help, labelValues: IndexedSeq[String], value: Long) extends Counter
 
-    case class DoubleCounter(help: Metric.Help, labelValues: IndexedSeq[String], value: Double) extends Counter
+    final case class DoubleCounter(help: Metric.Help, labelValues: IndexedSeq[String], value: Double) extends Counter
 
-    sealed trait Gauge                                                                        extends Value
+    sealed trait Gauge extends Value
 
-    case class LongGauge(help: Metric.Help, labelValues: IndexedSeq[String], value: Long)     extends Gauge
+    final case class LongGauge(help: Metric.Help, labelValues: IndexedSeq[String], value: Long) extends Gauge
 
-    case class DoubleGauge(help: Metric.Help, labelValues: IndexedSeq[String], value: Double) extends Gauge
+    final case class DoubleGauge(help: Metric.Help, labelValues: IndexedSeq[String], value: Double) extends Gauge
 
     sealed trait Histogram extends Value
 
-    case class LongHistogram(
+    final case class LongHistogram(
         buckets: NonEmptySeq[Long],
         help: Metric.Help,
         labelValues: IndexedSeq[String],
         value: Histogram.Value[Long]
     ) extends Histogram
 
-    case class DoubleHistogram(
+    final case class DoubleHistogram(
         buckets: NonEmptySeq[Double],
         help: Metric.Help,
         labelValues: IndexedSeq[String],
@@ -285,13 +285,13 @@ object MetricCollection {
 
     sealed trait Summary extends Value
 
-    case class LongSummary(
+    final case class LongSummary(
         help: Metric.Help,
         labelValues: IndexedSeq[String],
         value: Summary.Value[Long]
     ) extends Summary
 
-    case class DoubleSummary(
+    final case class DoubleSummary(
         help: Metric.Help,
         labelValues: IndexedSeq[String],
         value: Summary.Value[Double]
@@ -301,7 +301,7 @@ object MetricCollection {
 
   implicit val catsInstances: Monoid[MetricCollection] = new Monoid[MetricCollection] {
 
-    override def empty: MetricCollection                                             = MetricCollection.empty
+    override def empty: MetricCollection = MetricCollection.empty
 
     override def combine(x: MetricCollection, y: MetricCollection): MetricCollection = x ++ y
 

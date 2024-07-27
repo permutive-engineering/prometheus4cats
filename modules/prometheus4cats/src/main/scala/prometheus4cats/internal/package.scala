@@ -183,7 +183,7 @@ object BuildStep {
 
 }
 
-sealed trait CallbackStep[F[_], A] { self =>
+trait CallbackStep[F[_], A] { self =>
 
   protected def buildCallback: F[A] => Resource[F, Unit]
 
@@ -658,7 +658,7 @@ class HelpStep[+A] private[prometheus4cats] (f: Metric.Help => A) {
 
 class TypeStep[+D[_]] private[prometheus4cats] (long: D[Long], double: D[Double]) {
 
-  def ofLong: D[Long]     = long
+  def ofLong: D[Long] = long
 
   def ofDouble: D[Double] = double
 

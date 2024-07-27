@@ -28,6 +28,7 @@ import org.scalacheck.Gen
 import prometheus4cats.Metric.CommonLabels
 import prometheus4cats._
 
+@SuppressWarnings(Array("scalafix:DisableSyntax.valInAbstract"))
 trait RegistrySuite[State] extends ScalaCheckEffectSuite {
   self: CatsEffectSuite =>
 
@@ -82,10 +83,11 @@ trait RegistrySuite[State] extends ScalaCheckEffectSuite {
 
   implicit val labelMapArb: Arbitrary[Map[Label.Name, String]] = prefixedLabelMapArb(Gen.oneOf('a', 'b', 'c'))
 
-  implicit val commonLabelsArb: Arbitrary[Metric.CommonLabels] =
-    Arbitrary(
-      prefixedLabelMapArb(Gen.oneOf('n', 'o', 'p')).arbitrary.flatMap(map => Gen.oneOf(CommonLabels.from(map).toOption))
-    )
+  implicit val commonLabelsArb: Arbitrary[Metric.CommonLabels] = Arbitrary {
+    prefixedLabelMapArb(Gen.oneOf('n', 'o', 'p')).arbitrary.flatMap { map =>
+      Gen.oneOf(CommonLabels.from(map).toOption.toList)
+    }
+  }
 
   implicit val posFiniteDurationArb: Arbitrary[FiniteDuration] = Arbitrary(Gen.posNum[Long].map(_.nanos))
 

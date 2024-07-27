@@ -44,15 +44,15 @@ object Label {
 
   object Value extends ValueLowPriority0 {
 
-    def apply(a: String)                      = new Value(a)
+    def apply(a: String) = new Value(a)
 
-    implicit def fromString(a: String): Value = apply(a)
+    implicit def fromString(a: String): Value = apply(a) // scalafix:ok
 
   }
 
   trait ValueLowPriority0 {
 
-    implicit def fromShow[A: Show](a: A): Value = Value(a.show)
+    implicit def fromShow[A: Show](a: A): Value = Value(a.show) // scalafix:ok
 
   }
 

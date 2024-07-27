@@ -39,6 +39,7 @@ import prometheus4cats.testkit.CallbackRegistrySuite
 import prometheus4cats.testkit.MetricRegistrySuite
 import prometheus4cats.util.NameUtils
 
+@SuppressWarnings(Array("all"))
 class JavaMetricRegistrySuite
     extends CatsEffectSuite
     with MetricRegistrySuite[CollectorRegistry]

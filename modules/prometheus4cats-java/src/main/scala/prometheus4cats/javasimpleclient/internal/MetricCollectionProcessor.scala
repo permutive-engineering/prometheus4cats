@@ -29,14 +29,7 @@ import cats.effect.kernel._
 import cats.effect.kernel.syntax.monadCancel._
 import cats.effect.kernel.syntax.temporal._
 import cats.effect.std.Dispatcher
-import cats.syntax.applicativeError._
-import cats.syntax.apply._
-import cats.syntax.flatMap._
-import cats.syntax.foldable._
-import cats.syntax.functor._
-import cats.syntax.monoid._
-import cats.syntax.show._
-import cats.syntax.traverse._
+import cats.syntax.all._
 
 import alleycats.std.iterable._
 import alleycats.std.set._
@@ -267,7 +260,7 @@ private[javasimpleclient] class MetricCollectionProcessor[F[_]: Async: Logger] p
         val regDupErr =
           if (registryDuplicates.nonEmpty)
             duplicates.modify { current =>
-              if (current != registryDuplicates)
+              if (current =!= registryDuplicates)
                 registryDuplicates -> Logger[F].warn(DuplicateMetricsException(registryDuplicates))(
                   duplicatesInRegistry
                 )
@@ -318,7 +311,7 @@ private[javasimpleclient] class MetricCollectionProcessor[F[_]: Async: Logger] p
           (if (hasLoggedError) incError
            else
              Logger[F].warn(th)(
-               s"Executing a callback for metric collection failed with the following exception.\n" +
+               "Executing a callback for metric collection failed with the following exception.\n" +
                  "Callbacks that can routinely throw exceptions are strongly discouraged as this can cause performance problems when polling metrics\n" +
                  "Please review your code or raise an issue or pull request with the library from which this callback was registered.\n" +
                  s"This warning will only be shown once after process start. The counter '${MetricCollectionProcessor.singleCallbackCounterName}'" +
@@ -396,7 +389,7 @@ private[javasimpleclient] class MetricCollectionProcessor[F[_]: Async: Logger] p
             incError.as(empty),
             Logger[F]
               .warn(th)(
-                s"Executing callbacks for metric collection failed with the following exception.\n" +
+                "Executing callbacks for metric collection failed with the following exception.\n" +
                   "Callbacks that can routinely throw exceptions are strongly discouraged as this can cause performance problems when polling metrics\n" +
                   "Please review your code or raise an issue or pull request with the library from which this callback was registered.\n" +
                   s"This warning will only be shown once after process start. The counter '${MetricCollectionProcessor.callbackCounterName}'" +

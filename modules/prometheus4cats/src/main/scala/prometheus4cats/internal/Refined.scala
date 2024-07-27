@@ -23,6 +23,7 @@ import cats.Order
 import cats.Show
 import cats.syntax.all._
 
+@SuppressWarnings(Array("scalafix:DisableSyntax.valInAbstract"))
 abstract private[prometheus4cats] class Refined[A: Hash: Order: Show, B <: Refined.Value[A]](
     make: A => B,
     test: A => Boolean,
@@ -49,7 +50,7 @@ abstract private[prometheus4cats] class Refined[A: Hash: Order: Show, B <: Refin
     *   if `a` is not valid
     */
   def unsafeFrom(a: A): B =
-    from(a).fold(msg => throw new IllegalArgumentException(msg), identity)
+    from(a).fold(msg => throw new IllegalArgumentException(msg), identity) // scalafix:ok
 
   implicit val catsInstances: Hash[B] with Order[B] with Show[B] = new Hash[B] with Order[B] with Show[B] {
 
@@ -73,7 +74,7 @@ object Refined {
 
     def value: A
 
-    override def toString(): String = value.toString()
+    override def toString(): String = value.toString() // scalafix:ok
 
   }
 

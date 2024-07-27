@@ -28,6 +28,7 @@ import org.scalacheck.Gen
 import org.scalacheck.effect.PropF._
 import prometheus4cats._
 
+@SuppressWarnings(Array("all"))
 trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffectSuite =>
 
   implicit val quantileValuesArb: Arbitrary[Map[Summary.Quantile, Double]] = Arbitrary(

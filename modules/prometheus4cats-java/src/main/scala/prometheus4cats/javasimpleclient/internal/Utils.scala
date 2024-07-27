@@ -101,7 +101,7 @@ private[javasimpleclient] object Utils {
     )
 
   private def classStringRep[F[_]: Sync, A](a: A): F[String] =
-    Sync[F].delay(a.getClass.toString)
+    Sync[F].delay(a.getClass.toString) // scalafix:ok
 
   private[javasimpleclient] def timeoutCallback[F[_]: Temporal, A](
       dispatcher: Dispatcher[F],

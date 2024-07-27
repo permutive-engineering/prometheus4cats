@@ -166,7 +166,7 @@ object Histogram {
     * @tparam A
     *   number type for this histogram value
     */
-  case class Value[A](sum: A, bucketValues: NonEmptySeq[A]) {
+  final case class Value[A](sum: A, bucketValues: NonEmptySeq[A]) {
 
     def map[B](f: A => B): Value[B] = Value(f(sum), bucketValues.map(f))
 

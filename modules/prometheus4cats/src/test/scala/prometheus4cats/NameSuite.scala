@@ -23,6 +23,7 @@ import org.scalacheck.Prop._
 import prometheus4cats.Fixtures.alphaChars
 import prometheus4cats.Fixtures.ordinaryChars
 
+@SuppressWarnings(Array("all"))
 trait NameSuite[A] { self: ScalaCheckSuite =>
 
   val suffix = ""

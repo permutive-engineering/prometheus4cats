@@ -36,7 +36,7 @@ object Exceptions {
 
   }
 
-  case class UnhandledPrometheusException[A: Show](
+  final case class UnhandledPrometheusException[A: Show](
       className: String,
       metricName: A,
       labels: Map[Label.Name, String],
@@ -47,7 +47,7 @@ object Exceptions {
       )
       with PrometheusException[A]
 
-  case class DuplicateMetricsException(duplicates: Set[(Option[Metric.Prefix], String)])
+  final case class DuplicateMetricsException(duplicates: Set[(Option[Metric.Prefix], String)])
       extends RuntimeException(
         s"Duplicate metrics with the following names were found: '${duplicates.mkString_(",")}'"
       )

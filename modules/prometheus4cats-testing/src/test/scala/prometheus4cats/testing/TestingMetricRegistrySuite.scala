@@ -27,6 +27,7 @@ import cats.syntax.all._
 import munit.CatsEffectSuite
 import prometheus4cats._
 
+@SuppressWarnings(Array("all"))
 @nowarn("msg=unused value")
 class TestingMetricRegistrySuite extends CatsEffectSuite {
 

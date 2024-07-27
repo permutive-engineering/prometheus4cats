@@ -28,6 +28,7 @@ import org.scalacheck.effect.PropF._
 import prometheus4cats.Summary.QuantileDefinition
 import prometheus4cats._
 
+@SuppressWarnings(Array("all"))
 trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffectSuite =>
 
   implicit def exemplar: Exemplar[IO]

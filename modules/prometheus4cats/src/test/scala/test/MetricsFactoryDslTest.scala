@@ -29,6 +29,7 @@ import cats.effect.kernel.MonadCancelThrow
 import prometheus4cats._
 
 @nowarn("msg=unused value")
+@SuppressWarnings(Array("all"))
 class MetricsFactoryDslTest[F[_]: MonadCancelThrow: Clock] {
 
   val factory: MetricFactory.WithCallbacks[F] = MetricFactory.builder.withPrefix("prefix").noop[F]

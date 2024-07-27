@@ -31,6 +31,7 @@ import prometheus4cats.util.DoubleCallbackRegistry
 import prometheus4cats.util.DoubleMetricRegistry
 import prometheus4cats.util.NameUtils
 
+@SuppressWarnings(Array("all"))
 sealed abstract class TestingMetricRegistry[F[_]] private (
     private val underlying: MapRef[
       F,

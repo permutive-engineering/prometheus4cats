@@ -100,7 +100,7 @@ object Summary {
 
   final case class QuantileDefinition(value: Quantile, error: AllowedError)
 
-  case class Value[A](count: A, sum: A, quantiles: Map[Double, A] = Map.empty) {
+  final case class Value[A](count: A, sum: A, quantiles: Map[Double, A] = Map.empty) {
 
     def map[B](f: A => B): Value[B] = Value(f(count), f(sum), quantiles.map { case (q, v) => q -> f(v) })
 

@@ -59,6 +59,7 @@ import prometheus4cats.util.DoubleCallbackRegistry
 import prometheus4cats.util.DoubleMetricRegistry
 import prometheus4cats.util.NameUtils
 
+@SuppressWarnings(Array("all"))
 class JavaMetricRegistry[F[_]: Async: Logger] private (
     private val registry: CollectorRegistry,
     private val ref: Ref[F, State[F]],
@@ -670,6 +671,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
 
 }
 
+@SuppressWarnings(Array("all"))
 object JavaMetricRegistry {
 
   private val callbacksCounterName = "prometheus4cats_combined_callback_metric_total"

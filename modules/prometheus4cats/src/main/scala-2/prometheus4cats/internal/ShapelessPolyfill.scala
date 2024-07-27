@@ -16,6 +16,7 @@
 
 package prometheus4cats.internal
 
+@SuppressWarnings(Array("scalafix:DisableSyntax.valInAbstract"))
 private[prometheus4cats] trait ShapelessPolyfill {
 
   type Nat = shapeless.Nat
