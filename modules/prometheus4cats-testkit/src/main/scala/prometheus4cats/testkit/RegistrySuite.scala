@@ -23,7 +23,6 @@ import cats.effect.IO
 import cats.effect.kernel.Resource
 
 import munit.CatsEffectSuite
-import munit.ScalaCheckEffectSuite
 import org.scalacheck.Arbitrary
 import org.scalacheck.Gen
 import prometheus4cats.Metric.CommonLabels
