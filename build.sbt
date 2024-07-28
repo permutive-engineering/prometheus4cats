@@ -4,11 +4,19 @@ ThisBuild / organization           := "com.permutive"
 ThisBuild / versionPolicyIntention := Compatibility.None
 
 addCommandAlias("ci-test", "fix --check; versionPolicyCheck; mdoc; publishLocal; +test")
-addCommandAlias("ci-docs", "github; mdoc; headerCreateAll")
+addCommandAlias("ci-docs", "github; mdoc; headerCreateAll; docusaurusPublishGhpages")
 addCommandAlias("ci-publish", "versionCheck; github; ci-release")
 
 lazy val documentation = project
   .enablePlugins(MdocPlugin)
+
+lazy val website = project
+  .settings(libraryDependencies ++= Dependencies.website)
+  .dependsOn(prometheus4cats, `prometheus4cats-java`, `prometheus4cats-testing`)
+  .enablePlugins(MdocPlugin, DocusaurusPlugin)
+  .settings(mdocIn := baseDirectory.value / "docs")
+  .settings(mdocOut := (Compile / target).value / "mdoc")
+  .settings(watchTriggers += mdocIn.value.toGlob / "*.md")
 
 lazy val prometheus4cats = module
   .settings(libraryDependencies ++= Dependencies.prometheus4cats)
