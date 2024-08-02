@@ -16,6 +16,8 @@
 
 package prometheus4cats
 
+import scala.annotation.nowarn
+
 import cats.Applicative
 import cats.Contravariant
 import cats.~>
@@ -114,6 +116,7 @@ object Gauge {
 
   }
 
+  @nowarn("msg=unused implicit")
   implicit class LabelledGaugeSyntax[F[_], -A, B](gauge: Gauge[F, A, B])(implicit ev: Unit Neq B) {
 
     def inc(labels: B): F[Unit] = gauge.incImpl(labels)

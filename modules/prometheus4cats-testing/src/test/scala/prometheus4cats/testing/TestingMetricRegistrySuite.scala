@@ -392,7 +392,7 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
   }
 
   test("Error if registering same name and labels but different type") {
-    val Right(labels) = Metric.CommonLabels.of(Label.Name("one") -> "one", Label.Name("two") -> "two")
+    val labels = Metric.CommonLabels.of(Label.Name("one") -> "one", Label.Name("two") -> "two").toOption.get
     List.range(0, 100).traverse { _ =>
       TestingMetricRegistry[IO].flatMap { reg =>
         (

@@ -16,6 +16,8 @@
 
 package prometheus4cats
 
+import scala.annotation.nowarn
+
 import cats.FlatMap
 import cats.Monad
 import cats.Show
@@ -207,6 +209,7 @@ object OutcomeRecorder {
 
   }
 
+  @nowarn("msg=unused implicit")
   implicit class LabelledOutcomeRecorder[F[_], -A](recorder: OutcomeRecorder[F, A])(implicit ev: Unit Neq A) {
 
     /** Surround an operation and evaluate its outcome using an instance of [[cats.effect.kernel.MonadCancel]].
@@ -286,6 +289,7 @@ object OutcomeRecorder {
 
   }
 
+  @nowarn("msg=unused implicit")
   implicit class ExemplarLabelledOutcomeRecorderSyntax[F[_], -A, B](recorder: OutcomeRecorder.Aux[F, B, A, Counter])(
       implicit ev: Unit Neq A
   ) {

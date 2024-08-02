@@ -1,10 +1,10 @@
-## Metric Registry
+# Metric Registry
 
 The `MetricRegistry` is an interface that may be implemented by different backends to provide concurrent
 access to  metrics. This is not designed for use by users of the API directly, they should use it with the
 [`MetricFactory`] to create metrics using the [DSL](../interface/dsl.md).
 
-### Development Notes
+## Development Notes
 
 All methods on `MetricRegistry` return the desired [primitive metric] contained in a Cats-Effect
 `Resource`. This should be used to register and un-register the metric with the underlying concurrent data structure.

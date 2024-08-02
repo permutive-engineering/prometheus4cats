@@ -19,7 +19,7 @@ package prometheus4cats.internal
 import scala.quoted.*
 import scala.util.control.NoStackTrace
 
-case class RefinementError private[internal] (msg: String) extends RuntimeException(msg) with NoStackTrace
+final case class RefinementError private[internal] (msg: String) extends RuntimeException(msg) with NoStackTrace
 
 private[internal] trait MacroUtils {
   def error(msg: String): Nothing = throw RefinementError(msg)

@@ -1,4 +1,4 @@
-## Metric Factory
+# Metric Factory
 
 The `MetricFactory` creates an entrypoint to the [Metric DSL](../interface/dsl.md) from an instance of
 [`MetricRegistry`], with the option of also creating from a [`CallbackRegistry`].
@@ -15,7 +15,7 @@ val callbackRegistry: CallbackRegistry[IO] = CallbackRegistry.noop[IO]
 val registry: MetricRegistry[IO] with CallbackRegistry[IO] = null
 ```
 
-### `MetricFactory` or `MetricFactory.WithCallbacks`
+## `MetricFactory` or `MetricFactory.WithCallbacks`
 
 There are two variants of Metric Factory: `MetricFactory` and `MetricFactory.WithCallbacks`, the latter extending and
 providing the same functionality as the former but with the ability to pass [callbacks](dsl.md#metric-callbacks) to the
@@ -26,7 +26,7 @@ Whether you are able to obtain a `MetricFactory.WithCallbacks` depends on two th
 - Whether you have an implementation [`CallbackRegistry`] available
 - [How you may have transformed the effect type of `MetricsFactory.WithCallbacks`](#transforming-the-effect-type-mapk)
 
-### Constructing a No-op `MetricFactory`
+## Constructing a No-op `MetricFactory`
 
 For testing purposes it is possible to construct a `MetricFactory` that create metrics who perform no operations.
 
@@ -43,12 +43,12 @@ MetricFactory.WithCallbacks.noop[IO]
 MetricFactory.builder.noop[IO]
 ```
 
-### Constructing from a `MetricRegistry`
+## Constructing from a `MetricRegistry`
 
 `MetricRegistry` provides a builder with a fluent API that allows you to create an instance that adds an optional
 prefix and/or common label set to all metrics.
 
-```scala mdoc
+```scala mdoc:silent
 MetricFactory
   .builder
   .build(metricRegistry)
@@ -82,14 +82,14 @@ commonLabels.map { labels =>
 }
 ```
 
-### Constructing from a `CallbackRegistry`
+## Constructing from a `CallbackRegistry`
 
 To construct with a `CallbackRegistry` you also need a `MetricRegistry`, these may be separate or the same class.
 
 The same builder is used as above, but the type of metrics factory built will be a `MetricsFactory.WithCallbacks` if
 you provide a `CallbackRegistry`:
 
-```scala mdoc
+```scala mdoc:silent
 MetricFactory
   .builder
   .build(metricRegistry, callbackRegistry)
@@ -97,7 +97,7 @@ MetricFactory
 
 Alternatively:
 
-```scala mdoc
+```scala mdoc:silent
 MetricFactory
   .builder
   .build(registry)
@@ -105,7 +105,7 @@ MetricFactory
 
 As above, you may add `CommonLabels` and a `Prefix` as you see fit.
 
-### Changing a `MetricFactory`
+## Changing a `MetricFactory`
 
 It is possible to obtain a new instance of a `MetricFactory` from an existing one with a different/no prefix or
 common labels.
@@ -127,7 +127,7 @@ newCommonLabels.map { labels =>
 }
 ```
 
-### Transforming the Effect Type (`mapK`)
+## Transforming the Effect Type (`mapK`)
 
 You may transform the effect type (`F`) of a `MetricsFactory` with a
 [Cats natural transformation](https://typelevel.org/cats/datatypes/functionk.html) (`~>`).
@@ -137,10 +137,9 @@ You may transform the effect type (`F`) of a `MetricsFactory` with a
 `MetricsFactory` when calling `mapK`, whereas `imapK` will yield `MetricsFactory.WithCallbacks`. This is due to the
 nature of a callback needing to be run in the original effect to retrieve the metric value.
 
-```scala mdoc
+```scala mdoc:silent
 import cats.~>
 import cats.data.EitherT
-import cats.syntax.all._
 
 type F[A] = IO[A]
 type G[A] = EitherT[IO, Throwable, A]
@@ -160,7 +159,7 @@ val factoryWithCallbacksG = factoryWithCallbacksF.imapK(fk, gk)
 
 It is also possible to construct a `MetricsFactory.WithCallbacks` from a `MetricsFactory` and [`CallbackRegistry`]:
 
-```scala mdoc
+```scala mdoc:silent
 val callbackRegistryG: CallbackRegistry[G] = CallbackRegistry.noop[G]
 
 MetricFactory.builder.build(factoryG, callbackRegistryG)

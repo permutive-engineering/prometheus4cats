@@ -1,4 +1,5 @@
-## Derived Metric Types
+# Derived Metric Types
+
 **For more detailed information on building metrics see the [Metrics DSL](../interface/dsl.md) section.**
 
 Derived metric types are types of metrics that add extra functionality to an underlying [primitive] metric.
@@ -13,14 +14,14 @@ These metrics exist for the following reasons:
 The examples in this section assume you have imported the following and have created a
 [`MetricFactory`](../interface/metric-factory.md):
 
-```scala mdoc
+```scala mdoc:silent
 import cats.effect._
 import prometheus4cats._
 
 val factory: MetricFactory[IO] = MetricFactory.noop[IO]
 ```
 
-### `Timer`
+## `Timer`
 
 A `Timer` can be derived from either a [`Gauge`], [`Histogram`] or [`Summary`] that record `Double` values. It uses
 [`Clock`] from [Cats-Effect] to time a given operation.
@@ -29,7 +30,7 @@ The underlying metric type should be carefully considered; a [`Histogram`] or [`
 operations at differing runtime costs, where a [`Gauge`] will only record the last value so is best for singular
 operations.
 
-#### Obtaining from a `Histogram`
+### Obtaining from a `Histogram`
 
 ```scala mdoc:silent
 val simpleTimerHistogram: Resource[IO, Timer.Aux[IO, Unit, Histogram]] = factory
@@ -52,7 +53,7 @@ val labelledTimerHistogram: Resource[IO, Timer.Aux[IO, String, Histogram]] = fac
   .build
 ```
 
-#### Obtaining from a `Summary`
+### Obtaining from a `Summary`
 
 ```scala mdoc:silent
 val simpleTimerSummary: Resource[IO, Timer.Aux[IO, Unit, Summary]] = factory
@@ -73,7 +74,7 @@ val labelledTimerSummary: Resource[IO, Timer.Aux[IO, String, Summary]] = factory
   .build
 ```
 
-#### Obtaining from a `Gauge`
+### Obtaining from a `Gauge`
 
 ```scala mdoc:silent
 val simpleTimerGauge: Resource[IO, Timer.Aux[IO, Unit, Gauge]] = factory
@@ -94,12 +95,12 @@ val labelledTimerGauge: Resource[IO, Timer.Aux[IO, String, Gauge]] = factory
   .build
 ```
 
-### `CurrentTimeRecorder`
+## `CurrentTimeRecorder`
 
 A `CurrentTimeRecorder` can be derived from any [`Gauge`]. It uses [`Clock`] from [Cats-Effect] to get the current
 system time.
 
-#### Obtaining from a `Gauge`
+### Obtaining from a `Gauge`
 
 ```scala mdoc:silent
 val simpleCurrentTimeRecorderGauge: Resource[IO, CurrentTimeRecorder[IO, Unit]] = factory
@@ -123,7 +124,7 @@ val labelledCurrentTimeRecorderGauge:
 ```
 
 
-### `OutcomeRecorder`
+## `OutcomeRecorder`
 
 A `Timer` can be derived from either a [`Counter`] or [`Gauge`]. It uses [`Outcome`] from [Cats-Effect] to record the status
 of a given operation via a `outcome_status` label, the value of which will either be `succeeded`, `canceled` or
@@ -139,7 +140,7 @@ To help disambiguate the difference in behaviour the `OutcomeRecorder` type will
 [primitive] metric type. **This is just a type alias and is not required when passing around instances of
 `OutcomeRecorder`**.
 
-#### Obtaining from a `Counter`
+### Obtaining from a `Counter`
 
 ```scala mdoc:silent
 val simpleOutcomeCounter: Resource[IO, OutcomeRecorder.Aux[IO, Long, Unit, Counter]] = factory
@@ -161,7 +162,7 @@ val labelledOutcomeCounter:
     .build
 ```
 
-#### Obtaining from a `Gauge`
+### Obtaining from a `Gauge`
 
 ```scala mdoc:silent
 val simpleOutcomeGauge: Resource[IO, OutcomeRecorder.Aux[IO, Long, Unit, Gauge]] = factory

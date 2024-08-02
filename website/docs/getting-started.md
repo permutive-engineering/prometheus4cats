@@ -1,15 +1,19 @@
-## Prometheus4Cats
+---
+sidebar_position: 1
+---
+
+# Getting Started
 
 This library is designed to provide a tasteful Scala API for exposing [Prometheus] metrics using [Cats-Effect]. It is a
-mix between Permutive's internal library and [Epimetheus]. See the [design page](design/design.md) for more information.
+mix between Permutive's internal library and [Epimetheus]. See the [design page](design.md) for more information.
 
-### Features
+## Features
 
 - [A fluent metric builder DSL](interface/dsl.md)
 - [Metric name prefix and common labels](interface/metric-factory.md)
 - [Decoupled backend for registering metrics](interface/metric-registry.md)
 
-### Quickstart Usage
+## Quickstart Usage
 
 This library is currently available for Scala binary versions 2.12 and 2.13 and 3.2.
 
@@ -25,18 +29,20 @@ libraryDependencies ++= Seq(
 ```
 
 ```scala mdoc:silent
-import cats.effect._
-import org.typelevel.log4cats._
+import cats.effect.IO
+
+import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.noop.NoOpLogger
-import prometheus4cats._
-import prometheus4cats.javasimpleclient._
+
+import prometheus4cats.MetricFactory
+import prometheus4cats.javasimpleclient.JavaMetricRegistry
 
 // Java client requires a logger
 implicit val logger: Logger[IO] = NoOpLogger.impl
 
 val counterResource =
   for {
-    registry <- JavaMetricRegistry.default[IO]()
+    registry <- JavaMetricRegistry.Builder().build[IO]
     factory = MetricFactory.builder.build(registry)
     counter <- factory.counter("my_counter_total")
                  .ofLong

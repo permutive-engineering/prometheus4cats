@@ -16,6 +16,8 @@
 
 package prometheus4cats
 
+import scala.annotation.nowarn
+
 import cats.Applicative
 import cats.Contravariant
 import cats.~>
@@ -58,6 +60,7 @@ object Summary {
 
   }
 
+  @nowarn("msg=unused implicit")
   implicit class LabelledSummarySyntax[F[_], -A, B](summary: Summary[F, A, B])(implicit ev: Unit Neq B) {
 
     def observe(n: A, labels: B): F[Unit] = summary.observeImpl(n, labels)
