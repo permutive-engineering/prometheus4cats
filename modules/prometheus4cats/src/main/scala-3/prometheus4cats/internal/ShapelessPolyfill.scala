@@ -17,7 +17,6 @@
 package prometheus4cats.internal
 
 import scala.compiletime.ops.int.*
-import scala.quoted.*
 
 private[prometheus4cats] trait ShapelessPolyfill {
 
