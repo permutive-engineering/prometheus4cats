@@ -122,11 +122,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
 
             reg
               .createAndRegisterDoubleCounter[Map[Label.Name, String]](
-                prefix,
-                name,
-                help,
-                commonLabels,
-                labels.keys.toIndexedSeq
+                prefix, name, help, commonLabels, labels.keys.toIndexedSeq
               )(_.values.toIndexedSeq)
               .evalMap(_.inc(incBy, labels))
               .surround(
@@ -155,11 +151,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
 
             reg
               .createAndRegisterDoubleCounter[Map[Label.Name, String]](
-                prefix,
-                name,
-                help,
-                commonLabels,
-                labels.keys.toIndexedSeq
+                prefix, name, help, commonLabels, labels.keys.toIndexedSeq
               )(_.values.toIndexedSeq)
               .evalMap(_.incWithExemplar(incBy, labels))
               .surround(
@@ -240,11 +232,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
 
             reg
               .createAndRegisterDoubleGauge[Map[Label.Name, String]](
-                prefix,
-                name,
-                help,
-                commonLabels,
-                labels.keys.toIndexedSeq
+                prefix, name, help, commonLabels, labels.keys.toIndexedSeq
               )(_.values.toIndexedSeq)
               .use { gauge =>
                 for {
@@ -375,12 +363,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
 
             reg
               .createAndRegisterDoubleHistogram[Map[Label.Name, String]](
-                prefix,
-                name,
-                help,
-                commonLabels,
-                labels.keys.toIndexedSeq,
-                buckets
+                prefix, name, help, commonLabels, labels.keys.toIndexedSeq, buckets
               )(_.values.toIndexedSeq)
               .evalMap(_.observe(value, labels))
               .surround(
@@ -425,12 +408,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
 
             reg
               .createAndRegisterDoubleHistogram[Map[Label.Name, String]](
-                prefix,
-                name,
-                help,
-                commonLabels,
-                labels.keys.toIndexedSeq,
-                buckets
+                prefix, name, help, commonLabels, labels.keys.toIndexedSeq, buckets
               )(_.values.toIndexedSeq)
               .evalMap(_.observeWithExemplar(value, labels))
               .surround(

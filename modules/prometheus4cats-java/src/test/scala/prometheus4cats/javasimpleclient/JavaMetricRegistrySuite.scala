@@ -241,11 +241,7 @@ class JavaMetricRegistrySuite
         stateResource.flatMap(metricRegistryResource).use { reg =>
           val metric = reg
             .createAndRegisterDoubleCounter[Map[Label.Name, String]](
-              prefix,
-              name,
-              help,
-              commonLabels,
-              labels.toIndexedSeq
+              prefix, name, help, commonLabels, labels.toIndexedSeq
             )(_.values.toIndexedSeq)
 
           (metric >> metric).use_
@@ -267,11 +263,7 @@ class JavaMetricRegistrySuite
           .use { reg =>
             val metric = reg
               .createAndRegisterDoubleCounter[Map[Label.Name, String]](
-                prefix,
-                name,
-                help,
-                commonLabels,
-                labels.toIndexedSeq
+                prefix, name, help, commonLabels, labels.toIndexedSeq
               )(_.values.toIndexedSeq)
 
             val callback = reg
@@ -312,11 +304,7 @@ class JavaMetricRegistrySuite
           .use { reg =>
             val metric = reg
               .createAndRegisterDoubleCounter[Map[Label.Name, String]](
-                prefix,
-                name,
-                help,
-                commonLabels,
-                labels.toIndexedSeq
+                prefix, name, help, commonLabels, labels.toIndexedSeq
               )(_.values.toIndexedSeq)
 
             val callback = reg
@@ -358,18 +346,10 @@ class JavaMetricRegistrySuite
           .use { reg =>
             (reg
               .createAndRegisterDoubleCounter[Map[Label.Name, String]](
-                prefix,
-                name,
-                help,
-                commonLabels,
-                labels.toIndexedSeq
+                prefix, name, help, commonLabels, labels.toIndexedSeq
               )(_.values.toIndexedSeq) >> reg
               .createAndRegisterDoubleCounter[Map[Label.Name, String]](
-                prefix,
-                name,
-                help,
-                commonLabels,
-                IndexedSeq(labelName2)
+                prefix, name, help, commonLabels, IndexedSeq(labelName2)
               )(_.values.toIndexedSeq)).use_
           }
           .attempt
@@ -402,18 +382,10 @@ class JavaMetricRegistrySuite
           .use { reg =>
             (reg
               .createAndRegisterDoubleCounter[Map[Label.Name, String]](
-                prefix,
-                counterName,
-                help,
-                commonLabels,
-                labels.toIndexedSeq
+                prefix, counterName, help, commonLabels, labels.toIndexedSeq
               )(_.values.toIndexedSeq) >> reg
               .createAndRegisterDoubleGauge[Map[Label.Name, String]](
-                prefix,
-                gaugeName,
-                help,
-                commonLabels,
-                labels.toIndexedSeq
+                prefix, gaugeName, help, commonLabels, labels.toIndexedSeq
               )(_.values.toIndexedSeq)).use_
           }
           .attempt

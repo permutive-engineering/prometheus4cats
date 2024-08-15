@@ -132,7 +132,6 @@ object Counter {
     def fromRef[F[_]](ref: Ref[F, Option[Exemplar.Data]]): ExemplarState[F] = getSet(ref.get, ref.set)
 
     def noop[F[_]]: ExemplarState[F] = new ExemplarState[F] { self =>
-
       override def surround[A](n: A)(
           fa: Option[Exemplar.Labels] => F[Unit]
       )(implicit F: Monad[F], exemplarSampler: ExemplarSampler.Counter[F, A]): F[Unit] =

@@ -426,13 +426,7 @@ object CallbackRegistry {
       )(f: A => IndexedSeq[String]): Resource[G, Unit] =
         self
           .registerDoubleHistogramCallback(
-            prefix,
-            name,
-            help,
-            commonLabels,
-            labelNames,
-            buckets,
-            gk(callback)
+            prefix, name, help, commonLabels, labelNames, buckets, gk(callback)
           )(f)
           .mapK(fk)
 
@@ -447,13 +441,7 @@ object CallbackRegistry {
       )(f: A => IndexedSeq[String]): Resource[G, Unit] =
         self
           .registerLongHistogramCallback(
-            prefix,
-            name,
-            help,
-            commonLabels,
-            labelNames,
-            buckets,
-            gk(callback)
+            prefix, name, help, commonLabels, labelNames, buckets, gk(callback)
           )(f)
           .mapK(fk)
 
@@ -467,12 +455,7 @@ object CallbackRegistry {
       )(f: A => IndexedSeq[String]): Resource[G, Unit] =
         self
           .registerDoubleSummaryCallback(
-            prefix,
-            name,
-            help,
-            commonLabels,
-            labelNames,
-            gk(callback)
+            prefix, name, help, commonLabels, labelNames, gk(callback)
           )(f)
           .mapK(fk)
 
@@ -486,12 +469,7 @@ object CallbackRegistry {
       )(f: A => IndexedSeq[String]): Resource[G, Unit] =
         self
           .registerLongSummaryCallback(
-            prefix,
-            name,
-            help,
-            commonLabels,
-            labelNames,
-            gk(callback)
+            prefix, name, help, commonLabels, labelNames, gk(callback)
           )(f)
           .mapK(fk)
 

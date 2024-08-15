@@ -106,7 +106,6 @@ object Histogram {
 
     def noop[F[_]]: ExemplarState[F] = new ExemplarState[F] {
       self =>
-
       override def surround[A](n: A)(
           fa: Option[Exemplar.Labels] => F[Unit]
       )(implicit F: Monad[F], exemplarSampler: ExemplarSampler.Histogram[F, A]): F[Unit] =

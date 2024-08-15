@@ -34,11 +34,7 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
   suite[Counter[IO, Double, Unit]]("Counter")(
     (reg: TestingMetricRegistry[IO], prefix: Option[Metric.Prefix], name: String, commonLabels: Metric.CommonLabels) =>
       reg.createAndRegisterDoubleCounter(
-        prefix,
-        Counter.Name.unsafeFrom(name),
-        Metric.Help("help"),
-        commonLabels,
-        IndexedSeq.empty
+        prefix, Counter.Name.unsafeFrom(name), Metric.Help("help"), commonLabels, IndexedSeq.empty
       )((_: Unit) => IndexedSeq.empty),
     (c: Counter[IO, Double, Unit], _: Metric.CommonLabels) => (c.inc >> c.inc(2.0), Chain(0.0, 1.0, 3.0)),
     (reg: TestingMetricRegistry[IO], prefix: Option[Metric.Prefix], name: String, commonLabels: Metric.CommonLabels) =>
@@ -54,11 +50,7 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
         labels: IndexedSeq[Label.Name]
     ) =>
       reg.createAndRegisterDoubleCounter(
-        prefix,
-        Counter.Name.unsafeFrom(name),
-        Metric.Help("help"),
-        commonLabels,
-        labels
+        prefix, Counter.Name.unsafeFrom(name), Metric.Help("help"), commonLabels, labels
       )(identity[IndexedSeq[String]](_)),
     (
         c: Counter[IO, Double, IndexedSeq[String]],
@@ -78,11 +70,7 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
   suite[Gauge[IO, Double, Unit]]("Gauge")(
     (reg: TestingMetricRegistry[IO], prefix: Option[Metric.Prefix], name: String, commonLabels: Metric.CommonLabels) =>
       reg.createAndRegisterDoubleGauge(
-        prefix,
-        Gauge.Name.unsafeFrom(name),
-        Metric.Help("help"),
-        commonLabels,
-        IndexedSeq.empty
+        prefix, Gauge.Name.unsafeFrom(name), Metric.Help("help"), commonLabels, IndexedSeq.empty
       )((_: Unit) => IndexedSeq.empty),
     (g: Gauge[IO, Double, Unit], _: Metric.CommonLabels) =>
       (g.inc >> g.dec >> g.inc(2.0) >> g.dec(2.0) >> g.set(-1.0) >> g.reset, Chain(0.0, 1.0, 0.0, 2.0, 0.0, -1.0, 0.0)),
@@ -99,11 +87,7 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
         labels: IndexedSeq[Label.Name]
     ) =>
       reg.createAndRegisterDoubleGauge(
-        prefix,
-        Gauge.Name.unsafeFrom(name),
-        Metric.Help("help"),
-        commonLabels,
-        labels
+        prefix, Gauge.Name.unsafeFrom(name), Metric.Help("help"), commonLabels, labels
       )(identity[IndexedSeq[String]](_)),
     (
         g: Gauge[IO, Double, IndexedSeq[String]],
@@ -318,20 +302,10 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
           val (run1, expected1) = use(c, Metric.CommonLabels.empty, IndexedSeq("success"))
           val (run2, expected2) = use(c, Metric.CommonLabels.empty, IndexedSeq("failure"))
           run1 >> run2 >> extract(
-            reg,
-            None,
-            "test_total",
-            Metric.CommonLabels.empty,
-            IndexedSeq(Label.Name("status")),
-            IndexedSeq("success")
+            reg, None, "test_total", Metric.CommonLabels.empty, IndexedSeq(Label.Name("status")), IndexedSeq("success")
           )
             .assertEquals(Some(expected1)) >> extract(
-            reg,
-            None,
-            "test_total",
-            Metric.CommonLabels.empty,
-            IndexedSeq(Label.Name("status")),
-            IndexedSeq("failure")
+            reg, None, "test_total", Metric.CommonLabels.empty, IndexedSeq(Label.Name("status")), IndexedSeq("failure")
           )
             .assertEquals(Some(expected2))
 
@@ -397,18 +371,10 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
       TestingMetricRegistry[IO].flatMap { reg =>
         (
           reg.createAndRegisterDoubleCounter(
-            None,
-            Counter.Name("test_total"),
-            Metric.Help("help"),
-            labels,
-            IndexedSeq.empty
+            None, Counter.Name("test_total"), Metric.Help("help"), labels, IndexedSeq.empty
           )((_: Unit) => IndexedSeq.empty),
           reg.createAndRegisterDoubleGauge(
-            None,
-            Gauge.Name("test_total"),
-            Metric.Help("help"),
-            labels,
-            IndexedSeq.empty
+            None, Gauge.Name("test_total"), Metric.Help("help"), labels, IndexedSeq.empty
           )((_: Unit) => IndexedSeq.empty)
           // TODO improve assertion when we have a common interface across registry implementations for this error
         ).parTupled.use_.intercept[RuntimeException]
