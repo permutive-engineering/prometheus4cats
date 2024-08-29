@@ -78,11 +78,7 @@ private[javasimpleclient] object Utils {
   )(implicit F: Sync[F]): F[B] =
     for {
       child <- handlePrometheusCollectorErrors(
-                 F.delay(c.labels(labels: _*)),
-                 c,
-                 metricName,
-                 labelNames,
-                 labels
+                 F.delay(c.labels(labels: _*)), c, metricName, labelNames, labels
                )
     } yield child
 

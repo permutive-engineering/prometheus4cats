@@ -333,12 +333,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
       help: Metric.Help
   ): Resource[F, Info[F, Map[Label.Name, String]]] =
     configureBuilderOrRetrieve(
-      PInfo.build(),
-      MetricType.Info,
-      prefix,
-      name,
-      help,
-      IndexedSeq.empty
+      PInfo.build(), MetricType.Info, prefix, name, help, IndexedSeq.empty
     ).map { info =>
       Info.make[F, Map[Label.Name, String]](labels =>
         Utils.modifyMetric[F, Info.Name, PInfo.Child](
@@ -622,12 +617,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     val makeSamples = HistogramUtils.labelledHistogramSamples(help, buckets)
 
     register(
-      MetricType.Histogram,
-      prefix,
-      name,
-      commonLabels,
-      labelNames,
-      callback
+      MetricType.Histogram, prefix, name, commonLabels, labelNames, callback
     )(f, makeSamples)
   }
 
@@ -745,18 +735,8 @@ object JavaMetricRegistry {
           callbacksGauge,
           metricCollectionProcessor._2,
           new JavaMetricRegistry[F](
-            promRegistry,
-            ref,
-            callbackState,
-            callbackTimeoutState,
-            callbackErrorState,
-            singleCallbacksErrorState,
-            callbacksCounter,
-            singleCallbackCounter,
-            metricCollectionProcessor._1,
-            sem,
-            dis,
-            callbackCollectionTimeout,
+            promRegistry, ref, callbackState, callbackTimeoutState, callbackErrorState, singleCallbacksErrorState,
+            callbacksCounter, singleCallbackCounter, metricCollectionProcessor._1, sem, dis, callbackCollectionTimeout,
             callbackTimeout
           )
         )
