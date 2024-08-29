@@ -1,4 +1,4 @@
-# Functional Prometheus Metrics API for Scala
+# @DESCRIPTION@
 
 This library is designed to provide a tasteful Scala API for exposing [Prometheus] metrics using [Cats-Effect]. It is a
 mix between Permutive's internal library and [Epimetheus]. See the [design page](https://permutive-engineering.github.io/prometheus4cats/docs/design) for more information.
@@ -19,12 +19,12 @@ To use the latest version, include the following in your `build.sbt`:
 
 ```scala
 libraryDependencies ++= Seq(
-  "com.permutive" %% "prometheus4cats" % "3.0.0",
-  "com.permutive" %% "prometheus4cats-java" % "3.0.0"
+  "com.permutive" %% "prometheus4cats" % "@VERSION@",
+  "com.permutive" %% "prometheus4cats-java" % "@VERSION@"
 )
 ```
 
-```scala
+```scala mdoc:silent
 import cats.effect.IO
 
 import org.typelevel.log4cats.Logger
@@ -54,9 +54,7 @@ If you want to know more about all the library's features, please head on to [it
 
 ## Contributors for this project
 
-| <a href="https://github.com/janstenpickle"><img alt="janstenpickle" src="https://avatars.githubusercontent.com/u/1926225?v=4&s=120" width="120px" /></a> | <a href="https://github.com/TimWSpence"><img alt="TimWSpence" src="https://avatars.githubusercontent.com/u/3360080?v=4&s=120" width="120px" /></a> | <a href="https://github.com/alejandrohdezma"><img alt="alejandrohdezma" src="https://avatars.githubusercontent.com/u/9027541?v=4&s=120" width="120px" /></a> | <a href="https://github.com/bastewart"><img alt="bastewart" src="https://avatars.githubusercontent.com/u/10614835?v=4&s=120" width="120px" /></a> | <a href="https://github.com/desbo"><img alt="desbo" src="https://avatars.githubusercontent.com/u/1064734?v=4&s=120" width="120px" /></a> |
-| :--: | :--: | :--: | :--: | :--: |
-| <a href="https://github.com/janstenpickle"><sub><b>janstenpickle</b></sub></a> | <a href="https://github.com/TimWSpence"><sub><b>TimWSpence</b></sub></a> | <a href="https://github.com/alejandrohdezma"><sub><b>alejandrohdezma</b></sub></a> | <a href="https://github.com/bastewart"><sub><b>bastewart</b></sub></a> | <a href="https://github.com/desbo"><sub><b>desbo</b></sub></a> |
+@CONTRIBUTORS_TABLE@
 
 [Prometheus]: https://prometheus.io
 [Epimetheus]: https://github.com/davenverse/epimetheus
