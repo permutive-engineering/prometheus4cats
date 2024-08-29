@@ -18,6 +18,7 @@ package prometheus4cats
 
 import java.util.concurrent.TimeUnit
 
+import scala.annotation.nowarn
 import scala.concurrent.duration.FiniteDuration
 
 import cats.Applicative
@@ -153,6 +154,7 @@ object Timer {
 
   }
 
+  @nowarn("msg=unused implicit")
   implicit class LabelledTimerSyntax[F[_], A](timer: Timer[F, A])(implicit ev: Unit Neq A) {
 
     final def recordTime(duration: FiniteDuration, labels: A): F[Unit] = timer.recordTimeImpl(duration, labels, None)

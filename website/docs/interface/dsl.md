@@ -1,4 +1,4 @@
-## Metrics DSL
+# Metrics DSL
 
 The metrics DSL provides a fluent API for constructing [primitive] and [derived] metrics from a [`MetricFactory`]. It
 is designed to provide _some_ compile time safety when recording metrics in terms of matching label values to label
@@ -7,14 +7,14 @@ metric (name & labels combination) depends on the [`MetricFactory`] implementati
 
 The examples in this section assume you have imported the following and have created a [`MetricFactory`]:
 
-```scala mdoc
+```scala mdoc:silent
 import cats.effect._
 import prometheus4cats._
 
 val factory: MetricFactory.WithCallbacks[IO] = MetricFactory.builder.noop[IO]
 ```
 
-### Expected Behaviour
+## Expected Behaviour
 
 Every metric or callback created/registered using this DSL returns a Cats-Effect `Resource` which indicates
 the lifecycle of that metric. When the `Resource` is allocated the metric/callback is registered and when it is
@@ -27,7 +27,7 @@ be returned the currently registered instance rather than a new instance. This d
 and implementers of [`MetricRegistry`] and [`CallbackRegistry`] are advised to do the same in order to preserve this
 expected behaviour at runtime.
 
-### Refined Types
+## Refined Types
 
 Value classes exist for metric and label names that are refined at compile time from string literals. It is also
 possible to refine at runtime, where the result is returned in an `Either`.
@@ -45,7 +45,7 @@ The value classes used by the DSL are as follows:
 When used in the DSL with string literals the value classes are implicitly resolved, so there is no need to wrap every
 value.
 
-### Choosing a Primitive Metric
+## Choosing a Primitive Metric
 
 ```scala mdoc:silent
 factory.counter("counter_total")
@@ -55,20 +55,20 @@ factory.summary("summary")
 factory.info("info_info")
 ```
 
-### Specifying the Underlying Number Format
+## Specifying the Underlying Number Format
 
 ```scala mdoc:silent
 factory.counter("counter_total").ofDouble
 factory.counter("counter_total").ofLong
 ```
 
-### Defining the Help String
+## Defining the Help String
 
 ```scala mdoc:silent
 factory.counter("counter_total").ofDouble.help("Describe what this metric does")
 ```
 
-### Building a Simple Metric
+## Building a Simple Metric
 Once you have specified all the parameters with which you want to create your metric you can call the `build` method.
 This will return a `cats.effect.Resource` of your desired metric, which will de-register the metric from the underlying
 [`MetricRegistry`] or [`CallbackRegistry`] upon finalization.
@@ -89,9 +89,9 @@ from the underlying [`MetricRegistry`]:
 simpleCounter.unsafeBuild
 ```
 
-### Adding Labels
+## Adding Labels
 
-#### Adding Individual Labels
+### Adding Individual Labels
 
 ```scala mdoc:silent
 case class MyClass(value: String)
@@ -106,7 +106,7 @@ val tupleLabelledCounter = factory
 tupleLabelledCounter.build.evalMap(_.inc(2.0, ("label_value", MyClass("label_value"))))
 ```
 
-#### Compile-Time Checked Sequence of Labels
+### Compile-Time Checked Sequence of Labels
 
 ```scala mdoc:silent
 case class MyMultiClass(value1: String, value2: Int)
@@ -123,7 +123,7 @@ val classLabelledCounter = factory
 classLabelledCounter.build.evalMap(_.inc(2.0, MyMultiClass("label_value", 42)))
 ```
 
-#### Unchecked Sequence of Labels
+### Unchecked Sequence of Labels
 
 ```scala mdoc:silent
 val unsafeLabelledCounter = factory
@@ -132,13 +132,17 @@ val unsafeLabelledCounter = factory
   .help("Describe what this metric does")
   .unsafeLabels(Label.Name("label1"), Label.Name("label2"))
 
-val labels = Map(Label.Name("label1") -> "label1_value", Label.Name("label2") -> "label1_value")
+val labels = Map(
+  Label.Name("label1") -> "label1_value",
+  Label.Name("label2") -> "label1_value"
+)
+
 unsafeLabelledCounter.build.evalMap(_.inc(3.0, labels))
 ```
 
-### Contramapping a Metric Type
+## Contramapping a Metric Type
 
-#### Simple Metric
+### Simple Metric
 
 ```scala mdoc:silent
 val intCounter: Resource[IO, Counter[IO, Int, Unit]] = factory
@@ -150,10 +154,11 @@ val intCounter: Resource[IO, Counter[IO, Int, Unit]] = factory
 ```
 
 ```scala mdoc:silent
-val shortCounter: Resource[IO, Counter[IO, Short, Unit]] = intCounter.map(_.contramap[Short](_.toInt))
+val shortCounter: Resource[IO, Counter[IO, Short, Unit]] =
+  intCounter.map(_.contramap[Short](_.toInt))
 ```
 
-#### Labelled Metric
+### Labelled Metric
 
 ```scala mdoc:silent
 val intLabelledCounter: Resource[IO, Counter[IO, Int, (String, Int)]] = factory
@@ -171,7 +176,7 @@ val shortLabelledCounter: Resource[IO, Counter[IO, Short, (String, Int)]] =
   intLabelledCounter.map(_.contramap[Short](_.toInt))
 ```
 
-### Contramapping Metric Labels
+## Contramapping Metric Labels
 
 This can work as a nice alternative to
 [providing a compile-time checked sequence of labels](#compile-time-checked-sequence-of-labels)
@@ -189,7 +194,7 @@ val updatedLabelsCounter: Resource[IO, Counter[IO, Long, LabelsClass]] = factory
   .build
 ```
 
-### Metric Callbacks
+## Metric Callbacks
 
 The callback DSL is only available with the `MetricFactory.WithCallbacks` implementation of [`MetricFactory`].
 
@@ -256,7 +261,7 @@ factory
 > because these parameters are used when configuring a summary metric type which would be returned you, whereas the
 > summary implementation may be configured differently.
 
-#### Metric Collection
+### Metric Collection
 
 It is possible to submit multiple metrics in a single callback, this may be useful where the metrics available in some
 collection may not be known at compile time. As with callbacks in general, this should be used carefully to ensure that

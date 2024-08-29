@@ -16,9 +16,9 @@
 
 package prometheus4cats.internal
 
-import prometheus4cats._
-
 import scala.quoted.*
+
+import prometheus4cats.*
 
 private[prometheus4cats] trait MetricPrefixFromStringLiteral {
 
