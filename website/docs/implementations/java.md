@@ -1,4 +1,4 @@
-## Java Registry
+# Java Registry
 
 The Java registry implements both [`MetricRegistry`] and [`CallbackRegistry`], wrapping the [Prometheus Java library].
 This provides interoperability with anything that depends on the Java library.
@@ -15,27 +15,34 @@ This provides interoperability with anything that depends on the Java library.
 See the example below on how to use the Java Registry:
 
 ```scala mdoc:silent
-import cats.effect._
+import cats.effect.IO
+import cats.effect.Resource
+
 import io.prometheus.client.CollectorRegistry
+
+import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.noop.NoOpLogger
-import prometheus4cats._
+
+import prometheus4cats.MetricFactory
 import prometheus4cats.javasimpleclient.JavaMetricRegistry
 
-implicit val logger = NoOpLogger.impl[IO] // a logger is required to construct the Java registry
+// a logger is required to construct the Java registry
+implicit val logger: Logger[IO] = NoOpLogger.impl[IO] 
 
 // Construct a Java regisitry using the default collector registry
-val default: Resource[IO, JavaMetricRegistry[IO]] = JavaMetricRegistry.default[IO]()
+val default: Resource[IO, JavaMetricRegistry[IO]] =
+  JavaMetricRegistry.Builder().build[IO]
 
 // Construct a Java registry using a custom collector registry
 val custom: Resource[IO, JavaMetricRegistry[IO]] =
-  JavaMetricRegistry.fromSimpleClientRegistry[IO](new CollectorRegistry())
+  JavaMetricRegistry.Builder().withRegistry(new CollectorRegistry()).build[IO]
 
 // Use the registry to get a factory
 val factory: Resource[IO, MetricFactory.WithCallbacks[IO]] =
   custom.map(MetricFactory.builder.build(_))
 ```
 
-### Built-in Metrics
+## Built-in Metrics
 
 The Java registry provides some metrics related to its internals, these can used when investigating a callback that may
 not be functioning probably:
@@ -53,7 +60,7 @@ not be functioning probably:
 | `prometheus4cats_combined_collection_callback_total` | Counter     | `status`                           | Number of times all of the [metric collection] callbacks have been executed, with a status (success, error, timeout)                                                       |
 | `prometheus4cats_collection_callback_total`          | Counter     | `status`                           | Number of times a [metric collection] callback has been executed, with a status (success, error, timeout)                                                                  |
 
-### Implementation Notes
+## Implementation Notes
 
 As per the [`MetricRegistry`] and [`CallbackRegistry`] interface, this implementation returns Cats-Effect `Resource`s
 to indicate a metric being registered and ultimately de-registered. Requesting a metric of the same name (and labels)

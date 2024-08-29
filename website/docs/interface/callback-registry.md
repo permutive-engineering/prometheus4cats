@@ -1,4 +1,4 @@
-## Callback Registry
+# Callback Registry
 
 The `CallbackRegistry` is an interface that may be implemented by different backends to provide concurrent access to
 metric callbacks. This is not designed for use by users of the API directly, they should use it with the
@@ -7,7 +7,7 @@ metric callbacks. This is not designed for use by users of the API directly, the
 Either individual metrics or a collection of metrics may be registered as a callback. This allows you to inspect
 individual values or import entire metric registries where needed.
 
-### Development Notes
+## Development Notes
 
 All methods on `MetricRegistry` return a Cats-Effect `Resource[F, Unit]`. This
 should be used to register and un-register the callback with the underlying concurrent data structure. It should be

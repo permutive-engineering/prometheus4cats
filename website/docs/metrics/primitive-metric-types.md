@@ -1,18 +1,22 @@
-## Primitive Metric Types
+---
+sidebar_position: 1
+---
+
+# Primitive Metric Types
 
 **For more detailed information on building metrics see the [Metrics DSL] section.**
 
 The examples in this section assume you have imported the following and have created a
 [`MetricFactory`](../interface/metric-factory.md):
 
-```scala mdoc
+```scala mdoc:silent
 import cats.effect._
 import prometheus4cats._
 
 val factory: MetricFactory[IO] = MetricFactory.noop[IO]
 ```
 
-### `Counter`
+## `Counter`
 
 This implements an [OpenMetrics] counter, allowing a number to be incremented by `1` or some positive value.
 
@@ -23,7 +27,7 @@ factory.counter("my_counter_total").ofLong.help("Metric description")
 ```
 
 
-### `Gauge`
+## `Gauge`
 
 This implements an [OpenMetrics] gauge, allowing a number to be incremented and decremented by `1` or some positive
 value, as well as reset to `0`.
@@ -34,7 +38,7 @@ See the example below on how to obtain a `Gauge` from a [`MetricFactory`]:
 factory.gauge("my_summary").ofLong.help("Metric description")
 ```
 
-### `Histogram`
+## `Histogram`
 
 This implements an [OpenMetrics] histogram, allowing a number to be recorded on a distribution of pre-defined buckets.
 
@@ -47,7 +51,7 @@ val histogram = factory
   .help("Metric description")
 ```
 
-#### User Defined Buckets
+### User Defined Buckets
 
 You can set buckets statically with your own values, the type of these values must match that of the `Histogram`
 (either `Double` or `Long`).
@@ -64,7 +68,7 @@ You can also use pre-defined values for default HTTP timing buckets.
 histogram.defaultHttpBuckets
 ```
 
-#### Generated Buckets
+### Generated Buckets
 
 It is possible to generate buckets of a certain size, which is specified at compile time with a natural number.
 
@@ -87,7 +91,7 @@ Exponential buckets may be generated using the method below:
 ```scala mdoc:silent
 histogram.exponentialBuckets[Nat._5](start = 1.0, factor = 1.5)
 ```
-### `Summary`
+## `Summary`
 
 This implements an [OpenMetrics] summary, allowing a number to be recorded against a calculated.
 
@@ -104,7 +108,7 @@ By default, `Summary` metrics provide the count and the sum. For example, if you
 the count will tell you how often the REST service was called, and the sum will tell you the total aggregated response
 time. You can calculate the average response time using a Prometheus query dividing sum / count.
 
-#### Quantiles
+### Quantiles
 
 In addition to count and sum, you can configure a `Summary` to provide quantiles:
 
@@ -137,7 +141,7 @@ the allowed error is 0.
 - You can track the maximum value with .quantile(1.0, 0.0). This special case will not use additional memory even though
 the allowed error is 0.
 
-#### Maximum Age and Age Buckets
+### Maximum Age and Age Buckets
 
 Typically, you don't want to have a `Summary` representing the entire runtime of the application, but you want to look
 at a reasonable time interval. Summary metrics implement a configurable sliding time window:
@@ -156,7 +160,7 @@ val ageSummary = factory
 The default is a time window of 10 minutes and 5 age buckets, i.e. the time window is 10 minutes wide, and we slide it
 forward every 2 minutes.
 
-### `Info`
+## `Info`
 
 This implements an [OpenMetrics] info type, allowing labels to be registered as a sort of gauge where the value is
 always `1`.

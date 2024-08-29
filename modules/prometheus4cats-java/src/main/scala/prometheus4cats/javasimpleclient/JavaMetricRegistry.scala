@@ -768,52 +768,6 @@ object JavaMetricRegistry {
 
   }
 
-  /** Create a metric registry using the default `io.prometheus.client.CollectorRegistry`
-    *
-    * Note that this registry implementation introduces a runtime constraint that requires each metric must have a
-    * unique name, even if the label names are different. See this issue for more details
-    * https://github.com/prometheus/client_java/issues/696.
-    *
-    * @param callbackTimeout
-    *   How long all callbacks for a certain metric name should be allowed to take before timing out. This is **per
-    *   metric name**.
-    * @param callbackCollectionTimeout
-    *   how long the combined set of callbacks for a metric or metric collection should take to time out. This is for
-    *   **all callbacks for a metric** or **all callbacks returning a metric collection**.
-    */
-  @deprecated("Use JavaMetricRegistry.Builder instead", "2.0.0")
-  def default[F[_]: Async: Logger](
-      callbackTimeout: FiniteDuration = 250.millis,
-      callbackCollectionTimeout: FiniteDuration = 1.second
-  ): Resource[F, JavaMetricRegistry[F]] =
-    Builder().withCallbackTimeout(callbackTimeout).withCallbackCollectionTimeout(callbackCollectionTimeout).build[F]
-
-  /** Create a metric registry using the given `io.prometheus.client.CollectorRegistry`
-    *
-    * Note that this registry implementation introduces a runtime constraint that requires each metric must have a
-    * unique name, even if the label names are different. See this issue for more details
-    * https://github.com/prometheus/client_java/issues/696.
-    *
-    * @param promRegistry
-    *   the `io.prometheus.client.CollectorRegistry` to use
-    * @param callbackTimeout
-    *   How long all callbacks for a certain metric name should be allowed to take before timing out. This is **per
-    *   metric name**.
-    * @param callbackCollectionTimeout
-    *   how long the combined set of callbacks for a metric or metric collection should take to time out. This is for
-    *   **all callbacks for a metric** or **all callbacks returning a metric collection**.
-    */
-  @deprecated("Use JavaMetricRegistry.Builder instead", "2.0.0")
-  def fromSimpleClientRegistry[F[_]: Async: Logger](
-      promRegistry: CollectorRegistry,
-      callbackTimeout: FiniteDuration = 250.millis,
-      callbackCollectionTimeout: FiniteDuration = 1.second
-  ): Resource[F, JavaMetricRegistry[F]] = Builder()
-    .withRegistry(promRegistry)
-    .withCallbackTimeout(callbackTimeout)
-    .withCallbackCollectionTimeout(callbackCollectionTimeout)
-    .build[F]
-
   private def makeCallbacksGauge[F[_]: Monad](dis: Dispatcher[F], state: Ref[F, CallbackState[F]]) = new Collector {
 
     override def collect(): util.List[MetricFamilySamples] = dis.unsafeRunSync(

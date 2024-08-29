@@ -48,6 +48,32 @@ object Metric {
         "Number of common labels must not be more than 10"
       )
 
+    def apply(label1: (Label.Name, String)): CommonLabels =
+      new CommonLabels(Map(label1))
+
+    def apply(label1: (Label.Name, String), label2: (Label.Name, String)): CommonLabels =
+      new CommonLabels(Map(label1, label2))
+
+    def apply(label1: (Label.Name, String), label2: (Label.Name, String), label3: (Label.Name, String)): CommonLabels =
+      new CommonLabels(Map(label1, label2, label3))
+
+    def apply(
+        label1: (Label.Name, String),
+        label2: (Label.Name, String),
+        label3: (Label.Name, String),
+        label4: (Label.Name, String)
+    ): CommonLabels =
+      new CommonLabels(Map(label1, label2, label3, label4))
+
+    def apply(
+        label1: (Label.Name, String),
+        label2: (Label.Name, String),
+        label3: (Label.Name, String),
+        label4: (Label.Name, String),
+        label5: (Label.Name, String)
+    ): CommonLabels =
+      new CommonLabels(Map(label1, label2, label3, label4, label5))
+
     def of(labels: (Label.Name, String)*): Either[String, CommonLabels] =
       from(labels.toMap)
 

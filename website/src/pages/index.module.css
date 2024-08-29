@@ -1,0 +1,33 @@
+.heroBanner {
+  padding: 4rem 0;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+@media screen and (max-width: 996px) {
+  .heroBanner {
+    padding: 2rem;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .heroBanner {
+    background: rgb(28, 28, 29);
+    background: linear-gradient(180deg, #ad9292 0%, rgb(126 78 99) 50%, rgba(28, 28, 29, 1) 100%);
+    color: white;
+  }
+}
+
+.buttons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.features {
+  display: flex;
+  align-items: center;
+  padding: 2rem 0;
+  width: 100%;
+}
