@@ -6,7 +6,7 @@ object Dependencies {
     "org.typelevel" %% "cats-core"           % "2.12.0",
     "org.typelevel" %% "cats-effect-kernel"  % "3.5.7",
     "org.typelevel" %% "cats-effect"         % "3.5.7"  % Test,
-    "org.typelevel" %% "cats-effect-testkit" % "3.5.4"  % Test,
+    "org.typelevel" %% "cats-effect-testkit" % "3.5.7"  % Test,
     "org.typelevel" %% "cats-laws"           % "2.12.0" % Test,
     "org.scalameta" %% "munit"               % "1.0.2"  % Test,
     "org.typelevel" %% "munit-cats-effect"   % "2.0.0"  % Test,
@@ -20,7 +20,7 @@ object Dependencies {
   lazy val shapeless = "com.chuusai" %% "shapeless" % "2.3.12"
 
   lazy val `prometheus4cats-testkit` = Seq(
-    "org.typelevel" %% "cats-effect-testkit" % "3.5.4",
+    "org.typelevel" %% "cats-effect-testkit" % "3.5.7",
     "org.scalameta" %% "munit"               % "1.0.2",
     "org.typelevel" %% "munit-cats-effect"   % "2.0.0",
     "org.scalameta" %% "munit-scalacheck"    % "1.0.0",
@@ -28,7 +28,7 @@ object Dependencies {
   )
 
   lazy val `prometheus4cats-testing` = Seq(
-    "org.typelevel" %% "cats-effect-testkit" % "3.5.4",
+    "org.typelevel" %% "cats-effect-testkit" % "3.5.7",
     "org.scalameta" %% "munit"               % "1.0.2",
     "org.typelevel" %% "munit-cats-effect"   % "2.0.0",
     "org.scalameta" %% "munit-scalacheck"    % "1.0.0",
