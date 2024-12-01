@@ -37,7 +37,7 @@ object Dependencies {
 
   lazy val `prometheus4cats-java` = Seq(
     "org.typelevel" %% "alleycats-core"  % "2.12.0",
-    "org.typelevel" %% "cats-effect-std" % "3.5.4",
+    "org.typelevel" %% "cats-effect-std" % "3.5.7",
     "org.typelevel" %% "log4cats-core"   % "2.7.0",
     "io.prometheus"  % "simpleclient"    % "0.16.0",
     "org.typelevel" %% "log4cats-noop"   % "2.7.0" % Test
