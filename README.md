@@ -19,26 +19,20 @@ To use the latest version, include the following in your `build.sbt`:
 
 ```scala
 libraryDependencies ++= Seq(
-  "com.permutive" %% "prometheus4cats" % "3.0.0",
-  "com.permutive" %% "prometheus4cats-java" % "3.0.0"
+  "com.permutive" %% "prometheus4cats" % "4.0.1",
+  "com.permutive" %% "prometheus4cats-java" % "4.0.1"
 )
 ```
 
 ```scala
 import cats.effect.IO
 
-import org.typelevel.log4cats.Logger
-import org.typelevel.log4cats.noop.NoOpLogger
-
 import prometheus4cats.MetricFactory
 import prometheus4cats.javasimpleclient.JavaMetricRegistry
 
-// Java client requires a logger
-implicit val logger: Logger[IO] = NoOpLogger.impl
-
 val counterResource =
   for {
-    registry <- JavaMetricRegistry.Builder().build[IO]
+    registry <- JavaMetricRegistry.Builder[IO]().build
     factory = MetricFactory.builder.build(registry)
     counter <- factory.counter("my_counter_total")
                  .ofLong
