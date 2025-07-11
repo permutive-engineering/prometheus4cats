@@ -3,7 +3,7 @@ import sbt._
 object Dependencies {
 
   lazy val prometheus4cats = Seq(
-    "org.typelevel" %% "cats-core"           % "2.12.0",
+    "org.typelevel" %% "cats-core"           % "2.13.0",
     "org.typelevel" %% "cats-effect-kernel"  % "3.5.7",
     "org.typelevel" %% "cats-effect"         % "3.5.7"  % Test,
     "org.typelevel" %% "cats-effect-testkit" % "3.5.7"  % Test,
