@@ -40,12 +40,12 @@ object Dependencies {
     "org.typelevel" %% "cats-effect-std" % "3.6.2",
     "org.typelevel" %% "log4cats-core"   % "2.7.1",
     "io.prometheus"  % "simpleclient"    % "0.16.0",
-    "org.typelevel" %% "log4cats-noop"   % "2.7.0" % Test
+    "org.typelevel" %% "log4cats-noop"   % "2.7.1" % Test
   )
 
   lazy val website = Seq(
     "org.typelevel" %% "cats-effect"   % "3.6.2",
-    "org.typelevel" %% "log4cats-noop" % "2.7.0"
+    "org.typelevel" %% "log4cats-noop" % "2.7.1"
   )
 
   lazy val `scala-collection-compat` = "org.scala-lang.modules" %% "scala-collection-compat" % "2.13.0"
