@@ -31,18 +31,12 @@ libraryDependencies ++= Seq(
 ```scala mdoc:silent
 import cats.effect.IO
 
-import org.typelevel.log4cats.Logger
-import org.typelevel.log4cats.noop.NoOpLogger
-
 import prometheus4cats.MetricFactory
 import prometheus4cats.javasimpleclient.JavaMetricRegistry
 
-// Java client requires a logger
-implicit val logger: Logger[IO] = NoOpLogger.impl
-
 val counterResource =
   for {
-    registry <- JavaMetricRegistry.Builder().build[IO]
+    registry <- JavaMetricRegistry.Builder[IO]().build
     factory = MetricFactory.builder.build(registry)
     counter <- factory.counter("my_counter_total")
                  .ofLong

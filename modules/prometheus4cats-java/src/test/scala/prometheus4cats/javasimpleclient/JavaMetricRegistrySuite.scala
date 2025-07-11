@@ -31,8 +31,6 @@ import cats.syntax.show._
 import io.prometheus.client.CollectorRegistry
 import munit.CatsEffectSuite
 import org.scalacheck.effect.PropF._
-import org.typelevel.log4cats.Logger
-import org.typelevel.log4cats.noop.NoOpLogger
 import prometheus4cats.Metric.CommonLabels
 import prometheus4cats._
 import prometheus4cats.testkit.CallbackRegistrySuite
@@ -45,8 +43,6 @@ class JavaMetricRegistrySuite
     with MetricRegistrySuite[CollectorRegistry]
     with CallbackRegistrySuite[CollectorRegistry] {
 
-  implicit val logger: Logger[IO] = NoOpLogger.impl
-
   implicit override val exemplar: Exemplar[IO] = new Exemplar[IO] {
 
     override def get: IO[Option[Exemplar.Labels]] = IO(
@@ -58,10 +54,10 @@ class JavaMetricRegistrySuite
   override val stateResource: Resource[IO, CollectorRegistry] = Resource.eval(IO.delay(new CollectorRegistry()))
 
   override def metricRegistryResource(state: CollectorRegistry): Resource[IO, MetricRegistry[IO]] =
-    JavaMetricRegistry.Builder().withRegistry(state).build[IO]
+    JavaMetricRegistry.Builder[IO]().withRegistry(state).build
 
   override def callbackRegistryResource(state: CollectorRegistry): Resource[IO, CallbackRegistry[IO]] =
-    JavaMetricRegistry.Builder().withRegistry(state).withCallbackTimeout(100.millis).build[IO]
+    JavaMetricRegistry.Builder[IO]().withRegistry(state).withCallbackTimeout(100.millis).build
 
   def getMetricValue[A: Show](
       state: CollectorRegistry,
@@ -259,7 +255,7 @@ class JavaMetricRegistrySuite
           labels: Set[Label.Name]
       ) =>
         stateResource
-          .flatMap(JavaMetricRegistry.Builder().withRegistry(_).build)
+          .flatMap(JavaMetricRegistry.Builder[IO]().withRegistry(_).build)
           .use { reg =>
             val metric = reg
               .createAndRegisterDoubleCounter[Map[Label.Name, String]](
@@ -300,7 +296,7 @@ class JavaMetricRegistrySuite
           labels: Set[Label.Name]
       ) =>
         stateResource
-          .flatMap(JavaMetricRegistry.Builder().withRegistry(_).build)
+          .flatMap(JavaMetricRegistry.Builder[IO]().withRegistry(_).build)
           .use { reg =>
             val metric = reg
               .createAndRegisterDoubleCounter[Map[Label.Name, String]](
