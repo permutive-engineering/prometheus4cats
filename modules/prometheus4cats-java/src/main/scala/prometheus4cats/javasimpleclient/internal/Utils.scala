@@ -30,34 +30,36 @@ import cats.syntax.all._
 import io.prometheus.client.Collector
 import io.prometheus.client.CollectorRegistry
 import io.prometheus.client.SimpleCollector
-import org.typelevel.log4cats.Logger
 import prometheus4cats.Label
 import prometheus4cats.javasimpleclient.models.Exceptions._
 
 private[javasimpleclient] object Utils {
 
-  private[javasimpleclient] def unregister[F[_]: Sync: Logger](
+  private[javasimpleclient] def unregister[F[_]: Sync](
       collector: Collector,
-      registry: CollectorRegistry
+      registry: CollectorRegistry,
+      logger: Throwable => String => F[Unit]
   ): F[Unit] =
     Sync[F].delay(registry.unregister(collector)).handleErrorWith { e =>
-      Logger[F].warn(e)(s"Failed to unregister a collector: '$collector'")
+      logger(e)(s"Failed to unregister a collector: '$collector'")
     }
 
-  private[javasimpleclient] def modifyMetric[F[_]: Sync: Logger, A: Show, B](
+  private[javasimpleclient] def modifyMetric[F[_]: Sync, A: Show, B](
       c: SimpleCollector[B],
       metricName: A,
       labelNames: IndexedSeq[Label.Name],
       labels: IndexedSeq[String],
-      modify: B => Unit
-  ): F[Unit] = modifyMetricF[F, A, B](c, metricName, labelNames, labels, b => Sync[F].delay(modify(b)))
+      modify: B => Unit,
+      logger: Throwable => String => F[Unit]
+  ): F[Unit] = modifyMetricF[F, A, B](c, metricName, labelNames, labels, b => Sync[F].delay(modify(b)), logger)
 
-  private[javasimpleclient] def modifyMetricF[F[_]: Sync: Logger, A: Show, B](
+  private[javasimpleclient] def modifyMetricF[F[_]: Sync, A: Show, B](
       c: SimpleCollector[B],
       metricName: A,
       labelNames: IndexedSeq[Label.Name],
       labels: IndexedSeq[String],
-      modify: B => F[Unit]
+      modify: B => F[Unit],
+      logger: Throwable => String => F[Unit]
   ): F[Unit] = {
     val mod: F[Unit] =
       for {
@@ -66,7 +68,7 @@ private[javasimpleclient] object Utils {
       } yield ()
 
     mod.recoverWith { case e: PrometheusException[_] =>
-      Logger[F].warn(e)("Failed to modify Prometheus metric")
+      logger(e)("Failed to modify Prometheus metric")
     }
   }
 

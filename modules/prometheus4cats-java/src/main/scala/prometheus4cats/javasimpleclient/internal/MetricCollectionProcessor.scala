@@ -42,7 +42,6 @@ import io.prometheus.client.SummaryMetricFamily
 import io.prometheus.client.{Counter => PCounter}
 import io.prometheus.client.{Gauge => PGauge}
 import io.prometheus.client.{Histogram => PHistogram}
-import org.typelevel.log4cats.Logger
 import prometheus4cats.MetricCollection.Value
 import prometheus4cats._
 import prometheus4cats.javasimpleclient.CallbackState
@@ -50,7 +49,7 @@ import prometheus4cats.javasimpleclient.State
 import prometheus4cats.javasimpleclient.models.Exceptions.DuplicateMetricsException
 import prometheus4cats.util.NameUtils
 
-private[javasimpleclient] class MetricCollectionProcessor[F[_]: Async: Logger] private (
+private[javasimpleclient] class MetricCollectionProcessor[F[_]: Async] private (
     ref: Ref[F, State[F]],
     callbacks: Ref[F, CallbackState[F]],
     collectionCallbackRef: Ref[F, Map[Option[
@@ -66,7 +65,8 @@ private[javasimpleclient] class MetricCollectionProcessor[F[_]: Async: Logger] p
     callbackCounter: PCounter,
     singleCallbackCounter: PCounter,
     callbackTimeHistogram: PHistogram,
-    duplicateGauge: PGauge
+    duplicateGauge: PGauge,
+    logger: Throwable => String => F[Unit]
 ) extends Collector {
 
   def register(
@@ -261,7 +261,7 @@ private[javasimpleclient] class MetricCollectionProcessor[F[_]: Async: Logger] p
           if (registryDuplicates.nonEmpty)
             duplicates.modify { current =>
               if (current =!= registryDuplicates)
-                registryDuplicates -> Logger[F].warn(DuplicateMetricsException(registryDuplicates))(
+                registryDuplicates -> logger(DuplicateMetricsException(registryDuplicates))(
                   duplicatesInRegistry
                 )
               else current -> Applicative[F].unit
@@ -298,19 +298,18 @@ private[javasimpleclient] class MetricCollectionProcessor[F[_]: Async: Logger] p
         case th: TimeoutException =>
           (if (hasLoggedTimeout) incTimeout
            else
-             Logger[F]
-               .warn(th)(
-                 s"Timed out running a callback for metric collection after $singleTimeout.\n" +
-                   "This may be due to the callback having been registered that performs some long running calculation which blocks\n" +
-                   "Please review your code or raise an issue or pull request with the library from which this callback was registered.\n" +
-                   s"This warning will only be shown once after process start. The counter '${MetricCollectionProcessor.singleCallbackCounterName}'" +
-                   "tracks the number of times this occurs."
-               )
+             logger(th)(
+               s"Timed out running a callback for metric collection after $singleTimeout.\n" +
+                 "This may be due to the callback having been registered that performs some long running calculation which blocks\n" +
+                 "Please review your code or raise an issue or pull request with the library from which this callback was registered.\n" +
+                 s"This warning will only be shown once after process start. The counter '${MetricCollectionProcessor.singleCallbackCounterName}'" +
+                 "tracks the number of times this occurs."
+             )
                .guarantee(incTimeout)).as((true, hasLoggedError, MetricCollection.empty))
         case th =>
           (if (hasLoggedError) incError
            else
-             Logger[F].warn(th)(
+             logger(th)(
                "Executing a callback for metric collection failed with the following exception.\n" +
                  "Callbacks that can routinely throw exceptions are strongly discouraged as this can cause performance problems when polling metrics\n" +
                  "Please review your code or raise an issue or pull request with the library from which this callback was registered.\n" +
@@ -372,14 +371,13 @@ private[javasimpleclient] class MetricCollectionProcessor[F[_]: Async: Logger] p
           trackHasErrored(
             callbackHasTimedOut,
             incTimeout.as(empty),
-            Logger[F]
-              .warn(th)(
-                s"Timed out running callback for metric collection after $combinedTimeout.\n" +
-                  "This may be due to a callback having been registered that performs some long running calculation which blocks\n" +
-                  "Please review your code or raise an issue or pull request with the library from which this callback was registered.\n" +
-                  s"This warning will only be shown once after process start. The counter '${MetricCollectionProcessor.callbackCounterName}'" +
-                  "tracks the number of times this occurs."
-              )
+            logger(th)(
+              s"Timed out running callback for metric collection after $combinedTimeout.\n" +
+                "This may be due to a callback having been registered that performs some long running calculation which blocks\n" +
+                "Please review your code or raise an issue or pull request with the library from which this callback was registered.\n" +
+                s"This warning will only be shown once after process start. The counter '${MetricCollectionProcessor.callbackCounterName}'" +
+                "tracks the number of times this occurs."
+            )
               .guarantee(incTimeout)
               .as(empty)
           ),
@@ -387,14 +385,13 @@ private[javasimpleclient] class MetricCollectionProcessor[F[_]: Async: Logger] p
           trackHasErrored(
             callbackHasErrored,
             incError.as(empty),
-            Logger[F]
-              .warn(th)(
-                "Executing callbacks for metric collection failed with the following exception.\n" +
-                  "Callbacks that can routinely throw exceptions are strongly discouraged as this can cause performance problems when polling metrics\n" +
-                  "Please review your code or raise an issue or pull request with the library from which this callback was registered.\n" +
-                  s"This warning will only be shown once after process start. The counter '${MetricCollectionProcessor.callbackCounterName}'" +
-                  "tracks the number of times this occurs."
-              )
+            logger(th)(
+              "Executing callbacks for metric collection failed with the following exception.\n" +
+                "Callbacks that can routinely throw exceptions are strongly discouraged as this can cause performance problems when polling metrics\n" +
+                "Please review your code or raise an issue or pull request with the library from which this callback was registered.\n" +
+                s"This warning will only be shown once after process start. The counter '${MetricCollectionProcessor.callbackCounterName}'" +
+                "tracks the number of times this occurs."
+            )
               .guarantee(incError)
               .as(empty)
           )
@@ -433,13 +430,14 @@ private[javasimpleclient] object MetricCollectionProcessor {
   private val singleCallbackCounterHelp =
     "Number of times a metric collection callback has been executed, with a status (success, error, timeout)"
 
-  def create[F[_]: Async: Logger](
+  def create[F[_]: Async](
       ref: Ref[F, State[F]],
       callbacks: Ref[F, CallbackState[F]],
       dispatcher: Dispatcher[F],
       callbackTimeout: FiniteDuration,
       combinedCallbackTimeout: FiniteDuration,
-      promRegistry: CollectorRegistry
+      promRegistry: CollectorRegistry,
+      logger: Throwable => String => F[Unit]
   ): Resource[F, MetricCollectionProcessor[F]] = {
     val callbackHist = PHistogram
       .build(callbackTimerName, callbackTimerHelp)
@@ -470,19 +468,17 @@ private[javasimpleclient] object MetricCollectionProcessor {
       proc = new MetricCollectionProcessor(
                ref, callbacks, collectionCallbackRef, duplicatesRef, dispatcher, callbackTimeout,
                combinedCallbackTimeout, callbackHasTimedOutRef, callbackHasErroredRef, singleTimeoutErrorRef,
-               allCallbacksCounter, singleCallbackCounter, callbackHist, duplicateGauge
+               allCallbacksCounter, singleCallbackCounter, callbackHist, duplicateGauge, logger
              )
       _ <- Sync[F].delay(promRegistry.register(proc))
     } yield proc
 
     Resource.make(acquire) { proc =>
-      Utils.unregister(callbackHist, promRegistry) >> Utils.unregister(
-        duplicateGauge,
-        promRegistry
-      ) >> Utils.unregister(allCallbacksCounter, promRegistry) >> Utils.unregister(
-        singleCallbackCounter,
-        promRegistry
-      ) >> Utils.unregister(proc, promRegistry)
+      Utils.unregister(callbackHist, promRegistry, logger) >>
+        Utils.unregister(duplicateGauge, promRegistry, logger) >>
+        Utils.unregister(allCallbacksCounter, promRegistry, logger) >>
+        Utils.unregister(singleCallbackCounter, promRegistry, logger) >>
+        Utils.unregister(proc, promRegistry, logger)
     }
   }
 

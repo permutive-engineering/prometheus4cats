@@ -49,7 +49,6 @@ import io.prometheus.client.{Gauge => PGauge}
 import io.prometheus.client.{Histogram => PHistogram}
 import io.prometheus.client.{Info => PInfo}
 import io.prometheus.client.{Summary => PSummary}
-import org.typelevel.log4cats.Logger
 import prometheus4cats._
 import prometheus4cats.javasimpleclient.internal.HistogramUtils
 import prometheus4cats.javasimpleclient.internal.MetricCollectionProcessor
@@ -60,7 +59,7 @@ import prometheus4cats.util.DoubleMetricRegistry
 import prometheus4cats.util.NameUtils
 
 @SuppressWarnings(Array("all"))
-class JavaMetricRegistry[F[_]: Async: Logger] private (
+class JavaMetricRegistry[F[_]: Async] private (
     private val registry: CollectorRegistry,
     private val ref: Ref[F, State[F]],
     private val callbackState: Ref[F, CallbackState[F]],
@@ -73,7 +72,8 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     private val sem: Semaphore[F],
     private val dispatcher: Dispatcher[F],
     private val callbackTimeout: FiniteDuration,
-    private val singleCallbackTimeout: FiniteDuration
+    private val singleCallbackTimeout: FiniteDuration,
+    private val logger: Throwable => String => F[Unit]
 ) extends DoubleMetricRegistry[F]
     with DoubleCallbackRegistry[F] {
 
@@ -175,7 +175,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
         ref.get.flatMap { metrics =>
           metrics.get(fullName) match {
             case Some((`metricId`, (_, _, 1))) =>
-              ref.set(metrics - fullName) >> Utils.unregister(collector, registry)
+              ref.set(metrics - fullName) >> Utils.unregister(collector, registry, logger)
             case Some((`metricId`, (collector, exemplarRef, references))) =>
               ref.set(metrics.updated(fullName, (metricId, (collector, exemplarRef, references - 1))))
             case _ => Applicative[F].unit
@@ -216,7 +216,8 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
             name,
             labelNames ++ commonLabelNames,
             f(labels) ++ commonLabelValues,
-            c => exemplar.fold(c.inc(d))(e => c.incWithExemplar(d, transformExemplarLabels(e)))
+            c => exemplar.fold(c.inc(d))(e => c.incWithExemplar(d, transformExemplarLabels(e))),
+            logger
           )
       )
     }
@@ -242,7 +243,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
     ).map { gauge =>
       @inline
       def modify(g: PGauge.Child => Unit, labels: A): F[Unit] =
-        Utils.modifyMetric(gauge, name, labelNames ++ commonLabelNames, f(labels) ++ commonLabelValues, g)
+        Utils.modifyMetric(gauge, name, labelNames ++ commonLabelNames, f(labels) ++ commonLabelValues, g, logger)
 
       def inc(n: Double, labels: A): F[Unit] = modify(_.inc(n), labels)
 
@@ -281,7 +282,8 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
             name,
             labelNames ++ commonLabelNames,
             f(labels) ++ commonLabelValues,
-            h => exemplar.fold(h.observe(d))(e => h.observeWithExemplar(d, transformExemplarLabels(e)))
+            h => exemplar.fold(h.observe(d))(e => h.observeWithExemplar(d, transformExemplarLabels(e))),
+            logger
           )
         }
       )
@@ -318,7 +320,8 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
           name,
           labelNames ++ commonLabelNames,
           f(labels) ++ commonLabelValues,
-          _.observe(d)
+          _.observe(d),
+          logger
         )
       }
     }
@@ -341,7 +344,8 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
           name,
           IndexedSeq.empty,
           IndexedSeq.empty,
-          pinfo => pinfo.info(labels.map { case (n, v) => n.value -> v }.asJava)
+          pinfo => pinfo.info(labels.map { case (n, v) => n.value -> v }.asJava),
+          logger
         )
       )
     }
@@ -368,14 +372,13 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
           callbackTimeoutState,
           stringName,
           incTimeout.as(empty),
-          Logger[F]
-            .warn(th)(
-              s"Timed out running callbacks for metric '$stringName' after $callbackTimeout.\n" +
-                "This may be due to a callback having been registered that performs some long running calculation which blocks\n" +
-                "Please review your code or raise an issue or pull request with the library from which this callback was registered.\n" +
-                s"This warning will only be shown once for each metric after process start. The counter '${JavaMetricRegistry.callbacksCounterName}'" +
-                "tracks the number of times this occurs per metric name."
-            )
+          logger(th)(
+            s"Timed out running callbacks for metric '$stringName' after $callbackTimeout.\n" +
+              "This may be due to a callback having been registered that performs some long running calculation which blocks\n" +
+              "Please review your code or raise an issue or pull request with the library from which this callback was registered.\n" +
+              s"This warning will only be shown once for each metric after process start. The counter '${JavaMetricRegistry.callbacksCounterName}'" +
+              "tracks the number of times this occurs per metric name."
+          )
             .guarantee(incTimeout)
             .as(empty)
         ),
@@ -384,14 +387,13 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
           callbackErrorState,
           stringName,
           incError.as(empty),
-          Logger[F]
-            .warn(th)(
-              s"Callbacks for metric '$stringName' failed with the following exception.\n" +
-                "Callbacks that can routinely throw exceptions are strongly discouraged as this can cause performance problems when polling metrics\n" +
-                "Please review your code or raise an issue or pull request with the library from which this callback was registered.\n" +
-                s"This warning will only be shown once for each metric after process start. The counter '${JavaMetricRegistry.callbacksCounterName}'" +
-                "tracks the number of times this occurs per metric name."
-            )
+          logger(th)(
+            s"Callbacks for metric '$stringName' failed with the following exception.\n" +
+              "Callbacks that can routinely throw exceptions are strongly discouraged as this can cause performance problems when polling metrics\n" +
+              "Please review your code or raise an issue or pull request with the library from which this callback was registered.\n" +
+              s"This warning will only be shown once for each metric after process start. The counter '${JavaMetricRegistry.callbacksCounterName}'" +
+              "tracks the number of times this occurs per metric name."
+          )
             .guarantee(incError)
             .as(empty)
         )
@@ -418,26 +420,24 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
         case th: TimeoutException =>
           (if (hasLoggedTimeout) incTimeout
            else
-             Logger[F]
-               .warn(th)(
-                 s"Timed out running a callback for the metric '$stringName' after $singleCallbackTimeout.\n" +
-                   "This may be due to the callback having been registered that performs some long running calculation which blocks\n" +
-                   "Please review your code or raise an issue or pull request with the library from which this callback was registered.\n" +
-                   s"This warning will only be shown once after process start. The counter '${JavaMetricRegistry.callbackCounterName}'" +
-                   "tracks the number of times this occurs."
-               )
+             logger(th)(
+               s"Timed out running a callback for the metric '$stringName' after $singleCallbackTimeout.\n" +
+                 "This may be due to the callback having been registered that performs some long running calculation which blocks\n" +
+                 "Please review your code or raise an issue or pull request with the library from which this callback was registered.\n" +
+                 s"This warning will only be shown once after process start. The counter '${JavaMetricRegistry.callbackCounterName}'" +
+                 "tracks the number of times this occurs."
+             )
                .guarantee(incTimeout)).as((true, hasLoggedError, List.empty[Collector.MetricFamilySamples]))
         case th =>
           (if (hasLoggedError) incError
            else
-             Logger[F]
-               .warn(th)(
-                 s"Executing a callback for the metric '$stringName' failed with the following exception.\n" +
-                   "Callbacks that can routinely throw exceptions are strongly discouraged as this can cause performance problems when polling metrics\n" +
-                   "Please review your code or raise an issue or pull request with the library from which this callback was registered.\n" +
-                   s"This warning will only be shown once after process start. The counter '${JavaMetricRegistry.callbackCounterName}'" +
-                   "tracks the number of times this occurs."
-               )
+             logger(th)(
+               s"Executing a callback for the metric '$stringName' failed with the following exception.\n" +
+                 "Callbacks that can routinely throw exceptions are strongly discouraged as this can cause performance problems when polling metrics\n" +
+                 "Please review your code or raise an issue or pull request with the library from which this callback was registered.\n" +
+                 s"This warning will only be shown once after process start. The counter '${JavaMetricRegistry.callbackCounterName}'" +
+                 "tracks the number of times this occurs."
+             )
                .guarantee(incError)).as((hasLoggedTimeout, true, List.empty[Collector.MetricFamilySamples]))
       }
   }
@@ -545,7 +545,7 @@ class JavaMetricRegistry[F[_]: Async: Logger] private (
                 val newCallbacks = cbs - token
 
                 if (newCallbacks.isEmpty)
-                  callbackState.set(state - fullName) >> Utils.unregister(collector, registry)
+                  callbackState.set(state - fullName) >> Utils.unregister(collector, registry, logger)
                 else callbacks.set(newCallbacks)
               }
             case None => Applicative[F].unit
@@ -676,27 +676,29 @@ object JavaMetricRegistry {
 
   private val callbackCounterLabels = List("metric_name", "status")
 
-  sealed abstract class Builder(
+  sealed abstract class Builder[F[_]: Async](
       val promRegistry: CollectorRegistry,
       val callbackTimeout: FiniteDuration,
-      val callbackCollectionTimeout: FiniteDuration
+      val callbackCollectionTimeout: FiniteDuration,
+      val logger: Throwable => String => F[Unit]
   ) {
 
     private def copy(
         promRegistry: CollectorRegistry = promRegistry,
         callbackTimeout: FiniteDuration = callbackTimeout,
-        callbackCollectionTimeout: FiniteDuration = callbackCollectionTimeout
-    ): Builder = new Builder(promRegistry, callbackTimeout, callbackCollectionTimeout) {}
+        callbackCollectionTimeout: FiniteDuration = callbackCollectionTimeout,
+        logger: Throwable => String => F[Unit] = logger
+    ): Builder[F] = new Builder(promRegistry, callbackTimeout, callbackCollectionTimeout, logger) {}
 
-    def withRegistry(promRegistry: CollectorRegistry): Builder = copy(promRegistry = promRegistry)
+    def withRegistry(promRegistry: CollectorRegistry): Builder[F] = copy(promRegistry = promRegistry)
 
-    def withCallbackTimeout(callbackTimeout: FiniteDuration): Builder =
+    def withCallbackTimeout(callbackTimeout: FiniteDuration): Builder[F] =
       copy(callbackTimeout = callbackTimeout)
 
-    def withCallbackCollectionTimeout(callbackCollectionTimeout: FiniteDuration): Builder =
+    def withCallbackCollectionTimeout(callbackCollectionTimeout: FiniteDuration): Builder[F] =
       copy(callbackCollectionTimeout = callbackCollectionTimeout)
 
-    def build[F[_]: Async: Logger]: Resource[F, JavaMetricRegistry[F]] =
+    def build: Resource[F, JavaMetricRegistry[F]] =
       Dispatcher.sequential[F].flatMap { dis =>
         val callbacksCounter =
           PCounter
@@ -725,9 +727,7 @@ object JavaMetricRegistry {
           sem                       <- Semaphore[F](1L)
           metricCollectionProcessor <-
             MetricCollectionProcessor
-              .create(
-                ref, callbackState, dis, callbackTimeout, callbackCollectionTimeout, promRegistry
-              )
+              .create(ref, callbackState, dis, callbackTimeout, callbackCollectionTimeout, promRegistry, logger)
               .allocated
         } yield (
           ref,
@@ -737,22 +737,23 @@ object JavaMetricRegistry {
           new JavaMetricRegistry[F](
             promRegistry, ref, callbackState, callbackTimeoutState, callbackErrorState, singleCallbacksErrorState,
             callbacksCounter, singleCallbackCounter, metricCollectionProcessor._1, sem, dis, callbackCollectionTimeout,
-            callbackTimeout
+            callbackTimeout, logger
           )
         )
 
         Resource
           .make(acquire) { case (ref, metricsGauge, callbacksGauge, procRelease, _) =>
-            Utils.unregister(metricsGauge, promRegistry) >> Utils.unregister(callbacksGauge, promRegistry) >> Utils
-              .unregister(callbacksCounter, promRegistry) >> Utils
-              .unregister(singleCallbackCounter, promRegistry) >> procRelease >>
+            Utils.unregister(metricsGauge, promRegistry, logger) >>
+              Utils.unregister(callbacksGauge, promRegistry, logger) >>
+              Utils.unregister(callbacksCounter, promRegistry, logger) >>
+              Utils.unregister(singleCallbackCounter, promRegistry, logger) >> procRelease >>
               ref.get.flatMap { metrics =>
                 if (metrics.nonEmpty)
                   metrics.values
                     .map(_._2)
                     .toList
                     .traverse_ { case (collector, _, _) =>
-                      Utils.unregister(collector, promRegistry)
+                      Utils.unregister(collector, promRegistry, logger)
                     }
                 else Applicative[F].unit
               }
@@ -764,7 +765,8 @@ object JavaMetricRegistry {
 
   object Builder {
 
-    def apply(): Builder = new Builder(CollectorRegistry.defaultRegistry, 250.millis, 1.second) {}
+    def apply[F[_]: Async](): Builder[F] =
+      new Builder[F](CollectorRegistry.defaultRegistry, 250.millis, 1.second, _ => _ => Async[F].unit) {}
 
   }
 
