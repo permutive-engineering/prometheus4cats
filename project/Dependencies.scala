@@ -17,7 +17,7 @@ object Dependencies {
 
   lazy val `kind-projector` = compilerPlugin(("org.typelevel" % "kind-projector" % "0.13.3").cross(CrossVersion.full))
 
-  lazy val shapeless = "com.chuusai" %% "shapeless" % "2.3.12"
+  lazy val shapeless = "com.chuusai" %% "shapeless" % "2.3.13"
 
   lazy val `prometheus4cats-testkit` = Seq(
     "org.typelevel" %% "cats-effect-testkit" % "3.5.7",
