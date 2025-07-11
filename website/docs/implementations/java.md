@@ -20,22 +20,16 @@ import cats.effect.Resource
 
 import io.prometheus.client.CollectorRegistry
 
-import org.typelevel.log4cats.Logger
-import org.typelevel.log4cats.noop.NoOpLogger
-
 import prometheus4cats.MetricFactory
 import prometheus4cats.javasimpleclient.JavaMetricRegistry
 
-// a logger is required to construct the Java registry
-implicit val logger: Logger[IO] = NoOpLogger.impl[IO] 
-
 // Construct a Java regisitry using the default collector registry
 val default: Resource[IO, JavaMetricRegistry[IO]] =
-  JavaMetricRegistry.Builder().build[IO]
+  JavaMetricRegistry.Builder[IO]().build
 
 // Construct a Java registry using a custom collector registry
 val custom: Resource[IO, JavaMetricRegistry[IO]] =
-  JavaMetricRegistry.Builder().withRegistry(new CollectorRegistry()).build[IO]
+  JavaMetricRegistry.Builder[IO]().withRegistry(new CollectorRegistry()).build
 
 // Use the registry to get a factory
 val factory: Resource[IO, MetricFactory.WithCallbacks[IO]] =
