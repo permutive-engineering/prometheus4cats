@@ -7,7 +7,7 @@ object Dependencies {
     "org.typelevel" %% "cats-effect-kernel"  % "3.6.2",
     "org.typelevel" %% "cats-effect"         % "3.6.2"  % Test,
     "org.typelevel" %% "cats-effect-testkit" % "3.6.2"  % Test,
-    "org.typelevel" %% "cats-laws"           % "2.12.0" % Test,
+    "org.typelevel" %% "cats-laws"           % "2.13.0" % Test,
     "org.scalameta" %% "munit"               % "1.0.4"  % Test,
     "org.typelevel" %% "munit-cats-effect"   % "2.0.0"  % Test,
     "org.typelevel" %% "discipline-munit"    % "2.0.0"  % Test,
