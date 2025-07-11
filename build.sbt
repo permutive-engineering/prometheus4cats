@@ -1,5 +1,5 @@
 ThisBuild / scalaVersion           := "2.13.16"
-ThisBuild / crossScalaVersions     := Seq("2.12.20", "2.13.16", "3.3.6")
+ThisBuild / crossScalaVersions     := Seq("2.13.16", "3.3.6")
 ThisBuild / organization           := "com.permutive"
 ThisBuild / versionPolicyIntention := Compatibility.BinaryCompatible
 
@@ -37,5 +37,4 @@ lazy val `prometheus4cats-testing` = module
 
 lazy val `prometheus4cats-java` = module
   .settings(libraryDependencies ++= Dependencies.`prometheus4cats-java`)
-  .settings(libraryDependencies ++= scalaVersion.value.on(2, 12)(Dependencies.`scala-collection-compat`))
   .dependsOn(prometheus4cats, `prometheus4cats-testkit` % "test->compile")

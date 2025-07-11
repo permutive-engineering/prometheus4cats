@@ -48,6 +48,4 @@ object Dependencies {
     "org.typelevel" %% "log4cats-noop" % "2.7.1"
   )
 
-  lazy val `scala-collection-compat` = "org.scala-lang.modules" %% "scala-collection-compat" % "2.13.0"
-
 }
