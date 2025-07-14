@@ -698,6 +698,8 @@ object JavaMetricRegistry {
     def withCallbackCollectionTimeout(callbackCollectionTimeout: FiniteDuration): Builder[F] =
       copy(callbackCollectionTimeout = callbackCollectionTimeout)
 
+    def withLogger(logger: Throwable => String => F[Unit]): Builder[F] = copy(logger = logger)
+
     def build: Resource[F, JavaMetricRegistry[F]] =
       Dispatcher.sequential[F].flatMap { dis =>
         val callbacksCounter =
