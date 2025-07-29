@@ -44,6 +44,7 @@ import io.prometheus.client.CounterMetricFamily
 import io.prometheus.client.GaugeMetricFamily
 import io.prometheus.client.SimpleCollector
 import io.prometheus.client.SummaryMetricFamily
+import io.prometheus.client.hotspot._
 import io.prometheus.client.{Counter => PCounter}
 import io.prometheus.client.{Gauge => PGauge}
 import io.prometheus.client.{Histogram => PHistogram}
@@ -680,15 +681,23 @@ object JavaMetricRegistry {
       val promRegistry: CollectorRegistry,
       val callbackTimeout: FiniteDuration,
       val callbackCollectionTimeout: FiniteDuration,
-      val logger: Throwable => String => F[Unit]
+      val logger: Throwable => String => F[Unit],
+      val collectors: List[Collector]
   ) {
+    def this(
+      promRegistry: CollectorRegistry,
+      callbackTimeout: FiniteDuration,
+      callbackCollectionTimeout: FiniteDuration,
+      logger: Throwable => String => F[Unit]
+    ) = this(promRegistry, callbackTimeout, callbackCollectionTimeout, logger, List())
 
     private def copy(
         promRegistry: CollectorRegistry = promRegistry,
         callbackTimeout: FiniteDuration = callbackTimeout,
         callbackCollectionTimeout: FiniteDuration = callbackCollectionTimeout,
-        logger: Throwable => String => F[Unit] = logger
-    ): Builder[F] = new Builder(promRegistry, callbackTimeout, callbackCollectionTimeout, logger) {}
+        logger: Throwable => String => F[Unit] = logger,
+        collectors: List[Collector] = collectors
+    ): Builder[F] = new Builder(promRegistry, callbackTimeout, callbackCollectionTimeout, logger, collectors) {}
 
     def withRegistry(promRegistry: CollectorRegistry): Builder[F] = copy(promRegistry = promRegistry)
 
@@ -699,6 +708,8 @@ object JavaMetricRegistry {
       copy(callbackCollectionTimeout = callbackCollectionTimeout)
 
     def withLogger(logger: Throwable => String => F[Unit]): Builder[F] = copy(logger = logger)
+
+    def withCollectors(collectorsModify: List[Collector] => List[Collector]): Builder[F] = copy(collectors = collectorsModify(collectors))
 
     def build: Resource[F, JavaMetricRegistry[F]] =
       Dispatcher.sequential[F].flatMap { dis =>
@@ -727,6 +738,7 @@ object JavaMetricRegistry {
           _                         <- Sync[F].delay(promRegistry.register(callbacksCounter))
           _                         <- Sync[F].delay(promRegistry.register(singleCallbackCounter))
           sem                       <- Semaphore[F](1L)
+          _                         <- collectors.traverse(c => Sync[F].delay(promRegistry.register(c)))
           metricCollectionProcessor <-
             MetricCollectionProcessor
               .create(ref, callbackState, dis, callbackTimeout, callbackCollectionTimeout, promRegistry, logger)
@@ -767,8 +779,19 @@ object JavaMetricRegistry {
 
   object Builder {
 
-    def apply[F[_]: Async](): Builder[F] =
-      new Builder[F](CollectorRegistry.defaultRegistry, 250.millis, 1.second, _ => _ => Async[F].unit) {}
+    def apply[F[_]: Async](): Builder[F] = {
+      val defaultCollectors = List(
+        new BufferPoolsExports,
+        new ClassLoadingExports,
+        new GarbageCollectorExports,
+        new MemoryAllocationExports,
+        new MemoryPoolsExports,
+        new StandardExports,
+        new ThreadExports,
+        new VersionInfoExports,
+      )
+      new Builder[F](CollectorRegistry.defaultRegistry, 250.millis, 1.second, _ => _ => Async[F].unit, defaultCollectors) {}
+    }
 
   }
 
