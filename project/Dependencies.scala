@@ -36,9 +36,10 @@ object Dependencies {
   )
 
   lazy val `prometheus4cats-java` = Seq(
-    "org.typelevel" %% "alleycats-core"  % "2.13.0",
-    "org.typelevel" %% "cats-effect-std" % "3.6.2",
-    "io.prometheus"  % "simpleclient"    % "0.16.0"
+    "org.typelevel" %% "alleycats-core"       % "2.13.0",
+    "org.typelevel" %% "cats-effect-std"      % "3.6.2",
+    "io.prometheus"  % "simpleclient"         % "0.16.0",
+    "io.prometheus"  % "simpleclient_hotspot" % "0.16.0"
   )
 
   lazy val website = Seq(
