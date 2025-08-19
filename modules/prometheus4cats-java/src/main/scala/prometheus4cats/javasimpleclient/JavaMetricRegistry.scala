@@ -684,11 +684,12 @@ object JavaMetricRegistry {
       val logger: Throwable => String => F[Unit],
       val collectors: List[Collector]
   ) {
+
     def this(
-      promRegistry: CollectorRegistry,
-      callbackTimeout: FiniteDuration,
-      callbackCollectionTimeout: FiniteDuration,
-      logger: Throwable => String => F[Unit]
+        promRegistry: CollectorRegistry,
+        callbackTimeout: FiniteDuration,
+        callbackCollectionTimeout: FiniteDuration,
+        logger: Throwable => String => F[Unit]
     ) = this(promRegistry, callbackTimeout, callbackCollectionTimeout, logger, List())
 
     private def copy(
@@ -709,18 +710,13 @@ object JavaMetricRegistry {
 
     def withLogger(logger: Throwable => String => F[Unit]): Builder[F] = copy(logger = logger)
 
-    def withCollectors(collectorsModify: List[Collector] => List[Collector]): Builder[F] = copy(collectors = collectorsModify(collectors))
+    def withCollectors(collectorsModify: List[Collector] => List[Collector]): Builder[F] =
+      copy(collectors = collectorsModify(collectors))
 
     def withHotSpotCollectors: Builder[F] = {
       val hotSpotCollectors = List(
-        new BufferPoolsExports,
-        new ClassLoadingExports,
-        new GarbageCollectorExports,
-        new MemoryAllocationExports,
-        new MemoryPoolsExports,
-        new StandardExports,
-        new ThreadExports,
-        new VersionInfoExports,
+        new BufferPoolsExports, new ClassLoadingExports, new GarbageCollectorExports, new MemoryAllocationExports,
+        new MemoryPoolsExports, new StandardExports, new ThreadExports, new VersionInfoExports
       )
       withCollectors(_ ++ hotSpotCollectors)
     }
