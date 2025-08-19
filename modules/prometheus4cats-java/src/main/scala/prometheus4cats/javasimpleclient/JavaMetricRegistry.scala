@@ -711,6 +711,20 @@ object JavaMetricRegistry {
 
     def withCollectors(collectorsModify: List[Collector] => List[Collector]): Builder[F] = copy(collectors = collectorsModify(collectors))
 
+    def withHotSpotCollectors: Builder[F] = {
+      val hotSpotCollectors = List(
+        new BufferPoolsExports,
+        new ClassLoadingExports,
+        new GarbageCollectorExports,
+        new MemoryAllocationExports,
+        new MemoryPoolsExports,
+        new StandardExports,
+        new ThreadExports,
+        new VersionInfoExports,
+      )
+      withCollectors(_ ++ hotSpotCollectors)
+    }
+
     def build: Resource[F, JavaMetricRegistry[F]] =
       Dispatcher.sequential[F].flatMap { dis =>
         val callbacksCounter =
@@ -779,19 +793,8 @@ object JavaMetricRegistry {
 
   object Builder {
 
-    def apply[F[_]: Async](): Builder[F] = {
-      val defaultCollectors = List(
-        new BufferPoolsExports,
-        new ClassLoadingExports,
-        new GarbageCollectorExports,
-        new MemoryAllocationExports,
-        new MemoryPoolsExports,
-        new StandardExports,
-        new ThreadExports,
-        new VersionInfoExports,
-      )
-      new Builder[F](CollectorRegistry.defaultRegistry, 250.millis, 1.second, _ => _ => Async[F].unit, defaultCollectors) {}
-    }
+    def apply[F[_]: Async](): Builder[F] =
+      new Builder[F](CollectorRegistry.defaultRegistry, 250.millis, 1.second, _ => _ => Async[F].unit) {}
 
   }
 
