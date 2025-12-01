@@ -11,7 +11,7 @@ object Dependencies {
     "org.scalameta" %% "munit"               % "1.2.1"  % Test,
     "org.typelevel" %% "munit-cats-effect"   % "2.1.0"  % Test,
     "org.typelevel" %% "discipline-munit"    % "2.0.0"  % Test,
-    "org.scalameta" %% "munit-scalacheck"    % "1.1.0"  % Test,
+    "org.scalameta" %% "munit-scalacheck"    % "1.2.0"  % Test,
     "org.typelevel" %% "scalacheck-effect"   % "1.0.4"  % Test
   )
 
@@ -23,7 +23,7 @@ object Dependencies {
     "org.typelevel" %% "cats-effect-testkit" % "3.6.3",
     "org.scalameta" %% "munit"               % "1.2.1",
     "org.typelevel" %% "munit-cats-effect"   % "2.1.0",
-    "org.scalameta" %% "munit-scalacheck"    % "1.1.0",
+    "org.scalameta" %% "munit-scalacheck"    % "1.2.0",
     "org.typelevel" %% "scalacheck-effect"   % "1.0.4"
   )
 
@@ -31,7 +31,7 @@ object Dependencies {
     "org.typelevel" %% "cats-effect-testkit" % "3.6.3",
     "org.scalameta" %% "munit"               % "1.2.1",
     "org.typelevel" %% "munit-cats-effect"   % "2.1.0",
-    "org.scalameta" %% "munit-scalacheck"    % "1.1.0",
+    "org.scalameta" %% "munit-scalacheck"    % "1.2.0",
     "org.typelevel" %% "scalacheck-effect"   % "1.0.4"
   )
 
