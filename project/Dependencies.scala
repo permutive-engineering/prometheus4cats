@@ -15,7 +15,7 @@ object Dependencies {
     "org.typelevel" %% "scalacheck-effect"   % "1.0.4"  % Test
   )
 
-  lazy val `kind-projector` = compilerPlugin(("org.typelevel" % "kind-projector" % "0.13.3").cross(CrossVersion.full))
+  lazy val `kind-projector` = compilerPlugin(("org.typelevel" % "kind-projector" % "0.13.4").cross(CrossVersion.full))
 
   lazy val shapeless = "com.chuusai" %% "shapeless" % "2.3.13"
 
