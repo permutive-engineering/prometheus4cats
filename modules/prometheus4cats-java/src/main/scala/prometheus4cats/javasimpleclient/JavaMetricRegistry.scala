@@ -78,6 +78,14 @@ class JavaMetricRegistry[F[_]: Async] private (
 ) extends DoubleMetricRegistry[F]
     with DoubleCallbackRegistry[F] {
 
+  type Underlying = CollectorRegistry
+
+  /** Returns the underlying Prometheus Java [[io.prometheus.client.CollectorRegistry]].
+    *
+    * This can be used to expose metrics via HTTP or to register external collectors from other libraries.
+    */
+  def underlying: CollectorRegistry = registry
+
   override protected val F: Functor[F] = implicitly
 
   protected def counterName[A: Show](name: A): String = name match {

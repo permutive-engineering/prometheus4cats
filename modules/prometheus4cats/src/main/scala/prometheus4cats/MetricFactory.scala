@@ -28,8 +28,34 @@ import prometheus4cats.internal._
 import prometheus4cats.internal.histogram.BucketDsl
 import prometheus4cats.internal.summary.SummaryDsl
 
+/** A factory for creating and registering Prometheus metrics using a fluent DSL.
+  *
+  * [[MetricFactory]] provides a type-safe builder interface for creating counters, gauges, histograms, summaries, and
+  * info metrics. Metrics are registered against a [[MetricRegistry]] which handles the actual storage and exposure of
+  * metric values.
+  *
+  * @example
+  *   {{{
+  * val factory: MetricFactory[IO] = ???
+  *
+  * val counter: Resource[IO, Counter[IO, Long, Unit]] =
+  *   factory.counter("my_counter")
+  *     .ofLong
+  *     .help("Total number of requests")
+  *     .build
+  *   }}}
+  *
+  * @tparam F
+  *   the effect type
+  * @param metricRegistry
+  *   the underlying [[MetricRegistry]] used to register metrics
+  * @param prefix
+  *   optional prefix to prepend to all metric names created by this factory
+  * @param commonLabels
+  *   labels to add to all metrics created by this factory
+  */
 sealed abstract class MetricFactory[F[_]](
-    protected[prometheus4cats] val metricRegistry: MetricRegistry[F],
+    val metricRegistry: MetricRegistry[F],
     val prefix: Option[Metric.Prefix],
     val commonLabels: CommonLabels
 ) {
@@ -173,6 +199,23 @@ sealed abstract class MetricFactory[F[_]](
 
   type SummaryDslLambda[A] = HelpStep[SummaryDsl.Base[F, A]]
 
+  /** Starts creating a "summary" metric.
+    *
+    * @example
+    *   {{{
+    * metrics.summary("my_summary")
+    *   .ofDouble
+    *   .help("Request latency distribution")
+    *   .quantile(0.5, 0.05)
+    *   .quantile(0.9, 0.01)
+    *   .label[String]("endpoint")
+    *   .build
+    *   }}}
+    * @param name
+    *   [[Summary.Name]] value
+    * @return
+    *   Summary builder
+    */
   def summary(name: Summary.Name): TypeStep[SummaryDslLambda] =
     new TypeStep[SummaryDslLambda](
       new HelpStep(help =>
@@ -237,15 +280,42 @@ sealed abstract class MetricFactory[F[_]](
 
 object MetricFactory {
 
-  /** Subtype of [[MetricFactory]] that can register metric callbacks with the DSL
+  /** A [[MetricFactory]] that also supports registering metric callbacks.
+    *
+    * This subtype extends [[MetricFactory]] with the ability to register callback-based metrics, where metric values
+    * are computed dynamically when scraped rather than being updated imperatively.
+    *
+    * @example
+    *   {{{
+    * val factory: MetricFactory.WithCallbacks[IO] = ???
+    *
+    * // Register a callback-based gauge
+    * val gauge: Resource[IO, Unit] =
+    *   factory.gauge("active_connections")
+    *     .ofLong
+    *     .help("Number of active connections")
+    *     .callback(connectionPool.activeCount)
+    *     .build
+    *   }}}
     *
     * @note
     *   Calling [[MetricFactory.WithCallbacks.mapK]] will return a [[MetricFactory]] only. To change the type of `F` and
-    *   return a [[MetricFactory.WithCallbacks]] you must you [[MetricFactory.WithCallbacks.imapK]].
+    *   return a [[MetricFactory.WithCallbacks]] you must use [[MetricFactory.WithCallbacks.imapK]].
+    *
+    * @tparam F
+    *   the effect type
+    * @param metricRegistry
+    *   the underlying [[MetricRegistry]] used to register metrics
+    * @param callbackRegistry
+    *   the underlying [[CallbackRegistry]] used to register metric callbacks
+    * @param prefix
+    *   optional prefix to prepend to all metric names created by this factory
+    * @param commonLabels
+    *   labels to add to all metrics created by this factory
     */
   sealed abstract class WithCallbacks[F[_]: Functor](
-      override protected[prometheus4cats] val metricRegistry: MetricRegistry[F],
-      private val callbackRegistry: CallbackRegistry[F],
+      override val metricRegistry: MetricRegistry[F],
+      val callbackRegistry: CallbackRegistry[F],
       prefix: Option[Metric.Prefix],
       commonLabels: CommonLabels
   ) extends MetricFactory[F](metricRegistry, prefix, commonLabels) {
@@ -439,6 +509,7 @@ object MetricFactory {
     type SummaryCallbackDsl[A] =
       HelpStep[SummaryDsl.WithCallbacks[F, A, Summary.Value[A]]]
 
+    /** @inheritdoc */
     override def summary(name: Summary.Name): TypeStep[SummaryCallbackDsl] =
       new TypeStep[SummaryCallbackDsl](
         new HelpStep(help =>
@@ -499,6 +570,16 @@ object MetricFactory {
         )
       )
 
+    /** Registers a callback that returns a [[MetricCollection]].
+      *
+      * This allows registering multiple metrics at once through a single callback, which is useful when metric values
+      * are computed together or come from an external source.
+      *
+      * @param collection
+      *   an effectful computation that returns a [[MetricCollection]]
+      * @return
+      *   a builder that will register the callback when built
+      */
     def metricCollectionCallback(collection: F[MetricCollection]): BuildStep[F, Unit] =
       BuildStep(callbackRegistry.registerMetricCollectionCallback(prefix, commonLabels, collection))
 
@@ -522,6 +603,10 @@ object MetricFactory {
 
   object WithCallbacks {
 
+    /** Creates an instance of [[MetricFactory.WithCallbacks]] that performs no operations.
+      *
+      * This is useful for testing or when metrics should be disabled.
+      */
     def noop[F[_]: Applicative]: WithCallbacks[F] =
       new WithCallbacks[F](
         MetricRegistry.noop,

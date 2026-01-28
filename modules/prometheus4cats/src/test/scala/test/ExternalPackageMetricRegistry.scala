@@ -28,6 +28,10 @@ import prometheus4cats._
 // Functions as a compile-time test to ensure methods are implementable outside of `prometheus4cats` package scope
 class ExternalPackageMetricRegistry extends MetricRegistry[IO] with CallbackRegistry[IO] {
 
+  type Underlying = Unit
+
+  def underlying: Unit = ()
+
   override def createAndRegisterDoubleCounter[A](
       prefix: Option[Metric.Prefix],
       name: Counter.Name,

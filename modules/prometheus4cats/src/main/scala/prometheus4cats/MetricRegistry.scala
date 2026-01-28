@@ -33,6 +33,16 @@ import prometheus4cats.util.DoubleMetricRegistry
   */
 trait MetricRegistry[F[_]] {
 
+  /** The type of the underlying registry implementation. */
+  type Underlying
+
+  /** Returns the underlying registry implementation.
+    *
+    * This can be used to access implementation-specific functionality, such as the `CollectorRegistry` when using
+    * `JavaMetricRegistry`.
+    */
+  def underlying: Underlying
+
   /** Create and register a labelled counter that records [[scala.Double]] values against a metrics registry
     *
     * @param prefix
@@ -300,6 +310,10 @@ object MetricRegistry {
   def noop[F[_]](implicit F: Applicative[F]): MetricRegistry[F] =
     new DoubleMetricRegistry[F] {
 
+      type Underlying = Unit
+
+      def underlying: Unit = ()
+
       def createAndRegisterDoubleCounter[A](
           prefix: Option[Metric.Prefix],
           name: Counter.Name,
@@ -353,6 +367,10 @@ object MetricRegistry {
       fk: F ~> G
   )(implicit F: MonadCancel[F, _], G: MonadCancel[G, _]): MetricRegistry[G] =
     new MetricRegistry[G] {
+
+      type Underlying = self.Underlying
+
+      def underlying: Underlying = self.underlying
 
       override def createAndRegisterDoubleCounter[A](
           prefix: Option[Metric.Prefix],
