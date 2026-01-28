@@ -33,7 +33,7 @@ import prometheus4cats.util.NameUtils
 
 @SuppressWarnings(Array("all"))
 sealed abstract class TestingMetricRegistry[F[_]] private (
-    private val underlying: MapRef[
+    val underlying: MapRef[
       F,
       (String, List[String]),
       Option[
@@ -50,6 +50,20 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
 )(implicit override val F: Concurrent[F])
     extends DoubleMetricRegistry[F]
     with DoubleCallbackRegistry[F] {
+
+  type Underlying = MapRef[
+    F,
+    (String, List[String]),
+    Option[
+      (
+          Int,
+          MetricType,
+          Metric[Double],
+          MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]],
+          Ref[F, Option[Exemplar.Data]]
+      )
+    ]
+  ]
 
   def counterHistory(name: Counter.Name, commonLabels: Metric.CommonLabels): F[Option[Chain[Double]]] =
     counterHistory(None, name, commonLabels)
