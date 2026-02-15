@@ -67,7 +67,7 @@ private[javasimpleclient] object HistogramUtils {
     val enhancedLabelNames = "le" :: labelNames
 
     val bucketsWithInf = buckets.map(Collector.doubleToGoString) :+ "+Inf"
-    val bucketSamples = bucketsWithInf.zipWith(value.bucketValues) { (bucketString, bucketValue) =>
+    val bucketSamples  = bucketsWithInf.zipWith(value.bucketValues) { (bucketString, bucketValue) =>
       val enhancedLabelValues = bucketString :: labelValues
 
       new MetricFamilySamples.Sample(

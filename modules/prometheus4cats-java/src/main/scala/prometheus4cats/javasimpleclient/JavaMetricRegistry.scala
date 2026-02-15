@@ -129,7 +129,7 @@ class JavaMetricRegistry[F[_]: Async] private (
     val acquire = sem.permit.surround(
       callbackState.get.flatMap { st =>
         st.get(fullName) match {
-          case None => Applicative[F].unit
+          case None    => Applicative[F].unit
           case Some(_) =>
             ApplicativeThrow[F].raiseError[Unit](
               new RuntimeException(
@@ -162,7 +162,7 @@ class JavaMetricRegistry[F[_]: Async] private (
               case None =>
                 for {
                   exemplarRef <- Ref.of[F, Option[Exemplar.Data]](None)
-                  collector <- Sync[F].delay {
+                  collector   <- Sync[F].delay {
                                  val b: B =
                                    builder
                                      .name(NameUtils.makeName(metricPrefix, name))
@@ -507,7 +507,7 @@ class JavaMetricRegistry[F[_]: Async] private (
     val acquire = sem.permit.surround(
       ref.get.flatMap(r =>
         r.get(fullName) match {
-          case None => Applicative[F].unit
+          case None    => Applicative[F].unit
           case Some(_) =>
             ApplicativeThrow[F].raiseError[Unit](
               new RuntimeException(
@@ -533,7 +533,7 @@ class JavaMetricRegistry[F[_]: Async] private (
               case None =>
                 for {
                   token <- Unique[F].unique
-                  ref <-
+                  ref   <-
                     Ref
                       .of[F, Map[Unique.Token, F[NonEmptyList[Collector.MetricFamilySamples]]]](Map(token -> callback))
                   collector = makeCollector(ref)

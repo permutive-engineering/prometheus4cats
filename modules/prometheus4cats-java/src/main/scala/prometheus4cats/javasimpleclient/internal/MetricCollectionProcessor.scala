@@ -454,10 +454,10 @@ private[javasimpleclient] object MetricCollectionProcessor {
       PCounter.build(singleCallbackCounterName, singleCallbackCounterHelp).labelNames(callbackCounterLabel).create()
 
     val acquire = for {
-      _ <- Sync[F].delay(promRegistry.register(callbackHist))
-      _ <- Sync[F].delay(promRegistry.register(duplicateGauge))
-      _ <- Sync[F].delay(promRegistry.register(allCallbacksCounter))
-      _ <- Sync[F].delay(promRegistry.register(singleCallbackCounter))
+      _                     <- Sync[F].delay(promRegistry.register(callbackHist))
+      _                     <- Sync[F].delay(promRegistry.register(duplicateGauge))
+      _                     <- Sync[F].delay(promRegistry.register(allCallbacksCounter))
+      _                     <- Sync[F].delay(promRegistry.register(singleCallbackCounter))
       collectionCallbackRef <- Ref.of[F, Map[Option[
                                  Metric.Prefix
                                ], (Map[Label.Name, String], Map[Unique.Token, F[MetricCollection]])]](Map.empty)
@@ -465,7 +465,7 @@ private[javasimpleclient] object MetricCollectionProcessor {
       callbackHasTimedOutRef <- Ref.of[F, Boolean](false)
       callbackHasErroredRef  <- Ref.of[F, Boolean](false)
       singleTimeoutErrorRef  <- Ref.of[F, (Boolean, Boolean)]((false, false))
-      proc = new MetricCollectionProcessor(
+      proc                    = new MetricCollectionProcessor(
                ref, callbacks, collectionCallbackRef, duplicatesRef, dispatcher, callbackTimeout,
                combinedCallbackTimeout, callbackHasTimedOutRef, callbackHasErroredRef, singleTimeoutErrorRef,
                allCallbacksCounter, singleCallbackCounter, callbackHist, duplicateGauge, logger
