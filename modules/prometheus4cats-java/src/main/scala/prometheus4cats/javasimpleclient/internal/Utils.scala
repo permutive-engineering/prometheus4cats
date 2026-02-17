@@ -44,15 +44,15 @@ private[javasimpleclient] object Utils {
       logger(e)(s"Failed to unregister a collector: '$collector'")
     }
 
-  /** Builds a label array directly from dynamic label values and pre-computed common label values,
-    * avoiding intermediate IndexedSeq concatenation and varargs String[] allocation.
+  /** Builds a label array directly from dynamic label values and pre-computed common label values, avoiding
+    * intermediate IndexedSeq concatenation and varargs String[] allocation.
     */
   @inline private def buildLabelArray(
       dynamicLabels: IndexedSeq[String],
       commonLabelValues: Array[String]
   ): Array[String] = {
     val arr = new Array[String](dynamicLabels.length + commonLabelValues.length)
-    var i = 0
+    var i   = 0
     while (i < dynamicLabels.length) { arr(i) = dynamicLabels(i); i += 1 }
     System.arraycopy(commonLabelValues, 0, arr, dynamicLabels.length, commonLabelValues.length)
     arr

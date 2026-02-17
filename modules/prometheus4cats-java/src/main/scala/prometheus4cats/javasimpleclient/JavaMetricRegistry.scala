@@ -246,12 +246,7 @@ class JavaMetricRegistry[F[_]: Async] private (
     val allLabelNames          = labelNames ++ commonLabelNames
 
     configureBuilderOrRetrieve(
-      PGauge.build(),
-      MetricType.Gauge,
-      prefix,
-      name,
-      help,
-      allLabelNames
+      PGauge.build(), MetricType.Gauge, prefix, name, help, allLabelNames
     ).map { gauge =>
       @inline
       def modify(g: PGauge.Child => Unit, labels: A): F[Unit] =
@@ -298,7 +293,8 @@ class JavaMetricRegistry[F[_]: Async] private (
             allLabelNames,
             f(labels),
             commonLabelValuesArray,
-            (h: PHistogram.Child) => exemplar.fold(h.observe(d))(e => h.observeWithExemplar(d, transformExemplarLabels(e))),
+            (h: PHistogram.Child) =>
+              exemplar.fold(h.observe(d))(e => h.observeWithExemplar(d, transformExemplarLabels(e))),
             logger
           )
         }
