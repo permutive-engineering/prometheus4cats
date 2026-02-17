@@ -52,8 +52,7 @@ private[javasimpleclient] object Utils {
       commonLabelValues: Array[String]
   ): Array[String] = {
     val arr = new Array[String](dynamicLabels.length + commonLabelValues.length)
-    var i   = 0
-    while (i < dynamicLabels.length) { arr(i) = dynamicLabels(i); i += 1 }
+    dynamicLabels.copyToArray(arr, 0): Unit
     System.arraycopy(commonLabelValues, 0, arr, dynamicLabels.length, commonLabelValues.length)
     arr
   }
