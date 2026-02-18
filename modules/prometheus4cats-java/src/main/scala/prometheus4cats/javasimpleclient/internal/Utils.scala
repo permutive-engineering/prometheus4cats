@@ -107,53 +107,61 @@ private[javasimpleclient] object Utils {
     }
   }
 
-  private def retrieveCollectorForLabels[F[_], A: Show, B](
+  private def retrieveCollectorForLabels[F[_]: Sync, A: Show, B](
       c: SimpleCollector[B],
       metricName: A,
       labelNames: IndexedSeq[Label.Name],
       labels: IndexedSeq[String]
-  )(implicit F: Sync[F]): F[B] =
+  ): F[B] =
     handlePrometheusCollectorErrors(
-      F.delay(c.labels(labels: _*)), c, metricName, labelNames, labels
+      Sync[F].delay(c.labels(labels: _*)),
+      c,
+      metricName,
+      labelNames,
+      labels
     )
 
   /** Overload that accepts a pre-built Array[String] to avoid varargs String[] allocation. */
-  private def retrieveCollectorForLabels[F[_], A: Show, B](
+  private def retrieveCollectorForLabels[F[_]: Sync, A: Show, B](
       c: SimpleCollector[B],
       metricName: A,
       labelNames: IndexedSeq[Label.Name],
       labels: Array[String]
-  )(implicit F: Sync[F]): F[B] =
+  ): F[B] =
     handlePrometheusCollectorErrors(
-      F.delay(c.labels(labels: _*)), c, metricName, labelNames, labels
+      Sync[F].delay(c.labels(labels: _*)),
+      c,
+      metricName,
+      labelNames,
+      labels
     )
 
-  private def handlePrometheusCollectorErrors[F[_], A: Show, B](
+  private def handlePrometheusCollectorErrors[F[_]: Sync, A: Show, B](
       fa: F[B],
       c: SimpleCollector[_],
       metricName: A,
       labelNames: IndexedSeq[Label.Name],
       labels: IndexedSeq[String]
-  )(implicit F: Sync[F]): F[B] =
+  ): F[B] =
     fa.handleErrorWith(e =>
       classStringRep(c)
         .flatMap(className =>
-          F.raiseError(UnhandledPrometheusException(className, metricName, labelNames.zip(labels).toMap, e))
+          Sync[F].raiseError(UnhandledPrometheusException(className, metricName, labelNames.zip(labels).toMap, e))
         )
     )
 
   /** Overload that accepts Array[String] labels, only building the error map on failure. */
-  private def handlePrometheusCollectorErrors[F[_], A: Show, B](
+  private def handlePrometheusCollectorErrors[F[_]: Sync, A: Show, B](
       fa: F[B],
       c: SimpleCollector[_],
       metricName: A,
       labelNames: IndexedSeq[Label.Name],
       labels: Array[String]
-  )(implicit F: Sync[F]): F[B] =
+  ): F[B] =
     fa.handleErrorWith(e =>
       classStringRep(c)
         .flatMap(className =>
-          F.raiseError(
+          Sync[F].raiseError(
             UnhandledPrometheusException(className, metricName, labelNames.zip(labels.toIndexedSeq).toMap, e)
           )
         )
