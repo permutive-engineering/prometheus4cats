@@ -201,8 +201,9 @@ class JavaMetricRegistry[F[_]: Async] private (
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name]
   )(f: A => IndexedSeq[String]): Resource[F, Counter[F, Double, A]] = {
-    val commonLabelNames  = commonLabels.value.keys.toIndexedSeq
-    val commonLabelValues = commonLabels.value.values.toIndexedSeq
+    val commonLabelNames       = commonLabels.value.keys.toIndexedSeq
+    val commonLabelValuesArray = commonLabels.value.values.toArray
+    val allLabelNames          = labelNames ++ commonLabelNames
 
     configureBuilderOrRetrieveExemplar(
       PCounter.build().withExemplars(),
@@ -210,7 +211,7 @@ class JavaMetricRegistry[F[_]: Async] private (
       prefix,
       name,
       help,
-      labelNames ++ commonLabelNames
+      allLabelNames
     ).map { case (counter, exemplarRef) =>
       Counter.make(
         Counter.ExemplarState.fromRef(exemplarRef),
@@ -223,9 +224,10 @@ class JavaMetricRegistry[F[_]: Async] private (
           Utils.modifyMetric[F, Counter.Name, PCounter.Child](
             counter,
             name,
-            labelNames ++ commonLabelNames,
-            f(labels) ++ commonLabelValues,
-            c => exemplar.fold(c.inc(d))(e => c.incWithExemplar(d, transformExemplarLabels(e))),
+            allLabelNames,
+            f(labels),
+            commonLabelValuesArray,
+            (c: PCounter.Child) => exemplar.fold(c.inc(d))(e => c.incWithExemplar(d, transformExemplarLabels(e))),
             logger
           )
       )
@@ -239,20 +241,18 @@ class JavaMetricRegistry[F[_]: Async] private (
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name]
   )(f: A => IndexedSeq[String]): Resource[F, Gauge[F, Double, A]] = {
-    val commonLabelNames  = commonLabels.value.keys.toIndexedSeq
-    val commonLabelValues = commonLabels.value.values.toIndexedSeq
+    val commonLabelNames       = commonLabels.value.keys.toIndexedSeq
+    val commonLabelValuesArray = commonLabels.value.values.toArray
+    val allLabelNames          = labelNames ++ commonLabelNames
 
     configureBuilderOrRetrieve(
-      PGauge.build(),
-      MetricType.Gauge,
-      prefix,
-      name,
-      help,
-      labelNames ++ commonLabelNames
+      PGauge.build(), MetricType.Gauge, prefix, name, help, allLabelNames
     ).map { gauge =>
       @inline
       def modify(g: PGauge.Child => Unit, labels: A): F[Unit] =
-        Utils.modifyMetric(gauge, name, labelNames ++ commonLabelNames, f(labels) ++ commonLabelValues, g, logger)
+        Utils.modifyMetric[F, Gauge.Name, PGauge.Child](
+          gauge, name, allLabelNames, f(labels), commonLabelValuesArray, g, logger
+        )
 
       def inc(n: Double, labels: A): F[Unit] = modify(_.inc(n), labels)
 
@@ -272,8 +272,9 @@ class JavaMetricRegistry[F[_]: Async] private (
       labelNames: IndexedSeq[Label.Name],
       buckets: NonEmptySeq[Double]
   )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Double, A]] = {
-    val commonLabelNames  = commonLabels.value.keys.toIndexedSeq
-    val commonLabelValues = commonLabels.value.values.toIndexedSeq
+    val commonLabelNames       = commonLabels.value.keys.toIndexedSeq
+    val commonLabelValuesArray = commonLabels.value.values.toArray
+    val allLabelNames          = labelNames ++ commonLabelNames
 
     configureBuilderOrRetrieveExemplar(
       PHistogram.build().withExemplars().buckets(buckets.toSeq: _*),
@@ -281,7 +282,7 @@ class JavaMetricRegistry[F[_]: Async] private (
       prefix,
       name,
       help,
-      labelNames ++ commonLabelNames
+      allLabelNames
     ).map { case (histogram, exemplarRef) =>
       Histogram.make[F, Double, A](
         Histogram.ExemplarState.fromRef(buckets, exemplarRef),
@@ -289,9 +290,11 @@ class JavaMetricRegistry[F[_]: Async] private (
           Utils.modifyMetric[F, Histogram.Name, PHistogram.Child](
             histogram,
             name,
-            labelNames ++ commonLabelNames,
-            f(labels) ++ commonLabelValues,
-            h => exemplar.fold(h.observe(d))(e => h.observeWithExemplar(d, transformExemplarLabels(e))),
+            allLabelNames,
+            f(labels),
+            commonLabelValuesArray,
+            (h: PHistogram.Child) =>
+              exemplar.fold(h.observe(d))(e => h.observeWithExemplar(d, transformExemplarLabels(e))),
             logger
           )
         }
@@ -310,8 +313,9 @@ class JavaMetricRegistry[F[_]: Async] private (
       ageBuckets: Summary.AgeBuckets
   )(f: A => IndexedSeq[String]): Resource[F, Summary[F, Double, A]] = {
 
-    val commonLabelNames  = commonLabels.value.keys.toIndexedSeq
-    val commonLabelValues = commonLabels.value.values.toIndexedSeq
+    val commonLabelNames       = commonLabels.value.keys.toIndexedSeq
+    val commonLabelValuesArray = commonLabels.value.values.toArray
+    val allLabelNames          = labelNames ++ commonLabelNames
 
     configureBuilderOrRetrieve(
       quantiles.foldLeft(PSummary.build().ageBuckets(ageBuckets.value).maxAgeSeconds(maxAge.toSeconds))((b, q) =>
@@ -321,15 +325,16 @@ class JavaMetricRegistry[F[_]: Async] private (
       prefix,
       name,
       help,
-      labelNames ++ commonLabelNames
+      allLabelNames
     ).map { summary =>
       Summary.make[F, Double, A] { case (d, labels) =>
         Utils.modifyMetric[F, Summary.Name, PSummary.Child](
           summary,
           name,
-          labelNames ++ commonLabelNames,
-          f(labels) ++ commonLabelValues,
-          _.observe(d),
+          allLabelNames,
+          f(labels),
+          commonLabelValuesArray,
+          (s: PSummary.Child) => s.observe(d),
           logger
         )
       }
@@ -353,7 +358,7 @@ class JavaMetricRegistry[F[_]: Async] private (
           name,
           IndexedSeq.empty,
           IndexedSeq.empty,
-          pinfo => pinfo.info(labels.map { case (n, v) => n.value -> v }.asJava),
+          (pinfo: PInfo.Child) => pinfo.info(labels.map { case (n, v) => n.value -> v }.asJava),
           logger
         )
       )

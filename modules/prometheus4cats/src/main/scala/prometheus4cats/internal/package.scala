@@ -239,7 +239,7 @@ class MetricDsl[F[_], A, L[_[_], _, _]] private[prometheus4cats] (
     BuildStep[F, L[F, A, Map[Label.Name, String]]](
       makeMetric(
         labelNames
-      )(labels => labelNames.flatMap(labels.get))
+      )(labels => labelNames.collect(labels))
     )
 
   /** Creates a metric whose labels aren't checked at compile time. Provides a builder for a labelled metric that takes
@@ -295,8 +295,8 @@ object MetricDsl {
         labelNames: IndexedSeq[Label.Name]
     ): CallbackBuildStep[F, L[F, A, Map[Label.Name, String]], NonEmptyList[(A0, Map[Label.Name, String])]] =
       new CallbackBuildStep[F, L[F, A, Map[Label.Name, String]], NonEmptyList[(A0, Map[Label.Name, String])]](
-        makeMetric(labelNames)(labels => labelNames.flatMap(labels.get)),
-        cb => makeCallback(labelNames, cb)(labels => labelNames.flatMap(labels.get))
+        makeMetric(labelNames)(labels => labelNames.collect(labels)),
+        cb => makeCallback(labelNames, cb)(labels => labelNames.collect(labels))
       )
 
     override def unsafeLabels(

@@ -44,6 +44,19 @@ private[javasimpleclient] object Utils {
       logger(e)(s"Failed to unregister a collector: '$collector'")
     }
 
+  /** Builds a label array directly from dynamic label values and pre-computed common label values, avoiding
+    * intermediate IndexedSeq concatenation and varargs String[] allocation.
+    */
+  @inline private def buildLabelArray(
+      dynamicLabels: IndexedSeq[String],
+      commonLabelValues: Array[String]
+  ): Array[String] = {
+    val arr = new Array[String](dynamicLabels.length + commonLabelValues.length)
+    dynamicLabels.copyToArray(arr, 0): Unit
+    System.arraycopy(commonLabelValues, 0, arr, dynamicLabels.length, commonLabelValues.length)
+    arr
+  }
+
   private[javasimpleclient] def modifyMetric[F[_]: Sync, A: Show, B](
       c: SimpleCollector[B],
       metricName: A,
@@ -52,6 +65,28 @@ private[javasimpleclient] object Utils {
       modify: B => Unit,
       logger: Throwable => String => F[Unit]
   ): F[Unit] = modifyMetricF[F, A, B](c, metricName, labelNames, labels, b => Sync[F].delay(modify(b)), logger)
+
+  /** Overload that accepts dynamic and common label values separately to avoid IndexedSeq concatenation per call. */
+  private[javasimpleclient] def modifyMetric[F[_]: Sync, A: Show, B](
+      c: SimpleCollector[B],
+      metricName: A,
+      allLabelNames: IndexedSeq[Label.Name],
+      dynamicLabels: IndexedSeq[String],
+      commonLabelValues: Array[String],
+      modify: B => Unit,
+      logger: Throwable => String => F[Unit]
+  ): F[Unit] = {
+    val labelArray = buildLabelArray(dynamicLabels, commonLabelValues)
+    val mod: F[Unit] =
+      for {
+        a <- retrieveCollectorForLabels(c, metricName, allLabelNames, labelArray)
+        _ <- handlePrometheusCollectorErrors(Sync[F].delay(modify(a)), c, metricName, allLabelNames, labelArray)
+      } yield ()
+
+    mod.recoverWith { case e: PrometheusException[_] =>
+      logger(e)("Failed to modify Prometheus metric")
+    }
+  }
 
   private[javasimpleclient] def modifyMetricF[F[_]: Sync, A: Show, B](
       c: SimpleCollector[B],
@@ -72,29 +107,63 @@ private[javasimpleclient] object Utils {
     }
   }
 
-  private def retrieveCollectorForLabels[F[_], A: Show, B](
+  private def retrieveCollectorForLabels[F[_]: Sync, A: Show, B](
       c: SimpleCollector[B],
       metricName: A,
       labelNames: IndexedSeq[Label.Name],
       labels: IndexedSeq[String]
-  )(implicit F: Sync[F]): F[B] =
-    for {
-      child <- handlePrometheusCollectorErrors(
-                 F.delay(c.labels(labels: _*)), c, metricName, labelNames, labels
-               )
-    } yield child
+  ): F[B] =
+    handlePrometheusCollectorErrors(
+      Sync[F].delay(c.labels(labels: _*)),
+      c,
+      metricName,
+      labelNames,
+      labels
+    )
 
-  private def handlePrometheusCollectorErrors[F[_], A: Show, B](
+  /** Overload that accepts a pre-built Array[String] to avoid varargs String[] allocation. */
+  private def retrieveCollectorForLabels[F[_]: Sync, A: Show, B](
+      c: SimpleCollector[B],
+      metricName: A,
+      labelNames: IndexedSeq[Label.Name],
+      labels: Array[String]
+  ): F[B] =
+    handlePrometheusCollectorErrors(
+      Sync[F].delay(c.labels(labels: _*)),
+      c,
+      metricName,
+      labelNames,
+      labels
+    )
+
+  private def handlePrometheusCollectorErrors[F[_]: Sync, A: Show, B](
       fa: F[B],
       c: SimpleCollector[_],
       metricName: A,
       labelNames: IndexedSeq[Label.Name],
       labels: IndexedSeq[String]
-  )(implicit F: Sync[F]): F[B] =
+  ): F[B] =
     fa.handleErrorWith(e =>
       classStringRep(c)
         .flatMap(className =>
-          F.raiseError(UnhandledPrometheusException(className, metricName, labelNames.zip(labels).toMap, e))
+          Sync[F].raiseError(UnhandledPrometheusException(className, metricName, labelNames.zip(labels).toMap, e))
+        )
+    )
+
+  /** Overload that accepts Array[String] labels, only building the error map on failure. */
+  private def handlePrometheusCollectorErrors[F[_]: Sync, A: Show, B](
+      fa: F[B],
+      c: SimpleCollector[_],
+      metricName: A,
+      labelNames: IndexedSeq[Label.Name],
+      labels: Array[String]
+  ): F[B] =
+    fa.handleErrorWith(e =>
+      classStringRep(c)
+        .flatMap(className =>
+          Sync[F].raiseError(
+            UnhandledPrometheusException(className, metricName, labelNames.zip(labels.toIndexedSeq).toMap, e)
+          )
         )
     )
 
