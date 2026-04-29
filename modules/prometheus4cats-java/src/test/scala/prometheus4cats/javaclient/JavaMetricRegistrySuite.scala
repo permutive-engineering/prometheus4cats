@@ -18,6 +18,7 @@ package prometheus4cats.javaclient
 
 import scala.jdk.CollectionConverters._
 
+import cats.data.NonEmptyList
 import cats.data.NonEmptySeq
 import cats.effect.IO
 import cats.effect.kernel.Resource
@@ -251,6 +252,40 @@ class JavaMetricRegistrySuite extends CatsEffectSuite {
   // built without labelNames produces no observable scrape entry. This is an edge case (real-world
   // Info almost always carries identity labels like version/commit/instance), but should be
   // surfaced in the v6 migration guide for any consumer that relied on a no-label `Info[F, Unit]`.
+
+  test("counter callback — scrape invokes the user callback and propagates the value to the snapshot") {
+    val promRegistry = new PrometheusRegistry()
+
+    JavaMetricRegistry
+      .Builder[IO]()
+      .withRegistry(promRegistry)
+      .build
+      .use { registry =>
+        val factory  = MetricFactory.builder.build[IO](registry, registry)
+        val callback = IO.pure(NonEmptyList.of((42.0, "alpha"), (7.0, "beta")))
+        factory
+          .counter("test_callback_counter_total")
+          .ofDouble
+          .help("test counter callback")
+          .label[String]("variant")
+          .callback(callback)
+          .build
+          .use { _ =>
+            IO.delay {
+              val snapshot = promRegistry
+                .scrape()
+                .asScala
+                .collectFirst { case s: CounterSnapshot if s.getMetadata.getName === "test_callback_counter" => s }
+                .getOrElse(fail("expected a CounterSnapshot named 'test_callback_counter'"))
+              val byLabel = snapshot.getDataPoints.asScala
+                .map(dp => dp.getLabels.get("variant") -> dp.getValue)
+                .toMap
+              assertEquals(byLabel.get("alpha"), Some(42.0))
+              assertEquals(byLabel.get("beta"), Some(7.0))
+            }
+          }
+      }
+  }
 
   test("registry release unregisters all claimed metrics from the underlying PrometheusRegistry") {
     val promRegistry = new PrometheusRegistry()
