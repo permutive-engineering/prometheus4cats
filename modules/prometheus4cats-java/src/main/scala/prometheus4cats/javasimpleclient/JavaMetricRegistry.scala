@@ -302,6 +302,23 @@ class JavaMetricRegistry[F[_]: Async] private (
     }
   }
 
+  override def createAndRegisterDoubleNativeHistogram[A](
+      prefix: Option[Metric.Prefix],
+      name: Histogram.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name],
+      nativeHistogram: NativeHistogram
+  )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Double, A]] =
+    Resource.eval(
+      ApplicativeThrow[F].raiseError(
+        new UnsupportedOperationException(
+          "Native histograms are not supported by the simpleclient backend. " +
+            "Native histogram support requires the prometheus-metrics-core 1.x backend, available in prometheus4cats v6+."
+        )
+      )
+    )
+
   override def createAndRegisterDoubleSummary[A](
       prefix: Option[Metric.Prefix],
       name: Summary.Name,
