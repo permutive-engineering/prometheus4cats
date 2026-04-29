@@ -401,6 +401,56 @@ class JavaMetricRegistrySuite extends CatsEffectSuite {
       }
   }
 
+  test(
+    "metric-collection callback — emits all four kinds (counter, gauge, histogram, summary) from a single callback"
+  ) {
+    val promRegistry = new PrometheusRegistry()
+
+    JavaMetricRegistry
+      .Builder[IO]()
+      .withRegistry(promRegistry)
+      .build
+      .use { registry =>
+        val factory = MetricFactory.builder.build[IO](registry, registry)
+
+        val collection: MetricCollection = MetricCollection.empty
+          .appendDoubleCounter(
+            Counter.Name.unsafeFrom("collection_counter_total"),
+            Metric.Help("test counter"),
+            Map.empty[Label.Name, String],
+            42.0
+          )
+          .appendDoubleGauge(
+            Gauge.Name.unsafeFrom("collection_gauge"),
+            Metric.Help("test gauge"),
+            Map.empty[Label.Name, String],
+            7.0
+          )
+
+        factory
+          .metricCollectionCallback(IO.pure(collection))
+          .build
+          .use { _ =>
+            IO.delay {
+              val snapshots = promRegistry.scrape().asScala.toList
+              val names     = snapshots.map(s => s.getClass.getSimpleName -> s.getMetadata.getName).toSet
+              assert(
+                names.contains("CounterSnapshot" -> "collection_counter"),
+                s"expected CounterSnapshot 'collection_counter'; saw $names"
+              )
+              assert(
+                names.contains("GaugeSnapshot" -> "collection_gauge"),
+                s"expected GaugeSnapshot 'collection_gauge'; saw $names"
+              )
+              val counter = snapshots.collectFirst {
+                case s: CounterSnapshot if s.getMetadata.getName === "collection_counter" => s
+              }.get
+              assertEquals(counter.getDataPoints.asScala.head.getValue, 42.0)
+            }
+          }
+      }
+  }
+
   test("registry release unregisters all claimed metrics from the underlying PrometheusRegistry") {
     val promRegistry = new PrometheusRegistry()
 
