@@ -171,6 +171,29 @@ class MetricsFactoryDslTest[F[_]: MonadCancelThrow: Clock] {
 
   longHistogramBuilder.unsafeLabels(Label.Name("label1"), Label.Name("label2")).build
 
+  // Native histograms — double-only by design, no .ofLong / .ofDouble step.
+  val nativeHistogramBuilder = factory.nativeHistogram("test_native").help("help")
+
+  nativeHistogramBuilder.build
+
+  nativeHistogramBuilder.asTimer.build
+
+  nativeHistogramBuilder
+    .label[String]("label1")
+    .label[Int]("label2")
+    .label[BigInteger]("label3", _.toString)
+    .asTimer
+    .build
+
+  nativeHistogramBuilder.unsafeLabels(Label.Name("label1"), Label.Name("label2")).asTimer.build
+
+  // With a custom NativeHistogram tuning config.
+  factory
+    .nativeHistogram("test_native_tuned", NativeHistogram.Default.withInitialSchema(6).withMaxNumberOfBuckets(80))
+    .help("help")
+    .label[String]("label1")
+    .build
+
   val infoBuilder = factory.info("test_info").help("help")
 
   infoBuilder.build
