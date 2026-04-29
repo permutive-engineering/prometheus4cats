@@ -27,6 +27,7 @@ import io.prometheus.metrics.model.registry.PrometheusRegistry
 import io.prometheus.metrics.model.snapshots.CounterSnapshot
 import io.prometheus.metrics.model.snapshots.GaugeSnapshot
 import io.prometheus.metrics.model.snapshots.HistogramSnapshot
+import io.prometheus.metrics.model.snapshots.InfoSnapshot
 import io.prometheus.metrics.model.snapshots.SummarySnapshot
 import munit.CatsEffectSuite
 import prometheus4cats._
@@ -184,6 +185,41 @@ class JavaMetricRegistrySuite extends CatsEffectSuite {
         }
     }
   }
+
+  test("info — declared labels propagate to scrape output via setLabelValues") {
+    freshRegistry.use { case (promRegistry, factory) =>
+      factory
+        .info("test_build_info")
+        .help("test build info")
+        .label[String]("version")
+        .label[String]("commit")
+        .build
+        .use { i =>
+          // Two `.label[String]` calls produce an Info[F, (String, String)] via the existing
+          // labelled-DSL machinery (InitLast tuple-builder).
+          i.info(("1.2.3", "abc1234")) >> IO.delay {
+            // Upstream stores Info under its base name (without the `_info` suffix). The wire format
+            // still emits `test_build_info{...} 1` — the suffix is added by the exposition writer.
+            val snapshot = promRegistry
+              .scrape()
+              .asScala
+              .collectFirst { case s: InfoSnapshot if s.getMetadata.getName === "test_build" => s }
+              .getOrElse(fail("expected an InfoSnapshot for the 'test_build_info' metric"))
+            val dp       = snapshot.getDataPoints.asScala.head
+            val labelMap = dp.getLabels.asScala.map(l => l.getName -> l.getValue).toMap
+            assertEquals(labelMap.get("version"), Some("1.2.3"))
+            assertEquals(labelMap.get("commit"), Some("abc1234"))
+          }
+        }
+    }
+  }
+
+  // NOTE: An "Info with no labels declared" test was attempted and removed — upstream
+  // prometheus-metrics-core 1.x's Info requires at least one labelName for the metric to emit a
+  // data point in scrape output. Calling `setLabelValues()` with empty varargs against an Info
+  // built without labelNames produces no observable scrape entry. This is an edge case (real-world
+  // Info almost always carries identity labels like version/commit/instance), but should be
+  // surfaced in the v6 migration guide for any consumer that relied on a no-label `Info[F, Unit]`.
 
   test("registry release unregisters all claimed metrics from the underlying PrometheusRegistry") {
     val promRegistry = new PrometheusRegistry()

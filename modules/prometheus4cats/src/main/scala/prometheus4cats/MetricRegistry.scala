@@ -320,22 +320,35 @@ trait MetricRegistry[F[_]] {
       ageBuckets: Summary.AgeBuckets
   )(f: A => IndexedSeq[String]): Resource[F, Summary[F, Long, A]]
 
-  /** Create and register an info metric against a metrics registry
+  /** Create and register an info metric against a metrics registry.
+    *
+    * Info metrics in Prometheus carry stable identity metadata (typically `build_info{version,commit,...} 1`). Label
+    * names are declared up front and the runtime values are positional, matching the upstream `prometheus-metrics-core`
+    * 1.x API and the way every other metric type in this trait works.
+    *
+    * The wire format (`name{labels...} 1`) is unchanged from the v5 API; only the Scala-side construction shape
+    * differs.
     *
     * @param prefix
     *   optional [[Metric.Prefix]] to be prepended to the metric name
     * @param name
-    *   [[Histogram.Name]] metric name
+    *   [[Info.Name]] metric name
     * @param help
     *   [[Metric.Help]] string to describe the metric
+    * @param labelNames
+    *   an [[scala.IndexedSeq]] of [[Label.Name]]s to annotate the metric with
+    * @param f
+    *   a function from `A` to an [[scala.IndexedSeq]] of [[java.lang.String]] that provides label values, which must be
+    *   paired with their corresponding name in the [[scala.IndexedSeq]] of [[Label.Name]]s
     * @return
-    *   a [[Info]] wrapped in whatever side effect that was performed in registering it
+    *   an [[Info]] wrapped in whatever side effect that was performed in registering it
     */
-  def createAndRegisterInfo(
+  def createAndRegisterInfo[A](
       prefix: Option[Metric.Prefix],
       name: Info.Name,
-      help: Metric.Help
-  ): Resource[F, Info[F, Map[Label.Name, String]]]
+      help: Metric.Help,
+      labelNames: IndexedSeq[Label.Name]
+  )(f: A => IndexedSeq[String]): Resource[F, Info[F, A]]
 
   def mapK[G[_]](fk: F ~> G)(implicit F: MonadCancel[F, _], G: MonadCancel[G, _]): MetricRegistry[G] =
     MetricRegistry.mapK(this, fk)
@@ -401,11 +414,12 @@ object MetricRegistry {
       )(f: A => IndexedSeq[String]): Resource[F, Summary[F, Double, A]] =
         Resource.pure(Summary.noop)
 
-      override def createAndRegisterInfo(
+      override def createAndRegisterInfo[A](
           prefix: Option[Metric.Prefix],
           name: Info.Name,
-          help: Metric.Help
-      ): Resource[F, Info[F, Map[Label.Name, String]]] = Resource.pure(Info.noop)
+          help: Metric.Help,
+          labelNames: IndexedSeq[Label.Name]
+      )(f: A => IndexedSeq[String]): Resource[F, Info[F, A]] = Resource.pure(Info.noop)
 
     }
 
@@ -548,12 +562,13 @@ object MetricRegistry {
           .mapK(fk)
           .map(_.mapK(fk))
 
-      override def createAndRegisterInfo(
+      override def createAndRegisterInfo[A](
           prefix: Option[Metric.Prefix],
           name: Info.Name,
-          help: Metric.Help
-      ): Resource[G, Info[G, Map[Label.Name, String]]] =
-        self.createAndRegisterInfo(prefix, name, help).mapK(fk).map(_.mapK(fk))
+          help: Metric.Help,
+          labelNames: IndexedSeq[Label.Name]
+      )(f: A => IndexedSeq[String]): Resource[G, Info[G, A]] =
+        self.createAndRegisterInfo(prefix, name, help, labelNames)(f).mapK(fk).map(_.mapK(fk))
 
     }
 
