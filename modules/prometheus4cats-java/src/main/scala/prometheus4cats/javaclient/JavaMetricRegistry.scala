@@ -31,6 +31,7 @@ import cats.syntax.all._
 import io.prometheus.metrics.core.metrics.{Counter => PCounter}
 import io.prometheus.metrics.core.metrics.{Gauge => PGauge}
 import io.prometheus.metrics.core.metrics.{Histogram => PHistogram}
+import io.prometheus.metrics.core.metrics.{Summary => PSummary}
 import io.prometheus.metrics.instrumentation.jvm.JvmMetrics
 import io.prometheus.metrics.model.registry.PrometheusRegistry
 import io.prometheus.metrics.model.snapshots.Labels
@@ -355,15 +356,71 @@ class JavaMetricRegistry[F[_]: Async] private (
       quantiles: Seq[Summary.QuantileDefinition],
       maxAge: FiniteDuration,
       ageBuckets: Summary.AgeBuckets
-  )(f: A => IndexedSeq[String]): Resource[F, Summary[F, Double, A]] =
-    Resource.eval(ApplicativeThrow[F].raiseError(notYetPorted("createAndRegisterDoubleSummary")))
+  )(f: A => IndexedSeq[String]): Resource[F, Summary[F, Double, A]] = {
+    val commonLabelNames       = commonLabels.value.keys.toIndexedSeq
+    val commonLabelValuesArray = commonLabels.value.values.toArray
+    val allLabelNames          = labelNames ++ commonLabelNames
+    val fullName               = NameUtils.makeName(prefix, name)
 
+    configureBuilderOrRetrieve[PSummary](
+      register = () => {
+        val builder = PSummary
+          .builder()
+          .name(fullName)
+          .help(help.value)
+          .labelNames(allLabelNames.map(_.value): _*)
+          .maxAgeSeconds(maxAge.toSeconds)
+          .numberOfAgeBuckets(ageBuckets.value)
+        quantiles.foreach(q => builder.quantile(q.value.value, q.error.value))
+        builder.register(registry)
+      },
+      metricType = MetricType.Summary,
+      metricPrefix = prefix,
+      stringName = name.value,
+      labels = allLabelNames
+    ).map { case (summary, _) =>
+      Summary.make[F, Double, A] { case (d, labels) =>
+        Utils.modifyMetric[F, Summary.Name, io.prometheus.metrics.core.datapoints.DistributionDataPoint](
+          metricName = name,
+          allLabelNames = allLabelNames,
+          dynamicLabels = f(labels),
+          commonLabelValues = commonLabelValuesArray,
+          getDataPoint = (lbls: Array[String]) => summary.labelValues(lbls: _*),
+          modify = (dp: io.prometheus.metrics.core.datapoints.DistributionDataPoint) => dp.observe(d),
+          logger = logger
+        )
+      }
+    }
+  }
+
+  // Info is intentionally still a stub. The upstream prometheus-metrics-core 1.x Info type fixes the
+  // `labelNames(...)` at build time and exposes `setLabelValues(values: String*)` for positional updates,
+  // unlike the simpleclient Info which had `info(Map<String, String>)` accepting an arbitrary label map at
+  // runtime. The existing prometheus4cats Info API surface is `Info[F, Map[Label.Name, String]]` —
+  // a `Map` at observation time — which doesn't fit the 1.x model directly.
+  //
+  // Resolving this requires either:
+  //   - changing `MetricFactory.info(...)` to require label-name declarations at build time (breaks
+  //     consumers, but aligns with how Info actually works in Prometheus); or
+  //   - re-registering the Info collector when the label-name set changes (expensive, surprising).
+  //
+  // Deferring the design call to a follow-up commit / discussion. Consumers using `.info(...)` against
+  // the new javaclient backend will see this exception until then.
   override def createAndRegisterInfo(
       prefix: Option[Metric.Prefix],
       name: Info.Name,
       help: Metric.Help
   ): Resource[F, Info[F, Map[Label.Name, String]]] =
-    Resource.eval(ApplicativeThrow[F].raiseError(notYetPorted("createAndRegisterInfo")))
+    Resource.eval(
+      ApplicativeThrow[F].raiseError(
+        new UnsupportedOperationException(
+          "Info is not yet implemented in the javaclient backend — the upstream client_java 1.x Info " +
+            "type fixes labelNames at build time and accepts only positional setLabelValues(values...), " +
+            "which doesn't fit the existing prometheus4cats Info[F, Map[Label.Name, String]] API. A " +
+            "design decision is pending; see the comment above this stub."
+        )
+      )
+    )
 
   override def registerDoubleCounterCallback[A](
       prefix: Option[Metric.Prefix],
