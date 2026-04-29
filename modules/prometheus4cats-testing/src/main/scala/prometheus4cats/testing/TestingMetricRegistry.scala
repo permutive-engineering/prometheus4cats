@@ -368,6 +368,27 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       Chain.nil
     )
 
+  override def createAndRegisterDoubleHistogramWithNative[A](
+      prefix: Option[Metric.Prefix],
+      name: Histogram.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name],
+      buckets: NonEmptySeq[Double],
+      nativeHistogram: NativeHistogram
+  )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Double, A]] =
+    store(
+      NameUtils.makeName(prefix, name.value),
+      names(commonLabels, labelNames),
+      MetricType.Histogram,
+      (ref: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]], ex: Ref[F, Option[Exemplar.Data]]) =>
+        Histogram.make[F, Double, A](
+          Histogram.ExemplarState.fromRef(buckets, ex),
+          (d: Double, a: A, e: Option[Exemplar.Labels]) => ref(values(commonLabels, f(a))).update(_.append(d -> e))
+        ),
+      Chain.nil
+    )
+
   override def createAndRegisterDoubleSummary[A](
       prefix: Option[Metric.Prefix],
       name: Summary.Name,

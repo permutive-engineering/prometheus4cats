@@ -91,6 +91,26 @@ class ExternalPackageMetricRegistry extends MetricRegistry[IO] with CallbackRegi
       nativeHistogram: NativeHistogram
   )(f: A => IndexedSeq[String]): Resource[IO, Histogram[IO, Double, A]] = ???
 
+  override def createAndRegisterDoubleHistogramWithNative[A](
+      prefix: Option[Metric.Prefix],
+      name: Histogram.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name],
+      buckets: NonEmptySeq[Double],
+      nativeHistogram: NativeHistogram
+  )(f: A => IndexedSeq[String]): Resource[IO, Histogram[IO, Double, A]] = ???
+
+  override def createAndRegisterLongHistogramWithNative[A](
+      prefix: Option[Metric.Prefix],
+      name: Histogram.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name],
+      buckets: NonEmptySeq[Long],
+      nativeHistogram: NativeHistogram
+  )(f: A => IndexedSeq[String]): Resource[IO, Histogram[IO, Long, A]] = ???
+
   override def createAndRegisterDoubleSummary[A](
       prefix: Option[Metric.Prefix],
       name: Summary.Name,
