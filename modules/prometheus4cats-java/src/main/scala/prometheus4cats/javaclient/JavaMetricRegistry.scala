@@ -43,6 +43,7 @@ import io.prometheus.metrics.instrumentation.jvm.JvmMetrics
 import io.prometheus.metrics.model.registry.PrometheusRegistry
 import io.prometheus.metrics.model.registry.{Collector => PCollector}
 import io.prometheus.metrics.model.snapshots.CounterSnapshot
+import io.prometheus.metrics.model.snapshots.GaugeSnapshot
 import io.prometheus.metrics.model.snapshots.Labels
 import io.prometheus.metrics.model.snapshots.MetricMetadata
 import io.prometheus.metrics.model.snapshots.MetricSnapshot
@@ -832,8 +833,44 @@ class JavaMetricRegistry[F[_]: Async] private (
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
       callback: F[NonEmptyList[(Double, A)]]
-  )(f: A => IndexedSeq[String]): Resource[F, Unit] =
-    Resource.eval(ApplicativeThrow[F].raiseError(notYetPorted("registerDoubleGaugeCallback")))
+  )(f: A => IndexedSeq[String]): Resource[F, Unit] = {
+    val commonLabelKeys      = commonLabels.value.keys.toIndexedSeq.map(_.value)
+    val commonLabelValuesArr = commonLabels.value.values.toIndexedSeq
+    val allLabelNamesStr     = (labelNames.map(_.value) ++ commonLabelKeys).toArray
+    val fullName             = NameUtils.makeName(prefix, name)
+
+    val projected: F[NonEmptyList[(Double, IndexedSeq[String])]] = callback.map(
+      _.map { case (v, a) => (v, f(a) ++ commonLabelValuesArr) }
+    )
+
+    registerCallback[Gauge.Name](
+      MetricType.Gauge,
+      prefix,
+      name,
+      projected,
+      makeCollector = (callbacks: Ref[F, CallbackPayload[F]]) =>
+        new PCollector {
+
+          override def collect(): MetricSnapshot = {
+            val aggregated = collectAllPayload(callbacks, fullName)
+            val dataPoints: java.util.List[GaugeSnapshot.GaugeDataPointSnapshot] =
+              runAggregateCollect(
+                fullName,
+                aggregated.map(_.map { case (value, labelValues) =>
+                  new GaugeSnapshot.GaugeDataPointSnapshot(
+                    value,
+                    Labels.of(allLabelNamesStr, labelValues.toArray),
+                    null: io.prometheus.metrics.model.snapshots.Exemplar
+                  )
+                }.asJava),
+                java.util.Collections.emptyList[GaugeSnapshot.GaugeDataPointSnapshot]()
+              )
+            new GaugeSnapshot(new MetricMetadata(fullName, help.value), dataPoints)
+          }
+
+        }
+    )
+  }
 
   override def registerDoubleHistogramCallback[A](
       prefix: Option[Metric.Prefix],

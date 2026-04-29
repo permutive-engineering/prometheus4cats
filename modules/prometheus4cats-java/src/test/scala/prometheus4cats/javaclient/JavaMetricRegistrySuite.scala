@@ -287,6 +287,38 @@ class JavaMetricRegistrySuite extends CatsEffectSuite {
       }
   }
 
+  test("gauge callback — scrape invokes the user callback and propagates the value to the snapshot") {
+    val promRegistry = new PrometheusRegistry()
+
+    JavaMetricRegistry
+      .Builder[IO]()
+      .withRegistry(promRegistry)
+      .build
+      .use { registry =>
+        val factory  = MetricFactory.builder.build[IO](registry, registry)
+        val callback = IO.pure(NonEmptyList.of((50.0, "n0"), (100.0, "n1")))
+        factory
+          .gauge("test_callback_gauge")
+          .ofDouble
+          .help("test gauge callback")
+          .label[String]("node")
+          .callback(callback)
+          .build
+          .use { _ =>
+            IO.delay {
+              val snapshot = promRegistry
+                .scrape()
+                .asScala
+                .collectFirst { case s: GaugeSnapshot if s.getMetadata.getName === "test_callback_gauge" => s }
+                .getOrElse(fail("expected a GaugeSnapshot named 'test_callback_gauge'"))
+              val byLabel = snapshot.getDataPoints.asScala.map(dp => dp.getLabels.get("node") -> dp.getValue).toMap
+              assertEquals(byLabel.get("n0"), Some(50.0))
+              assertEquals(byLabel.get("n1"), Some(100.0))
+            }
+          }
+      }
+  }
+
   test("registry release unregisters all claimed metrics from the underlying PrometheusRegistry") {
     val promRegistry = new PrometheusRegistry()
 
