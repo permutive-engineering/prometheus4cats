@@ -31,6 +31,7 @@ import cats.syntax.all._
 import io.prometheus.metrics.core.metrics.{Counter => PCounter}
 import io.prometheus.metrics.core.metrics.{Gauge => PGauge}
 import io.prometheus.metrics.core.metrics.{Histogram => PHistogram}
+import io.prometheus.metrics.core.metrics.{Summary => PSummary}
 import io.prometheus.metrics.instrumentation.jvm.JvmMetrics
 import io.prometheus.metrics.model.registry.PrometheusRegistry
 import io.prometheus.metrics.model.snapshots.Labels
@@ -385,8 +386,42 @@ class JavaMetricRegistry[F[_]: Async] private (
       quantiles: Seq[Summary.QuantileDefinition],
       maxAge: FiniteDuration,
       ageBuckets: Summary.AgeBuckets
-  )(f: A => IndexedSeq[String]): Resource[F, Summary[F, Double, A]] =
-    Resource.eval(ApplicativeThrow[F].raiseError(notYetPorted("createAndRegisterDoubleSummary")))
+  )(f: A => IndexedSeq[String]): Resource[F, Summary[F, Double, A]] = {
+    val commonLabelNames       = commonLabels.value.keys.toIndexedSeq
+    val commonLabelValuesArray = commonLabels.value.values.toArray
+    val allLabelNames          = labelNames ++ commonLabelNames
+    val fullName               = NameUtils.makeName(prefix, name)
+
+    configureBuilderOrRetrieve[PSummary](
+      register = () => {
+        val builder = PSummary
+          .builder()
+          .name(fullName)
+          .help(help.value)
+          .labelNames(allLabelNames.map(_.value): _*)
+          .maxAgeSeconds(maxAge.toSeconds)
+          .numberOfAgeBuckets(ageBuckets.value)
+        quantiles.foreach(q => builder.quantile(q.value.value, q.error.value))
+        builder.register(registry)
+      },
+      metricType = MetricType.Summary,
+      metricPrefix = prefix,
+      stringName = name.value,
+      labels = allLabelNames
+    ).map { case (summary, _) =>
+      Summary.make[F, Double, A] { case (d, labels) =>
+        Utils.modifyMetric[F, Summary.Name, io.prometheus.metrics.core.datapoints.DistributionDataPoint](
+          metricName = name,
+          allLabelNames = allLabelNames,
+          dynamicLabels = f(labels),
+          commonLabelValues = commonLabelValuesArray,
+          getDataPoint = (lbls: Array[String]) => summary.labelValues(lbls: _*),
+          modify = (dp: io.prometheus.metrics.core.datapoints.DistributionDataPoint) => dp.observe(d),
+          logger = logger
+        )
+      }
+    }
+  }
 
   override def createAndRegisterInfo[A](
       prefix: Option[Metric.Prefix],
