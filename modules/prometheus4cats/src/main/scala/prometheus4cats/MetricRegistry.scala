@@ -205,6 +205,43 @@ trait MetricRegistry[F[_]] {
       buckets: NonEmptySeq[Long]
   )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Long, A]]
 
+  /** Create and register a labelled native histogram that records [[scala.Double]] values against a metrics registry.
+    *
+    * Native histograms (sometimes called sparse or exponential histograms) automatically allocate buckets sized by an
+    * exponential schema, so consumers do not pre-declare bucket boundaries. They typically reduce metric cardinality
+    * compared to a classic histogram with explicit buckets.
+    *
+    * Native histograms are emitted only over Prometheus protobuf scrape negotiation, and require a Prometheus server
+    * recent enough to ingest them. Backends that do not support native histograms should signal that via an error
+    * raised from the returned [[cats.effect.kernel.Resource]].
+    *
+    * @param prefix
+    *   optional [[Metric.Prefix]] to be prepended to the metric name
+    * @param name
+    *   [[Histogram.Name]] metric name
+    * @param help
+    *   [[Metric.Help]] string to describe the metric
+    * @param commonLabels
+    *   [[Metric.CommonLabels]] map of common labels to be added to the metric
+    * @param labelNames
+    *   an [[scala.IndexedSeq]] of [[Label.Name]]s to annotate the metric with
+    * @param nativeHistogram
+    *   tuning parameters for the native histogram (schema, max bucket count, reset duration, zero-threshold bounds)
+    * @param f
+    *   a function from `A` to an [[scala.IndexedSeq]] of [[java.lang.String]] that provides label values, which must be
+    *   paired with their corresponding name in the [[scala.IndexedSeq]] of [[Label.Name]]s
+    * @return
+    *   a [[Histogram]] wrapped in whatever side effect that was performed in registering it
+    */
+  def createAndRegisterDoubleNativeHistogram[A](
+      prefix: Option[Metric.Prefix],
+      name: Histogram.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name],
+      nativeHistogram: NativeHistogram
+  )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Double, A]]
+
   /** Create and register a summary that records [[scala.Double]] values against a metrics registry
     *
     * @param prefix
@@ -342,6 +379,16 @@ object MetricRegistry {
       )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Double, A]] =
         Resource.pure(Histogram.noop)
 
+      override def createAndRegisterDoubleNativeHistogram[A](
+          prefix: Option[Metric.Prefix],
+          name: Histogram.Name,
+          help: Metric.Help,
+          commonLabels: CommonLabels,
+          labelNames: IndexedSeq[Label.Name],
+          nativeHistogram: NativeHistogram
+      )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Double, A]] =
+        Resource.pure(Histogram.noop)
+
       override def createAndRegisterDoubleSummary[A](
           prefix: Option[Metric.Prefix],
           name: Summary.Name,
@@ -411,6 +458,21 @@ object MetricRegistry {
         self
           .createAndRegisterDoubleHistogram(
             prefix, name, help, commonLabels, labelNames, buckets
+          )(f)
+          .mapK(fk)
+          .map(_.mapK(fk))
+
+      override def createAndRegisterDoubleNativeHistogram[A](
+          prefix: Option[Metric.Prefix],
+          name: Histogram.Name,
+          help: Metric.Help,
+          commonLabels: CommonLabels,
+          labelNames: IndexedSeq[Label.Name],
+          nativeHistogram: NativeHistogram
+      )(f: A => IndexedSeq[String]): Resource[G, Histogram[G, Double, A]] =
+        self
+          .createAndRegisterDoubleNativeHistogram(
+            prefix, name, help, commonLabels, labelNames, nativeHistogram
           )(f)
           .mapK(fk)
           .map(_.mapK(fk))
