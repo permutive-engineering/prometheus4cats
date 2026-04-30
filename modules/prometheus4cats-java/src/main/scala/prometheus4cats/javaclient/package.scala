@@ -17,9 +17,12 @@
 package prometheus4cats
 
 import cats.Show
+import cats.data.NonEmptyList
 import cats.effect.kernel.Ref
+import cats.effect.kernel.Unique
 
 import io.prometheus.metrics.core.metrics.MetricWithFixedMetadata
+import io.prometheus.metrics.model.registry.Collector
 import prometheus4cats.javaclient.models.MetricType
 import prometheus4cats.util.NameUtils
 
@@ -37,6 +40,21 @@ package object javaclient {
     (MetricID, (MetricWithFixedMetadata, Ref[F, Option[Exemplar.Data]], Int))
 
   private[javaclient] type State[F[_]] = Map[StateKey, StateValue[F]]
+
+  /** Per-metric-name callback registry state. Each registered metric name has exactly one upstream `Collector`;
+    * multiple consumer registrations attach to that single Collector via a `Unique.Token`-keyed inner Ref. The
+    * Collector at scrape time runs all stored callbacks through the dispatcher, merges their per-registration results
+    * into a single `MetricSnapshot`, and returns it.
+    *
+    * The inner callback type is uniformly `F[NEL[(Double, IndexedSeq[String])]]` — value plus pre-projected label
+    * values. Per-metric-type Collector subclasses convert these tuples into the appropriate kind-specific data-point
+    * snapshots at collect time. Long-typed callbacks are derived from Double via DoubleCallbackRegistry.
+    */
+  private[javaclient] type CallbackPayload[F[_]] =
+    Map[Unique.Token, F[NonEmptyList[(Double, IndexedSeq[String])]]]
+
+  private[javaclient] type CallbackState[F[_]] =
+    Map[StateKey, (MetricType, Ref[F, CallbackPayload[F]], Collector)]
 
   private[javaclient] val duplicateShow: Show[(Option[Metric.Prefix], String)] = Show.show { case (prefix, name) =>
     NameUtils.makeName(prefix, name)
