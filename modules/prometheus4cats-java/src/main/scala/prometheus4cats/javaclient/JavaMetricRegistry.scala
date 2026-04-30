@@ -16,7 +16,10 @@
 
 package prometheus4cats.javaclient
 
+import java.util.concurrent.TimeoutException
+
 import scala.concurrent.duration._
+import scala.jdk.CollectionConverters._
 
 import cats.Applicative
 import cats.ApplicativeThrow
@@ -25,9 +28,12 @@ import cats.Show
 import cats.data.NonEmptyList
 import cats.data.NonEmptySeq
 import cats.effect.kernel._
+import cats.effect.kernel.syntax.temporal._
+import cats.effect.std.Dispatcher
 import cats.effect.std.Semaphore
 import cats.syntax.all._
 
+import alleycats.std.iterable._
 import io.prometheus.metrics.core.datapoints.CounterDataPoint
 import io.prometheus.metrics.core.datapoints.DistributionDataPoint
 import io.prometheus.metrics.core.datapoints.GaugeDataPoint
@@ -38,7 +44,11 @@ import io.prometheus.metrics.core.metrics.{Info => PInfo}
 import io.prometheus.metrics.core.metrics.{Summary => PSummary}
 import io.prometheus.metrics.instrumentation.jvm.JvmMetrics
 import io.prometheus.metrics.model.registry.PrometheusRegistry
+import io.prometheus.metrics.model.registry.{Collector => PCollector}
+import io.prometheus.metrics.model.snapshots.CounterSnapshot
 import io.prometheus.metrics.model.snapshots.Labels
+import io.prometheus.metrics.model.snapshots.MetricMetadata
+import io.prometheus.metrics.model.snapshots.MetricSnapshot
 import prometheus4cats._
 import prometheus4cats.javaclient.internal.Utils
 import prometheus4cats.javaclient.models.MetricType
@@ -57,7 +67,14 @@ import prometheus4cats.util.NameUtils
 class JavaMetricRegistry[F[_]: Async] private (
     private val registry: PrometheusRegistry,
     private val ref: Ref[F, State[F]],
+    private val callbackState: Ref[F, CallbackState[F]],
+    private val callbackTimeoutState: Ref[F, Set[String]],
+    private val callbackErrorState: Ref[F, Set[String]],
+    private val singleCallbackErrorState: Ref[F, (Set[String], Set[String])],
     private val sem: Semaphore[F],
+    private val dispatcher: Dispatcher[F],
+    private val callbackTimeout: FiniteDuration,
+    private val singleCallbackTimeout: FiniteDuration,
     private val logger: Throwable => String => F[Unit]
 ) extends DoubleMetricRegistry[F]
     with DoubleCallbackRegistry[F] {
@@ -519,6 +536,221 @@ class JavaMetricRegistry[F[_]: Async] private (
     }
   }
 
+  // ─── callback machinery ──────────────────────────────────────────────────────────────────────────
+  //
+  // Mirrors the legacy javasimpleclient adapter's per-callback timeout + error-tracking pattern:
+  //
+  //   - `singleCallbackTimeout` bounds an individual callback invocation; exceeding it returns empty
+  //     samples for that registration and logs ONCE per metric name.
+  //   - `callbackTimeout` bounds the COMBINED collection of all registered callbacks for a single
+  //     metric (i.e., the wrapper that aggregates samples across multiple consumer registrations).
+  //   - Error tracking refs (`callbackTimeoutState`, `callbackErrorState`, `singleCallbackErrorState`)
+  //     prevent log spam: the first time a metric's callback times out / fails, we log; subsequent
+  //     occurrences are silently counted by the upstream Prometheus runtime via the regular
+  //     scrape-error path.
+  //
+  // Skipped vs the legacy adapter: the internal `prometheus4cats_combined_callback_metric_total` and
+  // `prometheus4cats_callback_total` counters that tracked callback success/error/timeout counts
+  // per metric. They're observability nice-to-haves; consumers can always add them externally if
+  // wanted. May add in a follow-up commit.
+
+  private def trackErrors[A](
+      state: Ref[F, Set[String]],
+      stringName: String,
+      onContains: F[A],
+      onContainsNot: F[A]
+  ): F[A] =
+    state.modify { current =>
+      if (current.contains(stringName)) (current, onContains) else (current + stringName, onContainsNot)
+    }.flatten
+
+  /** Wrap an effect with a timeout + error fallback, dispatching synchronously through the supplied Dispatcher. Both
+    * timeouts and failures are mapped to `empty` and forwarded to `onTimeout` / `onError` for logging-side-effect
+    * handling.
+    */
+  private def runCallbackWithBounds[A](
+      fa: F[A],
+      timeout: FiniteDuration,
+      onTimeout: TimeoutException => F[A],
+      onError: Throwable => F[A]
+  ): A =
+    dispatcher.unsafeRunSync(fa.timeout(timeout).handleErrorWith {
+      case th: TimeoutException => onTimeout(th)
+      case th                   => onError(th)
+    })
+
+  /** Per-callback timeout wrapper: bounds an individual registration's callback invocation. Returns the
+    * (logged-timeout, logged-error, samples) triple so the outer aggregation can decide what to persist into
+    * [[singleCallbackErrorState]] without re-logging on every scrape.
+    */
+  private def timeoutEachCallback[V](
+      stringName: String,
+      samplesF: F[NonEmptyList[(V, IndexedSeq[String])]],
+      hasLoggedTimeout: Boolean,
+      hasLoggedError: Boolean
+  ): F[(Boolean, Boolean, List[(V, IndexedSeq[String])])] =
+    samplesF
+      .map(samples => (hasLoggedTimeout, hasLoggedError, samples.toList))
+      .timeout(singleCallbackTimeout)
+      .handleErrorWith {
+        case th: TimeoutException =>
+          (if (hasLoggedTimeout) Applicative[F].unit
+           else
+             logger(th)(
+               s"Timed out running a callback for the metric '$stringName' after $singleCallbackTimeout. " +
+                 "This warning will only be shown once after process start."
+             )).as((true, hasLoggedError, List.empty))
+        case th =>
+          (if (hasLoggedError) Applicative[F].unit
+           else
+             logger(th)(
+               s"Executing a callback for the metric '$stringName' failed with the following exception. " +
+                 "This warning will only be shown once after process start."
+             )).as((hasLoggedTimeout, true, List.empty))
+      }
+
+  /** Generic callback registration:
+    *   1. Look up (or create) a single upstream `Collector` for this metric name. 2. Add the user's callback to the
+    *      Collector's per-token registration map. 3. On Resource release, remove this token; if it was the last token,
+    *      unregister the Collector.
+    *
+    * The `makeCollector` thunk is responsible for constructing the kind-specific Collector that builds the right
+    * `MetricSnapshot` from the aggregated `(value, labels)` tuples at scrape time.
+    */
+  private def registerCallback[A: Show](
+      metricType: MetricType,
+      metricPrefix: Option[Metric.Prefix],
+      name: A,
+      callback: F[NonEmptyList[(Double, IndexedSeq[String])]],
+      makeCollector: Ref[F, CallbackPayload[F]] => PCollector
+  ): Resource[F, Unit] = {
+    lazy val n                  = name.show
+    lazy val fullName: StateKey = (metricPrefix, n)
+    lazy val renderedFullName   = NameUtils.makeName(metricPrefix, name)
+
+    val acquire = sem.permit.surround(
+      ref.get.flatMap(r =>
+        r.get(fullName) match {
+          case None => Applicative[F].unit
+          case Some(_) =>
+            ApplicativeThrow[F].raiseError[Unit](
+              new RuntimeException(
+                s"A metric with the same name as '$renderedFullName' is already registered with different labels and/or type"
+              )
+            )
+        }
+      ) >>
+        callbackState.get
+          .flatMap[Unique.Token] { (callbacks: CallbackState[F]) =>
+            callbacks.get(fullName) match {
+              case Some((`metricType`, states, _)) =>
+                Unique[F].unique.flatMap { token =>
+                  states.update(_.updated(token, callback)).as(token)
+                }
+              case Some(_) =>
+                ApplicativeThrow[F].raiseError(
+                  new RuntimeException(
+                    s"A callback with the same name as '$renderedFullName' is already registered with different type"
+                  )
+                )
+              case None =>
+                for {
+                  token    <- Unique[F].unique
+                  innerRef <- Ref.of[F, CallbackPayload[F]](Map(token -> callback))
+                  collector = makeCollector(innerRef)
+                  _        <- Sync[F].delay(registry.register(collector))
+                  _        <- callbackState.set(callbacks.updated(fullName, (metricType, innerRef, collector)))
+                } yield token
+            }
+          }
+    )
+
+    Resource
+      .make(acquire) { token =>
+        sem.permit.surround(callbackState.get.flatMap { state =>
+          state.get(fullName) match {
+            case Some((_, callbacks, collector)) =>
+              callbacks.get.flatMap { cbs =>
+                val newCallbacks = cbs - token
+                if (newCallbacks.isEmpty)
+                  callbackState.set(state - fullName) >>
+                    Sync[F].delay(registry.unregister(collector)).handleErrorWith { e =>
+                      logger(e)(s"Failed to unregister callback collector: '$collector'")
+                    }
+                else callbacks.set(newCallbacks)
+              }
+            case None => Applicative[F].unit
+          }
+        })
+      }
+      .void
+  }
+
+  /** Aggregate all per-token callbacks into a single list of `(value, labels)` tuples, applying the per-callback
+    * timeout and error-tracking machinery. Used by every kind-specific Collector.
+    */
+  private def collectAllPayload(
+      callbacks: Ref[F, CallbackPayload[F]],
+      renderedFullName: String
+  ): F[List[(Double, IndexedSeq[String])]] =
+    singleCallbackErrorState.get.flatMap { case (loggedTimeout, loggedError) =>
+      callbacks.get
+        .flatMap(
+          _.values.foldM(
+            (
+              loggedTimeout.contains(renderedFullName),
+              loggedError.contains(renderedFullName),
+              List.empty[(Double, IndexedSeq[String])]
+            )
+          ) { case ((hasLoggedTimeout0, hasLoggedError0, acc), samplesF) =>
+            timeoutEachCallback(renderedFullName, samplesF, hasLoggedTimeout0, hasLoggedError0).map {
+              case (lto, le, samples) => (lto, le, acc ++ samples)
+            }
+          }
+        )
+        .flatMap { case (hasLoggedTimeout0, hasLoggedError0, samples) =>
+          ((hasLoggedTimeout0, hasLoggedError0) match {
+            case (true, true) =>
+              singleCallbackErrorState.set((loggedTimeout + renderedFullName, loggedError + renderedFullName))
+            case (true, false)  => singleCallbackErrorState.set((loggedTimeout + renderedFullName, loggedError))
+            case (false, true)  => singleCallbackErrorState.set((loggedTimeout, loggedError + renderedFullName))
+            case (false, false) => Applicative[F].unit
+          }).as(samples)
+        }
+    }
+
+  /** Run the aggregated-payload computation through the dispatcher with the combined-callbacks timeout + once-only
+    * error logging. Returns `empty` on timeout/error.
+    */
+  private def runAggregateCollect[A](
+      stringName: String,
+      result: F[A],
+      empty: A
+  ): A = runCallbackWithBounds(
+    result,
+    callbackTimeout,
+    th =>
+      trackErrors(
+        callbackTimeoutState,
+        stringName,
+        Applicative[F].pure(empty),
+        logger(th)(
+          s"Timed out running callbacks for metric '$stringName' after $callbackTimeout. " +
+            "This warning will only be shown once for each metric after process start."
+        ).as(empty)
+      ),
+    th =>
+      trackErrors(
+        callbackErrorState,
+        stringName,
+        Applicative[F].pure(empty),
+        logger(th)(
+          s"Callbacks for metric '$stringName' failed with the following exception. " +
+            "This warning will only be shown once for each metric after process start."
+        ).as(empty)
+      )
+  )
+
   override def registerDoubleCounterCallback[A](
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
@@ -526,8 +758,50 @@ class JavaMetricRegistry[F[_]: Async] private (
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
       callback: F[NonEmptyList[(Double, A)]]
-  )(f: A => IndexedSeq[String]): Resource[F, Unit] =
-    Resource.eval(ApplicativeThrow[F].raiseError(notYetPorted("registerDoubleCounterCallback")))
+  )(f: A => IndexedSeq[String]): Resource[F, Unit] = {
+    val commonLabelKeys      = commonLabels.value.keys.toIndexedSeq.map(_.value)
+    val commonLabelValuesArr = commonLabels.value.values.toIndexedSeq
+    val allLabelNamesStr     = (labelNames.map(_.value) ++ commonLabelKeys).toArray
+    val rawName              = NameUtils.makeName(prefix, name)
+    // Counter snapshots use the BASE name (without "_total" suffix) per upstream convention; the
+    // exposition writer adds "_total" back to the wire format.
+    val baseName = if (rawName.endsWith("_total")) rawName.dropRight("_total".length) else rawName
+
+    // Project user (Double, A) tuples into (Double, all-label-values) tuples up front so the
+    // generic CallbackPayload type doesn't need to know about A.
+    val projected: F[NonEmptyList[(Double, IndexedSeq[String])]] = callback.map(
+      _.map { case (v, a) => (v, f(a) ++ commonLabelValuesArr) }
+    )
+
+    registerCallback[Counter.Name](
+      MetricType.Counter,
+      prefix,
+      name,
+      projected,
+      makeCollector = (callbacks: Ref[F, CallbackPayload[F]]) =>
+        new PCollector {
+
+          override def collect(): MetricSnapshot = {
+            val aggregated: F[List[(Double, IndexedSeq[String])]] = collectAllPayload(callbacks, baseName)
+            val dataPoints: java.util.List[CounterSnapshot.CounterDataPointSnapshot] =
+              runAggregateCollect(
+                baseName,
+                aggregated.map(_.map { case (value, labelValues) =>
+                  new CounterSnapshot.CounterDataPointSnapshot(
+                    if (value < 0) 0.0 else value,
+                    Labels.of(allLabelNamesStr, labelValues.toArray),
+                    null: io.prometheus.metrics.model.snapshots.Exemplar,
+                    0L
+                  )
+                }.asJava),
+                java.util.Collections.emptyList[CounterSnapshot.CounterDataPointSnapshot]()
+              )
+            new CounterSnapshot(new MetricMetadata(baseName, help.value), dataPoints)
+          }
+
+        }
+    )
+  }
 
   override def registerDoubleGaugeCallback[A](
       prefix: Option[Metric.Prefix],
@@ -631,19 +905,34 @@ object JavaMetricRegistry {
         if (registerJvmMetrics) Sync[F].delay(JvmMetrics.builder().register(promRegistry))
         else Applicative[F].unit
       }.flatMap { _ =>
-        val acquire = for {
-          ref <- Ref.of[F, State[F]](Map.empty)
-          sem <- Semaphore[F](1L)
-        } yield new JavaMetricRegistry[F](promRegistry, ref, sem, logger)
+        Dispatcher.sequential[F].flatMap { dispatcher =>
+          val acquire = for {
+            ref                      <- Ref.of[F, State[F]](Map.empty)
+            cbState                  <- Ref.of[F, CallbackState[F]](Map.empty)
+            cbTimeoutState           <- Ref.of[F, Set[String]](Set.empty)
+            cbErrorState             <- Ref.of[F, Set[String]](Set.empty)
+            singleCallbackErrorState <- Ref.of[F, (Set[String], Set[String])]((Set.empty, Set.empty))
+            sem                      <- Semaphore[F](1L)
+          } yield new JavaMetricRegistry[F](
+            promRegistry, ref, cbState, cbTimeoutState, cbErrorState, singleCallbackErrorState, sem, dispatcher,
+            callbackTimeout = callbackCollectionTimeout, singleCallbackTimeout = callbackTimeout, logger = logger
+          )
 
-        Resource.make(acquire) { reg =>
-          // unregister all metrics that are still claimed at shutdown
-          reg.ref.get.flatMap { metrics =>
-            if (metrics.nonEmpty)
-              metrics.values.toList.traverse_ { case (_, (collector, _, _)) =>
-                Utils.unregister(collector, promRegistry, logger)
+          Resource.make(acquire) { reg =>
+            // Unregister callback collectors first, then claimed metric collectors.
+            reg.callbackState.get.flatMap { cbs =>
+              cbs.values.toList.traverse_ { case (_, _, collector) =>
+                Sync[F].delay(promRegistry.unregister(collector)).handleErrorWith { e =>
+                  logger(e)(s"Failed to unregister callback collector at shutdown: '$collector'")
+                }
               }
-            else Applicative[F].unit
+            } >> reg.ref.get.flatMap { metrics =>
+              if (metrics.nonEmpty)
+                metrics.values.toList.traverse_ { case (_, (collector, _, _)) =>
+                  Utils.unregister(collector, promRegistry, logger)
+                }
+              else Applicative[F].unit
+            }
           }
         }
       }
