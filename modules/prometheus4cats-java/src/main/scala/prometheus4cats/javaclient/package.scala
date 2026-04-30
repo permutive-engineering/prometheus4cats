@@ -23,6 +23,7 @@ import cats.effect.kernel.Unique
 
 import io.prometheus.metrics.core.metrics.MetricWithFixedMetadata
 import io.prometheus.metrics.model.registry.Collector
+import io.prometheus.metrics.model.snapshots.DataPointSnapshot
 import prometheus4cats.javaclient.models.MetricType
 import prometheus4cats.util.NameUtils
 
@@ -46,12 +47,15 @@ package object javaclient {
     * Collector at scrape time runs all stored callbacks through the dispatcher, merges their per-registration results
     * into a single `MetricSnapshot`, and returns it.
     *
-    * The inner callback type is uniformly `F[NEL[(Double, IndexedSeq[String])]]` — value plus pre-projected label
-    * values. Per-metric-type Collector subclasses convert these tuples into the appropriate kind-specific data-point
-    * snapshots at collect time. Long-typed callbacks are derived from Double via DoubleCallbackRegistry.
+    * The inner callback type is uniformly `F[NEL[DataPointSnapshot]]` — pre-built upstream data-point snapshots. Each
+    * kind-specific `register*Callback` method maps the user's typed callback (e.g., `F[NEL[(Double, A)]]` for Counter
+    * or `F[NEL[(Histogram.Value[Double], A)]]` for Histogram) into the right concrete `DataPointSnapshot` subtype
+    * inline. The kind-specific Collector then casts the data points to its concrete subtype to build the right
+    * `MetricSnapshot`. Casts are safe because the public `register*Callback` signatures enforce type-correctness at the
+    * boundary; internal storage only needs the parent type.
     */
   private[javaclient] type CallbackPayload[F[_]] =
-    Map[Unique.Token, F[NonEmptyList[(Double, IndexedSeq[String])]]]
+    Map[Unique.Token, F[NonEmptyList[DataPointSnapshot]]]
 
   private[javaclient] type CallbackState[F[_]] =
     Map[StateKey, (MetricType, Ref[F, CallbackPayload[F]], Collector)]

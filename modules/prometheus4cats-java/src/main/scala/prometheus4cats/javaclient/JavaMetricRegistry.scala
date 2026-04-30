@@ -45,11 +45,18 @@ import io.prometheus.metrics.core.metrics.{Summary => PSummary}
 import io.prometheus.metrics.instrumentation.jvm.JvmMetrics
 import io.prometheus.metrics.model.registry.PrometheusRegistry
 import io.prometheus.metrics.model.registry.{Collector => PCollector}
+import io.prometheus.metrics.model.snapshots.ClassicHistogramBuckets
 import io.prometheus.metrics.model.snapshots.CounterSnapshot
+import io.prometheus.metrics.model.snapshots.DataPointSnapshot
+import io.prometheus.metrics.model.snapshots.Exemplars
 import io.prometheus.metrics.model.snapshots.GaugeSnapshot
+import io.prometheus.metrics.model.snapshots.HistogramSnapshot
 import io.prometheus.metrics.model.snapshots.Labels
 import io.prometheus.metrics.model.snapshots.MetricMetadata
 import io.prometheus.metrics.model.snapshots.MetricSnapshot
+import io.prometheus.metrics.model.snapshots.Quantiles
+import io.prometheus.metrics.model.snapshots.SummarySnapshot
+import io.prometheus.metrics.model.snapshots.{Quantile => PQuantile}
 import prometheus4cats._
 import prometheus4cats.javaclient.internal.Utils
 import prometheus4cats.javaclient.models.MetricType
@@ -584,12 +591,12 @@ class JavaMetricRegistry[F[_]: Async] private (
     * (logged-timeout, logged-error, samples) triple so the outer aggregation can decide what to persist into
     * [[singleCallbackErrorState]] without re-logging on every scrape.
     */
-  private def timeoutEachCallback[V](
+  private def timeoutEachCallback(
       stringName: String,
-      samplesF: F[NonEmptyList[(V, IndexedSeq[String])]],
+      samplesF: F[NonEmptyList[DataPointSnapshot]],
       hasLoggedTimeout: Boolean,
       hasLoggedError: Boolean
-  ): F[(Boolean, Boolean, List[(V, IndexedSeq[String])])] =
+  ): F[(Boolean, Boolean, List[DataPointSnapshot])] =
     samplesF
       .map(samples => (hasLoggedTimeout, hasLoggedError, samples.toList))
       .timeout(singleCallbackTimeout)
@@ -622,7 +629,7 @@ class JavaMetricRegistry[F[_]: Async] private (
       metricType: MetricType,
       metricPrefix: Option[Metric.Prefix],
       name: A,
-      callback: F[NonEmptyList[(Double, IndexedSeq[String])]],
+      callback: F[NonEmptyList[DataPointSnapshot]],
       makeCollector: Ref[F, CallbackPayload[F]] => PCollector
   ): Resource[F, Unit] = {
     lazy val n                  = name.show
@@ -687,13 +694,14 @@ class JavaMetricRegistry[F[_]: Async] private (
       .void
   }
 
-  /** Aggregate all per-token callbacks into a single list of `(value, labels)` tuples, applying the per-callback
-    * timeout and error-tracking machinery. Used by every kind-specific Collector.
+  /** Aggregate all per-token callbacks into a single list of pre-built data-point snapshots, applying the per-callback
+    * timeout and error-tracking machinery. Used by every kind-specific Collector; the Collector then casts the data
+    * points to its concrete subtype and wraps them in the right `MetricSnapshot`.
     */
   private def collectAllPayload(
       callbacks: Ref[F, CallbackPayload[F]],
       renderedFullName: String
-  ): F[List[(Double, IndexedSeq[String])]] =
+  ): F[List[DataPointSnapshot]] =
     singleCallbackErrorState.get.flatMap { case (loggedTimeout, loggedError) =>
       callbacks.get
         .flatMap(
@@ -701,7 +709,7 @@ class JavaMetricRegistry[F[_]: Async] private (
             (
               loggedTimeout.contains(renderedFullName),
               loggedError.contains(renderedFullName),
-              List.empty[(Double, IndexedSeq[String])]
+              List.empty[DataPointSnapshot]
             )
           ) { case ((hasLoggedTimeout0, hasLoggedError0, acc), samplesF) =>
             timeoutEachCallback(renderedFullName, samplesF, hasLoggedTimeout0, hasLoggedError0).map {
@@ -768,10 +776,18 @@ class JavaMetricRegistry[F[_]: Async] private (
     // exposition writer adds "_total" back to the wire format.
     val baseName = if (rawName.endsWith("_total")) rawName.dropRight("_total".length) else rawName
 
-    // Project user (Double, A) tuples into (Double, all-label-values) tuples up front so the
-    // generic CallbackPayload type doesn't need to know about A.
-    val projected: F[NonEmptyList[(Double, IndexedSeq[String])]] = callback.map(
-      _.map { case (v, a) => (v, f(a) ++ commonLabelValuesArr) }
+    // Build CounterDataPointSnapshot instances inside the user callback's F so the generic
+    // CallbackPayload type can hold them as plain DataPointSnapshots. The Collector at scrape time
+    // casts back to CounterDataPointSnapshot.
+    val projected: F[NonEmptyList[DataPointSnapshot]] = callback.map(
+      _.map { case (v, a) =>
+        new CounterSnapshot.CounterDataPointSnapshot(
+          if (v < 0) 0.0 else v,
+          Labels.of(allLabelNamesStr, (f(a) ++ commonLabelValuesArr).toArray),
+          null: io.prometheus.metrics.model.snapshots.Exemplar,
+          0L
+        ): DataPointSnapshot
+      }
     )
 
     registerCallback[Counter.Name](
@@ -783,18 +799,12 @@ class JavaMetricRegistry[F[_]: Async] private (
         new PCollector {
 
           override def collect(): MetricSnapshot = {
-            val aggregated: F[List[(Double, IndexedSeq[String])]] = collectAllPayload(callbacks, baseName)
             val dataPoints: java.util.List[CounterSnapshot.CounterDataPointSnapshot] =
               runAggregateCollect(
                 baseName,
-                aggregated.map(_.map { case (value, labelValues) =>
-                  new CounterSnapshot.CounterDataPointSnapshot(
-                    if (value < 0) 0.0 else value,
-                    Labels.of(allLabelNamesStr, labelValues.toArray),
-                    null: io.prometheus.metrics.model.snapshots.Exemplar,
-                    0L
-                  )
-                }.asJava),
+                collectAllPayload(callbacks, baseName).map(
+                  _.map(_.asInstanceOf[CounterSnapshot.CounterDataPointSnapshot]).asJava
+                ),
                 java.util.Collections.emptyList[CounterSnapshot.CounterDataPointSnapshot]()
               )
             new CounterSnapshot(new MetricMetadata(baseName, help.value), dataPoints)
@@ -817,8 +827,14 @@ class JavaMetricRegistry[F[_]: Async] private (
     val allLabelNamesStr     = (labelNames.map(_.value) ++ commonLabelKeys).toArray
     val fullName             = NameUtils.makeName(prefix, name)
 
-    val projected: F[NonEmptyList[(Double, IndexedSeq[String])]] = callback.map(
-      _.map { case (v, a) => (v, f(a) ++ commonLabelValuesArr) }
+    val projected: F[NonEmptyList[DataPointSnapshot]] = callback.map(
+      _.map { case (v, a) =>
+        new GaugeSnapshot.GaugeDataPointSnapshot(
+          v,
+          Labels.of(allLabelNamesStr, (f(a) ++ commonLabelValuesArr).toArray),
+          null: io.prometheus.metrics.model.snapshots.Exemplar
+        ): DataPointSnapshot
+      }
     )
 
     registerCallback[Gauge.Name](
@@ -830,17 +846,12 @@ class JavaMetricRegistry[F[_]: Async] private (
         new PCollector {
 
           override def collect(): MetricSnapshot = {
-            val aggregated = collectAllPayload(callbacks, fullName)
             val dataPoints: java.util.List[GaugeSnapshot.GaugeDataPointSnapshot] =
               runAggregateCollect(
                 fullName,
-                aggregated.map(_.map { case (value, labelValues) =>
-                  new GaugeSnapshot.GaugeDataPointSnapshot(
-                    value,
-                    Labels.of(allLabelNamesStr, labelValues.toArray),
-                    null: io.prometheus.metrics.model.snapshots.Exemplar
-                  )
-                }.asJava),
+                collectAllPayload(callbacks, fullName).map(
+                  _.map(_.asInstanceOf[GaugeSnapshot.GaugeDataPointSnapshot]).asJava
+                ),
                 java.util.Collections.emptyList[GaugeSnapshot.GaugeDataPointSnapshot]()
               )
             new GaugeSnapshot(new MetricMetadata(fullName, help.value), dataPoints)
@@ -858,8 +869,54 @@ class JavaMetricRegistry[F[_]: Async] private (
       labelNames: IndexedSeq[Label.Name],
       buckets: NonEmptySeq[Double],
       callback: F[NonEmptyList[(Histogram.Value[Double], A)]]
-  )(f: A => IndexedSeq[String]): Resource[F, Unit] =
-    Resource.eval(ApplicativeThrow[F].raiseError(notYetPorted("registerDoubleHistogramCallback")))
+  )(f: A => IndexedSeq[String]): Resource[F, Unit] = {
+    val commonLabelKeys      = commonLabels.value.keys.toIndexedSeq.map(_.value)
+    val commonLabelValuesArr = commonLabels.value.values.toIndexedSeq
+    val allLabelNamesStr     = (labelNames.map(_.value) ++ commonLabelKeys).toArray
+    val fullName             = NameUtils.makeName(prefix, name)
+    // Histogram buckets in 1.x include +Inf as the last upper bound; the user-supplied buckets array
+    // doesn't, so append it. Histogram.Value[Double].bucketValues is parallel-indexed with the
+    // (declared-buckets ++ +Inf) sequence (cumulative counts).
+    val upperBoundsWithInf = (buckets.toSeq :+ Double.PositiveInfinity).toArray
+
+    val projected: F[NonEmptyList[DataPointSnapshot]] = callback.map(
+      _.map { case (value, a) =>
+        val labelValuesArr = (f(a) ++ commonLabelValuesArr).toArray
+        // bucketValues are cumulative Double counts; ClassicHistogramBuckets.of wants long counts.
+        val cumulativeCounts: Array[Long] = value.bucketValues.toSeq.map(_.toLong).toArray
+        new HistogramSnapshot.HistogramDataPointSnapshot(
+          ClassicHistogramBuckets.of(upperBoundsWithInf, cumulativeCounts),
+          value.sum,
+          Labels.of(allLabelNamesStr, labelValuesArr),
+          Exemplars.EMPTY,
+          0L
+        ): DataPointSnapshot
+      }
+    )
+
+    registerCallback[Histogram.Name](
+      MetricType.Histogram,
+      prefix,
+      name,
+      projected,
+      makeCollector = (callbacks: Ref[F, CallbackPayload[F]]) =>
+        new PCollector {
+
+          override def collect(): MetricSnapshot = {
+            val dataPoints: java.util.List[HistogramSnapshot.HistogramDataPointSnapshot] =
+              runAggregateCollect(
+                fullName,
+                collectAllPayload(callbacks, fullName).map(
+                  _.map(_.asInstanceOf[HistogramSnapshot.HistogramDataPointSnapshot]).asJava
+                ),
+                java.util.Collections.emptyList[HistogramSnapshot.HistogramDataPointSnapshot]()
+              )
+            new HistogramSnapshot(new MetricMetadata(fullName, help.value), dataPoints)
+          }
+
+        }
+    )
+  }
 
   override def registerDoubleSummaryCallback[A](
       prefix: Option[Metric.Prefix],
@@ -868,8 +925,53 @@ class JavaMetricRegistry[F[_]: Async] private (
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
       callback: F[NonEmptyList[(Summary.Value[Double], A)]]
-  )(f: A => IndexedSeq[String]): Resource[F, Unit] =
-    Resource.eval(ApplicativeThrow[F].raiseError(notYetPorted("registerDoubleSummaryCallback")))
+  )(f: A => IndexedSeq[String]): Resource[F, Unit] = {
+    val commonLabelKeys      = commonLabels.value.keys.toIndexedSeq.map(_.value)
+    val commonLabelValuesArr = commonLabels.value.values.toIndexedSeq
+    val allLabelNamesStr     = (labelNames.map(_.value) ++ commonLabelKeys).toArray
+    val fullName             = NameUtils.makeName(prefix, name)
+
+    val projected: F[NonEmptyList[DataPointSnapshot]] = callback.map(
+      _.map { case (value, a) =>
+        val labelValuesArr = (f(a) ++ commonLabelValuesArr).toArray
+        val quantilesJava: Array[PQuantile] =
+          value.quantiles.toList.map { case (q, v) => new PQuantile(q, v) }.toArray
+        val quantiles =
+          if (quantilesJava.isEmpty) Quantiles.EMPTY else Quantiles.of(quantilesJava: _*)
+        new SummarySnapshot.SummaryDataPointSnapshot(
+          value.count.toLong,
+          value.sum,
+          quantiles,
+          Labels.of(allLabelNamesStr, labelValuesArr),
+          Exemplars.EMPTY,
+          0L
+        ): DataPointSnapshot
+      }
+    )
+
+    registerCallback[Summary.Name](
+      MetricType.Summary,
+      prefix,
+      name,
+      projected,
+      makeCollector = (callbacks: Ref[F, CallbackPayload[F]]) =>
+        new PCollector {
+
+          override def collect(): MetricSnapshot = {
+            val dataPoints: java.util.List[SummarySnapshot.SummaryDataPointSnapshot] =
+              runAggregateCollect(
+                fullName,
+                collectAllPayload(callbacks, fullName).map(
+                  _.map(_.asInstanceOf[SummarySnapshot.SummaryDataPointSnapshot]).asJava
+                ),
+                java.util.Collections.emptyList[SummarySnapshot.SummaryDataPointSnapshot]()
+              )
+            new SummarySnapshot(new MetricMetadata(fullName, help.value), dataPoints)
+          }
+
+        }
+    )
+  }
 
   override def registerMetricCollectionCallback(
       prefix: Option[Metric.Prefix],
