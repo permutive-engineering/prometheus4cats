@@ -19,8 +19,8 @@ To use the latest version, include the following in your `build.sbt`:
 
 ```scala
 libraryDependencies ++= Seq(
-  "com.permutive" %% "prometheus4cats" % "5.0.1",
-  "com.permutive" %% "prometheus4cats-java" % "5.0.1"
+  "com.permutive" %% "prometheus4cats" % "6.0.0",
+  "com.permutive" %% "prometheus4cats-java" % "6.0.0"
 )
 ```
 
@@ -28,7 +28,7 @@ libraryDependencies ++= Seq(
 import cats.effect.IO
 
 import prometheus4cats.MetricFactory
-import prometheus4cats.javasimpleclient.JavaMetricRegistry
+import prometheus4cats.javaclient.JavaMetricRegistry
 
 val counterResource =
   for {

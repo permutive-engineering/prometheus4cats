@@ -18,18 +18,18 @@ See the example below on how to use the Java Registry:
 import cats.effect.IO
 import cats.effect.Resource
 
-import io.prometheus.client.CollectorRegistry
+import io.prometheus.metrics.model.registry.PrometheusRegistry
 
 import prometheus4cats.MetricFactory
-import prometheus4cats.javasimpleclient.JavaMetricRegistry
+import prometheus4cats.javaclient.JavaMetricRegistry
 
-// Construct a Java regisitry using the default collector registry
+// Construct a Java registry using a default PrometheusRegistry
 val default: Resource[IO, JavaMetricRegistry[IO]] =
   JavaMetricRegistry.Builder[IO]().build
 
-// Construct a Java registry using a custom collector registry
+// Construct a Java registry using a custom PrometheusRegistry
 val custom: Resource[IO, JavaMetricRegistry[IO]] =
-  JavaMetricRegistry.Builder[IO]().withRegistry(new CollectorRegistry()).build
+  JavaMetricRegistry.Builder[IO]().withRegistry(new PrometheusRegistry()).build
 
 // Use the registry to get a factory
 val factory: Resource[IO, MetricFactory.WithCallbacks[IO]] =
@@ -38,21 +38,11 @@ val factory: Resource[IO, MetricFactory.WithCallbacks[IO]] =
 
 ## Built-in Metrics
 
-The Java registry provides some metrics related to its internals, these can used when investigating a callback that may
-not be functioning probably:
-
-| Metric Name                                          | Metric Type | Labels                             | Description                                                                                                                                                                |
-|------------------------------------------------------|-------------|------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `prometheus4cats_registered_metrics`                 | Gauge       |                                    | Number of [metrics] registered in the Prometheus Java registry by Prometheus4Cats                                                                                          |
-| `prometheus4cats_registered_metric_claims`           | Gauge       | `metric_name`, `metric_type`       | Number of claims on each metric registered in the Prometheus Java registry by Prometheus4Cats; i.e. how many [references](#implementation-notes) there are for each metric |
-| `prometheus4cats_registered_callback_metrics`        | Gauge       |                                    | Number of [callback] metrics registered in the Prometheus Java registry by Prometheus4Cats                                                                                 |
-| `prometheus4cats_registered_callbacks_per_metric`    | Gauge       | `metric_name`, `metric_type`       | Number of callbacks per metric [callback] registered with the Prometheus4Cats Java registry. Multiple callbacks may be registered per metric name.                         |                                                                                                                                                                            |
-| `prometheus4cats_combined_callback_metric_total`     | Counter     | `metric_name`, `status`            | Number of times all callbacks for a metric have been executed, with a status (success, error, timeout)                                                                     |
-| `prometheus4cats_callback_total`                     | Counter     | `metric_name`, `status`            | Number of times each metric callback has been executed, with a status (success, error, timeout)                                                                            |
-| `prometheus4cats_collection_callback_duplicates`     | Gauge       | `duplicate_type`,  `metric_prefix` | Duplicate metrics with different types detected in [metric collection]s callbacks                                                                                          |
-| `prometheus4cats_collection_callback_duration`       | Histogram   |                                    | Time it takes to run all [metric collection] callbacks                                                                                                                     |
-| `prometheus4cats_combined_collection_callback_total` | Counter     | `status`                           | Number of times all of the [metric collection] callbacks have been executed, with a status (success, error, timeout)                                                       |
-| `prometheus4cats_collection_callback_total`          | Counter     | `status`                           | Number of times a [metric collection] callback has been executed, with a status (success, error, timeout)                                                                  |
+> ⚠️ **v6 regression — pending**: the v5 javasimpleclient registry exposed a set of self-observability
+> metrics (`prometheus4cats_registered_metrics`, `prometheus4cats_combined_callback_metric_total`,
+> etc.) for inspecting registry state and callback execution outcomes. The v6 javaclient backend
+> does not yet emit these. They will be re-added in a follow-up commit before v6.0.0 is tagged.
+> See the v6 PR for the discussion and the original v5 metric list.
 
 ## Implementation Notes
 
