@@ -32,7 +32,7 @@ libraryDependencies ++= Seq(
 import cats.effect.IO
 
 import prometheus4cats.MetricFactory
-import prometheus4cats.javasimpleclient.JavaMetricRegistry
+import prometheus4cats.javaclient.JavaMetricRegistry
 
 val counterResource =
   for {
