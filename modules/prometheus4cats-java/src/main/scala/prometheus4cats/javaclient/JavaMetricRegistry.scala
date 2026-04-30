@@ -45,6 +45,7 @@ import io.prometheus.metrics.core.metrics.{Summary => PSummary}
 import io.prometheus.metrics.instrumentation.jvm.JvmMetrics
 import io.prometheus.metrics.model.registry.PrometheusRegistry
 import io.prometheus.metrics.model.registry.{Collector => PCollector}
+import io.prometheus.metrics.model.registry.{MultiCollector => PMultiCollector}
 import io.prometheus.metrics.model.snapshots.ClassicHistogramBuckets
 import io.prometheus.metrics.model.snapshots.CounterSnapshot
 import io.prometheus.metrics.model.snapshots.DataPointSnapshot
@@ -54,6 +55,7 @@ import io.prometheus.metrics.model.snapshots.HistogramSnapshot
 import io.prometheus.metrics.model.snapshots.Labels
 import io.prometheus.metrics.model.snapshots.MetricMetadata
 import io.prometheus.metrics.model.snapshots.MetricSnapshot
+import io.prometheus.metrics.model.snapshots.MetricSnapshots
 import io.prometheus.metrics.model.snapshots.Quantiles
 import io.prometheus.metrics.model.snapshots.SummarySnapshot
 import io.prometheus.metrics.model.snapshots.{Quantile => PQuantile}
@@ -83,6 +85,20 @@ class JavaMetricRegistry[F[_]: Async] private (
     private val dispatcher: Dispatcher[F],
     private val callbackTimeout: FiniteDuration,
     private val singleCallbackTimeout: FiniteDuration,
+    // Metric-collection callbacks: keyed by prefix (each prefix has its own merged common-labels map
+    // and a token-keyed map of user callbacks producing MetricCollection values). Constructed
+    // here, but the upstream MultiCollector that aggregates them is built in the class body via
+    // [[buildMetricCollectionMultiCollector]] so it can capture `this`.
+    private val metricCollectionRef: Ref[F, Map[
+      Option[Metric.Prefix],
+      (
+          Map[Label.Name, String],
+          Map[
+            Unique.Token,
+            F[MetricCollection]
+          ]
+      )
+    ]],
     private val logger: Throwable => String => F[Unit]
 ) extends DoubleMetricRegistry[F]
     with DoubleCallbackRegistry[F] {
@@ -973,18 +989,194 @@ class JavaMetricRegistry[F[_]: Async] private (
     )
   }
 
+  /** A single upstream `MultiCollector` that aggregates all metric-collection callbacks across all prefixes. Built
+    * lazily so it captures `this` (specifically `metricCollectionRef`, the dispatcher, and the timeout helpers). The
+    * Builder.build flow accesses it via `metricCollectionCollector` to register it with the underlying registry on
+    * acquire and unregister on release.
+    */
+  private[javaclient] val metricCollectionCollector: PMultiCollector = new PMultiCollector {
+
+    override def collect(): MetricSnapshots = {
+      val result: F[MetricSnapshots] = metricCollectionRef.get.flatMap { perPrefix =>
+        // For each prefix, run all registered callbacks under the per-callback timeout, merge their
+        // MetricCollection values, then convert to MetricSnapshots. We use a fresh
+        // `singleCallbackErrorState` reading on each scrape so log-once gating still applies.
+        perPrefix.toList.flatTraverse { case (prefix, (commonLabels, callbacks)) =>
+          val mergedCol: F[MetricCollection] = callbacks.values.toList.foldM(MetricCollection.empty) { (acc, cbF) =>
+            cbF
+              .timeout(singleCallbackTimeout)
+              .handleErrorWith { th =>
+                logger(th)(
+                  s"A metric-collection callback (prefix=${prefix.map(_.value).getOrElse("<none>")}) failed or timed out."
+                ).as(MetricCollection.empty)
+              }
+              .map(acc.combine)
+          }
+          mergedCol.map(metricCollectionToSnapshots(prefix, commonLabels, _))
+        }
+      }.map(snapshotList => new MetricSnapshots(snapshotList.asJava))
+
+      runCallbackWithBounds(
+        result,
+        callbackTimeout,
+        th =>
+          logger(th)(s"Combined metric-collection callbacks timed out after $callbackTimeout")
+            .as(MetricSnapshots.builder().build()),
+        th => logger(th)(s"Combined metric-collection callbacks failed").as(MetricSnapshots.builder().build())
+      )
+    }
+
+  }
+
   override def registerMetricCollectionCallback(
       prefix: Option[Metric.Prefix],
       commonLabels: Metric.CommonLabels,
       callback: F[MetricCollection]
-  ): Resource[F, Unit] =
-    Resource.eval(ApplicativeThrow[F].raiseError(notYetPorted("registerMetricCollectionCallback")))
+  ): Resource[F, Unit] = {
+    val acquire: F[Unique.Token] = Unique[F].unique.flatMap { token =>
+      metricCollectionRef
+        .update(map =>
+          map.updated(
+            prefix,
+            map.get(prefix).fold(commonLabels.value -> Map(token -> callback)) { case (existingCommon, cbs) =>
+              (existingCommon ++ commonLabels.value) -> cbs.updated(token, callback)
+            }
+          )
+        )
+        .as(token)
+    }
 
-  private def notYetPorted(methodName: String): UnsupportedOperationException =
-    new UnsupportedOperationException(
-      s"prometheus4cats.javaclient.JavaMetricRegistry.$methodName is not yet implemented in this commit. " +
-        "It will be ported in a subsequent commit before the simpleclient backend is removed."
-    )
+    Resource
+      .make(acquire) { token =>
+        metricCollectionRef.update { map =>
+          map.get(prefix).fold(map) { case (commonLabels, cbs) =>
+            val remaining = cbs - token
+            if (remaining.isEmpty) map - prefix
+            else map.updated(prefix, commonLabels -> remaining)
+          }
+        }
+      }
+      .void
+  }
+
+  /** Convert a `MetricCollection` (the prometheus4cats per-prefix bag of typed metric values) into a flat list of
+    * upstream `MetricSnapshot`s. Each (name, labelNames) entry becomes one snapshot with one or more data points (one
+    * per List entry in the user's MetricCollection).
+    */
+  private def metricCollectionToSnapshots(
+      prefix: Option[Metric.Prefix],
+      commonLabels: Map[Label.Name, String],
+      mc: MetricCollection
+  ): List[MetricSnapshot] = {
+    val commonLabelKeysArr   = commonLabels.keys.toArray.map(_.value)
+    val commonLabelValuesArr = commonLabels.values.toArray
+
+    def labelsFor(labelNames: IndexedSeq[Label.Name], labelValues: IndexedSeq[String]): Labels = {
+      val nameArr  = labelNames.map(_.value).toArray ++ commonLabelKeysArr
+      val valueArr = labelValues.toArray ++ commonLabelValuesArr
+      Labels.of(nameArr, valueArr)
+    }
+
+    val counterSnapshots: List[MetricSnapshot] = mc.counters.toList.flatMap { case ((name, labelNames), values) =>
+      values.headOption.map { head =>
+        val rawName  = NameUtils.makeName(prefix, name)
+        val baseName = if (rawName.endsWith("_total")) rawName.dropRight("_total".length) else rawName
+        val dps = values.map { v =>
+          val (vDouble, lbls) = v match {
+            case x: MetricCollection.Value.LongCounter   => (x.value.toDouble, x.labelValues)
+            case x: MetricCollection.Value.DoubleCounter => (x.value, x.labelValues)
+          }
+          new CounterSnapshot.CounterDataPointSnapshot(
+            if (vDouble < 0) 0.0 else vDouble,
+            labelsFor(labelNames, lbls),
+            null: io.prometheus.metrics.model.snapshots.Exemplar,
+            0L
+          )
+        }.asJava
+        new CounterSnapshot(new MetricMetadata(baseName, head.help.value), dps): MetricSnapshot
+      }
+    }
+
+    val gaugeSnapshots: List[MetricSnapshot] = mc.gauges.toList.flatMap { case ((name, labelNames), values) =>
+      values.headOption.map { head =>
+        val fullName = NameUtils.makeName(prefix, name)
+        val dps = values.map { v =>
+          val (vDouble, lbls) = v match {
+            case x: MetricCollection.Value.LongGauge   => (x.value.toDouble, x.labelValues)
+            case x: MetricCollection.Value.DoubleGauge => (x.value, x.labelValues)
+          }
+          new GaugeSnapshot.GaugeDataPointSnapshot(
+            vDouble,
+            labelsFor(labelNames, lbls),
+            null: io.prometheus.metrics.model.snapshots.Exemplar
+          )
+        }.asJava
+        new GaugeSnapshot(new MetricMetadata(fullName, head.help.value), dps): MetricSnapshot
+      }
+    }
+
+    val histogramSnapshots: List[MetricSnapshot] = mc.histograms.toList.flatMap { case ((name, labelNames), values) =>
+      values.headOption.map { head =>
+        val fullName = NameUtils.makeName(prefix, name)
+        // Each consumer-supplied histogram value declares its own buckets — they must agree across the
+        // List entries for a given name. Take the first entry's buckets as the canonical declaration.
+        val buckets: NonEmptySeq[Double] = head match {
+          case h: MetricCollection.Value.LongHistogram   => h.buckets.map(_.toDouble)
+          case h: MetricCollection.Value.DoubleHistogram => h.buckets
+        }
+        val upperBoundsWithInf = (buckets.toSeq :+ Double.PositiveInfinity).toArray
+        val dps = values.map { v =>
+          val (sum, bucketCounts, lbls) = v match {
+            case x: MetricCollection.Value.LongHistogram =>
+              (x.value.sum.toDouble, x.value.bucketValues.toSeq.map(_.toLong).toArray, x.labelValues)
+            case x: MetricCollection.Value.DoubleHistogram =>
+              (x.value.sum, x.value.bucketValues.toSeq.map(_.toLong).toArray, x.labelValues)
+          }
+          new HistogramSnapshot.HistogramDataPointSnapshot(
+            ClassicHistogramBuckets.of(upperBoundsWithInf, bucketCounts),
+            sum,
+            labelsFor(labelNames, lbls),
+            Exemplars.EMPTY,
+            0L
+          )
+        }.asJava
+        new HistogramSnapshot(new MetricMetadata(fullName, head.help.value), dps): MetricSnapshot
+      }
+    }
+
+    val summarySnapshots: List[MetricSnapshot] = mc.summaries.toList.flatMap { case ((name, labelNames), values) =>
+      values.headOption.map { head =>
+        val fullName = NameUtils.makeName(prefix, name)
+        val dps = values.map { v =>
+          val (count, sum, quantiles, lbls) = v match {
+            case x: MetricCollection.Value.LongSummary =>
+              (
+                x.value.count.toLong,
+                x.value.sum.toDouble,
+                x.value.quantiles.map { case (q, v) => q -> v.toDouble },
+                x.labelValues
+              )
+            case x: MetricCollection.Value.DoubleSummary =>
+              (x.value.count.toLong, x.value.sum, x.value.quantiles, x.labelValues)
+          }
+          val quantilesJava = quantiles.toList.map { case (q, v) => new PQuantile(q, v) }.toArray
+          val pquantiles =
+            if (quantilesJava.isEmpty) Quantiles.EMPTY else Quantiles.of(quantilesJava: _*)
+          new SummarySnapshot.SummaryDataPointSnapshot(
+            count,
+            sum,
+            pquantiles,
+            labelsFor(labelNames, lbls),
+            Exemplars.EMPTY,
+            0L
+          )
+        }.asJava
+        new SummarySnapshot(new MetricMetadata(fullName, head.help.value), dps): MetricSnapshot
+      }
+    }
+
+    counterSnapshots ::: gaugeSnapshots ::: histogramSnapshots ::: summarySnapshots
+  }
 
   private def transformExemplarLabels(labels: Exemplar.Labels): Labels =
     Labels.of(
@@ -1051,27 +1243,41 @@ object JavaMetricRegistry {
             cbTimeoutState           <- Ref.of[F, Set[String]](Set.empty)
             cbErrorState             <- Ref.of[F, Set[String]](Set.empty)
             singleCallbackErrorState <- Ref.of[F, (Set[String], Set[String])]((Set.empty, Set.empty))
-            sem                      <- Semaphore[F](1L)
-          } yield new JavaMetricRegistry[F](
-            promRegistry, ref, cbState, cbTimeoutState, cbErrorState, singleCallbackErrorState, sem, dispatcher,
-            callbackTimeout = callbackCollectionTimeout, singleCallbackTimeout = callbackTimeout, logger = logger
-          )
+            metricCollectionRef <- Ref.of[F, Map[
+                                     Option[Metric.Prefix],
+                                     (Map[Label.Name, String], Map[Unique.Token, F[MetricCollection]])
+                                   ]](Map.empty)
+            sem <- Semaphore[F](1L)
+            reg = new JavaMetricRegistry[F](
+                    promRegistry, ref, cbState, cbTimeoutState, cbErrorState, singleCallbackErrorState, sem, dispatcher,
+                    callbackTimeout = callbackCollectionTimeout, singleCallbackTimeout = callbackTimeout,
+                    metricCollectionRef = metricCollectionRef, logger = logger
+                  )
+            // Register the metric-collection MultiCollector unconditionally; it returns an empty
+            // MetricSnapshots when no consumer callbacks are registered, so it's a no-op-cost
+            // collector when unused.
+            _ <- Sync[F].delay(promRegistry.register(reg.metricCollectionCollector))
+          } yield reg
 
           Resource.make(acquire) { reg =>
-            // Unregister callback collectors first, then claimed metric collectors.
-            reg.callbackState.get.flatMap { cbs =>
-              cbs.values.toList.traverse_ { case (_, _, collector) =>
-                Sync[F].delay(promRegistry.unregister(collector)).handleErrorWith { e =>
-                  logger(e)(s"Failed to unregister callback collector at shutdown: '$collector'")
+            // Unregister metric-collection collector first (always present), then individual
+            // callback collectors, then claimed metric collectors.
+            Sync[F]
+              .delay(promRegistry.unregister(reg.metricCollectionCollector))
+              .handleErrorWith(e => logger(e)("Failed to unregister metric-collection MultiCollector at shutdown")) >>
+              reg.callbackState.get.flatMap { cbs =>
+                cbs.values.toList.traverse_ { case (_, _, collector) =>
+                  Sync[F].delay(promRegistry.unregister(collector)).handleErrorWith { e =>
+                    logger(e)(s"Failed to unregister callback collector at shutdown: '$collector'")
+                  }
                 }
+              } >> reg.ref.get.flatMap { metrics =>
+                if (metrics.nonEmpty)
+                  metrics.values.toList.traverse_ { case (_, (collector, _, _)) =>
+                    Utils.unregister(collector, promRegistry, logger)
+                  }
+                else Applicative[F].unit
               }
-            } >> reg.ref.get.flatMap { metrics =>
-              if (metrics.nonEmpty)
-                metrics.values.toList.traverse_ { case (_, (collector, _, _)) =>
-                  Utils.unregister(collector, promRegistry, logger)
-                }
-              else Applicative[F].unit
-            }
           }
         }
       }
