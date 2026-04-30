@@ -27,6 +27,7 @@ import io.prometheus.metrics.model.registry.PrometheusRegistry
 import io.prometheus.metrics.model.snapshots.CounterSnapshot
 import io.prometheus.metrics.model.snapshots.GaugeSnapshot
 import io.prometheus.metrics.model.snapshots.HistogramSnapshot
+import io.prometheus.metrics.model.snapshots.SummarySnapshot
 import munit.CatsEffectSuite
 import prometheus4cats._
 
@@ -153,6 +154,32 @@ class JavaMetricRegistrySuite extends CatsEffectSuite {
             val dp = snapshot.getDataPoints.asScala.head
             assert(dp.hasNativeHistogramData)
             assertEquals(dp.getNativeSchema, 3)
+          }
+        }
+    }
+  }
+
+  test("summary — quantiles propagate and observations are aggregated") {
+    freshRegistry.use { case (promRegistry, factory) =>
+      factory
+        .summary("test_summary")
+        .ofDouble
+        .help("test summary")
+        .quantile(Summary.Quantile.from(0.5).toOption.get, Summary.AllowedError.from(0.05).toOption.get)
+        .quantile(Summary.Quantile.from(0.99).toOption.get, Summary.AllowedError.from(0.01).toOption.get)
+        .build
+        .use { s =>
+          (s.observe(0.1) >> s.observe(0.5) >> s.observe(1.0) >> s.observe(2.5)) >> IO.delay {
+            val snapshot = promRegistry
+              .scrape()
+              .asScala
+              .collectFirst { case s: SummarySnapshot if s.getMetadata.getName === "test_summary" => s }
+              .getOrElse(fail("expected a SummarySnapshot named 'test_summary'"))
+            val dp = snapshot.getDataPoints.asScala.head
+            assertEquals(dp.getCount, 4L)
+            assertEqualsDouble(dp.getSum, 4.1, 1e-9)
+            // quantile-based summaries record the quantile values; assert both quantiles were declared
+            assertEquals(dp.getQuantiles.size, 2)
           }
         }
     }
