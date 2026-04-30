@@ -103,7 +103,7 @@ class JavaMetricRegistry[F[_]: Async] private (
 
   type Underlying = PrometheusRegistry
 
-  /** Returns the underlying upstream [[PrometheusRegistry]]. Use to expose metrics over an HTTP endpoint or to register
+  /** Returns the underlying upstream `PrometheusRegistry`. Use to expose metrics over an HTTP endpoint or to register
     * external collectors.
     */
   def underlying: PrometheusRegistry = registry
@@ -1260,7 +1260,7 @@ object JavaMetricRegistry {
     * bridge) can migrate by changing only the import.
     *
     * Differences from the legacy Builder:
-    *   - takes a [[PrometheusRegistry]] instead of `CollectorRegistry`;
+    *   - takes a `PrometheusRegistry` instead of `CollectorRegistry`;
     *   - JVM/process metrics are added via [[Builder.withJvmMetrics]] (which uses
     *     `prometheus-metrics-instrumentation-jvm`'s `JvmMetrics.builder().register(...)`) rather than a list of
     *     simpleclient hotspot collectors.

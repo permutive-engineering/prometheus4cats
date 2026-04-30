@@ -220,9 +220,9 @@ class CallbackBuildStep[F[_], A, B] private[internal] (
   * promoted DSL is not supported (dual-mode IS the maximum). Order in the chain: `.buckets(...)` → optional
   * `.withNative` → `.label(...)` → `.build`.
   *
-  * Mixed into [[HistogramMetricDsl.Plain]] (for the base [[MetricFactory.histogram]] path) and
-  * [[HistogramMetricDsl.WithCallbacksImpl]] (for the [[MetricFactory.WithCallbacks.histogram]] path) alongside the
-  * appropriate `MetricDsl` flavour. The compound type alias [[HistogramMetricDsl]] (in the `internal` package object)
+  * Mixed into `HistogramMetricDsl.Plain` (for the base `MetricFactory.histogram` path) and
+  * `HistogramMetricDsl.WithCallbacksImpl` (for the `MetricFactory.WithCallbacks.histogram` path) alongside the
+  * appropriate `MetricDsl` flavour. The compound type alias `HistogramMetricDsl` (in the `internal` package object)
   * exposes both surfaces simultaneously, so callers can do `.label(...)` / `.build` (from `MetricDsl`) AND
   * `.withNative` from a single value.
   */

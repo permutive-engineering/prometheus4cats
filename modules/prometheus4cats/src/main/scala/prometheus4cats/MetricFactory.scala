@@ -557,7 +557,7 @@ object MetricFactory {
       )
 
     /** Type alias for the histogram DSL returned in the callback-aware variant: same shape as
-      * [[MetricFactory.HistogramWithNativeDsl]] but with the more specific [[HistogramMetricDsl.WithCallbacksImpl]] in
+      * [[MetricFactory.HistogramWithNativeDsl]] but with the more specific `HistogramMetricDsl.WithCallbacksImpl` in
       * place of the compound type, so consumers see `.callback(...)` as well as `.label(...)` / `.build` /
       * `.withNative` after `.buckets(...)`.
       *
