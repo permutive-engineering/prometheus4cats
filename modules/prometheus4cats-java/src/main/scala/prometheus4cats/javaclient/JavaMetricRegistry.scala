@@ -30,6 +30,7 @@ import cats.syntax.all._
 
 import io.prometheus.metrics.core.metrics.{Counter => PCounter}
 import io.prometheus.metrics.core.metrics.{Gauge => PGauge}
+import io.prometheus.metrics.core.metrics.{Histogram => PHistogram}
 import io.prometheus.metrics.instrumentation.jvm.JvmMetrics
 import io.prometheus.metrics.model.registry.PrometheusRegistry
 import io.prometheus.metrics.model.snapshots.Labels
@@ -85,21 +86,21 @@ class JavaMetricRegistry[F[_]: Async] private (
       metricPrefix: Option[Metric.Prefix],
       stringName: String,
       labels: IndexedSeq[Label.Name]
-  ): Resource[F, M] = {
+  ): Resource[F, (M, Ref[F, Option[Exemplar.Data]])] = {
     lazy val metricId: MetricID = (labels, metricType)
     lazy val fullName: StateKey = (metricPrefix, stringName)
     lazy val renderedFullName   = NameUtils.makeName(metricPrefix, stringName)
 
     val acquire = sem.permit.surround(
       ref.get
-        .flatMap[(State[F], M)] { (metrics: State[F]) =>
+        .flatMap[(State[F], (M, Ref[F, Option[Exemplar.Data]]))] { (metrics: State[F]) =>
           metrics.get(fullName) match {
             case Some((expected, (collector, exemplarRef, references))) =>
               if (metricId == expected)
                 Applicative[F].pure(
                   (
                     metrics.updated(fullName, (expected, (collector, exemplarRef, references + 1))),
-                    collector.asInstanceOf[M]
+                    (collector.asInstanceOf[M], exemplarRef)
                   )
                 )
               else
@@ -112,13 +113,16 @@ class JavaMetricRegistry[F[_]: Async] private (
               for {
                 exemplarRef <- Ref.of[F, Option[Exemplar.Data]](None)
                 collector   <- Sync[F].delay(register())
-              } yield (metrics.updated(fullName, (metricId, (collector, exemplarRef, 1))), collector)
+              } yield (
+                metrics.updated(fullName, (metricId, (collector, exemplarRef, 1))),
+                (collector, exemplarRef)
+              )
           }
         }
-        .flatMap { case (state, collector) => ref.set(state).as(collector) }
+        .flatMap { case (state, out) => ref.set(state).as(out) }
     )
 
-    Resource.make(acquire) { collector =>
+    Resource.make(acquire) { case (collector, _) =>
       sem.permit.surround {
         ref.get.flatMap { metrics =>
           metrics.get(fullName) match {
@@ -148,39 +152,40 @@ class JavaMetricRegistry[F[_]: Async] private (
 
     configureBuilderOrRetrieve[PCounter](
       register = () =>
+        // No `.withExemplars()` — that method is inherited from the package-private
+        // StatefulMetric$Builder, and exposing its return type from outside its package
+        // triggers IllegalAccessError at JVM access-check time. Exemplar handling is enabled
+        // by default in prometheus-metrics-core 1.x; `.withoutExemplars()` is the disable.
         PCounter
           .builder()
           .name(fullName)
           .help(help.value)
           .labelNames(allLabelNames.map(_.value): _*)
-          .withExemplars()
           .register(registry),
       metricType = MetricType.Counter,
       metricPrefix = prefix,
       stringName = n,
       labels = allLabelNames
-    ).flatMap { counter =>
-      Resource.eval(Ref.of[F, Option[Exemplar.Data]](None)).map { exemplarRef =>
-        Counter.make(
-          Counter.ExemplarState.fromRef(exemplarRef),
-          1.0,
-          (
-              d: Double,
-              labels: A,
-              exemplar: Option[Exemplar.Labels]
-          ) =>
-            Utils.modifyMetric[F, Counter.Name, io.prometheus.metrics.core.datapoints.CounterDataPoint](
-              metricName = name,
-              allLabelNames = allLabelNames,
-              dynamicLabels = f(labels),
-              commonLabelValues = commonLabelValuesArray,
-              getDataPoint = (lbls: Array[String]) => counter.labelValues(lbls: _*),
-              modify = (dp: io.prometheus.metrics.core.datapoints.CounterDataPoint) =>
-                exemplar.fold(dp.inc(d))(e => dp.incWithExemplar(d, transformExemplarLabels(e))),
-              logger = logger
-            )
-        )
-      }
+    ).map { case (counter, exemplarRef) =>
+      Counter.make(
+        Counter.ExemplarState.fromRef(exemplarRef),
+        1.0,
+        (
+            d: Double,
+            labels: A,
+            exemplar: Option[Exemplar.Labels]
+        ) =>
+          Utils.modifyMetric[F, Counter.Name, io.prometheus.metrics.core.datapoints.CounterDataPoint](
+            metricName = name,
+            allLabelNames = allLabelNames,
+            dynamicLabels = f(labels),
+            commonLabelValues = commonLabelValuesArray,
+            getDataPoint = (lbls: Array[String]) => counter.labelValues(lbls: _*),
+            modify = (dp: io.prometheus.metrics.core.datapoints.CounterDataPoint) =>
+              exemplar.fold(dp.inc(d))(e => dp.incWithExemplar(d, transformExemplarLabels(e))),
+            logger = logger
+          )
+      )
     }
   }
 
@@ -208,7 +213,7 @@ class JavaMetricRegistry[F[_]: Async] private (
       metricPrefix = prefix,
       stringName = name.value,
       labels = allLabelNames
-    ).map { gauge =>
+    ).map { case (gauge, _) =>
       @inline
       def modify(g: io.prometheus.metrics.core.datapoints.GaugeDataPoint => Unit, labels: A): F[Unit] =
         Utils.modifyMetric[F, Gauge.Name, io.prometheus.metrics.core.datapoints.GaugeDataPoint](
@@ -236,8 +241,48 @@ class JavaMetricRegistry[F[_]: Async] private (
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
       buckets: NonEmptySeq[Double]
-  )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Double, A]] =
-    Resource.eval(ApplicativeThrow[F].raiseError(notYetPorted("createAndRegisterDoubleHistogram")))
+  )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Double, A]] = {
+    val commonLabelNames       = commonLabels.value.keys.toIndexedSeq
+    val commonLabelValuesArray = commonLabels.value.values.toArray
+    val allLabelNames          = labelNames ++ commonLabelNames
+    val fullName               = NameUtils.makeName(prefix, name)
+
+    configureBuilderOrRetrieve[PHistogram](
+      register = () =>
+        PHistogram
+          .builder()
+          .name(fullName)
+          .help(help.value)
+          .labelNames(allLabelNames.map(_.value): _*)
+          // .classicOnly() is required because the 1.x default emits BOTH classic AND native
+          // histograms from a single declaration. Preserving v5 behaviour means only the classic
+          // form is emitted from the .histogram(...) DSL path; the .nativeHistogram(...) DSL path
+          // calls .nativeOnly() instead.
+          .classicOnly()
+          .classicUpperBounds(buckets.toSeq.toArray: _*)
+          .register(registry),
+      metricType = MetricType.Histogram,
+      metricPrefix = prefix,
+      stringName = name.value,
+      labels = allLabelNames
+    ).map { case (histogram, exemplarRef) =>
+      Histogram.make[F, Double, A](
+        Histogram.ExemplarState.fromRef(buckets, exemplarRef),
+        _observe = { (d: Double, labels: A, exemplar: Option[Exemplar.Labels]) =>
+          Utils.modifyMetric[F, Histogram.Name, io.prometheus.metrics.core.datapoints.DistributionDataPoint](
+            metricName = name,
+            allLabelNames = allLabelNames,
+            dynamicLabels = f(labels),
+            commonLabelValues = commonLabelValuesArray,
+            getDataPoint = (lbls: Array[String]) => histogram.labelValues(lbls: _*),
+            modify = (dp: io.prometheus.metrics.core.datapoints.DistributionDataPoint) =>
+              exemplar.fold(dp.observe(d))(e => dp.observeWithExemplar(d, transformExemplarLabels(e))),
+            logger = logger
+          )
+        }
+      )
+    }
+  }
 
   override def createAndRegisterDoubleNativeHistogram[A](
       prefix: Option[Metric.Prefix],
@@ -246,8 +291,60 @@ class JavaMetricRegistry[F[_]: Async] private (
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
       nativeHistogram: NativeHistogram
-  )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Double, A]] =
-    Resource.eval(ApplicativeThrow[F].raiseError(notYetPorted("createAndRegisterDoubleNativeHistogram")))
+  )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Double, A]] = {
+    val commonLabelNames       = commonLabels.value.keys.toIndexedSeq
+    val commonLabelValuesArray = commonLabels.value.values.toArray
+    val allLabelNames          = labelNames ++ commonLabelNames
+    val fullName               = NameUtils.makeName(prefix, name)
+
+    configureBuilderOrRetrieve[PHistogram](
+      register = () => {
+        val builder = PHistogram
+          .builder()
+          .name(fullName)
+          .help(help.value)
+          .labelNames(allLabelNames.map(_.value): _*)
+          .nativeOnly()
+          .nativeInitialSchema(nativeHistogram.initialSchema)
+          .nativeMaxNumberOfBuckets(nativeHistogram.maxNumberOfBuckets)
+          .nativeMaxZeroThreshold(nativeHistogram.maxZeroThreshold)
+          .nativeMinZeroThreshold(nativeHistogram.minZeroThreshold)
+        val tuned =
+          if (nativeHistogram.resetDuration > 0.seconds)
+            builder.nativeResetDuration(
+              nativeHistogram.resetDuration.toSeconds,
+              java.util.concurrent.TimeUnit.SECONDS
+            )
+          else builder
+        tuned.register(registry)
+      },
+      metricType = MetricType.NativeHistogram,
+      metricPrefix = prefix,
+      stringName = name.value,
+      labels = allLabelNames
+    ).map { case (histogram, _) =>
+      // Native histograms use ExemplarState.noop: the upstream Histogram still accepts exemplars via
+      // observeWithExemplar(d, labels), but the bucket-driven sampler in Histogram.ExemplarState.fromRef
+      // requires explicit bucket boundaries which native histograms do not have. Consumers wanting
+      // sampled exemplars on a native histogram are not supported in this initial cut; explicit
+      // exemplars (.observeWithExemplar) still work end-to-end.
+      Histogram.make[F, Double, A](
+        Histogram.ExemplarState.noop,
+        _observe = { (d: Double, labels: A, exemplar: Option[Exemplar.Labels]) =>
+          Utils.modifyMetric[F, Histogram.Name, io.prometheus.metrics.core.datapoints.DistributionDataPoint](
+            metricName = name,
+            allLabelNames = allLabelNames,
+            dynamicLabels = f(labels),
+            commonLabelValues = commonLabelValuesArray,
+            getDataPoint = (lbls: Array[String]) => histogram.labelValues(lbls: _*),
+            modify = (dp: io.prometheus.metrics.core.datapoints.DistributionDataPoint) =>
+              exemplar.fold(dp.observe(d))(e => dp.observeWithExemplar(d, transformExemplarLabels(e))),
+            logger = logger
+          )
+        }
+      )
+    }
+  }
 
   override def createAndRegisterDoubleSummary[A](
       prefix: Option[Metric.Prefix],
