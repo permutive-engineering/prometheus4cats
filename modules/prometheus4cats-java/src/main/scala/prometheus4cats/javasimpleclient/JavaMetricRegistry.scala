@@ -319,6 +319,24 @@ class JavaMetricRegistry[F[_]: Async] private (
       )
     )
 
+  override def createAndRegisterDoubleHistogramWithNative[A](
+      prefix: Option[Metric.Prefix],
+      name: Histogram.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name],
+      buckets: NonEmptySeq[Double],
+      nativeHistogram: NativeHistogram
+  )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Double, A]] =
+    Resource.eval(
+      ApplicativeThrow[F].raiseError(
+        new UnsupportedOperationException(
+          "Dual-mode (classic + native) histograms are not supported by the simpleclient backend. " +
+            "Use the prometheus-metrics-core 1.x backend (prometheus4cats v6+) to emit both representations from a single declaration."
+        )
+      )
+    )
+
   override def createAndRegisterDoubleSummary[A](
       prefix: Option[Metric.Prefix],
       name: Summary.Name,

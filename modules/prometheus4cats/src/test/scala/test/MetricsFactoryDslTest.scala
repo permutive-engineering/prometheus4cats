@@ -194,6 +194,18 @@ class MetricsFactoryDslTest[F[_]: MonadCancelThrow: Clock] {
     .label[String]("label1")
     .build
 
+  // Dual-mode (NHCB-friendly) — `.withNative` after `.buckets(...)` promotes to classic + native exponential.
+  histogramBuilder.ofDouble.help("dual").buckets(0.1, 0.5, 1.0).withNative.build
+
+  histogramBuilder.ofDouble.help("dual").buckets(0.1, 0.5, 1.0).withNative.label[String]("label1").build
+
+  histogramBuilder.ofDouble
+    .help("dual tuned")
+    .buckets(0.1, 0.5, 1.0)
+    .withNative(NativeHistogram.Default.withInitialSchema(6))
+    .label[String]("label1")
+    .build
+
   val infoBuilder = factory.info("test_info").help("help")
 
   infoBuilder.build

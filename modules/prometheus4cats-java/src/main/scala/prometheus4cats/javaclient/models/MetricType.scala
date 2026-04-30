@@ -28,6 +28,8 @@ private[javaclient] object MetricType {
 
   case object NativeHistogram extends MetricType
 
+  case object HistogramWithNative extends MetricType
+
   case object Summary extends MetricType
 
   case object Info extends MetricType
