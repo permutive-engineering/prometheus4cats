@@ -118,7 +118,10 @@ private[javasimpleclient] class MetricCollectionProcessor[F[_]: Async] private (
             case v: MetricCollection.Value.DoubleCounter => v.value
           }
 
-          sample.addMetric((value.labelValues.toList ++ commonLabels.values).asJava, v)
+          // Clamp negative values to 0 to match the v6 javaclient behaviour and the testkit's
+          // round-trip assertion. Counters are non-negative by Prometheus contract; the legacy
+          // simpleclient happened to accept negatives but they were never valid.
+          sample.addMetric((value.labelValues.toList ++ commonLabels.values).asJava, if (v < 0) 0.0 else v)
         }
       }
     }
@@ -181,7 +184,7 @@ private[javasimpleclient] class MetricCollectionProcessor[F[_]: Async] private (
               case v: MetricCollection.Value.DoubleSummary =>
                 sample.addMetric(
                   (value.labelValues.toList ++ commonLabels.values).asJava,
-                  v.value.count,
+                  v.value.count.toDouble,
                   v.value.sum
                 )
             }
@@ -201,7 +204,7 @@ private[javasimpleclient] class MetricCollectionProcessor[F[_]: Async] private (
                 case v: MetricCollection.Value.DoubleSummary =>
                   sample.addMetric(
                     (value.labelValues.toList ++ commonLabels.values).asJava,
-                    v.value.count,
+                    v.value.count.toDouble,
                     v.value.sum,
                     v.value.quantiles.values.toList.map(_.asInstanceOf[java.lang.Double]).asJava
                   )

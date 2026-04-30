@@ -227,21 +227,26 @@ class JavaMetricRegistryTestkitSuite
   ): IO[Option[Map[String, (Double, Option[Map[String, String]])]]] =
     IO {
       findHistogramDataPoint(state, prefix, name, allLabelsMap(commonLabels, extraLabels)).map { dp =>
-        // The testkit's expected shape is a Map keyed by the bucket upper-bound string (matching
-        // the simpleclient `le` label values) → (cumulative count, optional exemplar).
-        // Upstream's classic-histogram data points expose getClassicBuckets returning an iterable
-        // of ClassicHistogramBucket{upperBound, count}, where count is CUMULATIVE.
-        val classicBuckets = dp.getClassicBuckets.asScala.toList
-        classicBuckets.map { b =>
+        // The testkit's expected shape is a Map keyed by bucket upper-bound string (matching the
+        // simpleclient `le` label values) → (CUMULATIVE count, optional exemplar). Upstream's
+        // ClassicHistogramBucket.getCount returns PER-BUCKET counts, so we scan the buckets
+        // (sorted ascending by upper-bound) and accumulate counts into cumulative form to match
+        // the wire-format / testkit expectation.
+        //
+        // Exemplars are per-bucket: an exemplar with value v belongs to the smallest bucket whose
+        // upper-bound >= v (i.e. the "exclusive lower" / "inclusive upper" range it actually
+        // landed in). The cumulative count rule does NOT apply to exemplars.
+        val classicBuckets   = dp.getClassicBuckets.asScala.toList.sortBy(_.getUpperBound)
+        val cumulativeCounts = classicBuckets.scanLeft(0L)((acc, b) => acc + b.getCount).tail
+        val allExemplars     = Option(dp.getExemplars).map(_.asScala.toList).getOrElse(Nil)
+        val lowerBounds      = Double.NegativeInfinity +: classicBuckets.map(_.getUpperBound).init
+        classicBuckets.zip(cumulativeCounts).zip(lowerBounds).map { case ((b, cumCount), lower) =>
           val key = if (b.getUpperBound == Double.PositiveInfinity) "+Inf" else doubleToGoString(b.getUpperBound)
-          val maybeExemplar: Option[Map[String, String]] = Option(dp.getExemplars).flatMap { exemplars =>
-            // Upstream stores at most one exemplar per bucket; pull the one whose recorded value
-            // falls within this bucket's upper-bound (cumulative buckets).
-            exemplars.asScala.find(e => e.getValue >= 0 && e.getValue <= b.getUpperBound).map { e =>
+          val maybeExemplar: Option[Map[String, String]] =
+            allExemplars.find(e => e.getValue > lower && e.getValue <= b.getUpperBound).map { e =>
               e.getLabels.asScala.map(l => l.getName -> l.getValue).toMap
             }
-          }
-          key -> (b.getCount.toDouble, maybeExemplar)
+          key -> (cumCount.toDouble, maybeExemplar)
         }.toMap
       }
     }
@@ -253,13 +258,13 @@ class JavaMetricRegistryTestkitSuite
       help: Metric.Help,
       commonLabels: CommonLabels,
       extraLabels: Map[Label.Name, String]
-  ): IO[(Option[Map[String, Double]], Option[Double], Option[Double])] =
+  ): IO[(Option[Map[String, Double]], Option[Long], Option[Double])] =
     IO {
       val dpOpt = findSummaryDataPoint(state, prefix, name, allLabelsMap(commonLabels, extraLabels))
       val quantiles = dpOpt.map { dp =>
         dp.getQuantiles.asScala.map(q => doubleToGoString(q.getQuantile) -> q.getValue).toMap
       }
-      val count = dpOpt.map(_.getCount.toDouble)
+      val count = dpOpt.map(_.getCount)
       val sum   = dpOpt.map(_.getSum)
       (quantiles, count, sum)
     }

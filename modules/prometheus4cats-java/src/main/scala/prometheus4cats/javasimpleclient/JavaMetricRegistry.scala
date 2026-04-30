@@ -690,7 +690,7 @@ class JavaMetricRegistry[F[_]: Async] private (
       f,
       (n, lns, lvs, v) =>
         if (v.quantiles.isEmpty)
-          new SummaryMetricFamily(n, help.value, lns.asJava).addMetric(lvs.asJava, v.count, v.sum)
+          new SummaryMetricFamily(n, help.value, lns.asJava).addMetric(lvs.asJava, v.count.toDouble, v.sum)
         else
           new SummaryMetricFamily(
             n,
@@ -700,7 +700,7 @@ class JavaMetricRegistry[F[_]: Async] private (
           )
             .addMetric(
               lvs.asJava,
-              v.count,
+              v.count.toDouble,
               v.sum,
               v.quantiles.values.toList.map(_.asInstanceOf[java.lang.Double]).asJava
             )

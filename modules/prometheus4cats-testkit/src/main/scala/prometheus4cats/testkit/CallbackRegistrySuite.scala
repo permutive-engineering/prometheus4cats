@@ -258,7 +258,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
           help: Metric.Help,
           commonLabels: Metric.CommonLabels,
           sum: Double,
-          count: Double,
+          count: Long,
           quantiles: Map[Summary.Quantile, Double]
       ) =>
         stateResource.use { state =>
@@ -299,7 +299,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
           commonLabels: Metric.CommonLabels,
           labels: Map[Label.Name, String],
           sum: Double,
-          count: Double,
+          count: Long,
           quantiles: Map[Summary.Quantile, Double]
       ) =>
         stateResource.use { state =>
@@ -362,8 +362,11 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
                 )
               )
               .surround(
-                get1
-                  .map(assertEquals(_, Some(values._1))) >> get2.map(assertEquals(_, Some(values._2)))
+                get1.map(res =>
+                  assertEquals(res, Some(if (values._1 >= 0) values._1 else 0.0))
+                ) >> get2.map(res =>
+                  assertEquals(res, Some(if (values._2 >= 0) values._2 else 0.0))
+                )
               ) >> get1.map(assertEquals(_, None)) >> get2.map(assertEquals(_, None))
           }
         }
@@ -407,12 +410,12 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
               )
               .surround(
                 if (labels1.isEmpty)
-                  get1.map(assertEquals(_, Some(value2)))
+                  get1.map(res => assertEquals(res, Some(if (value2 >= 0) value2 else 0.0)))
                 else
                   get1.map { res =>
-                    assertEquals(res, Some(value1))
+                    assertEquals(res, Some(if (value1 >= 0) value1 else 0.0))
                   } >> get2.map { res =>
-                    assertEquals(res, Some(value2))
+                    assertEquals(res, Some(if (value2 >= 0) value2 else 0.0))
                   }
               ) >> get1.map(assertEquals(_, None)) >> get2.map(assertEquals(_, None))
 
