@@ -101,8 +101,17 @@ class JavaMetricRegistryTestkitSuite
     state
       .scrape()
       .asScala
-      .collect { case s: CounterSnapshot if matchesName(s.getMetadata.getName, prefix.fold(name.value)(p => s"${p.value}_${name.value}").asInstanceOf[String]) => s }
-      .find(s => matchesName(s.getMetadata.getName, rendered) || s.getMetadata.getName == rendered.dropRight("_total".length))
+      .collect {
+        case s: CounterSnapshot
+            if matchesName(
+              s.getMetadata.getName,
+              prefix.fold(name.value)(p => s"${p.value}_${name.value}").asInstanceOf[String]
+            ) =>
+          s
+      }
+      .find(s =>
+        matchesName(s.getMetadata.getName, rendered) || s.getMetadata.getName == rendered.dropRight("_total".length)
+      )
       .flatMap(_.getDataPoints.asScala.find(dp => labelsToMap(dp.getLabels) == allLabels))
   }
 
@@ -240,14 +249,18 @@ class JavaMetricRegistryTestkitSuite
         val cumulativeCounts = classicBuckets.scanLeft(0L)((acc, b) => acc + b.getCount).tail
         val allExemplars     = Option(dp.getExemplars).map(_.asScala.toList).getOrElse(Nil)
         val lowerBounds      = Double.NegativeInfinity +: classicBuckets.map(_.getUpperBound).init
-        classicBuckets.zip(cumulativeCounts).zip(lowerBounds).map { case ((b, cumCount), lower) =>
-          val key = if (b.getUpperBound == Double.PositiveInfinity) "+Inf" else doubleToGoString(b.getUpperBound)
-          val maybeExemplar: Option[Map[String, String]] =
-            allExemplars.find(e => e.getValue > lower && e.getValue <= b.getUpperBound).map { e =>
-              e.getLabels.asScala.map(l => l.getName -> l.getValue).toMap
-            }
-          key -> (cumCount.toDouble, maybeExemplar)
-        }.toMap
+        classicBuckets
+          .zip(cumulativeCounts)
+          .zip(lowerBounds)
+          .map { case ((b, cumCount), lower) =>
+            val key = if (b.getUpperBound == Double.PositiveInfinity) "+Inf" else doubleToGoString(b.getUpperBound)
+            val maybeExemplar: Option[Map[String, String]] =
+              allExemplars.find(e => e.getValue > lower && e.getValue <= b.getUpperBound).map { e =>
+                e.getLabels.asScala.map(l => l.getName -> l.getValue).toMap
+              }
+            key -> (cumCount.toDouble, maybeExemplar)
+          }
+          .toMap
       }
     }
 
@@ -278,9 +291,9 @@ class JavaMetricRegistryTestkitSuite
   ): IO[Option[Double]] =
     IO(findInfoDataPoint(state, prefix, name, labels.map { case (n, v) => n.value -> v }).map(_ => 1.0))
 
-  /** Local copy of simpleclient's Collector.doubleToGoString — used to format a bucket upper-bound
-    * (e.g. 0.005) into the canonical Go-style string the testkit expects (e.g. "0.005"). The 1.x
-    * library doesn't expose an equivalent helper publicly, so we reimplement the format inline.
+  /** Local copy of simpleclient's Collector.doubleToGoString — used to format a bucket upper-bound (e.g. 0.005) into
+    * the canonical Go-style string the testkit expects (e.g. "0.005"). The 1.x library doesn't expose an equivalent
+    * helper publicly, so we reimplement the format inline.
     */
   private def doubleToGoString(d: Double): String = {
     if (d == Double.PositiveInfinity) "+Inf"

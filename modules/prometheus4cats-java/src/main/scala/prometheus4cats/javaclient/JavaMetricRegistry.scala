@@ -957,7 +957,8 @@ class JavaMetricRegistry[F[_]: Async] private (
         // ClassicHistogramBuckets.of expects PER-BUCKET counts (the wire format computes cumulative
         // from per-bucket at scrape). Convert by differencing successive cumulative entries.
         val cumulative = value.bucketValues.toSeq.map(_.toLong)
-        val perBucket  = (cumulative.head +: cumulative.zip(cumulative.tail).map { case (prev, curr) => curr - prev }).toArray
+        val perBucket =
+          (cumulative.head +: cumulative.zip(cumulative.tail).map { case (prev, curr) => curr - prev }).toArray
         new HistogramSnapshot.HistogramDataPointSnapshot(
           ClassicHistogramBuckets.of(upperBoundsWithInf, perBucket),
           value.sum,
@@ -1194,8 +1195,8 @@ class JavaMetricRegistry[F[_]: Async] private (
           // bucketValues are cumulative; ClassicHistogramBuckets.of wants per-bucket. See comment
           // in registerDoubleHistogramCallback for the same conversion.
           val perBucket =
-            (cumulativeCounts.head +: cumulativeCounts.zip(cumulativeCounts.tail).map {
-              case (prev, curr) => curr - prev
+            (cumulativeCounts.head +: cumulativeCounts.zip(cumulativeCounts.tail).map { case (prev, curr) =>
+              curr - prev
             }).toArray
           new HistogramSnapshot.HistogramDataPointSnapshot(
             ClassicHistogramBuckets.of(upperBoundsWithInf, perBucket),
