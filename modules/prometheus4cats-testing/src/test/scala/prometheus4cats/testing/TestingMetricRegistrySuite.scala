@@ -313,9 +313,17 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
       }
     }
 
+  // Helper: in v6 Info declares its labels at registration time; these tests don't care about the
+  // labels themselves (they only verify the resource-lifecycle/refcount semantics), so we register
+  // with an empty label set and a no-op label-projection function.
+  private def emptyInfo(reg: TestingMetricRegistry[IO], prefix: Option[Metric.Prefix]) =
+    reg.createAndRegisterInfo[Map[Label.Name, String]](prefix, "test_info", Metric.Help("help"), IndexedSeq.empty)(_ =>
+      IndexedSeq.empty
+    )
+
   test("Info - value") {
     TestingMetricRegistry[IO].flatMap { reg =>
-      reg.createAndRegisterInfo(None, "test_info", Metric.Help("help")).use { _ =>
+      emptyInfo(reg, None).use { _ =>
         reg.infoValue(None, "test_info").assertEquals(Some(1.0))
       } >> reg.infoValue(None, "test_info").assertEquals(None)
     }
@@ -323,7 +331,7 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
 
   test("Info - prefixed value") {
     TestingMetricRegistry[IO].flatMap { reg =>
-      reg.createAndRegisterInfo(Some(Metric.Prefix("permutive")), "test_info", Metric.Help("help")).use { _ =>
+      emptyInfo(reg, Some(Metric.Prefix("permutive"))).use { _ =>
         reg.infoValue(Some(Metric.Prefix("permutive")), "test_info").assertEquals(Some(1.0))
       } >> reg.infoValue(Some(Metric.Prefix("permutive")), "test_info").assertEquals(None)
     }
@@ -332,7 +340,7 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
   test("Info - concurrent resource lifecycle") {
     TestingMetricRegistry[IO].flatMap { reg =>
       IO.deferred[Unit].flatMap { wait =>
-        val m = reg.createAndRegisterInfo(Some(Metric.Prefix("permutive")), "test_info", Metric.Help("help"))
+        val m = emptyInfo(reg, Some(Metric.Prefix("permutive")))
         m.use { i =>
           // Wait for other fiber to use and release counter
           wait.get >>
@@ -352,7 +360,12 @@ class TestingMetricRegistrySuite extends CatsEffectSuite {
 
   test("Info - nested resource lifecycle") {}
   TestingMetricRegistry[IO].flatMap { reg =>
-    val m = reg.createAndRegisterInfo(Some(Metric.Prefix("permutive")), "test_info", Metric.Help("help"))
+    val m = reg.createAndRegisterInfo[Map[Label.Name, String]](
+      Some(Metric.Prefix("permutive")),
+      "test_info",
+      Metric.Help("help"),
+      IndexedSeq.empty
+    )(_ => IndexedSeq.empty)
     m.use { c =>
       // Metric should still be valid as we still have a reference to it
       c.info(Map.empty) >>
