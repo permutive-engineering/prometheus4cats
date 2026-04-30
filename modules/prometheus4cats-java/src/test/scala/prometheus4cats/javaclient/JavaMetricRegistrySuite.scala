@@ -319,6 +319,88 @@ class JavaMetricRegistrySuite extends CatsEffectSuite {
       }
   }
 
+  test("histogram callback — value+labels map into a HistogramDataPointSnapshot with classic buckets") {
+    val promRegistry = new PrometheusRegistry()
+
+    JavaMetricRegistry
+      .Builder[IO]()
+      .withRegistry(promRegistry)
+      .build
+      .use { registry =>
+        val factory = MetricFactory.builder.build[IO](registry, registry)
+        // bucketValues are CUMULATIVE counts indexed by (declared-buckets ++ +Inf) — so for buckets
+        // 0.1, 1.0, 5.0 with three observations of 0.05, 0.5, 2.0 the cumulative counts are
+        // [1, 2, 3, 3] (≤0.1, ≤1.0, ≤5.0, ≤+Inf).
+        val histValue = Histogram.Value[Double](2.55, NonEmptySeq.of(1.0, 2.0, 3.0, 3.0))
+        val callback  = IO.pure(NonEmptyList.of((histValue, "alpha")))
+        factory
+          .histogram("test_callback_histogram")
+          .ofDouble
+          .help("test histogram callback")
+          .buckets(NonEmptySeq.of(0.1, 1.0, 5.0))
+          .label[String]("variant")
+          .callback(callback)
+          .build
+          .use { _ =>
+            IO.delay {
+              val snapshot = promRegistry
+                .scrape()
+                .asScala
+                .collectFirst { case s: HistogramSnapshot if s.getMetadata.getName === "test_callback_histogram" => s }
+                .getOrElse(fail("expected a HistogramSnapshot named 'test_callback_histogram'"))
+              val dp = snapshot.getDataPoints.asScala.head
+              assert(dp.hasClassicHistogramData)
+              assertEqualsDouble(dp.getSum, 2.55, 1e-9)
+              // Classic buckets propagate; +Inf is the last upper bound we appended.
+              val upperBounds = dp.getClassicBuckets.asScala.map(_.getUpperBound).toSet
+              assert(upperBounds.contains(0.1), s"saw upper bounds $upperBounds")
+              assert(upperBounds.contains(5.0), s"saw upper bounds $upperBounds")
+            }
+          }
+      }
+  }
+
+  test("summary callback — count, sum, and declared quantiles propagate to the snapshot") {
+    val promRegistry = new PrometheusRegistry()
+
+    JavaMetricRegistry
+      .Builder[IO]()
+      .withRegistry(promRegistry)
+      .build
+      .use { registry =>
+        val factory = MetricFactory.builder.build[IO](registry, registry)
+        val summaryValue = Summary.Value[Double](
+          count = 10.0,
+          sum = 42.5,
+          quantiles = Map(0.5 -> 1.2, 0.99 -> 9.5)
+        )
+        val callback = IO.pure(NonEmptyList.of((summaryValue, "alpha")))
+        factory
+          .summary("test_callback_summary")
+          .ofDouble
+          .help("test summary callback")
+          .label[String]("variant")
+          .callback(callback)
+          .build
+          .use { _ =>
+            IO.delay {
+              val snapshot = promRegistry
+                .scrape()
+                .asScala
+                .collectFirst { case s: SummarySnapshot if s.getMetadata.getName === "test_callback_summary" => s }
+                .getOrElse(fail("expected a SummarySnapshot named 'test_callback_summary'"))
+              val dp = snapshot.getDataPoints.asScala.head
+              assertEquals(dp.getCount, 10L)
+              assertEqualsDouble(dp.getSum, 42.5, 1e-9)
+              val quantileValues = dp.getQuantiles.asScala.map(q => q.getQuantile -> q.getValue).toMap
+              assertEquals(quantileValues.size, 2)
+              assertEqualsDouble(quantileValues(0.5), 1.2, 1e-9)
+              assertEqualsDouble(quantileValues(0.99), 9.5, 1e-9)
+            }
+          }
+      }
+  }
+
   test("registry release unregisters all claimed metrics from the underlying PrometheusRegistry") {
     val promRegistry = new PrometheusRegistry()
 
