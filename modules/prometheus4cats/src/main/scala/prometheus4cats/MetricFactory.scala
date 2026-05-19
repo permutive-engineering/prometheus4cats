@@ -558,11 +558,21 @@ object MetricFactory {
         )
       )
 
+    /** Type alias for the histogram DSL returned in the callback-aware variant: same shape as
+      * [[MetricFactory.HistogramWithNativeDsl]] but with the more specific [[HistogramMetricDsl.WithCallbacksImpl]] in
+      * place of the compound type, so consumers see `.callback(...)` as well as `.label(...)` / `.build` /
+      * `.withNative` after `.buckets(...)`.
+      *
+      * This is a subtype of `MetricFactory.HistogramWithNativeDsl[A]` (BucketDsl + HelpStep + TypeStep are all
+      * covariant in the right places), so the override is valid.
+      */
+    type HistogramWithCallbacksAndNativeDsl[A] = HelpStep[BucketDsl[HistogramMetricDsl.WithCallbacksImpl[F, A], A]]
+
     /** @inheritdoc */
-    override def histogram(name: Histogram.Name): TypeStep[HistogramWithNativeDsl] =
-      new TypeStep[HistogramWithNativeDsl](
+    override def histogram(name: Histogram.Name): TypeStep[HistogramWithCallbacksAndNativeDsl] =
+      new TypeStep[HistogramWithCallbacksAndNativeDsl](
         new HelpStep(help =>
-          new BucketDsl[HistogramMetricDsl[F, Long], Long](buckets =>
+          new BucketDsl[HistogramMetricDsl.WithCallbacksImpl[F, Long], Long](buckets =>
             new HistogramMetricDsl.WithCallbacksImpl[F, Long](
               classicMakeMetric = new LabelledMetricPartiallyApplied[F, Long, Histogram] {
 
@@ -600,7 +610,7 @@ object MetricFactory {
           )
         ),
         new HelpStep(help =>
-          new BucketDsl[HistogramMetricDsl[F, Double], Double](buckets =>
+          new BucketDsl[HistogramMetricDsl.WithCallbacksImpl[F, Double], Double](buckets =>
             new HistogramMetricDsl.WithCallbacksImpl[F, Double](
               classicMakeMetric = new LabelledMetricPartiallyApplied[F, Double, Histogram] {
 
