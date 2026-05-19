@@ -305,15 +305,40 @@ sealed abstract class MetricFactory[F[_]](
 
   /** Starts creating an "info" metric.
     *
+    * Info metrics declare their labels at build time using the same `.label[T](...)` / `.labels[T](...)` /
+    * `.labelsFrom[T]` builders that counters, gauges, histograms, and summaries already use. Calling `.build` without
+    * any label declarations returns an `Info[F, Unit]` that emits as `name 1` with no labels.
+    *
     * @example
-    *   {{{metrics.info("app_info").help("my counter help").build}}}
+    *   {{{
+    * metrics.info("build_info").help("build info").labelsFrom[BuildInfo].build
+    *
+    * metrics.info("build_info").help("build info")
+    *   .label[String]("version")
+    *   .label[String]("commit")
+    *   .build
+    *
+    * metrics.info("app_info").help("...").build  // no-label form, emits `app_info 1`
+    *   }}}
+    *
     * @param name
     *   [[Info.Name]] value
     * @return
     *   Info builder
     */
-  def info(name: Info.Name): HelpStep[BuildStep[F, Info[F, Map[Label.Name, String]]]] =
-    new HelpStep(help => BuildStep(metricRegistry.createAndRegisterInfo(prefix, name, help)))
+  def info(name: Info.Name): HelpStep[MetricDsl[F, Unit, InfoL]] =
+    new HelpStep(help =>
+      new MetricDsl(
+        new LabelledMetricPartiallyApplied[F, Unit, InfoL] {
+
+          override def apply[B](
+              labels: IndexedSeq[Label.Name]
+          )(f: B => IndexedSeq[String]): Resource[F, Info[F, B]] =
+            metricRegistry.createAndRegisterInfo(prefix, name, help, labels)(f)
+
+        }
+      )
+    )
 
   /** Creates a new instance of [[MetricFactory]] without a [[Metric.Prefix]] set */
   def dropPrefix: MetricFactory[F] = new MetricFactory[F](metricRegistry, None, commonLabels) {}

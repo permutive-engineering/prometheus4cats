@@ -113,11 +113,12 @@ class ExternalPackageMetricRegistry extends MetricRegistry[IO] with CallbackRegi
       ageBuckets: Summary.AgeBuckets
   )(f: A => IndexedSeq[String]): Resource[IO, Summary[IO, Long, A]] = ???
 
-  override def createAndRegisterInfo(
+  override def createAndRegisterInfo[A](
       prefix: Option[Metric.Prefix],
       name: Info.Name,
-      help: Metric.Help
-  ): Resource[IO, Info[IO, Map[Label.Name, String]]] = ???
+      help: Metric.Help,
+      labelNames: IndexedSeq[Label.Name]
+  )(f: A => IndexedSeq[String]): Resource[IO, Info[IO, A]] = ???
 
   override def registerDoubleCounterCallback[A](
       prefix: Option[Metric.Prefix],

@@ -361,24 +361,32 @@ class JavaMetricRegistry[F[_]: Async] private (
   // The java library always appends "_info" to the metric name, so we need a special `Show` instance
   implicit private val infoNameShow: Show[Info.Name] = Show.show(_.value.replace("_info", ""))
 
-  override def createAndRegisterInfo(
+  override def createAndRegisterInfo[A](
       prefix: Option[Metric.Prefix],
       name: Info.Name,
-      help: Metric.Help
-  ): Resource[F, Info[F, Map[Label.Name, String]]] =
+      help: Metric.Help,
+      labelNames: IndexedSeq[Label.Name]
+  )(f: A => IndexedSeq[String]): Resource[F, Info[F, A]] =
+    // Note: `IndexedSeq.empty` is intentionally passed to `configureBuilderOrRetrieve` so the
+    // underlying simpleclient Info is registered with no pre-declared label names — labels are
+    // provided at observation time via `Info.Child#info(Map<String, String>)` instead, matching
+    // the legacy v5 wire format. The dedup key is therefore (empty, MetricType.Info), so two
+    // registrations of the same Info name with different consumer-declared labelNames will share
+    // the same underlying Info; consumers should register each Info name once.
     configureBuilderOrRetrieve(
       PInfo.build(), MetricType.Info, prefix, name, help, IndexedSeq.empty
     ).map { info =>
-      Info.make[F, Map[Label.Name, String]](labels =>
+      Info.make[F, A] { a =>
+        val values = f(a)
         Utils.modifyMetric[F, Info.Name, PInfo.Child](
           info,
           name,
           IndexedSeq.empty,
           IndexedSeq.empty,
-          (pinfo: PInfo.Child) => pinfo.info(labels.map { case (n, v) => n.value -> v }.asJava),
+          (pinfo: PInfo.Child) => pinfo.info(labelNames.zip(values).map { case (n, v) => n.value -> v }.toMap.asJava),
           logger
         )
-      )
+      }
     }
 
   private def trackErrors[A](state: Ref[F, Set[String]], stringName: String, onContains: F[A], onContainsNot: F[A]) =
