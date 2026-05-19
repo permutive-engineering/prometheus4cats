@@ -211,6 +211,57 @@ class CallbackBuildStep[F[_], A, B] private[internal] (
 
 }
 
+/** Mixin adding `.withNative` for promoting a classic-only histogram declaration into a dual-mode (classic + native
+  * exponential) one. The classic bucket boundaries supplied via `.buckets(...)` are preserved as-is; native exponential
+  * is added with the supplied [[NativeHistogram]] config (defaults if omitted).
+  *
+  * The promoted result is a plain `MetricDsl[F, A, Histogram]` (without callback support, since the callback snapshot
+  * type `Histogram.Value` is classic-only — dual-mode callbacks are not meaningful). Calling `.withNative` again on a
+  * promoted DSL is not supported (dual-mode IS the maximum). Order in the chain: `.buckets(...)` → optional
+  * `.withNative` → `.label(...)` → `.build`.
+  *
+  * Mixed into [[HistogramMetricDsl.Plain]] (for the base [[MetricFactory.histogram]] path) and
+  * [[HistogramMetricDsl.WithCallbacksImpl]] (for the [[MetricFactory.WithCallbacks.histogram]] path) alongside the
+  * appropriate `MetricDsl` flavour. The compound type alias [[HistogramMetricDsl]] (in the `internal` package object)
+  * exposes both surfaces simultaneously, so callers can do `.label(...)` / `.build` (from `MetricDsl`) AND
+  * `.withNative` from a single value.
+  */
+trait HistogramWithNativeOps[F[_], A] {
+
+  protected def makeWithNativeMetric: NativeHistogram => LabelledMetricPartiallyApplied[F, A, Histogram]
+
+  /** Promote this histogram to dual-mode (classic + native exponential), using [[NativeHistogram.Default]] tuning. */
+  def withNative: MetricDsl[F, A, Histogram] = withNative(NativeHistogram.Default)
+
+  /** Promote this histogram to dual-mode (classic + native exponential), with the supplied native tuning config. */
+  def withNative(cfg: NativeHistogram): MetricDsl[F, A, Histogram] =
+    new MetricDsl(makeWithNativeMetric(cfg))
+
+}
+
+object HistogramMetricDsl {
+
+  /** Concrete histogram DSL for the base [[MetricFactory]] path: a `MetricDsl[F, A, Histogram]` plus `.withNative`. */
+  final class Plain[F[_], A] private[prometheus4cats] (
+      classicMakeMetric: LabelledMetricPartiallyApplied[F, A, Histogram],
+      protected val makeWithNativeMetric: NativeHistogram => LabelledMetricPartiallyApplied[F, A, Histogram]
+  ) extends MetricDsl[F, A, Histogram](classicMakeMetric)
+      with HistogramWithNativeOps[F, A]
+
+  /** Concrete histogram DSL for the [[MetricFactory.WithCallbacks]] path: a callback-aware `MetricDsl.WithCallbacks`
+    * plus `.withNative`. Promotion via `.withNative` returns a plain `MetricDsl[F, A, Histogram]` (without callback
+    * support), since the callback snapshot type `Histogram.Value` is classic-only and dual-mode callbacks have no
+    * meaningful representation.
+    */
+  final class WithCallbacksImpl[F[_]: cats.Functor, A] private[prometheus4cats] (
+      classicMakeMetric: LabelledMetricPartiallyApplied[F, A, Histogram],
+      classicMakeCallback: LabelledCallbackPartiallyApplied[F, Histogram.Value[A]],
+      protected val makeWithNativeMetric: NativeHistogram => LabelledMetricPartiallyApplied[F, A, Histogram]
+  ) extends MetricDsl.WithCallbacks[F, A, Histogram.Value[A], Histogram](classicMakeMetric, classicMakeCallback)
+      with HistogramWithNativeOps[F, A]
+
+}
+
 class MetricDsl[F[_], A, L[_[_], _, _]] private[prometheus4cats] (
     private[internal] val makeMetric: LabelledMetricPartiallyApplied[F, A, L]
 ) extends BuildStep[F, L[F, A, Unit]] {
