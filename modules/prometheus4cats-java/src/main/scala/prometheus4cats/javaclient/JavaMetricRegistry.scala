@@ -85,21 +85,21 @@ class JavaMetricRegistry[F[_]: Async] private (
       metricPrefix: Option[Metric.Prefix],
       stringName: String,
       labels: IndexedSeq[Label.Name]
-  ): Resource[F, M] = {
+  ): Resource[F, (M, Ref[F, Option[Exemplar.Data]])] = {
     lazy val metricId: MetricID = (labels, metricType)
     lazy val fullName: StateKey = (metricPrefix, stringName)
     lazy val renderedFullName   = NameUtils.makeName(metricPrefix, stringName)
 
     val acquire = sem.permit.surround(
       ref.get
-        .flatMap[(State[F], M)] { (metrics: State[F]) =>
+        .flatMap[(State[F], (M, Ref[F, Option[Exemplar.Data]]))] { (metrics: State[F]) =>
           metrics.get(fullName) match {
             case Some((expected, (collector, exemplarRef, references))) =>
               if (metricId == expected)
                 Applicative[F].pure(
                   (
                     metrics.updated(fullName, (expected, (collector, exemplarRef, references + 1))),
-                    collector.asInstanceOf[M]
+                    (collector.asInstanceOf[M], exemplarRef)
                   )
                 )
               else
@@ -112,13 +112,13 @@ class JavaMetricRegistry[F[_]: Async] private (
               for {
                 exemplarRef <- Ref.of[F, Option[Exemplar.Data]](None)
                 collector   <- Sync[F].delay(register())
-              } yield (metrics.updated(fullName, (metricId, (collector, exemplarRef, 1))), collector)
+              } yield (metrics.updated(fullName, (metricId, (collector, exemplarRef, 1))), (collector, exemplarRef))
           }
         }
-        .flatMap { case (state, collector) => ref.set(state).as(collector) }
+        .flatMap { case (state, pair) => ref.set(state).as(pair) }
     )
 
-    Resource.make(acquire) { collector =>
+    Resource.make(acquire) { case (collector, _) =>
       sem.permit.surround {
         ref.get.flatMap { metrics =>
           metrics.get(fullName) match {
@@ -158,28 +158,26 @@ class JavaMetricRegistry[F[_]: Async] private (
       metricPrefix = prefix,
       stringName = n,
       labels = allLabelNames
-    ).flatMap { counter =>
-      Resource.eval(Ref.of[F, Option[Exemplar.Data]](None)).map { exemplarRef =>
-        Counter.make(
-          Counter.ExemplarState.fromRef(exemplarRef),
-          1.0,
-          (
-              d: Double,
-              labels: A,
-              exemplar: Option[Exemplar.Labels]
-          ) =>
-            Utils.modifyMetric[F, Counter.Name, io.prometheus.metrics.core.datapoints.CounterDataPoint](
-              metricName = name,
-              allLabelNames = allLabelNames,
-              dynamicLabels = f(labels),
-              commonLabelValues = commonLabelValuesArray,
-              getDataPoint = (lbls: Array[String]) => counter.labelValues(lbls: _*),
-              modify = (dp: io.prometheus.metrics.core.datapoints.CounterDataPoint) =>
-                exemplar.fold(dp.inc(d))(e => dp.incWithExemplar(d, transformExemplarLabels(e))),
-              logger = logger
-            )
-        )
-      }
+    ).map { case (counter, exemplarRef) =>
+      Counter.make(
+        Counter.ExemplarState.fromRef(exemplarRef),
+        1.0,
+        (
+            d: Double,
+            labels: A,
+            exemplar: Option[Exemplar.Labels]
+        ) =>
+          Utils.modifyMetric[F, Counter.Name, io.prometheus.metrics.core.datapoints.CounterDataPoint](
+            metricName = name,
+            allLabelNames = allLabelNames,
+            dynamicLabels = f(labels),
+            commonLabelValues = commonLabelValuesArray,
+            getDataPoint = (lbls: Array[String]) => counter.labelValues(lbls: _*),
+            modify = (dp: io.prometheus.metrics.core.datapoints.CounterDataPoint) =>
+              exemplar.fold(dp.inc(d))(e => dp.incWithExemplar(d, transformExemplarLabels(e))),
+            logger = logger
+          )
+      )
     }
   }
 
@@ -207,7 +205,7 @@ class JavaMetricRegistry[F[_]: Async] private (
       metricPrefix = prefix,
       stringName = name.value,
       labels = allLabelNames
-    ).map { gauge =>
+    ).map { case (gauge, _) =>
       @inline
       def modify(g: io.prometheus.metrics.core.datapoints.GaugeDataPoint => Unit, labels: A): F[Unit] =
         Utils.modifyMetric[F, Gauge.Name, io.prometheus.metrics.core.datapoints.GaugeDataPoint](
