@@ -352,7 +352,7 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
-      nativeHistogram: NativeHistogram
+      config: NativeHistogram
   )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Double, A]] =
     store(
       NameUtils.makeName(prefix, name.value),

@@ -203,12 +203,14 @@ sealed abstract class MetricFactory[F[_]](
     * exponential schema, so consumers do not pre-declare bucket boundaries. They typically reduce metric cardinality
     * compared to a classic histogram with explicit buckets.
     *
-    * Native histograms are double-only — there is no `.ofLong` step, since the underlying buckets are real-valued
-    * regardless of input type. Convert at the call site if your observations are integer-typed.
-    *
     * Native histograms are emitted only over Prometheus protobuf scrape negotiation. Ensure your Prometheus server
     * supports native histograms (Prometheus 2.40+) and that `ServiceMonitor.spec.scrapeProtocols` includes
     * `PrometheusProto`.
+    *
+    * @note
+    *   Native histograms are `Double`-only by design — there is no `.ofLong` step, since the underlying buckets are
+    *   real-valued regardless of input type. Consumers observing integer-typed values should convert at the call site
+    *   (e.g. `.contramap(_.toDouble)`).
     *
     * @example
     *   {{{

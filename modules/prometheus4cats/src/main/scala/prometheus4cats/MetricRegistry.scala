@@ -215,6 +215,11 @@ trait MetricRegistry[F[_]] {
     * recent enough to ingest them. Backends that do not support native histograms should signal that via an error
     * raised from the returned [[cats.effect.kernel.Resource]].
     *
+    * @note
+    *   There is no `Long` variant of this method by design. Native histogram buckets are computed exponentially over
+    *   the real line, so the underlying representation is always `Double`. Consumers observing integer-typed values
+    *   should convert at the call site (e.g. `.contramap(_.toDouble)`).
+    *
     * @param prefix
     *   optional [[Metric.Prefix]] to be prepended to the metric name
     * @param name
@@ -225,7 +230,7 @@ trait MetricRegistry[F[_]] {
     *   [[Metric.CommonLabels]] map of common labels to be added to the metric
     * @param labelNames
     *   an [[scala.IndexedSeq]] of [[Label.Name]]s to annotate the metric with
-    * @param nativeHistogram
+    * @param config
     *   tuning parameters for the native histogram (schema, max bucket count, reset duration, zero-threshold bounds)
     * @param f
     *   a function from `A` to an [[scala.IndexedSeq]] of [[java.lang.String]] that provides label values, which must be
@@ -239,7 +244,7 @@ trait MetricRegistry[F[_]] {
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
-      nativeHistogram: NativeHistogram
+      config: NativeHistogram
   )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Double, A]]
 
   /** Create and register a summary that records [[scala.Double]] values against a metrics registry
@@ -385,7 +390,7 @@ object MetricRegistry {
           help: Metric.Help,
           commonLabels: CommonLabels,
           labelNames: IndexedSeq[Label.Name],
-          nativeHistogram: NativeHistogram
+          config: NativeHistogram
       )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Double, A]] =
         Resource.pure(Histogram.noop)
 
@@ -468,11 +473,11 @@ object MetricRegistry {
           help: Metric.Help,
           commonLabels: CommonLabels,
           labelNames: IndexedSeq[Label.Name],
-          nativeHistogram: NativeHistogram
+          config: NativeHistogram
       )(f: A => IndexedSeq[String]): Resource[G, Histogram[G, Double, A]] =
         self
           .createAndRegisterDoubleNativeHistogram(
-            prefix, name, help, commonLabels, labelNames, nativeHistogram
+            prefix, name, help, commonLabels, labelNames, config
           )(f)
           .mapK(fk)
           .map(_.mapK(fk))
