@@ -153,7 +153,6 @@ class JavaMetricRegistry[F[_]: Async] private (
           .name(fullName)
           .help(help.value)
           .labelNames(allLabelNames.map(_.value): _*)
-          .withExemplars()
           .register(registry),
       metricType = MetricType.Counter,
       metricPrefix = prefix,
