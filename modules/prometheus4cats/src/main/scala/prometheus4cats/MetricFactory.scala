@@ -559,9 +559,9 @@ object MetricFactory {
       )
 
     /** Type alias for the histogram DSL returned in the callback-aware variant: same shape as
-      * [[MetricFactory.HistogramWithNativeDsl]] but with the more specific [[HistogramMetricDsl.WithCallbacksImpl]] in
-      * place of the compound type, so consumers see `.callback(...)` as well as `.label(...)` / `.build` /
-      * `.withNative` after `.buckets(...)`.
+      * [[MetricFactory.HistogramWithNativeDsl]] but with the more specific
+      * [[internal.HistogramMetricDsl.WithCallbacksImpl]] in place of the compound type, so consumers see
+      * `.callback(...)` as well as `.label(...)` / `.build` / `.withNative` after `.buckets(...)`.
       *
       * This is a subtype of `MetricFactory.HistogramWithNativeDsl[A]` (BucketDsl + HelpStep + TypeStep are all
       * covariant in the right places), so the override is valid.
