@@ -48,7 +48,6 @@ import prometheus4cats.util.NameUtils
   *
   * Construct via [[JavaMetricRegistry.Builder]].
   */
-@SuppressWarnings(Array("all"))
 class JavaMetricRegistry[F[_]: Async] private (
     private val registry: PrometheusRegistry,
     private val ref: Ref[F, State[F]],
@@ -79,6 +78,7 @@ class JavaMetricRegistry[F[_]: Async] private (
     * Mirrors the behaviour of the legacy `javasimpleclient` adapter — supports overlapping `Resource`-scoped
     * registrations of the same metric name without registering it twice with the underlying registry.
     */
+  @SuppressWarnings(Array("scalafix:DisableSyntax.=="))
   protected def configureBuilderOrRetrieve[M <: io.prometheus.metrics.core.metrics.StatefulMetric[_, _]](
       register: () => M,
       metricType: MetricType,
@@ -339,7 +339,6 @@ class JavaMetricRegistry[F[_]: Async] private (
 
 }
 
-@SuppressWarnings(Array("all"))
 object JavaMetricRegistry {
 
   /** Builder for [[JavaMetricRegistry]]. Mirrors the legacy
