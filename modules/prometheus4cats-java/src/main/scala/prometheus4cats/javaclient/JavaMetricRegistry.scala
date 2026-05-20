@@ -59,8 +59,8 @@ class JavaMetricRegistry[F[_]: Async] private (
 
   type Underlying = PrometheusRegistry
 
-  /** Returns the underlying upstream [[PrometheusRegistry]]. Use to expose metrics over an HTTP endpoint or to register
-    * external collectors.
+  /** Returns the underlying upstream [[io.prometheus.metrics.model.registry.PrometheusRegistry]]. Use to expose metrics
+    * over an HTTP endpoint or to register external collectors.
     */
   def underlying: PrometheusRegistry = registry
 
@@ -249,6 +249,17 @@ class JavaMetricRegistry[F[_]: Async] private (
   )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Double, A]] =
     Resource.eval(ApplicativeThrow[F].raiseError(notYetPorted("createAndRegisterDoubleNativeHistogram")))
 
+  override def createAndRegisterDoubleHistogramWithNative[A](
+      prefix: Option[Metric.Prefix],
+      name: Histogram.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name],
+      buckets: NonEmptySeq[Double],
+      nativeHistogram: NativeHistogram
+  )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Double, A]] =
+    Resource.eval(ApplicativeThrow[F].raiseError(notYetPorted("createAndRegisterDoubleHistogramWithNative")))
+
   override def createAndRegisterDoubleSummary[A](
       prefix: Option[Metric.Prefix],
       name: Summary.Name,
@@ -261,11 +272,12 @@ class JavaMetricRegistry[F[_]: Async] private (
   )(f: A => IndexedSeq[String]): Resource[F, Summary[F, Double, A]] =
     Resource.eval(ApplicativeThrow[F].raiseError(notYetPorted("createAndRegisterDoubleSummary")))
 
-  override def createAndRegisterInfo(
+  override def createAndRegisterInfo[A](
       prefix: Option[Metric.Prefix],
       name: Info.Name,
-      help: Metric.Help
-  ): Resource[F, Info[F, Map[Label.Name, String]]] =
+      help: Metric.Help,
+      labelNames: IndexedSeq[Label.Name]
+  )(f: A => IndexedSeq[String]): Resource[F, Info[F, A]] =
     Resource.eval(ApplicativeThrow[F].raiseError(notYetPorted("createAndRegisterInfo")))
 
   override def registerDoubleCounterCallback[A](
@@ -338,7 +350,7 @@ object JavaMetricRegistry {
     * bridge) can migrate by changing only the import.
     *
     * Differences from the legacy Builder:
-    *   - takes a [[PrometheusRegistry]] instead of `CollectorRegistry`;
+    *   - takes a [[io.prometheus.metrics.model.registry.PrometheusRegistry]] instead of `CollectorRegistry`;
     *   - JVM/process metrics are added via [[Builder.withJvmMetrics]] (which uses
     *     `prometheus-metrics-instrumentation-jvm`'s `JvmMetrics.builder().register(...)`) rather than a list of
     *     simpleclient hotspot collectors.
