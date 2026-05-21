@@ -256,7 +256,7 @@ class JavaMetricRegistry[F[_]: Async] private (
           // form is emitted from the .histogram(...) DSL path; the .nativeHistogram(...) DSL path
           // calls .nativeOnly() instead.
           .classicOnly()
-          .classicUpperBounds(buckets.toSeq.toArray: _*)
+          .classicUpperBounds(buckets.toList: _*)
           .register(registry),
       metricType = MetricType.Histogram,
       metricPrefix = prefix,
@@ -306,7 +306,7 @@ class JavaMetricRegistry[F[_]: Async] private (
           .name(fullName)
           .help(help.value)
           .labelNames(allLabelNames.map(_.value): _*)
-          .classicUpperBounds(buckets.toSeq.toArray: _*)
+          .classicUpperBounds(buckets.toList: _*)
           .nativeInitialSchema(config.initialSchema)
           .nativeMaxNumberOfBuckets(config.maxNumberOfBuckets)
           .nativeMaxZeroThreshold(config.maxZeroThreshold)
