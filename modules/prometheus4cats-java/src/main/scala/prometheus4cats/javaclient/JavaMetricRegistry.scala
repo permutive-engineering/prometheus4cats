@@ -231,13 +231,21 @@ class JavaMetricRegistry[F[_]: Async] private (
     }
   }
 
-  override def createAndRegisterDoubleHistogram[A](
+  /** Shared post-registration plumbing for all three histogram modes (classic-only, native-only, dual). Extracts the
+    * common labels, registers the upstream `PHistogram` via `configureBuilderOrRetrieve` (using the caller's
+    * `configureBuilder` to set mode-specific bits like `.classicOnly()` or `.nativeOnly()`), and wraps the result in a
+    * prometheus4cats `Histogram` whose observe goes through `Utils.modifyMetric` against the upstream
+    * `DistributionDataPoint`.
+    */
+  private def histogramFromBuilder[A](
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
-      buckets: NonEmptySeq[Double]
+      metricType: MetricType,
+      configureBuilder: PHistogram.Builder => PHistogram.Builder,
+      exemplarState: Ref[F, Option[Exemplar.Data]] => Histogram.ExemplarState[F]
   )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Double, A]] = {
     val commonLabelNames       = commonLabels.value.keys.toIndexedSeq
     val commonLabelValuesArray = commonLabels.value.values.toArray
@@ -246,25 +254,20 @@ class JavaMetricRegistry[F[_]: Async] private (
 
     configureBuilderOrRetrieve[PHistogram](
       register = () =>
-        PHistogram
-          .builder()
-          .name(fullName)
-          .help(help.value)
-          .labelNames(allLabelNames.map(_.value): _*)
-          // .classicOnly() is required because the 1.x default emits BOTH classic AND native
-          // histograms from a single declaration. Preserving v5 behaviour means only the classic
-          // form is emitted from the .histogram(...) DSL path; the .nativeHistogram(...) DSL path
-          // calls .nativeOnly() instead.
-          .classicOnly()
-          .classicUpperBounds(buckets.toList: _*)
-          .register(registry),
-      metricType = MetricType.Histogram,
+        configureBuilder(
+          PHistogram
+            .builder()
+            .name(fullName)
+            .help(help.value)
+            .labelNames(allLabelNames.map(_.value): _*)
+        ).register(registry),
+      metricType = metricType,
       metricPrefix = prefix,
       stringName = name.value,
       labels = allLabelNames
     ).map { case (histogram, exemplarRef) =>
       Histogram.make[F, Double, A](
-        Histogram.ExemplarState.fromRef(buckets, exemplarRef),
+        exemplarState(exemplarRef),
         _observe = { (d: Double, labels: A, exemplar: Option[Exemplar.Labels]) =>
           Utils.modifyMetric[F, Histogram.Name, io.prometheus.metrics.core.datapoints.DistributionDataPoint](
             metricName = name,
@@ -280,6 +283,47 @@ class JavaMetricRegistry[F[_]: Async] private (
       )
     }
   }
+
+  /** Applies the five native-histogram tuning setters from a [[NativeHistogram]] config to a `PHistogram.Builder`,
+    * conditionally including `nativeResetDuration` only when the configured duration is positive. Shared by the
+    * native-only and dual-mode registration paths.
+    */
+  private def applyNativeConfig(builder: PHistogram.Builder, config: NativeHistogram): PHistogram.Builder = {
+    val withTuning = builder
+      .nativeInitialSchema(config.initialSchema)
+      .nativeMaxNumberOfBuckets(config.maxNumberOfBuckets)
+      .nativeMaxZeroThreshold(config.maxZeroThreshold)
+      .nativeMinZeroThreshold(config.minZeroThreshold)
+    if (config.resetDuration > 0.seconds)
+      withTuning.nativeResetDuration(
+        config.resetDuration.toSeconds,
+        java.util.concurrent.TimeUnit.SECONDS
+      )
+    else withTuning
+  }
+
+  override def createAndRegisterDoubleHistogram[A](
+      prefix: Option[Metric.Prefix],
+      name: Histogram.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name],
+      buckets: NonEmptySeq[Double]
+  )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Double, A]] =
+    histogramFromBuilder(
+      prefix,
+      name,
+      help,
+      commonLabels,
+      labelNames,
+      metricType = MetricType.Histogram,
+      // .classicOnly() is required because the 1.x default emits BOTH classic AND native
+      // histograms from a single declaration. Preserving v5 behaviour means only the classic
+      // form is emitted from the .histogram(...) DSL path; the .nativeHistogram(...) DSL path
+      // calls .nativeOnly() instead.
+      configureBuilder = _.classicOnly().classicUpperBounds(buckets.toList: _*),
+      exemplarState = ref => Histogram.ExemplarState.fromRef(buckets, ref)
+    )(f)
 
   override def createAndRegisterDoubleHistogramWithNative[A](
       prefix: Option[Metric.Prefix],
@@ -289,61 +333,23 @@ class JavaMetricRegistry[F[_]: Async] private (
       labelNames: IndexedSeq[Label.Name],
       buckets: NonEmptySeq[Double],
       config: NativeHistogram
-  )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Double, A]] = {
-    val commonLabelNames       = commonLabels.value.keys.toIndexedSeq
-    val commonLabelValuesArray = commonLabels.value.values.toArray
-    val allLabelNames          = labelNames ++ commonLabelNames
-    val fullName               = NameUtils.makeName(prefix, name)
-
-    configureBuilderOrRetrieve[PHistogram](
-      register = () => {
-        // Dual-mode: NEITHER .classicOnly() NOR .nativeOnly(). Both classicUpperBounds(...) and
-        // nativeInitialSchema(...) are set. The resulting Histogram emits BOTH representations,
-        // letting Prometheus's `convert_classic_histograms_to_nhcb` pick the classic form for
-        // server-side NHCB conversion while the native exponential is also available directly.
-        val builder = PHistogram
-          .builder()
-          .name(fullName)
-          .help(help.value)
-          .labelNames(allLabelNames.map(_.value): _*)
-          .classicUpperBounds(buckets.toList: _*)
-          .nativeInitialSchema(config.initialSchema)
-          .nativeMaxNumberOfBuckets(config.maxNumberOfBuckets)
-          .nativeMaxZeroThreshold(config.maxZeroThreshold)
-          .nativeMinZeroThreshold(config.minZeroThreshold)
-        val tuned =
-          if (config.resetDuration > 0.seconds)
-            builder.nativeResetDuration(
-              config.resetDuration.toSeconds,
-              java.util.concurrent.TimeUnit.SECONDS
-            )
-          else builder
-        tuned.register(registry)
-      },
+  )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Double, A]] =
+    histogramFromBuilder(
+      prefix,
+      name,
+      help,
+      commonLabels,
+      labelNames,
       // Use a distinct MetricType so dedup is correct: registering the same metric name as
       // dual-mode and then again as classic-only is a programmer error and should fail.
       metricType = MetricType.HistogramWithNative,
-      metricPrefix = prefix,
-      stringName = name.value,
-      labels = allLabelNames
-    ).map { case (histogram, exemplarRef) =>
-      Histogram.make[F, Double, A](
-        Histogram.ExemplarState.fromRef(buckets, exemplarRef),
-        _observe = { (d: Double, labels: A, exemplar: Option[Exemplar.Labels]) =>
-          Utils.modifyMetric[F, Histogram.Name, io.prometheus.metrics.core.datapoints.DistributionDataPoint](
-            metricName = name,
-            allLabelNames = allLabelNames,
-            dynamicLabels = f(labels),
-            commonLabelValues = commonLabelValuesArray,
-            getDataPoint = (lbls: Array[String]) => histogram.labelValues(lbls: _*),
-            modify = (dp: io.prometheus.metrics.core.datapoints.DistributionDataPoint) =>
-              exemplar.fold(dp.observe(d))(e => dp.observeWithExemplar(d, transformExemplarLabels(e))),
-            logger = logger
-          )
-        }
-      )
-    }
-  }
+      // Dual-mode: NEITHER .classicOnly() NOR .nativeOnly(). Both classicUpperBounds(...) and
+      // the native setters are configured. The resulting Histogram emits BOTH representations,
+      // letting Prometheus's `convert_classic_histograms_to_nhcb` pick the classic form for
+      // server-side NHCB conversion while the native exponential is also available directly.
+      configureBuilder = b => applyNativeConfig(b.classicUpperBounds(buckets.toList: _*), config),
+      exemplarState = ref => Histogram.ExemplarState.fromRef(buckets, ref)
+    )(f)
 
   override def createAndRegisterDoubleNativeHistogram[A](
       prefix: Option[Metric.Prefix],
@@ -352,60 +358,23 @@ class JavaMetricRegistry[F[_]: Async] private (
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
       config: NativeHistogram
-  )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Double, A]] = {
-    val commonLabelNames       = commonLabels.value.keys.toIndexedSeq
-    val commonLabelValuesArray = commonLabels.value.values.toArray
-    val allLabelNames          = labelNames ++ commonLabelNames
-    val fullName               = NameUtils.makeName(prefix, name)
-
-    configureBuilderOrRetrieve[PHistogram](
-      register = () => {
-        val builder = PHistogram
-          .builder()
-          .name(fullName)
-          .help(help.value)
-          .labelNames(allLabelNames.map(_.value): _*)
-          .nativeOnly()
-          .nativeInitialSchema(config.initialSchema)
-          .nativeMaxNumberOfBuckets(config.maxNumberOfBuckets)
-          .nativeMaxZeroThreshold(config.maxZeroThreshold)
-          .nativeMinZeroThreshold(config.minZeroThreshold)
-        val tuned =
-          if (config.resetDuration > 0.seconds)
-            builder.nativeResetDuration(
-              config.resetDuration.toSeconds,
-              java.util.concurrent.TimeUnit.SECONDS
-            )
-          else builder
-        tuned.register(registry)
-      },
+  )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Double, A]] =
+    histogramFromBuilder(
+      prefix,
+      name,
+      help,
+      commonLabels,
+      labelNames,
       metricType = MetricType.NativeHistogram,
-      metricPrefix = prefix,
-      stringName = name.value,
-      labels = allLabelNames
-    ).map { case (histogram, _) =>
-      // Native histograms use ExemplarState.noop: the upstream Histogram still accepts exemplars via
-      // observeWithExemplar(d, labels), but the bucket-driven sampler in Histogram.ExemplarState.fromRef
-      // requires explicit bucket boundaries which native histograms do not have. Consumers wanting
-      // sampled exemplars on a native histogram are not supported in this initial cut; explicit
-      // exemplars (.observeWithExemplar) still work end-to-end.
-      Histogram.make[F, Double, A](
-        Histogram.ExemplarState.noop,
-        _observe = { (d: Double, labels: A, exemplar: Option[Exemplar.Labels]) =>
-          Utils.modifyMetric[F, Histogram.Name, io.prometheus.metrics.core.datapoints.DistributionDataPoint](
-            metricName = name,
-            allLabelNames = allLabelNames,
-            dynamicLabels = f(labels),
-            commonLabelValues = commonLabelValuesArray,
-            getDataPoint = (lbls: Array[String]) => histogram.labelValues(lbls: _*),
-            modify = (dp: io.prometheus.metrics.core.datapoints.DistributionDataPoint) =>
-              exemplar.fold(dp.observe(d))(e => dp.observeWithExemplar(d, transformExemplarLabels(e))),
-            logger = logger
-          )
-        }
-      )
-    }
-  }
+      configureBuilder = b => applyNativeConfig(b.nativeOnly(), config),
+      // Native histograms use ExemplarState.noop: the upstream Histogram still accepts exemplars
+      // via observeWithExemplar(d, labels), but the bucket-driven sampler in
+      // Histogram.ExemplarState.fromRef requires explicit bucket boundaries which native
+      // histograms do not have. Consumers wanting sampled exemplars on a native histogram are not
+      // supported in this initial cut; explicit exemplars (.observeWithExemplar) still work
+      // end-to-end.
+      exemplarState = _ => Histogram.ExemplarState.noop
+    )(f)
 
   override def createAndRegisterDoubleSummary[A](
       prefix: Option[Metric.Prefix],
