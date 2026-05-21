@@ -19,7 +19,7 @@ package prometheus4cats
 import cats.Show
 import cats.effect.kernel.Ref
 
-import io.prometheus.metrics.core.metrics.StatefulMetric
+import io.prometheus.metrics.core.metrics.MetricWithFixedMetadata
 import prometheus4cats.javaclient.models.MetricType
 import prometheus4cats.util.NameUtils
 
@@ -29,8 +29,12 @@ package object javaclient {
 
   private[javaclient] type MetricID = (IndexedSeq[Label.Name], MetricType)
 
+  /** State entry bound by the most specific common parent of every upstream metric type we register —
+    * `MetricWithFixedMetadata`. Counter, Gauge, Histogram, Summary all extend `StatefulMetric` which extends this; Info
+    * extends this directly without going through `StatefulMetric`.
+    */
   private[javaclient] type StateValue[F[_]] =
-    (MetricID, (StatefulMetric[_, _], Ref[F, Option[Exemplar.Data]], Int))
+    (MetricID, (MetricWithFixedMetadata, Ref[F, Option[Exemplar.Data]], Int))
 
   private[javaclient] type State[F[_]] = Map[StateKey, StateValue[F]]
 

@@ -31,6 +31,7 @@ import cats.syntax.all._
 import io.prometheus.metrics.core.metrics.{Counter => PCounter}
 import io.prometheus.metrics.core.metrics.{Gauge => PGauge}
 import io.prometheus.metrics.core.metrics.{Histogram => PHistogram}
+import io.prometheus.metrics.core.metrics.{Info => PInfo}
 import io.prometheus.metrics.core.metrics.{Summary => PSummary}
 import io.prometheus.metrics.instrumentation.jvm.JvmMetrics
 import io.prometheus.metrics.model.registry.PrometheusRegistry
@@ -423,13 +424,89 @@ class JavaMetricRegistry[F[_]: Async] private (
     }
   }
 
+  @SuppressWarnings(Array("scalafix:DisableSyntax.=="))
   override def createAndRegisterInfo[A](
       prefix: Option[Metric.Prefix],
       name: Info.Name,
       help: Metric.Help,
       labelNames: IndexedSeq[Label.Name]
-  )(f: A => IndexedSeq[String]): Resource[F, Info[F, A]] =
-    Resource.eval(ApplicativeThrow[F].raiseError(notYetPorted("createAndRegisterInfo")))
+  )(f: A => IndexedSeq[String]): Resource[F, Info[F, A]] = {
+    // Upstream client_java appends "_info" to the metric name automatically when the registered
+    // name doesn't end in "_info". The user-provided Info.Name is constrained to end in "_info"
+    // already (see Info.Name regex), so we strip the suffix before registering and let upstream
+    // re-add it.
+    val rawName  = name.value
+    val baseName = if (rawName.endsWith("_info")) rawName.dropRight("_info".length) else rawName
+
+    // Info uses MetricWithFixedMetadata (not StatefulMetric), so the registration state machinery
+    // here is a slim variant of configureBuilderOrRetrieve — Info doesn't need exemplar tracking.
+    val fullName: StateKey = (prefix, baseName)
+    val metricId: MetricID = (labelNames, MetricType.Info)
+    val renderedFullName   = NameUtils.makeName(prefix, baseName)
+
+    val acquire = sem.permit.surround(
+      ref.get
+        .flatMap[(State[F], PInfo)] { (metrics: State[F]) =>
+          metrics.get(fullName) match {
+            case Some((expected, (collector, exemplarRef, references))) =>
+              if (metricId == expected)
+                Applicative[F].pure(
+                  (
+                    metrics.updated(fullName, (expected, (collector, exemplarRef, references + 1))),
+                    collector.asInstanceOf[PInfo]
+                  )
+                )
+              else
+                ApplicativeThrow[F].raiseError(
+                  new RuntimeException(
+                    s"A metric with the same name as '$renderedFullName' is already registered with different labels and/or type"
+                  )
+                )
+            case None =>
+              for {
+                exemplarRef <- Ref.of[F, Option[Exemplar.Data]](None)
+                collector <- Sync[F].delay(
+                               PInfo
+                                 .builder()
+                                 .name(rawName)
+                                 .help(help.value)
+                                 .labelNames(labelNames.map(_.value): _*)
+                                 .register(registry)
+                             )
+              } yield (
+                metrics.updated(fullName, (metricId, (collector, exemplarRef, 1))),
+                collector
+              )
+          }
+        }
+        .flatMap { case (state, collector) => ref.set(state).as(collector) }
+    )
+
+    val release: PInfo => F[Unit] = collector =>
+      sem.permit.surround {
+        ref.get.flatMap { metrics =>
+          metrics.get(fullName) match {
+            case Some((`metricId`, (_, _, 1))) =>
+              ref.set(metrics - fullName) >>
+                Sync[F].delay(registry.unregister(collector)).handleErrorWith { e =>
+                  logger(e)(s"Failed to unregister Info collector: '$collector'")
+                }
+            case Some((`metricId`, (collector, exemplarRef, references))) =>
+              ref.set(metrics.updated(fullName, (metricId, (collector, exemplarRef, references - 1))))
+            case _ => Applicative[F].unit
+          }
+        }
+      }
+
+    Resource.make(acquire)(release).map { info =>
+      Info.make[F, A] { a =>
+        val values = f(a)
+        Sync[F].delay(info.setLabelValues(values: _*)).handleErrorWith { e =>
+          logger(e)(s"Failed to set Info label values for metric '$renderedFullName'")
+        }
+      }
+    }
+  }
 
   override def registerDoubleCounterCallback[A](
       prefix: Option[Metric.Prefix],
