@@ -281,6 +281,70 @@ class JavaMetricRegistry[F[_]: Async] private (
     }
   }
 
+  override def createAndRegisterDoubleHistogramWithNative[A](
+      prefix: Option[Metric.Prefix],
+      name: Histogram.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name],
+      buckets: NonEmptySeq[Double],
+      nativeHistogram: NativeHistogram
+  )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Double, A]] = {
+    val commonLabelNames       = commonLabels.value.keys.toIndexedSeq
+    val commonLabelValuesArray = commonLabels.value.values.toArray
+    val allLabelNames          = labelNames ++ commonLabelNames
+    val fullName               = NameUtils.makeName(prefix, name)
+
+    configureBuilderOrRetrieve[PHistogram](
+      register = () => {
+        // Dual-mode: NEITHER .classicOnly() NOR .nativeOnly(). Both classicUpperBounds(...) and
+        // nativeInitialSchema(...) are set. The resulting Histogram emits BOTH representations,
+        // letting Prometheus's `convert_classic_histograms_to_nhcb` pick the classic form for
+        // server-side NHCB conversion while the native exponential is also available directly.
+        val builder = PHistogram
+          .builder()
+          .name(fullName)
+          .help(help.value)
+          .labelNames(allLabelNames.map(_.value): _*)
+          .classicUpperBounds(buckets.toSeq.toArray: _*)
+          .nativeInitialSchema(nativeHistogram.initialSchema)
+          .nativeMaxNumberOfBuckets(nativeHistogram.maxNumberOfBuckets)
+          .nativeMaxZeroThreshold(nativeHistogram.maxZeroThreshold)
+          .nativeMinZeroThreshold(nativeHistogram.minZeroThreshold)
+        val tuned =
+          if (nativeHistogram.resetDuration > 0.seconds)
+            builder.nativeResetDuration(
+              nativeHistogram.resetDuration.toSeconds,
+              java.util.concurrent.TimeUnit.SECONDS
+            )
+          else builder
+        tuned.register(registry)
+      },
+      // Use a distinct MetricType so dedup is correct: registering the same metric name as
+      // dual-mode and then again as classic-only is a programmer error and should fail.
+      metricType = MetricType.HistogramWithNative,
+      metricPrefix = prefix,
+      stringName = name.value,
+      labels = allLabelNames
+    ).map { case (histogram, exemplarRef) =>
+      Histogram.make[F, Double, A](
+        Histogram.ExemplarState.fromRef(buckets, exemplarRef),
+        _observe = { (d: Double, labels: A, exemplar: Option[Exemplar.Labels]) =>
+          Utils.modifyMetric[F, Histogram.Name, io.prometheus.metrics.core.datapoints.DistributionDataPoint](
+            metricName = name,
+            allLabelNames = allLabelNames,
+            dynamicLabels = f(labels),
+            commonLabelValues = commonLabelValuesArray,
+            getDataPoint = (lbls: Array[String]) => histogram.labelValues(lbls: _*),
+            modify = (dp: io.prometheus.metrics.core.datapoints.DistributionDataPoint) =>
+              exemplar.fold(dp.observe(d))(e => dp.observeWithExemplar(d, transformExemplarLabels(e))),
+            logger = logger
+          )
+        }
+      )
+    }
+  }
+
   override def createAndRegisterDoubleNativeHistogram[A](
       prefix: Option[Metric.Prefix],
       name: Histogram.Name,
@@ -342,17 +406,6 @@ class JavaMetricRegistry[F[_]: Async] private (
       )
     }
   }
-
-  override def createAndRegisterDoubleHistogramWithNative[A](
-      prefix: Option[Metric.Prefix],
-      name: Histogram.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels,
-      labelNames: IndexedSeq[Label.Name],
-      buckets: NonEmptySeq[Double],
-      nativeHistogram: NativeHistogram
-  )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Double, A]] =
-    Resource.eval(ApplicativeThrow[F].raiseError(notYetPorted("createAndRegisterDoubleHistogramWithNative")))
 
   override def createAndRegisterDoubleSummary[A](
       prefix: Option[Metric.Prefix],

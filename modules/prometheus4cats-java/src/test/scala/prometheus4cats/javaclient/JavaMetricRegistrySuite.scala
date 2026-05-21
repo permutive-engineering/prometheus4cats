@@ -137,6 +137,37 @@ class JavaMetricRegistrySuite extends CatsEffectSuite {
     }
   }
 
+  test("dual-mode histogram (.withNative) — scrape produces BOTH classic and native data") {
+    freshRegistry.use { case (promRegistry, factory) =>
+      factory
+        .histogram("test_dual_histogram")
+        .ofDouble
+        .help("test dual-mode (NHCB-friendly) histogram")
+        .buckets(NonEmptySeq.of(0.1, 0.5, 1.0, 5.0))
+        .withNative
+        .build
+        .use { h =>
+          (h.observe(0.05) >> h.observe(0.3) >> h.observe(0.7) >> h.observe(2.0)) >> IO.delay {
+            val snapshot = promRegistry
+              .scrape()
+              .asScala
+              .collectFirst { case s: HistogramSnapshot if s.getMetadata.getName === "test_dual_histogram" => s }
+              .getOrElse(fail("expected a HistogramSnapshot named 'test_dual_histogram'"))
+            val dp = snapshot.getDataPoints.asScala.head
+            // The headline assertion: BOTH classic and native data are emitted from a single declaration.
+            assert(dp.hasClassicHistogramData, "expected classic histogram data on dual-mode histogram")
+            assert(dp.hasNativeHistogramData, "expected native histogram data on dual-mode histogram")
+            assertEquals(dp.getCount, 4L)
+            assertEqualsDouble(dp.getSum, 3.05, 1e-9)
+            // Classic buckets are preserved as supplied.
+            val classicBuckets = dp.getClassicBuckets.asScala.map(_.getUpperBound).toSet
+            assert(classicBuckets.contains(0.1), s"expected classic bucket 0.1; got $classicBuckets")
+            assert(classicBuckets.contains(5.0), s"expected classic bucket 5.0; got $classicBuckets")
+          }
+        }
+    }
+  }
+
   test("native histogram — custom NativeHistogram config propagates initialSchema to the scraped snapshot") {
     freshRegistry.use { case (promRegistry, factory) =>
       factory
