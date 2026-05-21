@@ -288,7 +288,7 @@ class JavaMetricRegistry[F[_]: Async] private (
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
       buckets: NonEmptySeq[Double],
-      nativeHistogram: NativeHistogram
+      config: NativeHistogram
   )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Double, A]] = {
     val commonLabelNames       = commonLabels.value.keys.toIndexedSeq
     val commonLabelValuesArray = commonLabels.value.values.toArray
@@ -307,14 +307,14 @@ class JavaMetricRegistry[F[_]: Async] private (
           .help(help.value)
           .labelNames(allLabelNames.map(_.value): _*)
           .classicUpperBounds(buckets.toSeq.toArray: _*)
-          .nativeInitialSchema(nativeHistogram.initialSchema)
-          .nativeMaxNumberOfBuckets(nativeHistogram.maxNumberOfBuckets)
-          .nativeMaxZeroThreshold(nativeHistogram.maxZeroThreshold)
-          .nativeMinZeroThreshold(nativeHistogram.minZeroThreshold)
+          .nativeInitialSchema(config.initialSchema)
+          .nativeMaxNumberOfBuckets(config.maxNumberOfBuckets)
+          .nativeMaxZeroThreshold(config.maxZeroThreshold)
+          .nativeMinZeroThreshold(config.minZeroThreshold)
         val tuned =
-          if (nativeHistogram.resetDuration > 0.seconds)
+          if (config.resetDuration > 0.seconds)
             builder.nativeResetDuration(
-              nativeHistogram.resetDuration.toSeconds,
+              config.resetDuration.toSeconds,
               java.util.concurrent.TimeUnit.SECONDS
             )
           else builder
@@ -351,7 +351,7 @@ class JavaMetricRegistry[F[_]: Async] private (
       help: Metric.Help,
       commonLabels: Metric.CommonLabels,
       labelNames: IndexedSeq[Label.Name],
-      nativeHistogram: NativeHistogram
+      config: NativeHistogram
   )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Double, A]] = {
     val commonLabelNames       = commonLabels.value.keys.toIndexedSeq
     val commonLabelValuesArray = commonLabels.value.values.toArray
@@ -366,14 +366,14 @@ class JavaMetricRegistry[F[_]: Async] private (
           .help(help.value)
           .labelNames(allLabelNames.map(_.value): _*)
           .nativeOnly()
-          .nativeInitialSchema(nativeHistogram.initialSchema)
-          .nativeMaxNumberOfBuckets(nativeHistogram.maxNumberOfBuckets)
-          .nativeMaxZeroThreshold(nativeHistogram.maxZeroThreshold)
-          .nativeMinZeroThreshold(nativeHistogram.minZeroThreshold)
+          .nativeInitialSchema(config.initialSchema)
+          .nativeMaxNumberOfBuckets(config.maxNumberOfBuckets)
+          .nativeMaxZeroThreshold(config.maxZeroThreshold)
+          .nativeMinZeroThreshold(config.minZeroThreshold)
         val tuned =
-          if (nativeHistogram.resetDuration > 0.seconds)
+          if (config.resetDuration > 0.seconds)
             builder.nativeResetDuration(
-              nativeHistogram.resetDuration.toSeconds,
+              config.resetDuration.toSeconds,
               java.util.concurrent.TimeUnit.SECONDS
             )
           else builder
