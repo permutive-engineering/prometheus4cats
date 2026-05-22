@@ -28,6 +28,9 @@ import cats.effect.kernel._
 import cats.effect.std.Semaphore
 import cats.syntax.all._
 
+import io.prometheus.metrics.core.datapoints.CounterDataPoint
+import io.prometheus.metrics.core.datapoints.DistributionDataPoint
+import io.prometheus.metrics.core.datapoints.GaugeDataPoint
 import io.prometheus.metrics.core.metrics.{Counter => PCounter}
 import io.prometheus.metrics.core.metrics.{Gauge => PGauge}
 import io.prometheus.metrics.core.metrics.{Histogram => PHistogram}
@@ -174,13 +177,13 @@ class JavaMetricRegistry[F[_]: Async] private (
             labels: A,
             exemplar: Option[Exemplar.Labels]
         ) =>
-          Utils.modifyMetric[F, Counter.Name, io.prometheus.metrics.core.datapoints.CounterDataPoint](
+          Utils.modifyMetric[F, Counter.Name, CounterDataPoint](
             metricName = name,
             allLabelNames = allLabelNames,
             dynamicLabels = f(labels),
             commonLabelValues = commonLabelValuesArray,
             getDataPoint = (lbls: Array[String]) => counter.labelValues(lbls: _*),
-            modify = (dp: io.prometheus.metrics.core.datapoints.CounterDataPoint) =>
+            modify = (dp: CounterDataPoint) =>
               exemplar.fold(dp.inc(d))(e => dp.incWithExemplar(d, transformExemplarLabels(e))),
             logger = logger
           )
@@ -214,8 +217,8 @@ class JavaMetricRegistry[F[_]: Async] private (
       labels = allLabelNames
     ).map { case (gauge, _) =>
       @inline
-      def modify(g: io.prometheus.metrics.core.datapoints.GaugeDataPoint => Unit, labels: A): F[Unit] =
-        Utils.modifyMetric[F, Gauge.Name, io.prometheus.metrics.core.datapoints.GaugeDataPoint](
+      def modify(g: GaugeDataPoint => Unit, labels: A): F[Unit] =
+        Utils.modifyMetric[F, Gauge.Name, GaugeDataPoint](
           metricName = name,
           allLabelNames = allLabelNames,
           dynamicLabels = f(labels),
@@ -271,13 +274,13 @@ class JavaMetricRegistry[F[_]: Async] private (
       Histogram.make[F, Double, A](
         exemplarState(exemplarRef),
         _observe = { (d: Double, labels: A, exemplar: Option[Exemplar.Labels]) =>
-          Utils.modifyMetric[F, Histogram.Name, io.prometheus.metrics.core.datapoints.DistributionDataPoint](
+          Utils.modifyMetric[F, Histogram.Name, DistributionDataPoint](
             metricName = name,
             allLabelNames = allLabelNames,
             dynamicLabels = f(labels),
             commonLabelValues = commonLabelValuesArray,
             getDataPoint = (lbls: Array[String]) => histogram.labelValues(lbls: _*),
-            modify = (dp: io.prometheus.metrics.core.datapoints.DistributionDataPoint) =>
+            modify = (dp: DistributionDataPoint) =>
               exemplar.fold(dp.observe(d))(e => dp.observeWithExemplar(d, transformExemplarLabels(e))),
             logger = logger
           )
@@ -411,13 +414,13 @@ class JavaMetricRegistry[F[_]: Async] private (
       labels = allLabelNames
     ).map { case (summary, _) =>
       Summary.make[F, Double, A] { case (d, labels) =>
-        Utils.modifyMetric[F, Summary.Name, io.prometheus.metrics.core.datapoints.DistributionDataPoint](
+        Utils.modifyMetric[F, Summary.Name, DistributionDataPoint](
           metricName = name,
           allLabelNames = allLabelNames,
           dynamicLabels = f(labels),
           commonLabelValues = commonLabelValuesArray,
           getDataPoint = (lbls: Array[String]) => summary.labelValues(lbls: _*),
-          modify = (dp: io.prometheus.metrics.core.datapoints.DistributionDataPoint) => dp.observe(d),
+          modify = (dp: DistributionDataPoint) => dp.observe(d),
           logger = logger
         )
       }
