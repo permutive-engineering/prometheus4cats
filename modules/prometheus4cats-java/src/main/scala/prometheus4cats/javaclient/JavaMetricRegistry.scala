@@ -58,6 +58,7 @@ import io.prometheus.metrics.model.snapshots.MetricSnapshot
 import io.prometheus.metrics.model.snapshots.MetricSnapshots
 import io.prometheus.metrics.model.snapshots.Quantiles
 import io.prometheus.metrics.model.snapshots.SummarySnapshot
+import io.prometheus.metrics.model.snapshots.{Exemplar => PExemplar}
 import io.prometheus.metrics.model.snapshots.{Quantile => PQuantile}
 import prometheus4cats._
 import prometheus4cats.javaclient.internal.Utils
@@ -801,7 +802,7 @@ class JavaMetricRegistry[F[_]: Async] private (
         new CounterSnapshot.CounterDataPointSnapshot(
           if (v < 0) 0.0 else v,
           Labels.of(allLabelNamesStr, (f(a) ++ commonLabelValuesArr).toArray),
-          null: io.prometheus.metrics.model.snapshots.Exemplar,
+          null: PExemplar,
           0L
         ): DataPointSnapshot
       }
@@ -850,7 +851,7 @@ class JavaMetricRegistry[F[_]: Async] private (
         new GaugeSnapshot.GaugeDataPointSnapshot(
           v,
           Labels.of(allLabelNamesStr, (f(a) ++ commonLabelValuesArr).toArray),
-          null: io.prometheus.metrics.model.snapshots.Exemplar
+          null: PExemplar
         ): DataPointSnapshot
       }
     )
@@ -1093,7 +1094,7 @@ class JavaMetricRegistry[F[_]: Async] private (
           new CounterSnapshot.CounterDataPointSnapshot(
             if (vDouble < 0) 0.0 else vDouble,
             labelsFor(labelNames, lbls),
-            null: io.prometheus.metrics.model.snapshots.Exemplar,
+            null: PExemplar,
             0L
           )
         }.asJava
@@ -1112,7 +1113,7 @@ class JavaMetricRegistry[F[_]: Async] private (
           new GaugeSnapshot.GaugeDataPointSnapshot(
             vDouble,
             labelsFor(labelNames, lbls),
-            null: io.prometheus.metrics.model.snapshots.Exemplar
+            null: PExemplar
           )
         }.asJava
         new GaugeSnapshot(new MetricMetadata(fullName, head.help.value), dps): MetricSnapshot
