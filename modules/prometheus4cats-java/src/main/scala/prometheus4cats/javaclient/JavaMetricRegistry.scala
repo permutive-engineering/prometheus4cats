@@ -81,7 +81,8 @@ class JavaMetricRegistry[F[_]: Async] private (
     private val callbackState: Ref[F, CallbackState[F]],
     private val callbackTimeoutState: Ref[F, Set[String]],
     private val callbackErrorState: Ref[F, Set[String]],
-    private val singleCallbackErrorState: Ref[F, (Set[String], Set[String])],
+    private val singleCallbackTimeoutState: Ref[F, Set[String]],
+    private val singleCallbackErrorState: Ref[F, Set[String]],
     private val sem: Semaphore[F],
     private val dispatcher: Dispatcher[F],
     private val callbackTimeout: FiniteDuration,
@@ -569,10 +570,10 @@ class JavaMetricRegistry[F[_]: Async] private (
   //     samples for that registration and logs ONCE per metric name.
   //   - `callbackTimeout` bounds the COMBINED collection of all registered callbacks for a single
   //     metric (i.e., the wrapper that aggregates samples across multiple consumer registrations).
-  //   - Error tracking refs (`callbackTimeoutState`, `callbackErrorState`, `singleCallbackErrorState`)
-  //     prevent log spam: the first time a metric's callback times out / fails, we log; subsequent
-  //     occurrences are silently counted by the upstream Prometheus runtime via the regular
-  //     scrape-error path.
+  //   - Error tracking refs (`callbackTimeoutState`, `callbackErrorState`, `singleCallbackTimeoutState`,
+  //     `singleCallbackErrorState`) prevent log spam: the first time a metric's callback times out / fails,
+  //     we log; subsequent occurrences are silently counted by the upstream Prometheus runtime via the
+  //     regular scrape-error path.
   //
   // Skipped vs the legacy adapter: the internal `prometheus4cats_combined_callback_metric_total` and
   // `prometheus4cats_callback_total` counters that tracked callback success/error/timeout counts
@@ -719,7 +720,7 @@ class JavaMetricRegistry[F[_]: Async] private (
       callbacks: Ref[F, CallbackPayload[F]],
       renderedFullName: String
   ): F[List[DataPointSnapshot]] =
-    singleCallbackErrorState.get.flatMap { case (loggedTimeout, loggedError) =>
+    (singleCallbackTimeoutState.get, singleCallbackErrorState.get).tupled.flatMap { case (loggedTimeout, loggedError) =>
       callbacks.get
         .flatMap(
           _.values.foldM(
@@ -735,13 +736,13 @@ class JavaMetricRegistry[F[_]: Async] private (
           }
         )
         .flatMap { case (hasLoggedTimeout0, hasLoggedError0, samples) =>
-          ((hasLoggedTimeout0, hasLoggedError0) match {
-            case (true, true) =>
-              singleCallbackErrorState.set((loggedTimeout + renderedFullName, loggedError + renderedFullName))
-            case (true, false)  => singleCallbackErrorState.set((loggedTimeout + renderedFullName, loggedError))
-            case (false, true)  => singleCallbackErrorState.set((loggedTimeout, loggedError + renderedFullName))
-            case (false, false) => Applicative[F].unit
-          }).as(samples)
+          val updateTimeout =
+            if (hasLoggedTimeout0) singleCallbackTimeoutState.set(loggedTimeout + renderedFullName)
+            else Applicative[F].unit
+          val updateError =
+            if (hasLoggedError0) singleCallbackErrorState.set(loggedError + renderedFullName)
+            else Applicative[F].unit
+          (updateTimeout *> updateError).as(samples)
         }
     }
 
@@ -1243,20 +1244,21 @@ object JavaMetricRegistry {
       }.flatMap { _ =>
         Dispatcher.sequential[F].flatMap { dispatcher =>
           val acquire = for {
-            ref                      <- Ref.of[F, State[F]](Map.empty)
-            cbState                  <- Ref.of[F, CallbackState[F]](Map.empty)
-            cbTimeoutState           <- Ref.of[F, Set[String]](Set.empty)
-            cbErrorState             <- Ref.of[F, Set[String]](Set.empty)
-            singleCallbackErrorState <- Ref.of[F, (Set[String], Set[String])]((Set.empty, Set.empty))
+            ref                        <- Ref.of[F, State[F]](Map.empty)
+            cbState                    <- Ref.of[F, CallbackState[F]](Map.empty)
+            cbTimeoutState             <- Ref.of[F, Set[String]](Set.empty)
+            cbErrorState               <- Ref.of[F, Set[String]](Set.empty)
+            singleCallbackTimeoutState <- Ref.of[F, Set[String]](Set.empty)
+            singleCallbackErrorState   <- Ref.of[F, Set[String]](Set.empty)
             metricCollectionRef <- Ref.of[F, Map[
                                      Option[Metric.Prefix],
                                      (Map[Label.Name, String], Map[Unique.Token, F[MetricCollection]])
                                    ]](Map.empty)
             sem <- Semaphore[F](1L)
             reg = new JavaMetricRegistry[F](
-                    promRegistry, ref, cbState, cbTimeoutState, cbErrorState, singleCallbackErrorState, sem, dispatcher,
-                    callbackTimeout = callbackCollectionTimeout, singleCallbackTimeout = callbackTimeout,
-                    metricCollectionRef = metricCollectionRef, logger = logger
+                    promRegistry, ref, cbState, cbTimeoutState, cbErrorState, singleCallbackTimeoutState,
+                    singleCallbackErrorState, sem, dispatcher, callbackTimeout = callbackCollectionTimeout,
+                    singleCallbackTimeout = callbackTimeout, metricCollectionRef = metricCollectionRef, logger = logger
                   )
             // Register the metric-collection MultiCollector unconditionally; it returns an empty
             // MetricSnapshots when no consumer callbacks are registered, so it's a no-op-cost
