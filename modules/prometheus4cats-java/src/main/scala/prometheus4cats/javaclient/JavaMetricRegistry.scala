@@ -798,6 +798,11 @@ class JavaMetricRegistry[F[_]: Async] private (
     // Build CounterDataPointSnapshot instances inside the user callback's F so the generic
     // CallbackPayload type can hold them as plain DataPointSnapshots. The Collector at scrape time
     // casts back to CounterDataPointSnapshot.
+    //
+    // Negative values are clamped to 0.0 to preserve v5 (javasimpleclient) tolerance for malformed
+    // callbacks. Upstream v6's CounterDataPointSnapshot.validate() throws IllegalArgumentException on
+    // negative values, so the clamp prevents a scrape-time crash when a consumer accidentally exposes
+    // a non-monotonic source as a Counter callback.
     val projected: F[NonEmptyList[DataPointSnapshot]] = callback.map(
       _.map { case (v, a) =>
         new CounterSnapshot.CounterDataPointSnapshot(
@@ -1092,6 +1097,8 @@ class JavaMetricRegistry[F[_]: Async] private (
             case x: MetricCollection.Value.LongCounter   => (x.value.toDouble, x.labelValues)
             case x: MetricCollection.Value.DoubleCounter => (x.value, x.labelValues)
           }
+          // Negative values are clamped to 0.0 — same v5-parity / upstream-validate rationale as in
+          // registerDoubleCounterCallback.
           new CounterSnapshot.CounterDataPointSnapshot(
             if (vDouble < 0) 0.0 else vDouble,
             labelsFor(labelNames, lbls),
