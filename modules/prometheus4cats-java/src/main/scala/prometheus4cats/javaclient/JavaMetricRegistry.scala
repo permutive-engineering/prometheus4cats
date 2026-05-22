@@ -132,7 +132,11 @@ class JavaMetricRegistry[F[_]: Async] private (
               ref.set(metrics - fullName) >> Utils.unregister(collector, registry, logger)
             case Some((`metricId`, (collector, exemplarRef, references))) =>
               ref.set(metrics.updated(fullName, (metricId, (collector, exemplarRef, references - 1))))
-            case _ => Applicative[F].unit
+            case _ =>
+              logger(new IllegalStateException("javaclient: unexpected state during Resource release"))(
+                s"Unexpected state at $renderedFullName release; collector NOT unregistered. " +
+                  "This indicates a bug in the registry state machinery; please report."
+              )
           }
         }
       }
@@ -496,7 +500,11 @@ class JavaMetricRegistry[F[_]: Async] private (
                 }
             case Some((`metricId`, (collector, exemplarRef, references))) =>
               ref.set(metrics.updated(fullName, (metricId, (collector, exemplarRef, references - 1))))
-            case _ => Applicative[F].unit
+            case _ =>
+              logger(new IllegalStateException("javaclient: unexpected state during Info Resource release"))(
+                s"Unexpected state at $renderedFullName release; Info collector NOT unregistered. " +
+                  "This indicates a bug in the registry state machinery; please report."
+              )
           }
         }
       }
