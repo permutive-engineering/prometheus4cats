@@ -776,6 +776,7 @@ class JavaMetricRegistry[F[_]: Async] private (
       )
   )
 
+  @SuppressWarnings(Array("scalafix:DisableSyntax.null"))
   override def registerDoubleCounterCallback[A](
       prefix: Option[Metric.Prefix],
       name: Counter.Name,
@@ -830,6 +831,7 @@ class JavaMetricRegistry[F[_]: Async] private (
     )
   }
 
+  @SuppressWarnings(Array("scalafix:DisableSyntax.null"))
   override def registerDoubleGaugeCallback[A](
       prefix: Option[Metric.Prefix],
       name: Gauge.Name,
@@ -1022,12 +1024,13 @@ class JavaMetricRegistry[F[_]: Async] private (
         th =>
           logger(th)(s"Combined metric-collection callbacks timed out after $callbackTimeout")
             .as(MetricSnapshots.builder().build()),
-        th => logger(th)(s"Combined metric-collection callbacks failed").as(MetricSnapshots.builder().build())
+        th => logger(th)("Combined metric-collection callbacks failed").as(MetricSnapshots.builder().build())
       )
     }
 
   }
 
+  @SuppressWarnings(Array("scalafix:DisableSyntax.null"))
   override def registerMetricCollectionCallback(
       prefix: Option[Metric.Prefix],
       commonLabels: Metric.CommonLabels,
@@ -1063,6 +1066,7 @@ class JavaMetricRegistry[F[_]: Async] private (
     * upstream `MetricSnapshot`s. Each (name, labelNames) entry becomes one snapshot with one or more data points (one
     * per List entry in the user's MetricCollection).
     */
+  @SuppressWarnings(Array("scalafix:DisableSyntax.null"))
   private def metricCollectionToSnapshots(
       prefix: Option[Metric.Prefix],
       commonLabels: Map[Label.Name, String],
