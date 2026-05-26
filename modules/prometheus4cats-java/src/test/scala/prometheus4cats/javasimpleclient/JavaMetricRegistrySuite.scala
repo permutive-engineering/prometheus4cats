@@ -186,7 +186,7 @@ class JavaMetricRegistrySuite
       help: Metric.Help,
       commonLabels: CommonLabels,
       extraLabels: Map[Label.Name, String]
-  ): IO[(Option[Map[String, Double]], Option[Double], Option[Double])] = IO {
+  ): IO[(Option[Map[String, Double]], Option[Long], Option[Double])] = IO {
     val n = NameUtils.makeName(prefix, name)
 
     val allLabels = (commonLabels.value ++ extraLabels).map { case (n, v) => n.value -> v }
@@ -212,7 +212,7 @@ class JavaMetricRegistrySuite
 
     (
       quantiles,
-      getMetricValue(state, prefix, show"${name}_count", commonLabels, extraLabels).map(_._1),
+      getMetricValue(state, prefix, show"${name}_count", commonLabels, extraLabels).map(_._1.toLong),
       getMetricValue(state, prefix, show"${name}_sum", commonLabels, extraLabels).map(_._1)
     )
   }

@@ -448,7 +448,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
               .evalTap(_.observe(value))
               .surround(get.map { case (q, count, sum) =>
                 assertEquals(q, Some(quantiles.map(qd => qd.value.value.toString -> value).toMap))
-                assertEquals(count, Some(1.0))
+                assertEquals(count, Some(1L))
                 assertEquals(sum, Some(value))
               }) >> get.map { case (q, c, s) =>
               assertEquals(q, None)
@@ -493,7 +493,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
               .surround(
                 get.map { case (q, count, sum) =>
                   assertEquals(q, Some(quantiles.map(qd => qd.value.value.toString -> value).toMap))
-                  assertEquals(count, Some(1.0))
+                  assertEquals(count, Some(1L))
                   assertEquals(sum, Some(value))
                 }
               ) >> get.map { case (q, c, s) =>
