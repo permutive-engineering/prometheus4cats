@@ -362,9 +362,7 @@ trait CallbackRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffe
                 )
               )
               .surround(
-                get1.map(res =>
-                  assertEquals(res, Some(if (values._1 >= 0) values._1 else 0.0))
-                ) >> get2.map(res =>
+                get1.map(res => assertEquals(res, Some(if (values._1 >= 0) values._1 else 0.0))) >> get2.map(res =>
                   assertEquals(res, Some(if (values._2 >= 0) values._2 else 0.0))
                 )
               ) >> get1.map(assertEquals(_, None)) >> get2.map(assertEquals(_, None))

@@ -106,10 +106,9 @@ object Summary {
   /** A summary observation snapshot.
     *
     * `count` is always `Long` — Prometheus summaries count integer observations and the upstream
-    * `prometheus-metrics-core` 1.x snapshot constructor takes `long count`. v5's `Summary.Value`
-    * had `count: A` (Double or Long depending on the value-type parameter); v6 fixes this to
-    * `Long` for both `Summary.Value[Double]` and `Summary.Value[Long]`. `sum` and `quantiles`
-    * remain typed by `A` since those are real-valued.
+    * `prometheus-metrics-core` 1.x snapshot constructor takes `long count`. v5's `Summary.Value` had `count: A` (Double
+    * or Long depending on the value-type parameter); v6 fixes this to `Long` for both `Summary.Value[Double]` and
+    * `Summary.Value[Long]`. `sum` and `quantiles` remain typed by `A` since those are real-valued.
     */
   final case class Value[A](count: Long, sum: A, quantiles: Map[Double, A] = Map.empty) {
 
