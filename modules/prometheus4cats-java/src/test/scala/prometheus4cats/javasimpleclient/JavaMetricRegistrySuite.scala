@@ -16,26 +16,23 @@
 
 package prometheus4cats.javasimpleclient
 
-import scala.concurrent.duration._
-import scala.jdk.CollectionConverters._
-
 import cats.Show
-import cats.data.NonEmptyList
-import cats.data.NonEmptySeq
+import cats.data.{NonEmptyList, NonEmptySeq}
 import cats.effect.IO
 import cats.effect.kernel.Resource
 import cats.syntax.either._
 import cats.syntax.flatMap._
 import cats.syntax.show._
-
 import io.prometheus.client.CollectorRegistry
 import munit.CatsEffectSuite
 import org.scalacheck.effect.PropF._
 import prometheus4cats.Metric.CommonLabels
 import prometheus4cats._
-import prometheus4cats.testkit.CallbackRegistrySuite
-import prometheus4cats.testkit.MetricRegistrySuite
+import prometheus4cats.testkit.{CallbackRegistrySuite, MetricRegistrySuite}
 import prometheus4cats.util.NameUtils
+
+import scala.concurrent.duration._
+import scala.jdk.CollectionConverters._
 
 @SuppressWarnings(Array("all"))
 class JavaMetricRegistrySuite
@@ -95,6 +92,40 @@ class JavaMetricRegistrySuite
           }
         )
       }
+  }
+
+  case class SampleState(name: String, labels: Map[String, String], value: Double, exemplar: Option[Map[String, String]])
+  case class FamilyState(`type`: String, help: String, samples: List[SampleState])
+
+
+  def stripInternalFamilies(families: List[FamilyState]): List[FamilyState] =
+    families.filterNot(family => family.samples.exists(_.name.startsWith("prometheus4cats_")) || family.samples.isEmpty)
+
+  // Snapshots the *entire* observed state of the registry (every family's type, help and every emitted sample) so that
+  // tests can assert exhaustively against a literal rather than checking a single value. The nondeterministic `_created`
+  // timestamps are normalised to 0.0 so the snapshot is comparable; their name/labels/presence are still asserted.
+  def getMetricFamily(state: CollectorRegistry): List[FamilyState] = {
+    state
+      .metricFamilySamples()
+      .asScala
+      .map { mfs =>
+        FamilyState(
+          mfs.`type`.toString,
+          mfs.help,
+          mfs.samples.asScala.toList.map { sample =>
+            SampleState(
+              sample.name,
+              sample.labelNames.asScala.zip(sample.labelValues.asScala).toMap,
+              if (sample.name.endsWith("_created")) 0.0 else sample.value,
+              Option(sample.exemplar).map { exemplar =>
+                0.until(exemplar.getNumberOfLabels).foldLeft(Map.empty[String, String]) { case (acc, i) =>
+                  acc.updated(exemplar.getLabelName(i), exemplar.getLabelValue(i))
+                }
+              }
+            )
+          }
+        )
+      }.toList
   }
 
   override def getCounterValue(
@@ -230,9 +261,9 @@ class JavaMetricRegistrySuite
       metricRegistryResource(state).use { reg =>
         val factory = MetricFactory.builder.build(reg)
 
-        val labels = Map(Label.Name("method") -> "GET", Label.Name("status") -> "200")
-        val get =
-          IO(getMetricValue(state, None, Counter.Name("unsafe_counter_total"), Metric.CommonLabels.empty, labels))
+        val labels         = Map(Label.Name("method") -> "GET", Label.Name("status") -> "200")
+        val expectedLabels = Map("method" -> "GET", "status" -> "200")
+        val get            = IO(stripInternalFamilies(getMetricFamily(state)))
 
         factory
           .counter("unsafe_counter_total")
@@ -241,9 +272,41 @@ class JavaMetricRegistrySuite
           .unsafeLabels(Label.Name("method"), Label.Name("status"))
           .build
           .use { counter =>
-            counter.inc(5.0, labels) >>
-              get.map(res => assertEquals(res.map(_._1), Some(5.0)))
-          } >> get.map(res => assertEquals(res.map(_._1), None))
+            for {
+              _ <- counter.inc(labels)
+              s1 <- get
+              _ <- counter.inc(5.0, labels)
+              s2 <- get
+            } yield {
+                assertEquals(
+                  s1,
+                  List(
+                    FamilyState(
+                      `type` = "COUNTER",
+                      help = "test counter",
+                      samples = List(
+                        SampleState("unsafe_counter_total", expectedLabels, 1.0, None),
+                        SampleState("unsafe_counter_created", expectedLabels, 0.0, None)
+                      )
+                    )
+                  )
+                )
+
+              assertEquals(
+                s2,
+                List(
+                  FamilyState(
+                    `type` = "COUNTER",
+                    help = "test counter",
+                    samples = List(
+                      SampleState("unsafe_counter_total", expectedLabels, 6.0, None),
+                      SampleState("unsafe_counter_created", expectedLabels, 0.0, None)
+                    )
+                  )
+                )
+              )
+            }
+          } >> get.map(assertEquals(_, List.empty[FamilyState]))
       }
     }
   }
@@ -253,8 +316,9 @@ class JavaMetricRegistrySuite
       metricRegistryResource(state).use { reg =>
         val factory = MetricFactory.builder.build(reg)
 
-        val labels = Map(Label.Name("env") -> "prod")
-        val get    = IO(getMetricValue(state, None, Gauge.Name("unsafe_gauge"), Metric.CommonLabels.empty, labels))
+        val labels         = Map(Label.Name("env") -> "prod")
+        val expectedLabels = Map("env" -> "prod")
+        val get            = IO(stripInternalFamilies(getMetricFamily(state)))
 
         factory
           .gauge("unsafe_gauge")
@@ -263,9 +327,35 @@ class JavaMetricRegistrySuite
           .unsafeLabels(Label.Name("env"))
           .build
           .use { gauge =>
-            gauge.set(42.0, labels) >>
-              get.map(res => assertEquals(res.map(_._1), Some(42.0)))
-          } >> get.map(res => assertEquals(res.map(_._1), None))
+            for {
+              _  <- gauge.set(42.0, labels)
+              s1 <- get
+              _  <- gauge.inc(8.0, labels)
+              s2 <- get
+            } yield {
+              assertEquals(
+                s1,
+                List(
+                  FamilyState(
+                    `type` = "GAUGE",
+                    help = "test gauge",
+                    samples = List(SampleState("unsafe_gauge", expectedLabels, 42.0, None))
+                  )
+                )
+              )
+
+              assertEquals(
+                s2,
+                List(
+                  FamilyState(
+                    `type` = "GAUGE",
+                    help = "test gauge",
+                    samples = List(SampleState("unsafe_gauge", expectedLabels, 50.0, None))
+                  )
+                )
+              )
+            }
+          } >> get.map(assertEquals(_, List.empty[FamilyState]))
       }
     }
   }
@@ -275,9 +365,12 @@ class JavaMetricRegistrySuite
       metricRegistryResource(state).use { reg =>
         val factory = MetricFactory.builder.build(reg)
 
-        val labels = Map(Label.Name("path") -> "/api")
-        val get =
-          IO(getMetricValue(state, None, Histogram.Name("unsafe_histogram_count"), Metric.CommonLabels.empty, labels))
+        val labels         = Map(Label.Name("path") -> "/api")
+        val expectedLabels = Map("path" -> "/api")
+        val get            = IO(stripInternalFamilies(getMetricFamily(state)))
+
+        def bucket(le: String, value: Double) =
+          SampleState("unsafe_histogram_bucket", expectedLabels + ("le" -> le), value, None)
 
         factory
           .histogram("unsafe_histogram")
@@ -287,9 +380,51 @@ class JavaMetricRegistrySuite
           .unsafeLabels(Label.Name("path"))
           .build
           .use { histogram =>
-            histogram.observe(3.0, labels) >>
-              get.map(res => assertEquals(res.map(_._1), Some(1.0)))
-          } >> get.map(res => assertEquals(res.map(_._1), None))
+            for {
+              _  <- histogram.observe(3.0, labels)
+              s1 <- get
+              _  <- histogram.observe(7.0, labels)
+              s2 <- get
+            } yield {
+              assertEquals(
+                s1,
+                List(
+                  FamilyState(
+                    `type` = "HISTOGRAM",
+                    help = "test histogram",
+                    samples = List(
+                      bucket("1.0", 0.0),
+                      bucket("5.0", 1.0),
+                      bucket("10.0", 1.0),
+                      bucket("+Inf", 1.0),
+                      SampleState("unsafe_histogram_count", expectedLabels, 1.0, None),
+                      SampleState("unsafe_histogram_sum", expectedLabels, 3.0, None),
+                      SampleState("unsafe_histogram_created", expectedLabels, 0.0, None)
+                    )
+                  )
+                )
+              )
+
+              assertEquals(
+                s2,
+                List(
+                  FamilyState(
+                    `type` = "HISTOGRAM",
+                    help = "test histogram",
+                    samples = List(
+                      bucket("1.0", 0.0),
+                      bucket("5.0", 1.0),
+                      bucket("10.0", 2.0),
+                      bucket("+Inf", 2.0),
+                      SampleState("unsafe_histogram_count", expectedLabels, 2.0, None),
+                      SampleState("unsafe_histogram_sum", expectedLabels, 10.0, None),
+                      SampleState("unsafe_histogram_created", expectedLabels, 0.0, None)
+                    )
+                  )
+                )
+              )
+            }
+          } >> get.map(assertEquals(_, List.empty[FamilyState]))
       }
     }
   }
@@ -299,9 +434,9 @@ class JavaMetricRegistrySuite
       metricRegistryResource(state).use { reg =>
         val factory = MetricFactory.builder.build(reg)
 
-        val labels = Map(Label.Name("region") -> "us-east")
-        val get =
-          IO(getMetricValue(state, None, Summary.Name("unsafe_summary_count"), Metric.CommonLabels.empty, labels))
+        val labels         = Map(Label.Name("region") -> "us-east")
+        val expectedLabels = Map("region" -> "us-east")
+        val get            = IO(stripInternalFamilies(getMetricFamily(state)))
 
         factory
           .summary("unsafe_summary")
@@ -310,9 +445,43 @@ class JavaMetricRegistrySuite
           .unsafeLabels(Label.Name("region"))
           .build
           .use { summary =>
-            summary.observe(7.0, labels) >>
-              get.map(res => assertEquals(res.map(_._1), Some(1.0)))
-          } >> get.map(res => assertEquals(res.map(_._1), None))
+            for {
+              _  <- summary.observe(7.0, labels)
+              s1 <- get
+              _  <- summary.observe(3.0, labels)
+              s2 <- get
+            } yield {
+              assertEquals(
+                s1,
+                List(
+                  FamilyState(
+                    `type` = "SUMMARY",
+                    help = "test summary",
+                    samples = List(
+                      SampleState("unsafe_summary_count", expectedLabels, 1.0, None),
+                      SampleState("unsafe_summary_sum", expectedLabels, 7.0, None),
+                      SampleState("unsafe_summary_created", expectedLabels, 0.0, None)
+                    )
+                  )
+                )
+              )
+
+              assertEquals(
+                s2,
+                List(
+                  FamilyState(
+                    `type` = "SUMMARY",
+                    help = "test summary",
+                    samples = List(
+                      SampleState("unsafe_summary_count", expectedLabels, 2.0, None),
+                      SampleState("unsafe_summary_sum", expectedLabels, 10.0, None),
+                      SampleState("unsafe_summary_created", expectedLabels, 0.0, None)
+                    )
+                  )
+                )
+              )
+            }
+          } >> get.map(assertEquals(_, List.empty[FamilyState]))
       }
     }
   }
