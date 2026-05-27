@@ -227,8 +227,12 @@ class JavaMetricRegistrySuite
 
   test("register, set and de-register a counter via unsafeLabels") {
     stateResource.use { state =>
-      metricRegistryResource(state).flatMap { reg =>
+      metricRegistryResource(state).use { reg =>
         val factory = MetricFactory.builder.build(reg)
+
+        val labels = Map(Label.Name("method") -> "GET", Label.Name("status") -> "200")
+        val get =
+          IO(getMetricValue(state, None, Counter.Name("unsafe_counter_total"), Metric.CommonLabels.empty, labels))
 
         factory
           .counter("unsafe_counter_total")
@@ -236,20 +240,21 @@ class JavaMetricRegistrySuite
           .help("test counter")
           .unsafeLabels(Label.Name("method"), Label.Name("status"))
           .build
-      }.use { counter =>
-        val labels = Map(Label.Name("method") -> "GET", Label.Name("status") -> "200")
-
-        counter.inc(5.0, labels) >>
-          IO(getMetricValue(state, None, Counter.Name("unsafe_counter_total"), Metric.CommonLabels.empty, labels))
-            .map(res => assertEquals(res.map(_._1), Some(5.0)))
+          .use { counter =>
+            counter.inc(5.0, labels) >>
+              get.map(res => assertEquals(res.map(_._1), Some(5.0)))
+          } >> get.map(res => assertEquals(res.map(_._1), None))
       }
     }
   }
 
   test("register, set and de-register a gauge via unsafeLabels") {
     stateResource.use { state =>
-      metricRegistryResource(state).flatMap { reg =>
+      metricRegistryResource(state).use { reg =>
         val factory = MetricFactory.builder.build(reg)
+
+        val labels = Map(Label.Name("env") -> "prod")
+        val get    = IO(getMetricValue(state, None, Gauge.Name("unsafe_gauge"), Metric.CommonLabels.empty, labels))
 
         factory
           .gauge("unsafe_gauge")
@@ -257,20 +262,22 @@ class JavaMetricRegistrySuite
           .help("test gauge")
           .unsafeLabels(Label.Name("env"))
           .build
-      }.use { gauge =>
-        val labels = Map(Label.Name("env") -> "prod")
-
-        gauge.set(42.0, labels) >>
-          IO(getMetricValue(state, None, Gauge.Name("unsafe_gauge"), Metric.CommonLabels.empty, labels))
-            .map(res => assertEquals(res.map(_._1), Some(42.0)))
+          .use { gauge =>
+            gauge.set(42.0, labels) >>
+              get.map(res => assertEquals(res.map(_._1), Some(42.0)))
+          } >> get.map(res => assertEquals(res.map(_._1), None))
       }
     }
   }
 
   test("register, set and de-register a histogram via unsafeLabels") {
     stateResource.use { state =>
-      metricRegistryResource(state).flatMap { reg =>
+      metricRegistryResource(state).use { reg =>
         val factory = MetricFactory.builder.build(reg)
+
+        val labels = Map(Label.Name("path") -> "/api")
+        val get =
+          IO(getMetricValue(state, None, Histogram.Name("unsafe_histogram_count"), Metric.CommonLabels.empty, labels))
 
         factory
           .histogram("unsafe_histogram")
@@ -279,20 +286,22 @@ class JavaMetricRegistrySuite
           .buckets(1.0, 5.0, 10.0)
           .unsafeLabels(Label.Name("path"))
           .build
-      }.use { histogram =>
-        val labels = Map(Label.Name("path") -> "/api")
-
-        histogram.observe(3.0, labels) >>
-          IO(getMetricValue(state, None, Histogram.Name("unsafe_histogram_count"), Metric.CommonLabels.empty, labels))
-            .map(res => assertEquals(res.map(_._1), Some(1.0)))
+          .use { histogram =>
+            histogram.observe(3.0, labels) >>
+              get.map(res => assertEquals(res.map(_._1), Some(1.0)))
+          } >> get.map(res => assertEquals(res.map(_._1), None))
       }
     }
   }
 
   test("register, set and de-register a summary via unsafeLabels") {
     stateResource.use { state =>
-      metricRegistryResource(state).flatMap { reg =>
+      metricRegistryResource(state).use { reg =>
         val factory = MetricFactory.builder.build(reg)
+
+        val labels = Map(Label.Name("region") -> "us-east")
+        val get =
+          IO(getMetricValue(state, None, Summary.Name("unsafe_summary_count"), Metric.CommonLabels.empty, labels))
 
         factory
           .summary("unsafe_summary")
@@ -300,12 +309,10 @@ class JavaMetricRegistrySuite
           .help("test summary")
           .unsafeLabels(Label.Name("region"))
           .build
-      }.use { summary =>
-        val labels = Map(Label.Name("region") -> "us-east")
-
-        summary.observe(7.0, labels) >>
-          IO(getMetricValue(state, None, Summary.Name("unsafe_summary_count"), Metric.CommonLabels.empty, labels))
-            .map(res => assertEquals(res.map(_._1), Some(1.0)))
+          .use { summary =>
+            summary.observe(7.0, labels) >>
+              get.map(res => assertEquals(res.map(_._1), Some(1.0)))
+          } >> get.map(res => assertEquals(res.map(_._1), None))
       }
     }
   }
