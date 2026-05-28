@@ -8,12 +8,12 @@ addCommandAlias("ci-docs", "github; mdoc; headerCreateAll; docusaurusPublishGhpa
 addCommandAlias("ci-publish", "versionCheck; github; ci-release")
 
 lazy val documentation = project
-  .dependsOn(prometheus4cats, `prometheus4cats-java`, `prometheus4cats-testing`)
+  .dependsOn(prometheus4cats, `prometheus4cats-java`)
   .enablePlugins(MdocPlugin)
 
 lazy val website = project
   .settings(libraryDependencies ++= Dependencies.website)
-  .dependsOn(prometheus4cats, `prometheus4cats-java`, `prometheus4cats-testing`)
+  .dependsOn(prometheus4cats, `prometheus4cats-java`)
   .enablePlugins(MdocPlugin, DocusaurusPlugin)
   .settings(mdocIn := baseDirectory.value / "docs")
   .settings(mdocOut := (Compile / target).value / "mdoc")
@@ -29,11 +29,6 @@ lazy val prometheus4cats = module
 lazy val `prometheus4cats-testkit` = module
   .settings(libraryDependencies ++= Dependencies.`prometheus4cats-testkit`)
   .dependsOn(prometheus4cats)
-
-lazy val `prometheus4cats-testing` = module
-  .settings(libraryDependencies ++= Dependencies.`prometheus4cats-testing`)
-  .dependsOn(prometheus4cats)
-  .settings(scalacOptions ++= scalaVersion.value.on(2)("-Wconf:cat=unused-nowarn:s"))
 
 lazy val `prometheus4cats-java` = module
   .settings(libraryDependencies ++= Dependencies.`prometheus4cats-java`)
