@@ -29,8 +29,9 @@ import scala.concurrent.duration._
   *
   * @param initialSchema
   *   The schema controls native histogram resolution. Each higher schema halves bucket width (roughly: schema `s`
-  *   produces `2^s` buckets per power of two of the observation range). Valid range is `[-4, 8]`. Default `8` matches
-  *   upstream and gives the highest available resolution.
+  *   produces `2^s` buckets per power of two of the observation range). Valid range is `[-4, 8]`. Default `5` matches
+  *   upstream — chosen as a production sweet-spot that provides enough resolution without exceeding
+  *   `maxNumberOfBuckets` on typical workloads.
   * @param maxNumberOfBuckets
   *   Upper limit on the number of populated native buckets. When exceeded, the histogram automatically reduces its
   *   schema. Default `160`. Set lower to bound per-metric memory; set to `0` to disable the limit.
@@ -38,10 +39,11 @@ import scala.concurrent.duration._
   *   How often the histogram resets back to the original schema. Useful when transient observations push the schema
   *   down and you want it to recover. Default `0.seconds` (no reset).
   * @param minZeroThreshold
-  *   Smallest tracked zero-bucket threshold. Observations below this are folded into the zero bucket. Default `0.0`.
+  *   Smallest tracked zero-bucket threshold. Observations below this are folded into the zero bucket. Default `2^-128`
+  *   (≈ `2.94e-39`) matches upstream and provides a sub-denormal safety floor.
   * @param maxZeroThreshold
   *   Largest allowed zero-bucket threshold. The histogram may grow the zero bucket up to this value when the
-  *   `maxNumberOfBuckets` limit is hit. Default `0.0` (no growth).
+  *   `maxNumberOfBuckets` limit is hit. Default `2^-128` (≈ `2.94e-39`) matches upstream.
   */
 final case class NativeHistogram private (
     initialSchema: Int,
@@ -67,8 +69,11 @@ object NativeHistogram {
 
   /** Default tuning matching the upstream Java client defaults. */
   val Default: NativeHistogram = new NativeHistogram(
-    initialSchema = 8, maxNumberOfBuckets = 160, resetDuration = 0.seconds, minZeroThreshold = 0.0,
-    maxZeroThreshold = 0.0
+    initialSchema = 5,
+    maxNumberOfBuckets = 160,
+    resetDuration = 0.seconds,
+    minZeroThreshold = math.pow(2.0, -128),
+    maxZeroThreshold = math.pow(2.0, -128)
   )
 
 }
