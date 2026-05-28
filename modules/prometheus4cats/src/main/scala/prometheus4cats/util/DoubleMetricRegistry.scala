@@ -56,6 +56,19 @@ trait DoubleMetricRegistry[F[_]] extends MetricRegistry[F] {
         _.contramap(_.toDouble)
       )
 
+  override def createAndRegisterLongHistogramWithNative[A](
+      prefix: Option[Metric.Prefix],
+      name: Histogram.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name],
+      buckets: NonEmptySeq[Long],
+      nativeHistogram: NativeHistogram
+  )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Long, A]] =
+    createAndRegisterDoubleHistogramWithNative(
+      prefix, name, help, commonLabels, labelNames, buckets.map(_.toDouble), nativeHistogram
+    )(f).map(_.contramap(_.toDouble))
+
   override def createAndRegisterLongSummary[A](
       prefix: Option[Metric.Prefix],
       name: Summary.Name,
