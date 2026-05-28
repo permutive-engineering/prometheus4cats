@@ -107,8 +107,8 @@ class JavaMetricRegistry[F[_]: Async] private (
 
   type Underlying = PrometheusRegistry
 
-  /** Returns the underlying upstream [[io.prometheus.metrics.model.registry.PrometheusRegistry]]. Use to expose metrics
-    * over an HTTP endpoint or to register external collectors.
+  /** Returns the underlying upstream `PrometheusRegistry`. Use to expose metrics over an HTTP endpoint or to register
+    * external collectors.
     */
   def underlying: PrometheusRegistry = registry
 
@@ -133,14 +133,30 @@ class JavaMetricRegistry[F[_]: Async] private (
       metricType: MetricType,
       metricPrefix: Option[Metric.Prefix],
       stringName: String,
+      renderedName: String,
       labels: IndexedSeq[Label.Name]
   ): Resource[F, (M, Ref[F, Option[Exemplar.Data]])] = {
     lazy val metricId: MetricID = (labels, metricType)
     lazy val fullName: StateKey = (metricPrefix, stringName)
-    lazy val renderedFullName   = NameUtils.makeName(metricPrefix, stringName)
+    // `renderedName` is the wire-level metric name (e.g. `foo_total` for Counter); used in error
+    // messages so users see the same string the registry will expose. The StateKey uses
+    // `stringName` (the `_total`-stripped form for Counter, matching upstream's storage convention).
+    lazy val renderedFullName = renderedName
 
     val acquire = sem.permit.surround(
-      ref.get
+      // Reject metric registration when a callback already owns this name. Mirrors the
+      // `javasimpleclient` adapter; required for cross-axis (callback↔metric) collision detection.
+      callbackState.get.flatMap { cbs =>
+        cbs.get(fullName) match {
+          case None => Applicative[F].unit
+          case Some(_) =>
+            ApplicativeThrow[F].raiseError[Unit](
+              new RuntimeException(
+                s"A callback with the same name as '$renderedFullName' is already registered with different labels and/or type"
+              )
+            )
+        }
+      } >> ref.get
         .flatMap[(State[F], (M, Ref[F, Option[Exemplar.Data]]))] { (metrics: State[F]) =>
           metrics.get(fullName) match {
             case Some((expected, (collector, exemplarRef, references))) =>
@@ -214,6 +230,7 @@ class JavaMetricRegistry[F[_]: Async] private (
       metricType = MetricType.Counter,
       metricPrefix = prefix,
       stringName = n,
+      renderedName = fullName,
       labels = allLabelNames
     ).map { case (counter, exemplarRef) =>
       Counter.make(
@@ -261,6 +278,7 @@ class JavaMetricRegistry[F[_]: Async] private (
       metricType = MetricType.Gauge,
       metricPrefix = prefix,
       stringName = name.value,
+      renderedName = fullName,
       labels = allLabelNames
     ).map { case (gauge, _) =>
       @inline
@@ -316,6 +334,7 @@ class JavaMetricRegistry[F[_]: Async] private (
       metricType = metricType,
       metricPrefix = prefix,
       stringName = name.value,
+      renderedName = fullName,
       labels = allLabelNames
     ).map { case (histogram, exemplarRef) =>
       Histogram.make[F, Double, A](
@@ -458,6 +477,7 @@ class JavaMetricRegistry[F[_]: Async] private (
       metricType = MetricType.Summary,
       metricPrefix = prefix,
       stringName = name.value,
+      renderedName = fullName,
       labels = allLabelNames
     ).map { case (summary, _) =>
       Summary.make[F, Double, A] { case (d, labels) =>
@@ -481,21 +501,26 @@ class JavaMetricRegistry[F[_]: Async] private (
       help: Metric.Help,
       labelNames: IndexedSeq[Label.Name]
   )(f: A => IndexedSeq[String]): Resource[F, Info[F, A]] = {
-    // Upstream client_java appends "_info" to the metric name automatically when the registered
-    // name doesn't end in "_info". The user-provided Info.Name is constrained to end in "_info"
-    // already (see Info.Name regex), so we strip the suffix before registering and let upstream
-    // re-add it.
-    val rawName  = name.value
-    val baseName = if (rawName.endsWith("_info")) rawName.dropRight("_info".length) else rawName
-
     // Info uses MetricWithFixedMetadata (not StatefulMetric), so the registration state machinery
     // here is a slim variant of configureBuilderOrRetrieve — Info doesn't need exemplar tracking.
-    val fullName: StateKey = (prefix, baseName)
+    // The fully-qualified name (with prefix and `_info` suffix) is what upstream stores on the
+    // metadata; the testkit looks up snapshots by either the full or the `_info`-stripped form.
+    val renderedFullName   = NameUtils.makeName(prefix, name)
+    val fullName: StateKey = (prefix, name.value)
     val metricId: MetricID = (labelNames, MetricType.Info)
-    val renderedFullName   = NameUtils.makeName(prefix, baseName)
 
     val acquire = sem.permit.surround(
-      ref.get
+      callbackState.get.flatMap { cbs =>
+        cbs.get(fullName) match {
+          case None => Applicative[F].unit
+          case Some(_) =>
+            ApplicativeThrow[F].raiseError[Unit](
+              new RuntimeException(
+                s"A callback with the same name as '$renderedFullName' is already registered with different labels and/or type"
+              )
+            )
+        }
+      } >> ref.get
         .flatMap[(State[F], PInfo)] { (metrics: State[F]) =>
           metrics.get(fullName) match {
             case Some((expected, (collector, exemplarRef, references))) =>
@@ -518,7 +543,7 @@ class JavaMetricRegistry[F[_]: Async] private (
                 collector <- Sync[F].delay(
                                PInfo
                                  .builder()
-                                 .name(rawName)
+                                 .name(renderedFullName)
                                  .help(help.value)
                                  .labelNames(labelNames.map(_.value): _*)
                                  .register(registry)
@@ -650,7 +675,10 @@ class JavaMetricRegistry[F[_]: Async] private (
       callback: F[NonEmptyList[DataPointSnapshot]],
       makeCollector: Ref[F, CallbackPayload[F]] => PCollector
   ): Resource[F, Unit] = {
-    lazy val n                  = name.show
+    // Use the same `_total`-stripped key the metric path uses, so cross-axis (metric↔callback)
+    // collision detection sees both paths under the same StateKey. Counter names end in `_total`
+    // for the metric path; the simpleclient/upstream wire convention stores them base-name.
+    lazy val n                  = counterName(name)
     lazy val fullName: StateKey = (metricPrefix, n)
     lazy val renderedFullName   = NameUtils.makeName(metricPrefix, name)
 
@@ -907,10 +935,14 @@ class JavaMetricRegistry[F[_]: Async] private (
     val projected: F[NonEmptyList[DataPointSnapshot]] = callback.map(
       _.map { case (value, a) =>
         val labelValuesArr = (f(a) ++ commonLabelValuesArr).toArray
-        // bucketValues are cumulative Double counts; ClassicHistogramBuckets.of wants long counts.
-        val cumulativeCounts: Array[Long] = value.bucketValues.toSeq.map(_.toLong).toArray
+        // Histogram.Value.bucketValues are CUMULATIVE counts (matching the wire-format convention).
+        // ClassicHistogramBuckets.of expects PER-BUCKET counts (the wire format computes cumulative
+        // from per-bucket at scrape). Convert by differencing successive cumulative entries.
+        val cumulative = value.bucketValues.toSeq.map(_.toLong)
+        val perBucket =
+          (cumulative.head +: cumulative.zip(cumulative.tail).map { case (prev, curr) => curr - prev }).toArray
         new HistogramSnapshot.HistogramDataPointSnapshot(
-          ClassicHistogramBuckets.of(upperBoundsWithInf, cumulativeCounts),
+          ClassicHistogramBuckets.of(upperBoundsWithInf, perBucket),
           value.sum,
           Labels.of(allLabelNamesStr, labelValuesArr),
           Exemplars.EMPTY,
@@ -1139,14 +1171,20 @@ class JavaMetricRegistry[F[_]: Async] private (
         }
         val upperBoundsWithInf = (buckets.toSeq :+ Double.PositiveInfinity).toArray
         val dps = values.map { v =>
-          val (sum, bucketCounts, lbls) = v match {
+          val (sum, cumulativeCounts, lbls) = v match {
             case x: MetricCollection.Value.LongHistogram =>
-              (x.value.sum.toDouble, x.value.bucketValues.toSeq.map(_.toLong).toArray, x.labelValues)
+              (x.value.sum.toDouble, x.value.bucketValues.toSeq.map(_.toLong), x.labelValues)
             case x: MetricCollection.Value.DoubleHistogram =>
-              (x.value.sum, x.value.bucketValues.toSeq.map(_.toLong).toArray, x.labelValues)
+              (x.value.sum, x.value.bucketValues.toSeq.map(_.toLong), x.labelValues)
           }
+          // bucketValues are cumulative; ClassicHistogramBuckets.of wants per-bucket. See comment
+          // in registerDoubleHistogramCallback for the same conversion.
+          val perBucket =
+            (cumulativeCounts.head +: cumulativeCounts.zip(cumulativeCounts.tail).map { case (prev, curr) =>
+              curr - prev
+            }).toArray
           new HistogramSnapshot.HistogramDataPointSnapshot(
-            ClassicHistogramBuckets.of(upperBoundsWithInf, bucketCounts),
+            ClassicHistogramBuckets.of(upperBoundsWithInf, perBucket),
             sum,
             labelsFor(labelNames, lbls),
             Exemplars.EMPTY,
@@ -1206,7 +1244,7 @@ object JavaMetricRegistry {
     * bridge) can migrate by changing only the import.
     *
     * Differences from the legacy Builder:
-    *   - takes a [[io.prometheus.metrics.model.registry.PrometheusRegistry]] instead of `CollectorRegistry`;
+    *   - takes a `PrometheusRegistry` instead of `CollectorRegistry`;
     *   - JVM/process metrics are added via [[Builder.withJvmMetrics]] (which uses
     *     `prometheus-metrics-instrumentation-jvm`'s `JvmMetrics.builder().register(...)`) rather than a list of
     *     simpleclient hotspot collectors.

@@ -370,7 +370,7 @@ class JavaMetricRegistrySuite extends CatsEffectSuite {
       .use { registry =>
         val factory = MetricFactory.builder.build[IO](registry, registry)
         val summaryValue = Summary.Value[Double](
-          count = 10.0,
+          count = 10L,
           sum = 42.5,
           quantiles = Map(0.5 -> 1.2, 0.99 -> 9.5)
         )
@@ -466,6 +466,136 @@ class JavaMetricRegistrySuite extends CatsEffectSuite {
       assert(
         !names.contains("teardown_counter"),
         s"counter should have been unregistered after the registry resource closed; saw $names"
+      )
+    }
+  }
+
+  // ─── name-collision contract tests ────────────────────────────────────────────────────────────────
+  //
+  // Promoted from `javasimpleclient.JavaMetricRegistrySuite` ahead of the legacy package's deletion.
+  // These exercise reference-counted reuse + same-name-different-shape rejection — behaviour the v6
+  // backend honours with the same error messages as v5. Kept here (not in the cross-backend testkit)
+  // because they need a single registry instance implementing BOTH `MetricRegistry` and
+  // `CallbackRegistry`; the testkit's separate resources would yield disjoint internal state and
+  // defeat the cross-axis collision check.
+  //
+  // The legacy versions used `forAllF` against the testkit's Arbitrary[*] instances. These plain-MUnit
+  // versions exercise the same contract with deterministic inputs — the property-based shape was
+  // never load-bearing for these tests (the contract is "registry rejects collision", not "registry
+  // rejects collision under arbitrary names").
+
+  private def collisionRegistry: Resource[IO, MetricRegistry[IO] with CallbackRegistry[IO]] =
+    Resource
+      .eval(IO.delay(new PrometheusRegistry()))
+      .flatMap(JavaMetricRegistry.Builder[IO]().withRegistry(_).build)
+
+  private val testHelp = Metric.Help("collision contract test")
+
+  private val testCommonLabels = Metric.CommonLabels.empty
+
+  private val testLabel = Label.Name("region")
+
+  private val testLabels: IndexedSeq[Label.Name] = IndexedSeq(testLabel)
+
+  test("name-collision: returns an existing metric when labels and name are the same") {
+    val counterName = Counter.Name("collision_one_total")
+
+    collisionRegistry.use { reg =>
+      val metric = reg.createAndRegisterDoubleCounter[Map[Label.Name, String]](
+        None, counterName, testHelp, testCommonLabels, testLabels
+      )(_.values.toIndexedSeq)
+
+      (metric >> metric).use_
+    }
+  }
+
+  test("name-collision: fails to build a metric when a callback of the same name exists") {
+    val counterName = Counter.Name("collision_two_total")
+    val rendered    = counterName.value
+
+    collisionRegistry.use { reg =>
+      val metric = reg.createAndRegisterDoubleCounter[Map[Label.Name, String]](
+        None, counterName, testHelp, testCommonLabels, testLabels
+      )(_.values.toIndexedSeq)
+
+      val callback = reg.registerDoubleCounterCallback[Map[Label.Name, String]](
+        None,
+        counterName,
+        testHelp,
+        testCommonLabels,
+        testLabels,
+        IO(NonEmptyList.one(0.0 -> Map.empty[Label.Name, String]))
+      )(_.values.toIndexedSeq)
+
+      (callback >> metric).use_
+    }.attempt.map { res =>
+      assertEquals(
+        res.leftMap(_.getMessage),
+        Left(s"A callback with the same name as '$rendered' is already registered with different labels and/or type")
+      )
+    }
+  }
+
+  test("name-collision: fails to build a callback when a metric of the same name exists") {
+    val counterName = Counter.Name("collision_three_total")
+    val rendered    = counterName.value
+
+    collisionRegistry.use { reg =>
+      val metric = reg.createAndRegisterDoubleCounter[Map[Label.Name, String]](
+        None, counterName, testHelp, testCommonLabels, testLabels
+      )(_.values.toIndexedSeq)
+
+      val callback = reg.registerDoubleCounterCallback[Map[Label.Name, String]](
+        None,
+        counterName,
+        testHelp,
+        testCommonLabels,
+        testLabels,
+        IO(NonEmptyList.one(0.0 -> Map.empty[Label.Name, String]))
+      )(_.values.toIndexedSeq)
+
+      (metric >> callback).use_
+    }.attempt.map { res =>
+      assertEquals(
+        res.leftMap(_.getMessage),
+        Left(s"A metric with the same name as '$rendered' is already registered with different labels and/or type")
+      )
+    }
+  }
+
+  test("name-collision: fails when a metric with the same name and different labels") {
+    val counterName = Counter.Name("collision_four_total")
+    val rendered    = counterName.value
+
+    collisionRegistry.use { reg =>
+      (reg.createAndRegisterDoubleCounter[Map[Label.Name, String]](
+        None, counterName, testHelp, testCommonLabels, testLabels
+      )(_.values.toIndexedSeq) >> reg.createAndRegisterDoubleCounter[Map[Label.Name, String]](
+        None, counterName, testHelp, testCommonLabels, IndexedSeq(Label.Name("different"))
+      )(_.values.toIndexedSeq)).use_
+    }.attempt.map { res =>
+      assertEquals(
+        res.leftMap(_.getMessage),
+        Left(s"A metric with the same name as '$rendered' is already registered with different labels and/or type")
+      )
+    }
+  }
+
+  test("name-collision: fails when a metric with the same name and different type") {
+    val counterName = Counter.Name("collision_five_total")
+    val gaugeName   = Gauge.Name("collision_five")
+    val rendered    = gaugeName.value
+
+    collisionRegistry.use { reg =>
+      (reg.createAndRegisterDoubleCounter[Map[Label.Name, String]](
+        None, counterName, testHelp, testCommonLabels, testLabels
+      )(_.values.toIndexedSeq) >> reg.createAndRegisterDoubleGauge[Map[Label.Name, String]](
+        None, gaugeName, testHelp, testCommonLabels, testLabels
+      )(_.values.toIndexedSeq)).use_
+    }.attempt.map { res =>
+      assertEquals(
+        res.leftMap(_.getMessage),
+        Left(s"A metric with the same name as '$rendered' is already registered with different labels and/or type")
       )
     }
   }
