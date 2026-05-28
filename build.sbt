@@ -8,6 +8,7 @@ addCommandAlias("ci-docs", "github; mdoc; headerCreateAll; docusaurusPublishGhpa
 addCommandAlias("ci-publish", "versionCheck; github; ci-release")
 
 lazy val documentation = project
+  .settings(libraryDependencies ++= Dependencies.documentation)
   .dependsOn(prometheus4cats, `prometheus4cats-java`)
   .enablePlugins(MdocPlugin)
 
