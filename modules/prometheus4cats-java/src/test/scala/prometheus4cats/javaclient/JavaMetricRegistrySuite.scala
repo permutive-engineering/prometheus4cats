@@ -489,11 +489,11 @@ class JavaMetricRegistrySuite extends CatsEffectSuite {
       .eval(IO.delay(new PrometheusRegistry()))
       .flatMap(JavaMetricRegistry.Builder[IO]().withRegistry(_).build)
 
-  private val testHelp                           = Metric.Help("collision contract test")
+  private val testHelp = Metric.Help("collision contract test")
 
-  private val testCommonLabels                   = Metric.CommonLabels.empty
+  private val testCommonLabels = Metric.CommonLabels.empty
 
-  private val testLabel                          = Label.Name("region")
+  private val testLabel = Label.Name("region")
 
   private val testLabels: IndexedSeq[Label.Name] = IndexedSeq(testLabel)
 
