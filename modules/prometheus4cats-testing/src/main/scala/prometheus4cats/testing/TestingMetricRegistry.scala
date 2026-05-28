@@ -46,7 +46,9 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
         )
       ]
     ],
-    private val info: MapRef[F, String, Option[(Int, Info[F, Map[Label.Name, String]])]]
+    // Storage for Info reference counts. Tracks "is this info name claimed", not the Info instance
+    // itself, so we don't have to encode the per-call labels-type parameter A in this map.
+    private val info: MapRef[F, String, Option[Int]]
 )(implicit override val F: Concurrent[F])
     extends DoubleMetricRegistry[F]
     with DoubleCallbackRegistry[F] {
@@ -346,6 +348,47 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       Chain.nil
     )
 
+  override def createAndRegisterDoubleNativeHistogram[A](
+      prefix: Option[Metric.Prefix],
+      name: Histogram.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name],
+      config: NativeHistogram
+  )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Double, A]] =
+    store(
+      NameUtils.makeName(prefix, name.value),
+      names(commonLabels, labelNames),
+      MetricType.Histogram,
+      (ref: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]], _: Ref[F, Option[Exemplar.Data]]) =>
+        Histogram.make[F, Double, A](
+          Histogram.ExemplarState.noop,
+          (d: Double, a: A, e: Option[Exemplar.Labels]) => ref(values(commonLabels, f(a))).update(_.append(d -> e))
+        ),
+      Chain.nil
+    )
+
+  override def createAndRegisterDoubleHistogramWithNative[A](
+      prefix: Option[Metric.Prefix],
+      name: Histogram.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name],
+      buckets: NonEmptySeq[Double],
+      nativeHistogram: NativeHistogram
+  )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Double, A]] =
+    store(
+      NameUtils.makeName(prefix, name.value),
+      names(commonLabels, labelNames),
+      MetricType.Histogram,
+      (ref: MapRef[F, List[String], Chain[(Double, Option[Exemplar.Labels])]], ex: Ref[F, Option[Exemplar.Data]]) =>
+        Histogram.make[F, Double, A](
+          Histogram.ExemplarState.fromRef(buckets, ex),
+          (d: Double, a: A, e: Option[Exemplar.Labels]) => ref(values(commonLabels, f(a))).update(_.append(d -> e))
+        ),
+      Chain.nil
+    )
+
   override def createAndRegisterDoubleSummary[A](
       prefix: Option[Metric.Prefix],
       name: Summary.Name,
@@ -365,24 +408,23 @@ sealed abstract class TestingMetricRegistry[F[_]] private (
       Chain.nil
     )
 
-  override def createAndRegisterInfo(
+  override def createAndRegisterInfo[A](
       prefix: Option[Metric.Prefix],
       name: Info.Name,
-      help: Metric.Help
-  ): Resource[F, Info[F, Map[Label.Name, String]]] = {
-    val release = info(NameUtils.makeName(prefix, name.value)).update {
-      case None         => throw new RuntimeException("This should be unreachable - our reference counting has a bug")
-      case Some((n, i)) => if (n == 1) None else Some(n - 1 -> i)
-
+      help: Metric.Help,
+      labelNames: IndexedSeq[Label.Name]
+  )(f: A => IndexedSeq[String]): Resource[F, Info[F, A]] = {
+    val key = NameUtils.makeName(prefix, name.value)
+    val release = info(key).update {
+      case None    => throw new RuntimeException("This should be unreachable - our reference counting has a bug")
+      case Some(n) => if (n == 1) None else Some(n - 1)
     }
-    Resource.make(
-      info(NameUtils.makeName(prefix, name.value)).modify {
-        case None =>
-          val i = Info.make[F, Map[Label.Name, String]]((_: Map[Label.Name, String]) => F.unit)
-          Some(1 -> i) -> i
-        case Some((n, i)) => Some(n + 1 -> i) -> i
-      }
-    )(_ => release)
+    Resource
+      .make(info(key).update {
+        case None    => Some(1)
+        case Some(n) => Some(n + 1)
+      })(_ => release)
+      .as(Info.make[F, A]((_: A) => F.unit))
   }
 
   override def registerDoubleCounterCallback[A](
@@ -517,7 +559,7 @@ object TestingMetricRegistry {
             Ref[F, Option[Exemplar.Data]]
         )
       ](256),
-    MapRef.ofShardedImmutableMap[F, String, (Int, Info[F, Map[Label.Name, String]])](64)
+    MapRef.ofShardedImmutableMap[F, String, Int](64)
   ).mapN { case (m, i) => new TestingMetricRegistry(m, i) {} }
 
   sealed trait MetricType

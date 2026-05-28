@@ -171,6 +171,41 @@ class MetricsFactoryDslTest[F[_]: MonadCancelThrow: Clock] {
 
   longHistogramBuilder.unsafeLabels(Label.Name("label1"), Label.Name("label2")).build
 
+  // Native histograms — double-only by design, no .ofLong / .ofDouble step.
+  val nativeHistogramBuilder = factory.nativeHistogram("test_native").help("help")
+
+  nativeHistogramBuilder.build
+
+  nativeHistogramBuilder.asTimer.build
+
+  nativeHistogramBuilder
+    .label[String]("label1")
+    .label[Int]("label2")
+    .label[BigInteger]("label3", _.toString)
+    .asTimer
+    .build
+
+  nativeHistogramBuilder.unsafeLabels(Label.Name("label1"), Label.Name("label2")).asTimer.build
+
+  // With a custom NativeHistogram tuning config.
+  factory
+    .nativeHistogram("test_native_tuned", NativeHistogram.Default.withInitialSchema(6).withMaxNumberOfBuckets(80))
+    .help("help")
+    .label[String]("label1")
+    .build
+
+  // Dual-mode (NHCB-friendly) — `.withNative` after `.buckets(...)` promotes to classic + native exponential.
+  histogramBuilder.ofDouble.help("dual").buckets(0.1, 0.5, 1.0).withNative.build
+
+  histogramBuilder.ofDouble.help("dual").buckets(0.1, 0.5, 1.0).withNative.label[String]("label1").build
+
+  histogramBuilder.ofDouble
+    .help("dual tuned")
+    .buckets(0.1, 0.5, 1.0)
+    .withNative(NativeHistogram.Default.withInitialSchema(6))
+    .label[String]("label1")
+    .build
+
   val infoBuilder = factory.info("test_info").help("help")
 
   infoBuilder.build

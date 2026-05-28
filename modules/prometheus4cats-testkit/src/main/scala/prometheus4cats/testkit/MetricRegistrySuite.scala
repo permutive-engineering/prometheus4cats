@@ -518,8 +518,14 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
           metricRegistryResource(state).use { reg =>
             val get = getInfoValue(state, prefix, name, help, labels)
 
+            // The v6 trait declares Info labels at registration time; for these tests we use the
+            // observed labels' keys as labelNames and look up values from the same Map at observation
+            // time. Order is deterministic via the keys.toIndexedSeq snapshot.
+            val labelNamesForInfo = labels.keys.toIndexedSeq
             reg
-              .createAndRegisterInfo(prefix, name, help)
+              .createAndRegisterInfo[Map[Label.Name, String]](prefix, name, help, labelNamesForInfo)(m =>
+                labelNamesForInfo.map(k => m.getOrElse(k, ""))
+              )
               .evalTap(_.info(labels))
               .surround(
                 get.map(
@@ -662,7 +668,13 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
           metricRegistryResource(state).use { reg =>
             val get = getInfoValue(state, prefix, name, help, labels)
 
-            val create = reg.createAndRegisterInfo(prefix, name, help)
+            val labelNamesForInfo = labels.keys.toIndexedSeq
+            val create = reg.createAndRegisterInfo[Map[Label.Name, String]](
+              prefix,
+              name,
+              help,
+              labelNamesForInfo
+            )(m => labelNamesForInfo.map(k => m.getOrElse(k, "")))
 
             create.use { c =>
               c.info(labels) >> create.use_ >> get.assertEquals(Some(1.0))
@@ -835,7 +847,13 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
           metricRegistryResource(state).use { reg =>
             val get = getInfoValue(state, prefix, name, help, labels)
 
-            val create = reg.createAndRegisterInfo(prefix, name, help)
+            val labelNamesForInfo = labels.keys.toIndexedSeq
+            val create = reg.createAndRegisterInfo[Map[Label.Name, String]](
+              prefix,
+              name,
+              help,
+              labelNamesForInfo
+            )(m => labelNamesForInfo.map(k => m.getOrElse(k, "")))
 
             IO.deferred[Unit].flatMap { wait =>
               create.use { i =>
