@@ -23,6 +23,7 @@ import cats.data.NonEmptySeq
 import cats.effect.IO
 import cats.effect.kernel.Resource
 import cats.syntax.all._
+
 import munit.CatsEffectSuite
 import prometheus4cats._
 

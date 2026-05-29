@@ -43,6 +43,7 @@ import prometheus4cats.testkit.DslSuite
   * sequentially and every `getRegistryState` call happens inside an active `resource.use { … }` scope, so the Ref
   * always has a value when read.
   */
+@SuppressWarnings(Array("scalafix:DisableSyntax"))
 class JavaMetricRegistrySuite extends CatsEffectSuite with DslSuite {
 
   // ─── DslSuite hooks ───────────────────────────────────────────────────────────────────────────────
