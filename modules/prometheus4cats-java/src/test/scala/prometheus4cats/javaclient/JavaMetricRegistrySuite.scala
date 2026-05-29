@@ -113,16 +113,19 @@ class JavaMetricRegistrySuite extends CatsEffectSuite with DslSuite {
             sortDataPoints(s.getDataPoints.asScala.toList.map { dp =>
               // v6's ClassicHistogramBucket doesn't carry a per-bucket exemplar — exemplars live on
               // the data point (`dp.getExemplars`) and are matched to buckets by observation-value
-              // range. Per-bucket exemplar slot is reserved on the model for future use; populate it
-              // None until a test exercises exemplars.
+              // range (smallest bucket whose upper-bound ≥ value, i.e. exclusive-lower, inclusive-upper).
               val classic =
-                if (dp.hasClassicHistogramData)
-                  Some(
-                    dp.getClassicBuckets.asScala.toList
-                      .sortBy(_.getUpperBound)
-                      .map(b => ClassicBucket(b.getUpperBound, b.getCount, exemplar = None))
-                  )
-                else None
+                if (dp.hasClassicHistogramData) {
+                  val sortedBuckets = dp.getClassicBuckets.asScala.toList.sortBy(_.getUpperBound)
+                  val lowerBounds   = Double.NegativeInfinity +: sortedBuckets.map(_.getUpperBound).init
+                  val allExemplars  = Option(dp.getExemplars).map(_.asScala.toList).getOrElse(Nil)
+                  Some(sortedBuckets.zip(lowerBounds).map { case (b, lower) =>
+                    val maybeExemplar = allExemplars
+                      .find(e => e.getValue > lower && e.getValue <= b.getUpperBound)
+                      .map(e => e.getLabels.asScala.map(l => l.getName -> l.getValue).toMap)
+                    ClassicBucket(b.getUpperBound, b.getCount, maybeExemplar)
+                  })
+                } else None
               val native =
                 if (dp.hasNativeHistogramData) Some(NativeHistogramState(schema = dp.getNativeSchema)) else None
               HistogramDP(promLabelsToMap(dp.getLabels), dp.getCount, dp.getSum, classic, native)

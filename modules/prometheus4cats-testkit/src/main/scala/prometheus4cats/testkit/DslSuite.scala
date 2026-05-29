@@ -16,12 +16,13 @@
 
 package prometheus4cats.testkit
 
+import scala.concurrent.duration._
+
 import cats.data.NonEmptyList
 import cats.data.NonEmptySeq
 import cats.effect.IO
 import cats.effect.kernel.Resource
 import cats.syntax.all._
-
 import munit.CatsEffectSuite
 import prometheus4cats._
 
@@ -89,6 +90,17 @@ trait DslSuite { self: CatsEffectSuite =>
   /** Default `initialSchema` a backend picks for a `NativeHistogram` when none is configured. */
   protected def defaultNativeSchema: Int = 5
 
+  /** Fixed `Exemplar[IO]` brought into implicit scope for every test. Counter `.inc` and histogram `.observe` calls
+    * attach this exemplar when the DSL routes through the appropriate registry method.
+    */
+  implicit protected val exemplar: Exemplar[IO] = new Exemplar[IO] {
+    override def get: IO[Option[Exemplar.Labels]] =
+      IO(Exemplar.Labels.of(Exemplar.LabelName("trace_id") -> "abc123").toOption)
+  }
+
+  /** Concrete value the implicit `exemplar` returns — handy for asserting against in expected literals. */
+  protected val exemplarLabels: Map[String, String] = Map("trace_id" -> "abc123")
+
   /** Error message a backend raises when a `factory.<kind>(name).callback(...)` is registered against a name already
     * owned by an active (push) metric. Backends that route through the prometheus4cats core get this for free.
     */
@@ -126,33 +138,126 @@ trait DslSuite { self: CatsEffectSuite =>
             _     <- c.inc(2.0, "alpha")
             snap2 <- getRegistryState
           } yield {
-            assertEquals(
-              snap1,
-              List(
-                FamilyState(
-                  name = "test_counter",
-                  `type` = "COUNTER",
-                  help = "test counter",
-                  dataPoints = List(CounterDP(Map("variant" -> "alpha"), 1.0, None))
-                )
+            def expected(value: Double) = List(
+              FamilyState(
+                name = "test_counter",
+                `type` = "COUNTER",
+                help = "test counter",
+                dataPoints = List(CounterDP(Map("variant" -> "alpha"), value, None))
               )
             )
-            assertEquals(
-              snap2,
-              List(
-                FamilyState(
-                  name = "test_counter",
-                  `type` = "COUNTER",
-                  help = "test counter",
-                  dataPoints = List(CounterDP(Map("variant" -> "alpha"), 3.0, None))
-                )
-              )
-            )
+            assertEquals(snap1, expected(1.0))
+            assertEquals(snap2, expected(3.0))
           }
         }
         .flatMap(_ => getRegistryState)
         .map(snap => assertEquals(snap, Nil))
 
+    }
+  }
+
+  // Each exemplar test below uses a freshly-built counter so v6's exemplar retention period (the
+  // minimum interval between consecutive exemplars) doesn't suppress the assertion. Combining multiple
+  // exemplar-attaching calls into one counter only the first one would survive.
+
+  test("counter — incWithExemplar attaches the implicit Exemplar to the snapshot") {
+    resource.use { factory =>
+      factory
+        .counter("test_implicit_exemplar_counter_total")
+        .ofDouble
+        .help("test implicit exemplar counter")
+        .build
+        .use { c =>
+          for {
+            _    <- c.incWithExemplar(1.0)
+            snap <- getRegistryState
+          } yield assertEquals(
+            snap,
+            List(
+              FamilyState(
+                name = "test_implicit_exemplar_counter",
+                `type` = "COUNTER",
+                help = "test implicit exemplar counter",
+                dataPoints = List(CounterDP(Map.empty, 1.0, Some(exemplarLabels)))
+              )
+            )
+          )
+        }
+        .flatMap(_ => getRegistryState)
+        .map(snap => assertEquals(snap, Nil))
+    }
+  }
+
+  test("counter — incProvidedExemplar attaches the explicitly-supplied Exemplar.Labels") {
+    resource.use { factory =>
+      val explicitLabels = Exemplar.Labels
+        .of(Exemplar.LabelName("trace_id") -> "def456", Exemplar.LabelName("span_id") -> "span789")
+        .toOption
+        .get
+      factory
+        .counter("test_provided_exemplar_counter_total")
+        .ofDouble
+        .help("test provided exemplar counter")
+        .build
+        .use { c =>
+          for {
+            _    <- c.incProvidedExemplar(1.0, Some(explicitLabels))
+            snap <- getRegistryState
+          } yield assertEquals(
+            snap,
+            List(
+              FamilyState(
+                name = "test_provided_exemplar_counter",
+                `type` = "COUNTER",
+                help = "test provided exemplar counter",
+                dataPoints = List(
+                  CounterDP(Map.empty, 1.0, Some(Map("trace_id" -> "def456", "span_id" -> "span789")))
+                )
+              )
+            )
+          )
+        }
+        .flatMap(_ => getRegistryState)
+        .map(snap => assertEquals(snap, Nil))
+    }
+  }
+
+  test("counter — incWithSampledExemplar attaches the sampler's output to the snapshot") {
+    resource.use { factory =>
+      val sampledLabels = Exemplar.Labels
+        .of(Exemplar.LabelName("trace_id") -> "sampled001")
+        .toOption
+        .get
+      implicit val sampler: ExemplarSampler.Counter[IO, Double] = new ExemplarSampler.Counter[IO, Double] {
+        // Both overloads always emit the same exemplar — enough to verify the sampler is being consulted.
+        override def sample(previous: Option[Exemplar.Data]): IO[Option[Exemplar.Data]] =
+          IO.pure(Some(Exemplar.Data(sampledLabels, java.time.Instant.now)))
+        override def sample(value: Double, previous: Option[Exemplar.Data]): IO[Option[Exemplar.Data]] =
+          IO.pure(Some(Exemplar.Data(sampledLabels, java.time.Instant.now)))
+      }
+      factory
+        .counter("test_sampled_exemplar_counter_total")
+        .ofDouble
+        .help("test sampled exemplar counter")
+        .build
+        .use { c =>
+          for {
+            _    <- c.incWithSampledExemplar(1.0)
+            snap <- getRegistryState
+          } yield assertEquals(
+            snap,
+            List(
+              FamilyState(
+                name = "test_sampled_exemplar_counter",
+                `type` = "COUNTER",
+                help = "test sampled exemplar counter",
+                dataPoints = List(CounterDP(Map.empty, 1.0, Some(Map("trace_id" -> "sampled001"))))
+              )
+            )
+          )
+        }
+        .flatMap(_ => getRegistryState)
+        .map(snap => assertEquals(snap, Nil))
     }
   }
 
@@ -298,6 +403,161 @@ trait DslSuite { self: CatsEffectSuite =>
                         ClassicBucket(0.5, 1L, None),
                         ClassicBucket(1.0, 1L, None),
                         ClassicBucket(5.0, 1L, None),
+                        ClassicBucket(Double.PositiveInfinity, 0L, None)
+                      )
+                    ),
+                    native = None
+                  )
+                )
+              )
+            )
+          )
+        }
+        .flatMap(_ => getRegistryState)
+        .map(snap => assertEquals(snap, Nil))
+    }
+  }
+
+  // Each histogram exemplar test below uses a single `observe*` call so v6's exemplar retention
+  // period doesn't suppress subsequent exemplar updates. The observed value lands in exactly one
+  // classic bucket — that bucket carries the exemplar; the other buckets stay `None`.
+
+  test("classic histogram — observeWithExemplar attaches the implicit Exemplar to the matching bucket") {
+    resource.use { factory =>
+      factory
+        .histogram("test_implicit_exemplar_histogram")
+        .ofDouble
+        .help("test implicit exemplar histogram")
+        .buckets(NonEmptySeq.of(0.1, 0.5, 1.0, 5.0))
+        .build
+        .use { h =>
+          for {
+            _    <- h.observeWithExemplar(0.05)
+            snap <- getRegistryState
+          } yield assertEquals(
+            snap,
+            List(
+              FamilyState(
+                name = "test_implicit_exemplar_histogram",
+                `type` = "HISTOGRAM",
+                help = "test implicit exemplar histogram",
+                dataPoints = List(
+                  HistogramDP(
+                    labels = Map.empty,
+                    count = 1L,
+                    sum = 0.05,
+                    classic = Some(
+                      List(
+                        ClassicBucket(0.1, 1L, Some(exemplarLabels)),
+                        ClassicBucket(0.5, 0L, None),
+                        ClassicBucket(1.0, 0L, None),
+                        ClassicBucket(5.0, 0L, None),
+                        ClassicBucket(Double.PositiveInfinity, 0L, None)
+                      )
+                    ),
+                    native = None
+                  )
+                )
+              )
+            )
+          )
+        }
+        .flatMap(_ => getRegistryState)
+        .map(snap => assertEquals(snap, Nil))
+    }
+  }
+
+  test("classic histogram — observeProvidedExemplar attaches the explicitly-supplied Exemplar.Labels") {
+    resource.use { factory =>
+      val explicitLabels = Exemplar.Labels
+        .of(Exemplar.LabelName("trace_id") -> "def456", Exemplar.LabelName("span_id") -> "span789")
+        .toOption
+        .get
+      factory
+        .histogram("test_provided_exemplar_histogram")
+        .ofDouble
+        .help("test provided exemplar histogram")
+        .buckets(NonEmptySeq.of(0.1, 0.5, 1.0, 5.0))
+        .build
+        .use { h =>
+          for {
+            _    <- h.observeProvidedExemplar(0.3, Some(explicitLabels))
+            snap <- getRegistryState
+          } yield assertEquals(
+            snap,
+            List(
+              FamilyState(
+                name = "test_provided_exemplar_histogram",
+                `type` = "HISTOGRAM",
+                help = "test provided exemplar histogram",
+                dataPoints = List(
+                  HistogramDP(
+                    labels = Map.empty,
+                    count = 1L,
+                    sum = 0.3,
+                    classic = Some(
+                      List(
+                        ClassicBucket(0.1, 0L, None),
+                        ClassicBucket(0.5, 1L, Some(Map("trace_id" -> "def456", "span_id" -> "span789"))),
+                        ClassicBucket(1.0, 0L, None),
+                        ClassicBucket(5.0, 0L, None),
+                        ClassicBucket(Double.PositiveInfinity, 0L, None)
+                      )
+                    ),
+                    native = None
+                  )
+                )
+              )
+            )
+          )
+        }
+        .flatMap(_ => getRegistryState)
+        .map(snap => assertEquals(snap, Nil))
+    }
+  }
+
+  test("classic histogram — observeWithSampledExemplar attaches the sampler's output to the matching bucket") {
+    resource.use { factory =>
+      val sampledLabels = Exemplar.Labels
+        .of(Exemplar.LabelName("trace_id") -> "sampled001")
+        .toOption
+        .get
+      implicit val sampler: ExemplarSampler.Histogram[IO, Double] = new ExemplarSampler.Histogram[IO, Double] {
+        override def sample(
+            value: Double,
+            buckets: NonEmptySeq[Double],
+            previous: Option[Exemplar.Data]
+        ): IO[Option[Exemplar.Data]] =
+          IO.pure(Some(Exemplar.Data(sampledLabels, java.time.Instant.now)))
+      }
+      factory
+        .histogram("test_sampled_exemplar_histogram")
+        .ofDouble
+        .help("test sampled exemplar histogram")
+        .buckets(NonEmptySeq.of(0.1, 0.5, 1.0, 5.0))
+        .build
+        .use { h =>
+          for {
+            _    <- h.observeWithSampledExemplar(0.7)
+            snap <- getRegistryState
+          } yield assertEquals(
+            snap,
+            List(
+              FamilyState(
+                name = "test_sampled_exemplar_histogram",
+                `type` = "HISTOGRAM",
+                help = "test sampled exemplar histogram",
+                dataPoints = List(
+                  HistogramDP(
+                    labels = Map.empty,
+                    count = 1L,
+                    sum = 0.7,
+                    classic = Some(
+                      List(
+                        ClassicBucket(0.1, 0L, None),
+                        ClassicBucket(0.5, 0L, None),
+                        ClassicBucket(1.0, 1L, Some(Map("trace_id" -> "sampled001"))),
+                        ClassicBucket(5.0, 0L, None),
                         ClassicBucket(Double.PositiveInfinity, 0L, None)
                       )
                     ),
@@ -636,6 +896,203 @@ trait DslSuite { self: CatsEffectSuite =>
             assertEquals(snap1, expected(42.0, 7.0))
             assertEquals(snap2, expected(100.0, 200.0))
           }
+        }
+        .flatMap(_ => getRegistryState)
+        .map(snap => assertEquals(snap, Nil))
+    }
+  }
+
+  // timer
+  //
+  // `Timer` is a derived metric built on top of a Histogram via `.asTimer`. `recordTime` observes the
+  // duration converted to seconds; `recordTimeWithExemplar` does the same and additionally attaches the
+  // implicit `Exemplar[F]` to the bucket the duration lands in.
+
+  test("histogram-backed Timer — recordTime observes the duration as seconds into the matching bucket") {
+    resource.use { factory =>
+      factory
+        .histogram("test_timer_seconds")
+        .ofDouble
+        .help("test timer")
+        .buckets(NonEmptySeq.of(0.1, 0.5, 1.0))
+        .asTimer
+        .build
+        .use { timer =>
+          for {
+            _    <- timer.recordTime(50.millis) // 0.05s → lands in bucket 0.1
+            snap <- getRegistryState
+          } yield assertEquals(
+            snap,
+            List(
+              FamilyState(
+                name = "test_timer_seconds",
+                `type` = "HISTOGRAM",
+                help = "test timer",
+                dataPoints = List(
+                  HistogramDP(
+                    labels = Map.empty,
+                    count = 1L,
+                    sum = 0.05,
+                    classic = Some(
+                      List(
+                        ClassicBucket(0.1, 1L, None),
+                        ClassicBucket(0.5, 0L, None),
+                        ClassicBucket(1.0, 0L, None),
+                        ClassicBucket(Double.PositiveInfinity, 0L, None)
+                      )
+                    ),
+                    native = None
+                  )
+                )
+              )
+            )
+          )
+        }
+        .flatMap(_ => getRegistryState)
+        .map(snap => assertEquals(snap, Nil))
+    }
+  }
+
+  test("native histogram-backed Timer — recordTime observes the duration as seconds into native bucket data") {
+    resource.use { factory =>
+      factory
+        .nativeHistogram("test_native_timer_seconds")
+        .help("test native timer")
+        .asTimer
+        .build
+        .use { timer =>
+          for {
+            _    <- timer.recordTime(50.millis)
+            snap <- getRegistryState
+          } yield assertEquals(
+            snap,
+            List(
+              FamilyState(
+                name = "test_native_timer_seconds",
+                `type` = "HISTOGRAM",
+                help = "test native timer",
+                dataPoints = List(
+                  HistogramDP(
+                    labels = Map.empty, count = 1L, sum = 0.05, classic = None,
+                    native = Some(NativeHistogramState(defaultNativeSchema))
+                  )
+                )
+              )
+            )
+          )
+        }
+        .flatMap(_ => getRegistryState)
+        .map(snap => assertEquals(snap, Nil))
+    }
+  }
+
+  test("histogram-backed Timer — recordTimeWithExemplar attaches the implicit Exemplar to the matching bucket") {
+    resource.use { factory =>
+      factory
+        .histogram("test_timer_exemplar_seconds")
+        .ofDouble
+        .help("test timer exemplar")
+        .buckets(NonEmptySeq.of(0.1, 0.5, 1.0))
+        .asTimer
+        .build
+        .use { timer =>
+          for {
+            _    <- timer.recordTimeWithExemplar(50.millis)
+            snap <- getRegistryState
+          } yield assertEquals(
+            snap,
+            List(
+              FamilyState(
+                name = "test_timer_exemplar_seconds",
+                `type` = "HISTOGRAM",
+                help = "test timer exemplar",
+                dataPoints = List(
+                  HistogramDP(
+                    labels = Map.empty,
+                    count = 1L,
+                    sum = 0.05,
+                    classic = Some(
+                      List(
+                        ClassicBucket(0.1, 1L, Some(exemplarLabels)),
+                        ClassicBucket(0.5, 0L, None),
+                        ClassicBucket(1.0, 0L, None),
+                        ClassicBucket(Double.PositiveInfinity, 0L, None)
+                      )
+                    ),
+                    native = None
+                  )
+                )
+              )
+            )
+          )
+        }
+        .flatMap(_ => getRegistryState)
+        .map(snap => assertEquals(snap, Nil))
+    }
+  }
+
+  // outcome recorder
+  //
+  // `OutcomeRecorder` is a derived metric built on top of a Counter via `.asOutcomeRecorder`. Each
+  // surrounded operation routes to one of three `outcome_status` label values (succeeded / errored /
+  // canceled); only the label value actually observed appears in the snapshot. `surroundWithExemplar`
+  // attaches the implicit `Exemplar[F]` to the relevant counter sample when the corresponding
+  // `recordExemplarOn*` flag is `true`.
+
+  test("counter-backed OutcomeRecorder — surround increments the succeeded counter on F[_] success") {
+    resource.use { factory =>
+      factory
+        .counter("test_outcome_total")
+        .ofDouble
+        .help("test outcome")
+        .asOutcomeRecorder
+        .build
+        .use { recorder =>
+          for {
+            _    <- recorder.surround(IO.unit)
+            snap <- getRegistryState
+          } yield assertEquals(
+            snap,
+            List(
+              FamilyState(
+                name = "test_outcome",
+                `type` = "COUNTER",
+                help = "test outcome",
+                dataPoints = List(CounterDP(Map("outcome_status" -> "succeeded"), 1.0, None))
+              )
+            )
+          )
+        }
+        .flatMap(_ => getRegistryState)
+        .map(snap => assertEquals(snap, Nil))
+    }
+  }
+
+  test(
+    "counter-backed OutcomeRecorder — surroundWithExemplar attaches the implicit Exemplar to the succeeded counter"
+  ) {
+    resource.use { factory =>
+      factory
+        .counter("test_outcome_exemplar_total")
+        .ofDouble
+        .help("test outcome exemplar")
+        .asOutcomeRecorder
+        .build
+        .use { recorder =>
+          for {
+            _    <- recorder.surroundWithExemplar(IO.unit, recordExemplarOnSucceeded = true)
+            snap <- getRegistryState
+          } yield assertEquals(
+            snap,
+            List(
+              FamilyState(
+                name = "test_outcome_exemplar",
+                `type` = "COUNTER",
+                help = "test outcome exemplar",
+                dataPoints = List(CounterDP(Map("outcome_status" -> "succeeded"), 1.0, Some(exemplarLabels)))
+              )
+            )
+          )
         }
         .flatMap(_ => getRegistryState)
         .map(snap => assertEquals(snap, Nil))
