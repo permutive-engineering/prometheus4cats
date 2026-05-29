@@ -244,6 +244,8 @@ sealed abstract class MetricFactory[F[_]](
       )
     )
 
+  type NativeHistogramWithNativeDsl[A] = HelpStep[MetricDsl[F, A, Histogram]]
+
   /** Starts creating a "native histogram" metric.
     *
     * Native histograms (sometimes called sparse or exponential histograms) automatically allocate buckets sized by an
@@ -281,7 +283,21 @@ sealed abstract class MetricFactory[F[_]](
   def nativeHistogram(
       name: Histogram.Name,
       config: NativeHistogram = NativeHistogram.Default
-  ): HelpStep[MetricDsl[F, Double, Histogram]] =
+  ) = new TypeStep[NativeHistogramWithNativeDsl](
+    new HelpStep(help =>
+      new MetricDsl(
+        new LabelledMetricPartiallyApplied[F, Long, Histogram] {
+
+          override def apply[B](
+              labels: IndexedSeq[Label.Name]
+          )(f: B => IndexedSeq[String]): Resource[F, Histogram[F, Long, B]] =
+            metricRegistry.createAndRegisterLongNativeHistogram(
+              prefix, name, help, commonLabels, labels, config
+            )(f)
+
+        }
+      )
+    ),
     new HelpStep(help =>
       new MetricDsl(
         new LabelledMetricPartiallyApplied[F, Double, Histogram] {
@@ -296,6 +312,7 @@ sealed abstract class MetricFactory[F[_]](
         }
       )
     )
+  )
 
   type SummaryDslLambda[A] = HelpStep[SummaryDsl.Base[F, A]]
 

@@ -578,6 +578,7 @@ trait DslSuite { self: CatsEffectSuite =>
     resource.use { factory =>
       factory
         .nativeHistogram("test_native_histogram")
+        .ofDouble
         .help("test native histogram")
         .build
         .use { h =>
@@ -656,6 +657,7 @@ trait DslSuite { self: CatsEffectSuite =>
     resource.use { factory =>
       factory
         .nativeHistogram("test_native_tuned", NativeHistogram.Default.withInitialSchema(3))
+        .ofDouble
         .help("native with custom schema")
         .build
         .use { h =>
@@ -958,6 +960,7 @@ trait DslSuite { self: CatsEffectSuite =>
     resource.use { factory =>
       factory
         .nativeHistogram("test_native_timer_seconds")
+        .ofDouble
         .help("test native timer")
         .asTimer
         .build

@@ -279,6 +279,19 @@ trait MetricRegistry[F[_]] {
       config: NativeHistogram
   )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Double, A]]
 
+  /** [[scala.Long]] variant of [[createAndRegisterDoubleNativeHistogram]]. Backends are expected to honour this by
+    * registering a Double-typed native histogram underneath and converting Long observations to Double at the call site;
+    * the native histogram's exponential bucket layout doesn't care about the original numeric type.
+    */
+  def createAndRegisterLongNativeHistogram[A](
+      prefix: Option[Metric.Prefix],
+      name: Histogram.Name,
+      help: Metric.Help,
+      commonLabels: Metric.CommonLabels,
+      labelNames: IndexedSeq[Label.Name],
+      config: NativeHistogram
+  )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Long, A]]
+
   /** Create and register a summary that records [[scala.Double]] values against a metrics registry
     *
     * @param prefix
@@ -439,6 +452,16 @@ object MetricRegistry {
       )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Double, A]] =
         Resource.pure(Histogram.noop)
 
+      override def createAndRegisterLongNativeHistogram[A](
+          prefix: Option[Metric.Prefix],
+          name: Histogram.Name,
+          help: Metric.Help,
+          commonLabels: CommonLabels,
+          labelNames: IndexedSeq[Label.Name],
+          config: NativeHistogram
+      )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Long, A]] =
+        Resource.pure(Histogram.noop)
+
       override def createAndRegisterDoubleHistogramWithNative[A](
           prefix: Option[Metric.Prefix],
           name: Histogram.Name,
@@ -534,6 +557,21 @@ object MetricRegistry {
       )(f: A => IndexedSeq[String]): Resource[G, Histogram[G, Double, A]] =
         self
           .createAndRegisterDoubleNativeHistogram(
+            prefix, name, help, commonLabels, labelNames, config
+          )(f)
+          .mapK(fk)
+          .map(_.mapK(fk))
+
+      override def createAndRegisterLongNativeHistogram[A](
+          prefix: Option[Metric.Prefix],
+          name: Histogram.Name,
+          help: Metric.Help,
+          commonLabels: CommonLabels,
+          labelNames: IndexedSeq[Label.Name],
+          config: NativeHistogram
+      )(f: A => IndexedSeq[String]): Resource[G, Histogram[G, Long, A]] =
+        self
+          .createAndRegisterLongNativeHistogram(
             prefix, name, help, commonLabels, labelNames, config
           )(f)
           .mapK(fk)
