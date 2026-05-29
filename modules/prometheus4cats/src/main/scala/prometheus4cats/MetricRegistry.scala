@@ -280,8 +280,8 @@ trait MetricRegistry[F[_]] {
   )(f: A => IndexedSeq[String]): Resource[F, Histogram[F, Double, A]]
 
   /** [[scala.Long]] variant of [[createAndRegisterDoubleNativeHistogram]]. Backends are expected to honour this by
-    * registering a Double-typed native histogram underneath and converting Long observations to Double at the call site;
-    * the native histogram's exponential bucket layout doesn't care about the original numeric type.
+    * registering a Double-typed native histogram underneath and converting Long observations to Double at the call
+    * site; the native histogram's exponential bucket layout doesn't care about the original numeric type.
     */
   def createAndRegisterLongNativeHistogram[A](
       prefix: Option[Metric.Prefix],
