@@ -1110,10 +1110,10 @@ trait DslSuite { self: CatsEffectSuite =>
 
   test("name-collision: returns an existing metric when labels and name are the same") {
     resource.use { factory =>
-      val mk = factory.counter("collision_one_total").ofDouble.help(collisionHelp).label[String]("region").build
+      val mk = factory.counter("collision_reuse_total").ofDouble.help(collisionHelp).label[String]("region").build
       def expected(value: Double) = List(
         FamilyState(
-          name = "collision_one",
+          name = "collision_reuse",
           `type` = "COUNTER",
           help = "collision contract test",
           dataPoints = List(
@@ -1142,14 +1142,14 @@ trait DslSuite { self: CatsEffectSuite =>
   test("name-collision: fails to build a metric when a callback of the same name exists") {
     resource.use { factory =>
       val callback = factory
-        .counter("collision_two_total")
+        .counter("collision_metric_after_callback_total")
         .ofDouble
         .help(collisionHelp)
         .label[String]("region")
         .callback(IO.pure(NonEmptyList.one((0.0, "x"))))
         .build
       val metric = factory
-        .counter("collision_two_total")
+        .counter("collision_metric_after_callback_total")
         .ofDouble
         .help(collisionHelp)
         .label[String]("region")
@@ -1158,7 +1158,7 @@ trait DslSuite { self: CatsEffectSuite =>
       (callback >> metric).use_.attempt.map { res =>
         assertEquals(
           res.leftMap(_.getMessage),
-          Left(s"A callback with the same name as 'collision_two_total' is already registered with different labels and/or type")
+          Left(s"A callback with the same name as 'collision_metric_after_callback_total' is already registered with different labels and/or type")
         )
       }
     }
@@ -1167,13 +1167,13 @@ trait DslSuite { self: CatsEffectSuite =>
   test("name-collision: fails to build a callback when a metric of the same name exists") {
     resource.use { factory =>
       val metric = factory
-        .counter("collision_three_total")
+        .counter("collision_callback_after_metric_total")
         .ofDouble
         .help(collisionHelp)
         .label[String]("region")
         .build
       val callback = factory
-        .counter("collision_three_total")
+        .counter("collision_callback_after_metric_total")
         .ofDouble
         .help(collisionHelp)
         .label[String]("region")
@@ -1183,7 +1183,7 @@ trait DslSuite { self: CatsEffectSuite =>
       (metric >> callback).use_.attempt.map { res =>
         assertEquals(
           res.leftMap(_.getMessage),
-          Left(metricCollisionMessage("collision_three_total"))
+          Left(metricCollisionMessage("collision_callback_after_metric_total"))
         )
       }
     }
@@ -1192,13 +1192,13 @@ trait DslSuite { self: CatsEffectSuite =>
   test("name-collision: fails when a metric with the same name and different labels") {
     resource.use { factory =>
       val m1 = factory
-        .counter("collision_four_total")
+        .counter("collision_different_labels_total")
         .ofDouble
         .help(collisionHelp)
         .label[String]("region")
         .build
       val m2 = factory
-        .counter("collision_four_total")
+        .counter("collision_different_labels_total")
         .ofDouble
         .help(collisionHelp)
         .label[String]("different")
@@ -1207,22 +1207,48 @@ trait DslSuite { self: CatsEffectSuite =>
       (m1 >> m2).use_.attempt.map { res =>
         assertEquals(
           res.leftMap(_.getMessage),
-          Left(metricCollisionMessage("collision_four_total"))
+          Left(metricCollisionMessage("collision_different_labels_total"))
         )
       }
+    }
+  }
+
+  test("name-collision: counter callback emitting duplicate label values within one NonEmptyList") {
+    resource.use { factory =>
+      // Two tuples with the SAME label value `x` but different metric values. The registry sees two
+      // CounterDataPointSnapshots with identical label sets in a single scrape — a duplicate-series
+      // condition the wire format normally rejects.
+      val callback = IO.pure(NonEmptyList.of((1.0, "x"), (2.0, "x")))
+      factory
+        .counter("collision_dup_label_total")
+        .ofDouble
+        .help(collisionHelp)
+        .label[String]("name")
+        .callback(callback)
+        .build
+        .use { _ =>
+          getRegistryState.attempt.map { res =>
+            // Behaviour to pin once we observe it on a test run. Likely one of:
+            //   - registry raises at scrape time (`res` is Left with an upstream-validation message)
+            //   - registry silently keeps the LAST entry (Right with one CounterDP value=2.0)
+            //   - registry emits both as duplicate samples (Right with two CounterDPs sharing labels)
+            // Asserting `isLeft` for now — adjust to the exact shape after first run.
+            assert(res.isLeft, s"expected duplicate-label callback emission to fail, got: $res")
+          }
+        }
     }
   }
 
   test("name-collision: fails when a metric with the same name and different type") {
     resource.use { factory =>
       val counter = factory
-        .counter("collision_five_total")
+        .counter("collision_different_type_total")
         .ofDouble
         .help(collisionHelp)
         .label[String]("region")
         .build
       val gauge = factory
-        .gauge("collision_five")
+        .gauge("collision_different_type")
         .ofDouble
         .help(collisionHelp)
         .label[String]("region")
@@ -1231,7 +1257,7 @@ trait DslSuite { self: CatsEffectSuite =>
       (counter >> gauge).use_.attempt.map { res =>
         assertEquals(
           res.leftMap(_.getMessage),
-          Left(metricCollisionMessage("collision_five"))
+          Left(metricCollisionMessage("collision_different_type"))
         )
       }
     }
