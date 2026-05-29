@@ -27,14 +27,6 @@ object Dependencies {
     "org.typelevel" %% "scalacheck-effect"   % "1.0.4"
   )
 
-  lazy val `prometheus4cats-testing` = Seq(
-    "org.typelevel" %% "cats-effect-testkit" % "3.6.3",
-    "org.scalameta" %% "munit"               % "1.2.1",
-    "org.typelevel" %% "munit-cats-effect"   % "2.1.0",
-    "org.scalameta" %% "munit-scalacheck"    % "1.2.0",
-    "org.typelevel" %% "scalacheck-effect"   % "1.0.4"
-  )
-
   lazy val `prometheus4cats-java` = Seq(
     "org.typelevel" %% "alleycats-core"                         % "2.13.0",
     "org.typelevel" %% "cats-effect-std"                        % "3.6.3",
@@ -43,6 +35,10 @@ object Dependencies {
   )
 
   lazy val website = Seq(
+    "org.typelevel" %% "cats-effect" % "3.6.3"
+  )
+
+  lazy val documentation = Seq(
     "org.typelevel" %% "cats-effect" % "3.6.3"
   )
 
