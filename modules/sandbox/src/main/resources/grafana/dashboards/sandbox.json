@@ -1,0 +1,80 @@
+{
+  "title": "prometheus4cats sandbox",
+  "uid": "p4c-sandbox",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": { "from": "now-15m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Counter — rate(test_counter_total[1m])",
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "rate(test_counter_total[1m])", "legendFormat": "{{label}}" }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Classic histogram — p50 / p90 / p99",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.50, sum by (le) (rate(test_classic_histogram_seconds_bucket[1m])))", "legendFormat": "p50" },
+        { "refId": "B", "expr": "histogram_quantile(0.90, sum by (le) (rate(test_classic_histogram_seconds_bucket[1m])))", "legendFormat": "p90" },
+        { "refId": "C", "expr": "histogram_quantile(0.99, sum by (le) (rate(test_classic_histogram_seconds_bucket[1m])))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Native histogram — p50 / p90 / p99",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.50, rate(test_native_histogram_seconds[1m]))", "legendFormat": "p50" },
+        { "refId": "B", "expr": "histogram_quantile(0.90, rate(test_native_histogram_seconds[1m]))", "legendFormat": "p90" },
+        { "refId": "C", "expr": "histogram_quantile(0.99, rate(test_native_histogram_seconds[1m]))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Dual histogram — classic vs native p99 (same observations, two representations)",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.99, sum by (le) (rate(test_dual_histogram_seconds_bucket[1m])))", "legendFormat": "classic p99" },
+        { "refId": "B", "expr": "histogram_quantile(0.99, rate(test_dual_histogram_seconds[1m]))",                                          "legendFormat": "native p99" }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "heatmap",
+      "title": "Classic histogram — heatmap",
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 22 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": { "calculate": false, "cellGap": 1, "yAxis": { "unit": "s" } },
+      "targets": [
+        { "refId": "A", "expr": "sum by (le) (rate(test_classic_histogram_seconds_bucket[1m]))", "format": "heatmap", "legendFormat": "{{le}}" }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "heatmap",
+      "title": "Native histogram — heatmap (note the finer banding vs classic)",
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 22 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": { "calculate": false, "cellGap": 1, "yAxis": { "unit": "s" } },
+      "targets": [
+        { "refId": "A", "expr": "rate(test_native_histogram_seconds[1m])", "format": "heatmap" }
+      ]
+    }
+  ]
+}
