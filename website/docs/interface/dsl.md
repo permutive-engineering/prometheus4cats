@@ -51,6 +51,7 @@ value.
 factory.counter("counter_total")
 factory.gauge("gauge")
 factory.histogram("histogram")
+factory.nativeHistogram("native_histogram")
 factory.summary("summary")
 factory.info("info_info")
 ```

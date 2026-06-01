@@ -19,6 +19,19 @@ lazy val website = project
   .settings(mdocIn := baseDirectory.value / "docs")
   .settings(mdocOut := (Compile / target).value / "mdoc")
   .settings(watchTriggers += mdocIn.value.toGlob / "*.md")
+  // `@SUPPORTED_SCALA@` in markdown gets replaced with e.g. "2.13 and 3.3" — sourced from
+  // `crossScalaVersions` so the docs always reflect the actual cross-build matrix. Updating
+  // crossScalaVersions in this file is the single point of change.
+  .settings(mdocVariables += "SUPPORTED_SCALA" -> {
+    val binaries = (ThisBuild / crossScalaVersions).value
+      // NOTE(take(2)): "2.13.18" → "2.13"
+      .map(_.split('.').take(2).mkString("."))
+      .distinct
+    binaries match {
+      case Seq(one) => one
+      case versions => versions.init.mkString(", ") + " and " + versions.last
+    }
+  })
 
 lazy val prometheus4cats = module
   .settings(libraryDependencies ++= Dependencies.prometheus4cats)

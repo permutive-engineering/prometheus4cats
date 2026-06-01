@@ -15,7 +15,7 @@ mix between Permutive's internal library and [Epimetheus]. See the [design page]
 
 ## Quickstart Usage
 
-This library is currently available for Scala binary versions 2.12 and 2.13 and 3.2.
+This library is currently available for Scala @SUPPORTED_SCALA@.
 
 **For detailed code examples see the [metrics DSL](interface/dsl.md) documentation.**
 

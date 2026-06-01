@@ -3,8 +3,6 @@
 The Java registry implements both [`MetricRegistry`] and [`CallbackRegistry`], wrapping the [Prometheus Java library].
 This provides interoperability with anything that depends on the Java library.
 
-> ℹ️ As of version `1.1.0` of Prometheus4Cats, the Java registry now supports [Exemplars](../interface/exemplar.md)
-
 > ℹ️ The Java Registry does add a runtime constraint that go beyond constraints that Prometheus itself imposes:
 > You cannot have two metrics of the same name with different labels.
 > [This issue](https://github.com/prometheus/client_java/issues/696) describes the problem.
@@ -35,14 +33,6 @@ val custom: Resource[IO, JavaMetricRegistry[IO]] =
 val factory: Resource[IO, MetricFactory.WithCallbacks[IO]] =
   custom.map(MetricFactory.builder.build(_))
 ```
-
-## Built-in Metrics
-
-> ⚠️ **v6 regression — pending**: the v5 javasimpleclient registry exposed a set of self-observability
-> metrics (`prometheus4cats_registered_metrics`, `prometheus4cats_combined_callback_metric_total`,
-> etc.) for inspecting registry state and callback execution outcomes. The v6 javaclient backend
-> does not yet emit these. They will be re-added in a follow-up commit before v6.0.0 is tagged.
-> See the v6 PR for the discussion and the original v5 metric list.
 
 ## Implementation Notes
 
