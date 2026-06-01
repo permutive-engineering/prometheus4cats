@@ -51,6 +51,7 @@ value.
 factory.counter("counter_total")
 factory.gauge("gauge")
 factory.histogram("histogram")
+factory.nativeHistogram("native_histogram")
 factory.summary("summary")
 factory.info("info_info")
 ```
@@ -253,7 +254,7 @@ factory
   .ofDouble
   .help("Describe what this metric does")
   .callback(
-    IO(Summary.Value(count = 1.0, sum = 1.0, quantiles = Map(0.5 -> 1.0)))
+    IO(Summary.Value(count = 1L, sum = 1.0, quantiles = Map(0.5 -> 1.0)))
   )
 ```
 

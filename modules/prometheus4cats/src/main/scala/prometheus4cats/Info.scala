@@ -56,12 +56,6 @@ object Info {
 
   }
 
-  implicit class InfoMapSyntax[F[_]](info: Info[F, Map[Label.Name, String]]) {
-
-    def info(labels: (Label.Name, String)*): F[Unit] = info.info(labels.toMap)
-
-  }
-
   def make[F[_], A](_info: A => F[Unit]): Info[F, A] = new Info[F, A] {
 
     override def info(labels: A): F[Unit] = _info(labels)

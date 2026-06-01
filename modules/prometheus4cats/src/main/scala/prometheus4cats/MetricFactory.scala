@@ -152,22 +152,47 @@ sealed abstract class MetricFactory[F[_]](
 
   type HistogramDsl[MDsl[_[_], _, _[_[_], _, _]], A] = HelpStep[BucketDsl[MDsl[F, A, Histogram], A]]
 
+  /** Type alias for the histogram DSL chain returned by [[histogram]]. After `.buckets(...)` the chain produces a value
+    * extending both `MetricDsl[F, A, Histogram]` and the `HistogramMetricDsl` mixin (which adds `.withNative` for
+    * dual-mode promotion). Subclasses (e.g., the WithCallbacks override) can swap in their own concrete impl that
+    * preserves the [[HistogramMetricDsl]] mixin.
+    */
+  type HistogramWithNativeDsl[A] = HelpStep[BucketDsl[HistogramMetricDsl[F, A], A]]
+
   /** Starts creating a "histogram" metric.
     *
+    * After declaring buckets, the resulting builder accepts an optional `.withNative` step that promotes the histogram
+    * from classic-only (default) to dual-mode emission (classic + native exponential — the NHCB-friendly configuration
+    * that preserves curated bucket boundaries while also enabling native histogram benefits).
+    *
     * @example
-    *   {{{ metrics.histogram("my_histogram").ofDouble.help("my counter help").buckets(1.0, 2.0)
-    *   .label[Int]("first_label").label[String]("second_label").label[Boolean]("third_label") .build }}}
+    *   {{{
+    * // Classic-only (existing behaviour):
+    * metrics.histogram("http_dur").ofDouble.help("...").buckets(0.005, 0.01, 0.025, 0.05, 0.1, 0.5, 1, 5, 10).build
+    *
+    * // Dual-mode (NHCB-friendly): same buckets, plus native exponential.
+    * metrics.histogram("http_dur").ofDouble.help("...")
+    *   .buckets(0.005, 0.01, 0.025, 0.05, 0.1, 0.5, 1, 5, 10)
+    *   .withNative
+    *   .build
+    *
+    * // Dual-mode with custom native tuning.
+    * metrics.histogram("http_dur").ofDouble.help("...")
+    *   .buckets(0.005, 0.01, ...)
+    *   .withNative(NativeHistogram.Default.withInitialSchema(6))
+    *   .build
+    *   }}}
     * @param name
     *   [[Histogram.Name]] value
     * @return
     *   Histogram builder
     */
-  def histogram(name: Histogram.Name): TypeStep[HistogramDsl[MetricDsl, *]] =
-    new TypeStep[HistogramDsl[MetricDsl, *]](
+  def histogram(name: Histogram.Name): TypeStep[HistogramWithNativeDsl] =
+    new TypeStep[HistogramWithNativeDsl](
       new HelpStep(help =>
-        new BucketDsl[MetricDsl[F, Long, Histogram], Long](buckets =>
-          new MetricDsl(
-            new LabelledMetricPartiallyApplied[F, Long, Histogram] {
+        new BucketDsl[HistogramMetricDsl[F, Long], Long](buckets =>
+          new HistogramMetricDsl.Plain[F, Long](
+            classicMakeMetric = new LabelledMetricPartiallyApplied[F, Long, Histogram] {
 
               override def apply[B](
                   labels: IndexedSeq[Label.Name]
@@ -175,14 +200,25 @@ sealed abstract class MetricFactory[F[_]](
                 metricRegistry
                   .createAndRegisterLongHistogram(prefix, name, help, commonLabels, labels, buckets)(f)
 
-            }
+            },
+            makeWithNativeMetric = (nativeCfg: NativeHistogram) =>
+              new LabelledMetricPartiallyApplied[F, Long, Histogram] {
+
+                override def apply[B](
+                    labels: IndexedSeq[Label.Name]
+                )(f: B => IndexedSeq[String]): Resource[F, Histogram[F, Long, B]] =
+                  metricRegistry.createAndRegisterLongHistogramWithNative(
+                    prefix, name, help, commonLabels, labels, buckets, nativeCfg
+                  )(f)
+
+              }
           )
         )
       ),
       new HelpStep(help =>
-        new BucketDsl[MetricDsl[F, Double, Histogram], Double](buckets =>
-          new MetricDsl(
-            new LabelledMetricPartiallyApplied[F, Double, Histogram] {
+        new BucketDsl[HistogramMetricDsl[F, Double], Double](buckets =>
+          new HistogramMetricDsl.Plain[F, Double](
+            classicMakeMetric = new LabelledMetricPartiallyApplied[F, Double, Histogram] {
 
               override def apply[B](
                   labels: IndexedSeq[Label.Name]
@@ -191,11 +227,92 @@ sealed abstract class MetricFactory[F[_]](
                   prefix, name, help, commonLabels, labels, buckets
                 )(f)
 
-            }
+            },
+            makeWithNativeMetric = (nativeCfg: NativeHistogram) =>
+              new LabelledMetricPartiallyApplied[F, Double, Histogram] {
+
+                override def apply[B](
+                    labels: IndexedSeq[Label.Name]
+                )(f: B => IndexedSeq[String]): Resource[F, Histogram[F, Double, B]] =
+                  metricRegistry.createAndRegisterDoubleHistogramWithNative(
+                    prefix, name, help, commonLabels, labels, buckets, nativeCfg
+                  )(f)
+
+              }
           )
         )
       )
     )
+
+  type NativeHistogramWithNativeDsl[A] = HelpStep[MetricDsl[F, A, Histogram]]
+
+  /** Starts creating a "native histogram" metric.
+    *
+    * Native histograms (sometimes called sparse or exponential histograms) automatically allocate buckets sized by an
+    * exponential schema, so consumers do not pre-declare bucket boundaries. They typically reduce metric cardinality
+    * compared to a classic histogram with explicit buckets.
+    *
+    * Native histograms are emitted only over Prometheus protobuf scrape negotiation. Ensure your Prometheus server
+    * supports native histograms (Prometheus 2.40+) and that `ServiceMonitor.spec.scrapeProtocols` includes
+    * `PrometheusProto`.
+    *
+    * @note
+    *   Native histograms are `Double`-only by design — there is no `.ofLong` step, since the underlying buckets are
+    *   real-valued regardless of input type. Consumers observing integer-typed values should convert at the call site
+    *   (e.g. `.contramap(_.toDouble)`).
+    *
+    * @example
+    *   {{{
+    * metrics.nativeHistogram("my_histogram").help("...").label[Int]("first_label").build
+    *
+    * // with custom tuning:
+    * metrics
+    *   .nativeHistogram("my_histogram", NativeHistogram.Default.withInitialSchema(6))
+    *   .help("...")
+    *   .label[Int]("first_label")
+    *   .build
+    *   }}}
+    *
+    * @param name
+    *   [[Histogram.Name]] value
+    * @param config
+    *   tuning parameters for the native histogram. Defaults to [[NativeHistogram.Default]].
+    * @return
+    *   Native histogram builder
+    */
+  def nativeHistogram(
+      name: Histogram.Name,
+      config: NativeHistogram = NativeHistogram.Default
+  ) = new TypeStep[NativeHistogramWithNativeDsl](
+    new HelpStep(help =>
+      new MetricDsl(
+        new LabelledMetricPartiallyApplied[F, Long, Histogram] {
+
+          override def apply[B](
+              labels: IndexedSeq[Label.Name]
+          )(f: B => IndexedSeq[String]): Resource[F, Histogram[F, Long, B]] =
+            metricRegistry.createAndRegisterLongNativeHistogram(
+              prefix, name, help, commonLabels, labels, config
+            )(f)
+
+        }
+      )
+    ),
+    new HelpStep(help =>
+      new MetricDsl(
+        new LabelledMetricPartiallyApplied[F, Double, Histogram] {
+
+          override def apply[B](
+              labels: IndexedSeq[Label.Name]
+          )(f: B => IndexedSeq[String]): Resource[F, Histogram[F, Double, B]] =
+            metricRegistry.createAndRegisterDoubleNativeHistogram(
+              prefix, name, help, commonLabels, labels, config
+            )(f)
+
+        }
+      )
+    )
+  )
 
   type SummaryDslLambda[A] = HelpStep[SummaryDsl.Base[F, A]]
 
@@ -252,15 +369,40 @@ sealed abstract class MetricFactory[F[_]](
 
   /** Starts creating an "info" metric.
     *
+    * Info metrics declare their labels at build time using the same `.label[T](...)` / `.labels[T](...)` /
+    * `.labelsFrom[T]` builders that counters, gauges, histograms, and summaries already use. Calling `.build` without
+    * any label declarations returns an `Info[F, Unit]` that emits as `name 1` with no labels.
+    *
     * @example
-    *   {{{metrics.info("app_info").help("my counter help").build}}}
+    *   {{{
+    * metrics.info("build_info").help("build info").labelsFrom[BuildInfo].build
+    *
+    * metrics.info("build_info").help("build info")
+    *   .label[String]("version")
+    *   .label[String]("commit")
+    *   .build
+    *
+    * metrics.info("app_info").help("...").build  // no-label form, emits `app_info 1`
+    *   }}}
+    *
     * @param name
     *   [[Info.Name]] value
     * @return
     *   Info builder
     */
-  def info(name: Info.Name): HelpStep[BuildStep[F, Info[F, Map[Label.Name, String]]]] =
-    new HelpStep(help => BuildStep(metricRegistry.createAndRegisterInfo(prefix, name, help)))
+  def info(name: Info.Name): HelpStep[MetricDsl[F, Unit, InfoL]] =
+    new HelpStep(help =>
+      new MetricDsl(
+        new LabelledMetricPartiallyApplied[F, Unit, InfoL] {
+
+          override def apply[B](
+              labels: IndexedSeq[Label.Name]
+          )(f: B => IndexedSeq[String]): Resource[F, Info[F, B]] =
+            metricRegistry.createAndRegisterInfo(prefix, name, help, labels)(f)
+
+        }
+      )
+    )
 
   /** Creates a new instance of [[MetricFactory]] without a [[Metric.Prefix]] set */
   def dropPrefix: MetricFactory[F] = new MetricFactory[F](metricRegistry, None, commonLabels) {}
@@ -433,16 +575,23 @@ object MetricFactory {
         )
       )
 
-    type HistogramCallbackDsl[G[_], A, H[_[_], _, _]] =
-      MetricDsl.WithCallbacks[G, A, Histogram.Value[A], H]
+    /** Type alias for the histogram DSL returned in the callback-aware variant: same shape as
+      * [[MetricFactory.HistogramWithNativeDsl]] but with the more specific `HistogramMetricDsl.WithCallbacksImpl` in
+      * place of the compound type, so consumers see `.callback(...)` as well as `.label(...)` / `.build` /
+      * `.withNative` after `.buckets(...)`.
+      *
+      * This is a subtype of `MetricFactory.HistogramWithNativeDsl[A]` (BucketDsl + HelpStep + TypeStep are all
+      * covariant in the right places), so the override is valid.
+      */
+    type HistogramWithCallbacksAndNativeDsl[A] = HelpStep[BucketDsl[HistogramMetricDsl.WithCallbacksImpl[F, A], A]]
 
     /** @inheritdoc */
-    override def histogram(name: Histogram.Name): TypeStep[HistogramDsl[HistogramCallbackDsl, *]] =
-      new TypeStep[HistogramDsl[HistogramCallbackDsl, *]](
+    override def histogram(name: Histogram.Name): TypeStep[HistogramWithCallbacksAndNativeDsl] =
+      new TypeStep[HistogramWithCallbacksAndNativeDsl](
         new HelpStep(help =>
-          new BucketDsl[MetricDsl.WithCallbacks[F, Long, Histogram.Value[Long], Histogram], Long](buckets =>
-            new MetricDsl.WithCallbacks(
-              new LabelledMetricPartiallyApplied[F, Long, Histogram] {
+          new BucketDsl[HistogramMetricDsl.WithCallbacksImpl[F, Long], Long](buckets =>
+            new HistogramMetricDsl.WithCallbacksImpl[F, Long](
+              classicMakeMetric = new LabelledMetricPartiallyApplied[F, Long, Histogram] {
 
                 override def apply[B](
                     labels: IndexedSeq[Label.Name]
@@ -451,7 +600,7 @@ object MetricFactory {
                     .createAndRegisterLongHistogram(prefix, name, help, commonLabels, labels, buckets)(f)
 
               },
-              new LabelledCallbackPartiallyApplied[F, Histogram.Value[Long]] {
+              classicMakeCallback = new LabelledCallbackPartiallyApplied[F, Histogram.Value[Long]] {
 
                 override def apply[B](
                     labels: IndexedSeq[Label.Name],
@@ -460,23 +609,27 @@ object MetricFactory {
                     f: B => IndexedSeq[String]
                 ): Resource[F, Unit] =
                   callbackRegistry
-                    .registerLongHistogramCallback(
-                      prefix, name, help, commonLabels, labels, buckets, callback
-                    )(
-                      f
-                    )
+                    .registerLongHistogramCallback(prefix, name, help, commonLabels, labels, buckets, callback)(f)
 
-              }
+              },
+              makeWithNativeMetric = (nativeCfg: NativeHistogram) =>
+                new LabelledMetricPartiallyApplied[F, Long, Histogram] {
+
+                  override def apply[B](
+                      labels: IndexedSeq[Label.Name]
+                  )(f: B => IndexedSeq[String]): Resource[F, Histogram[F, Long, B]] =
+                    metricRegistry.createAndRegisterLongHistogramWithNative(
+                      prefix, name, help, commonLabels, labels, buckets, nativeCfg
+                    )(f)
+
+                }
             )
           )
         ),
         new HelpStep(help =>
-          new BucketDsl[
-            MetricDsl.WithCallbacks[F, Double, Histogram.Value[Double], Histogram],
-            Double
-          ](buckets =>
-            new MetricDsl.WithCallbacks(
-              new LabelledMetricPartiallyApplied[F, Double, Histogram] {
+          new BucketDsl[HistogramMetricDsl.WithCallbacksImpl[F, Double], Double](buckets =>
+            new HistogramMetricDsl.WithCallbacksImpl[F, Double](
+              classicMakeMetric = new LabelledMetricPartiallyApplied[F, Double, Histogram] {
 
                 override def apply[B](
                     labels: IndexedSeq[Label.Name]
@@ -485,7 +638,7 @@ object MetricFactory {
                     .createAndRegisterDoubleHistogram(prefix, name, help, commonLabels, labels, buckets)(f)
 
               },
-              new LabelledCallbackPartiallyApplied[F, Histogram.Value[Double]] {
+              classicMakeCallback = new LabelledCallbackPartiallyApplied[F, Histogram.Value[Double]] {
 
                 override def apply[B](
                     labels: IndexedSeq[Label.Name],
@@ -494,13 +647,20 @@ object MetricFactory {
                     f: B => IndexedSeq[String]
                 ): Resource[F, Unit] =
                   callbackRegistry
-                    .registerDoubleHistogramCallback(
-                      prefix, name, help, commonLabels, labels, buckets, callback
-                    )(
-                      f
-                    )
+                    .registerDoubleHistogramCallback(prefix, name, help, commonLabels, labels, buckets, callback)(f)
 
-              }
+              },
+              makeWithNativeMetric = (nativeCfg: NativeHistogram) =>
+                new LabelledMetricPartiallyApplied[F, Double, Histogram] {
+
+                  override def apply[B](
+                      labels: IndexedSeq[Label.Name]
+                  )(f: B => IndexedSeq[String]): Resource[F, Histogram[F, Double, B]] =
+                    metricRegistry.createAndRegisterDoubleHistogramWithNative(
+                      prefix, name, help, commonLabels, labels, buckets, nativeCfg
+                    )(f)
+
+                }
             )
           )
         )

@@ -1,0 +1,11 @@
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: sandbox-app
+    # Keep BOTH classic `_bucket{le=…}` series AND the native representation; without this
+    # Prometheus 3.x discards the classic side at ingest when protobuf is negotiated.
+    always_scrape_classic_histograms: true
+    scrape_protocols: [PrometheusProto, PrometheusText0.0.4]
+    static_configs:
+      - targets: ["host.docker.internal:9400"]

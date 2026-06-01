@@ -14,16 +14,26 @@
  * limitations under the License.
  */
 
-package prometheus4cats.javasimpleclient.models
+package prometheus4cats.javaclient.models
 
-sealed private[javasimpleclient] trait MetricType
+import prometheus4cats.Label
 
-private[javasimpleclient] object MetricType {
+private[javaclient] object Exceptions {
 
-  case object Counter   extends MetricType
-  case object Gauge     extends MetricType
-  case object Histogram extends MetricType
-  case object Summary   extends MetricType
-  case object Info      extends MetricType
+  sealed abstract class PrometheusException[A] extends RuntimeException
+
+  final case class UnhandledPrometheusException[A](
+      className: String,
+      metricName: A,
+      labels: Map[Label.Name, String],
+      cause: Throwable
+  ) extends PrometheusException[A] {
+
+    override def getMessage: String =
+      s"Unhandled exception while operating on metric '$metricName' (impl class '$className', labels: $labels)"
+
+    override def getCause: Throwable = cause
+
+  }
 
 }

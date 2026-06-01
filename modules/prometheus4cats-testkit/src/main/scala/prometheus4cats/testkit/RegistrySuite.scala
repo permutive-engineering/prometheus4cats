@@ -145,6 +145,6 @@ trait RegistrySuite[State] extends ScalaCheckEffectSuite {
       help: Metric.Help,
       commonLabels: CommonLabels,
       extraLabels: Map[Label.Name, String]
-  ): IO[(Option[Map[String, Double]], Option[Double], Option[Double])]
+  ): IO[(Option[Map[String, Double]], Option[Long], Option[Double])]
 
 }
