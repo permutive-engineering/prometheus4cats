@@ -42,5 +42,4 @@ lazy val `prometheus4cats-java` = module
 lazy val sandbox = module
   .settings(libraryDependencies ++= Dependencies.sandbox)
   .settings(publish / skip := true)
-  .settings(crossScalaVersions := Seq(scalaVersion.value))
   .dependsOn(prometheus4cats, `prometheus4cats-java`)
