@@ -18,7 +18,7 @@
         "colorMode": "none"
       },
       "targets": [
-        { "refId": "A", "expr": "test_build_info", "legendFormat": "version={{version}} · commit={{commit}} · env={{environment}}" }
+        { "refId": "A", "expr": "sandbox_build_info", "legendFormat": "version={{version}} · commit={{commit}} · env={{environment}}" }
       ]
     },
     {
@@ -28,7 +28,7 @@
       "gridPos": { "h": 6, "w": 12, "x": 0, "y": 4 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
-        { "refId": "A", "expr": "rate(test_counter_total[1m])", "legendFormat": "{{label}}", "exemplar": true }
+        { "refId": "A", "expr": "rate(sandbox_counter_total[1m])", "legendFormat": "{{label}}", "exemplar": true }
       ]
     },
     {
@@ -38,7 +38,7 @@
       "gridPos": { "h": 6, "w": 12, "x": 12, "y": 4 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
-        { "refId": "A", "expr": "rate(test_sampled_counter_total[1m])", "legendFormat": "{{label}}", "exemplar": true }
+        { "refId": "A", "expr": "rate(sandbox_sampled_counter_total[1m])", "legendFormat": "{{label}}", "exemplar": true }
       ]
     },
     {
@@ -49,9 +49,9 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
       "targets": [
-        { "refId": "A", "expr": "histogram_quantile(0.50, sum by (le) (rate(test_classic_histogram_seconds_bucket[1m])))", "legendFormat": "p50", "exemplar": true },
-        { "refId": "B", "expr": "histogram_quantile(0.90, sum by (le) (rate(test_classic_histogram_seconds_bucket[1m])))", "legendFormat": "p90", "exemplar": true },
-        { "refId": "C", "expr": "histogram_quantile(0.99, sum by (le) (rate(test_classic_histogram_seconds_bucket[1m])))", "legendFormat": "p99", "exemplar": true }
+        { "refId": "A", "expr": "histogram_quantile(0.50, sum by (le) (rate(sandbox_classic_histogram_seconds_bucket[1m])))", "legendFormat": "p50", "exemplar": true },
+        { "refId": "B", "expr": "histogram_quantile(0.90, sum by (le) (rate(sandbox_classic_histogram_seconds_bucket[1m])))", "legendFormat": "p90", "exemplar": true },
+        { "refId": "C", "expr": "histogram_quantile(0.99, sum by (le) (rate(sandbox_classic_histogram_seconds_bucket[1m])))", "legendFormat": "p99", "exemplar": true }
       ]
     },
     {
@@ -62,9 +62,9 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
       "targets": [
-        { "refId": "A", "expr": "histogram_quantile(0.50, rate(test_native_histogram_seconds[1m]))", "legendFormat": "p50", "exemplar": true },
-        { "refId": "B", "expr": "histogram_quantile(0.90, rate(test_native_histogram_seconds[1m]))", "legendFormat": "p90", "exemplar": true },
-        { "refId": "C", "expr": "histogram_quantile(0.99, rate(test_native_histogram_seconds[1m]))", "legendFormat": "p99", "exemplar": true }
+        { "refId": "A", "expr": "histogram_quantile(0.50, rate(sandbox_native_histogram_seconds[1m]))", "legendFormat": "p50", "exemplar": true },
+        { "refId": "B", "expr": "histogram_quantile(0.90, rate(sandbox_native_histogram_seconds[1m]))", "legendFormat": "p90", "exemplar": true },
+        { "refId": "C", "expr": "histogram_quantile(0.99, rate(sandbox_native_histogram_seconds[1m]))", "legendFormat": "p99", "exemplar": true }
       ]
     },
     {
@@ -75,8 +75,8 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
       "targets": [
-        { "refId": "A", "expr": "histogram_quantile(0.99, sum by (le) (rate(test_dual_histogram_seconds_bucket[1m])))", "legendFormat": "classic p99", "exemplar": true },
-        { "refId": "B", "expr": "histogram_quantile(0.99, rate(test_dual_histogram_seconds[1m]))",                                          "legendFormat": "native p99", "exemplar": true }
+        { "refId": "A", "expr": "histogram_quantile(0.99, sum by (le) (rate(sandbox_dual_histogram_seconds_bucket[1m])))", "legendFormat": "classic p99", "exemplar": true },
+        { "refId": "B", "expr": "histogram_quantile(0.99, rate(sandbox_dual_histogram_seconds[1m]))",                                          "legendFormat": "native p99", "exemplar": true }
       ]
     },
     {
@@ -87,7 +87,7 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "options": { "calculate": false, "cellGap": 1, "yAxis": { "unit": "s" } },
       "targets": [
-        { "refId": "A", "expr": "sum by (le) (rate(test_classic_histogram_seconds_bucket[1m]))", "format": "heatmap", "legendFormat": "{{le}}", "exemplar": true }
+        { "refId": "A", "expr": "sum by (le) (rate(sandbox_classic_histogram_seconds_bucket[1m]))", "format": "heatmap", "legendFormat": "{{le}}", "exemplar": true }
       ]
     },
     {
@@ -98,7 +98,7 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "options": { "calculate": false, "cellGap": 1, "yAxis": { "unit": "s" } },
       "targets": [
-        { "refId": "A", "expr": "rate(test_native_histogram_seconds[1m])", "format": "heatmap", "exemplar": true }
+        { "refId": "A", "expr": "rate(sandbox_native_histogram_seconds[1m])", "format": "heatmap", "exemplar": true }
       ]
     },
     {
@@ -108,7 +108,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 36 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
-        { "refId": "A", "expr": "test_gauge_value", "legendFormat": "gauge" }
+        { "refId": "A", "expr": "sandbox_gauge_value", "legendFormat": "gauge" }
       ]
     },
     {
@@ -119,7 +119,7 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
       "targets": [
-        { "refId": "A", "expr": "test_summary_seconds", "legendFormat": "p{{quantile}}" }
+        { "refId": "A", "expr": "sandbox_summary_seconds", "legendFormat": "p{{quantile}}" }
       ]
     },
     {
@@ -130,19 +130,34 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
       "targets": [
-        { "refId": "A", "expr": "histogram_quantile(0.50, sum by (le) (rate(test_operation_duration_seconds_bucket[1m])))", "legendFormat": "p50" },
-        { "refId": "B", "expr": "histogram_quantile(0.90, sum by (le) (rate(test_operation_duration_seconds_bucket[1m])))", "legendFormat": "p90" },
-        { "refId": "C", "expr": "histogram_quantile(0.99, sum by (le) (rate(test_operation_duration_seconds_bucket[1m])))", "legendFormat": "p99" }
+        { "refId": "A", "expr": "histogram_quantile(0.50, sum by (le) (rate(sandbox_operation_duration_seconds_bucket[1m])))", "legendFormat": "p50" },
+        { "refId": "B", "expr": "histogram_quantile(0.90, sum by (le) (rate(sandbox_operation_duration_seconds_bucket[1m])))", "legendFormat": "p90" },
+        { "refId": "C", "expr": "histogram_quantile(0.99, sum by (le) (rate(sandbox_operation_duration_seconds_bucket[1m])))", "legendFormat": "p99" }
       ]
     },
     {
       "id": 12,
       "type": "timeseries",
-      "title": "OutcomeRecorder (.asOutcomeRecorder) — succeeded vs errored rate",
+      "title": "OutcomeRecorder (.asOutcomeRecorder) — succeeded / errored / canceled rates",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 44 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
-        { "refId": "A", "expr": "rate(test_operation_total[1m])", "legendFormat": "{{outcome_status}}" }
+        { "refId": "A", "expr": "rate(sandbox_operation_total[1m])", "legendFormat": "{{outcome_status}}" }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "stat",
+      "title": "Process uptime — gauge callback (.callback(IO[Double]))",
+      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 52 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "none"
+      },
+      "targets": [
+        { "refId": "A", "expr": "sandbox_process_uptime_seconds" }
       ]
     }
   ]
