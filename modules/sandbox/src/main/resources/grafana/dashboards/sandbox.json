@@ -34,7 +34,7 @@
     {
       "id": 7,
       "type": "timeseries",
-      "title": "Sampled counter — at most one exemplar / 10s (.incWithSampledExemplar)",
+      "title": "Sampled counter — ~1-in-10 exemplars (.incWithSampledExemplar)",
       "gridPos": { "h": 6, "w": 12, "x": 12, "y": 4 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [

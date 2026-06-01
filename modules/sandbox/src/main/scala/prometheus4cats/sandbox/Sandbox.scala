@@ -23,7 +23,6 @@ import scala.concurrent.duration._
 import cats.data.NonEmptySeq
 import cats.effect.IO
 import cats.effect.IOApp
-import cats.effect.Ref
 import cats.effect.kernel.Resource
 import cats.effect.std.Random
 
@@ -36,25 +35,6 @@ import prometheus4cats.MetricFactory
 import prometheus4cats.Summary
 import prometheus4cats.javaclient.JavaMetricRegistry
 
-/** Local-only sandbox app for poking at metric shapes against the docker-compose Prometheus + Grafana stack at the repo
-  * root.
-  *
-  * Run `docker compose up -d`, then `sbt sandbox/run`.
-  *
-  * Exposes on `:9400/metrics`:
-  *   - `test_counter_total` — incrementing counter with a single label
-  *   - `test_classic_histogram_seconds` — classic-only histogram with curated bucket boundaries
-  *   - `test_native_histogram_seconds` — native (exponential / sparse) histogram, no declared buckets
-  *   - `test_dual_histogram_seconds` — dual-mode histogram: BOTH classic and native data from one declaration,
-  *     NHCB-friendly
-  *
-  * Each observation per iteration draws a random duration in `[0s, 5s]` so the bucket distribution fills out across the
-  * curated boundaries over time.
-  *
-  *   - http://localhost:9400/metrics raw scrape output
-  *   - http://localhost:9090 Prometheus UI
-  *   - http://localhost:3123 Grafana
-  */
 object Sandbox extends IOApp.Simple {
 
   /** Latency-style bucket layout, in seconds. Spans 5ms..10s, finer-grained at the low end. */
@@ -71,38 +51,6 @@ object Sandbox extends IOApp.Simple {
       )
     )(server => IO.blocking(server.close()))
 
-  /** Rate-limited `ExemplarSampler.Counter` — emits at most one exemplar per `every` window. Generates
-    * a fresh 16-char hex `trace_id` each time it samples. Used to demonstrate the `*WithSampledExemplar`
-    * variant (vs `*WithExemplar` which fires every call).
-    */
-  private def rateLimitedSampler(
-      random: Random[IO],
-      every: FiniteDuration
-  ): IO[ExemplarSampler.Counter[IO, Double]] =
-    Ref.of[IO, Long](0L).map { lastEmitted =>
-      new ExemplarSampler.Counter[IO, Double] {
-        private val maybeSample: IO[Option[Exemplar.Data]] =
-          for {
-            now  <- IO.realTime
-            last <- lastEmitted.get
-            out  <-
-              if (now.toMillis - last >= every.toMillis) {
-                for {
-                  raw <- random.nextLong
-                  id   = raw & 0x7fffffffffffffffL
-                  labels = Exemplar.Labels.of(Exemplar.LabelName("trace_id") -> f"$id%016x").toOption.get
-                  _   <- lastEmitted.set(now.toMillis)
-                } yield Some(Exemplar.Data(labels, Instant.ofEpochMilli(now.toMillis)))
-              } else IO.pure(None)
-          } yield out
-
-        override def sample(previous: Option[Exemplar.Data]): IO[Option[Exemplar.Data]] = maybeSample
-
-        override def sample(value: Double, previous: Option[Exemplar.Data]): IO[Option[Exemplar.Data]] =
-          maybeSample
-      }
-    }
-
   override def run: IO[Unit] = {
     val promRegistry = new PrometheusRegistry()
 
@@ -118,11 +66,9 @@ object Sandbox extends IOApp.Simple {
       sampledCounter <- factory
                           .counter("sampled_counter_total")
                           .ofDouble
-                          .help("Counter with rate-limited exemplars (one per 10s)")
+                          .help("Counter with downsampled exemplars (~1 in 10)")
                           .label[String]("label")
                           .build
-
-      sampler <- Resource.eval(rateLimitedSampler(random, 10.seconds))
 
       classic <- factory
                    .histogram("classic_histogram_seconds")
@@ -181,65 +127,83 @@ object Sandbox extends IOApp.Simple {
                  .asTimer
                  .build
 
-      outcomeRecorder <- factory
-                           .counter("operation_total")
-                           .ofDouble
-                           .help("Counter-backed OutcomeRecorder (.asOutcomeRecorder) — counts succeeded/errored/canceled outcomes")
-                           .asOutcomeRecorder
-                           .build
-    } yield (counter, sampledCounter, sampler, classic, native, dual, gauge, summary, info, timer, outcomeRecorder, random)
+      outcomeRecorder <-
+        factory
+          .counter("operation_total")
+          .ofDouble
+          .help("Counter-backed OutcomeRecorder (.asOutcomeRecorder) — counts succeeded/errored/canceled outcomes")
+          .asOutcomeRecorder
+          .build
+    } yield (counter, sampledCounter, classic, native, dual, gauge, summary, info, timer, outcomeRecorder, random)
 
     app.use {
-      case (counter, sampledCounter, sampler, classic, native, dual, gauge, summary, info, timer, outcomeRecorder, random) =>
-      // Per-call fresh trace_id — every observation attaches a different exemplar so the heatmap
-      // and per-bucket exemplar diamonds in Grafana stay populated rather than collapsing to one.
-      // Note: v6 enforces a minimum retention period between consecutive exemplars in the SAME
-      // bucket, so a bucket that fires multiple times in rapid succession keeps only the first
-      // exemplar — that's upstream behaviour, not a sandbox issue.
-      implicit val exemplar: Exemplar[IO] = new Exemplar[IO] {
-        override def get: IO[Option[Exemplar.Labels]] =
-          random.nextLong.map { raw =>
-            val id = raw & 0x7fffffffffffffffL
-            Exemplar.Labels.of(Exemplar.LabelName("trace_id") -> f"$id%016x").toOption
-          }
-      }
-
-      implicit val s: ExemplarSampler.Counter[IO, Double] = sampler
-
-      // Info: set once. Stays in the registry for the lifetime of the resource. Querying
-      // `test_build_info` in Prometheus will always return value 1 with these label values.
-      val setInfo = info.info(("1.2.3", "abc1234567890def", "sandbox"))
-
-      // Simulated work for the Timer + OutcomeRecorder demo. ~80% succeed with a random short
-      // duration, ~20% fail with a simulated error. `outcomeRecorder.surround(timer.time(work))`
-      // records duration on success/failure AND the outcome category on the counter.
-      val simulatedWork: IO[Unit] =
-        random.betweenDouble(0.0, 1.0).flatMap { r =>
-          if (r < 0.80) random.betweenLong(10L, 200L).flatMap(ms => IO.sleep(ms.millis))
-          else IO.raiseError(new RuntimeException("simulated failure"))
+      case (counter, sampledCounter, classic, native, dual, gauge, summary, info, timer, outcomeRecorder, random) =>
+        // Per-call fresh trace_id — every observation attaches a different exemplar so the heatmap
+        // and per-bucket exemplar diamonds in Grafana stay populated rather than collapsing to one.
+        // Note: v6 enforces a minimum retention period between consecutive exemplars in the SAME
+        // bucket, so a bucket that fires multiple times in rapid succession keeps only the first
+        // exemplar — that's upstream behaviour, not a sandbox issue.
+        implicit val exemplar: Exemplar[IO] = new Exemplar[IO] {
+          override def get: IO[Option[Exemplar.Labels]] =
+            random.nextLong.map { raw =>
+              val id = raw & 0x7fffffffffffffffL
+              Exemplar.Labels.of(Exemplar.LabelName("trace_id") -> f"$id%016x").toOption
+            }
         }
 
-      IO.println("Metrics endpoint live at http://localhost:9400/metrics — Ctrl-C to stop.") >>
-        setInfo >>
-        (
-          for {
-            value <- random.betweenDouble(0.0, 5.0)
-            now   <- IO.realTime
-            // 0..100 sine wave, ~31s period — recognisable on the dashboard.
-            gaugeValue = 50.0 + 50.0 * math.sin(now.toMillis / 5000.0)
-            _ <- counter.incWithExemplar(1.0, "value1")
-            _ <- sampledCounter.incWithSampledExemplar(1.0, "value1")
-            _ <- classic.observeWithExemplar(value)
-            _ <- native.observeWithExemplar(value)
-            _ <- dual.observeWithExemplar(value)
-            _ <- gauge.set(gaugeValue)
-            _ <- summary.observe(value)
-            // .attempt swallows the simulated error so the loop keeps running; the outcome recorder
-            // and timer both already saw it via .surround / .time before the error re-surfaced here.
-            _ <- outcomeRecorder.surround(timer.time(simulatedWork)).attempt.void
-            _ <- IO.sleep(1.second)
-          } yield ()
-        ).foreverM
+        implicit val s: ExemplarSampler.Counter[IO, Double] = new ExemplarSampler.Counter[IO, Double] {
+          val fraction = 0.1 // ≈ one in ten calls gets an exemplar
+          val maybeSample: IO[Option[Exemplar.Data]] =
+            random.nextDouble.flatMap { r =>
+              if (r >= fraction) IO.pure(None)
+              else
+                for {
+                  raw   <- random.nextLong
+                  id     = raw & 0x7fffffffffffffffL
+                  labels = Exemplar.Labels.of(Exemplar.LabelName("trace_id") -> f"$id%016x").toOption.get
+                  now   <- IO.realTime
+                } yield Some(Exemplar.Data(labels, Instant.ofEpochMilli(now.toMillis)))
+            }
+
+          override def sample(previous: Option[Exemplar.Data]): IO[Option[Exemplar.Data]] = maybeSample
+
+          override def sample(value: Double, previous: Option[Exemplar.Data]): IO[Option[Exemplar.Data]] = maybeSample
+        }
+
+        // Info: set once. Stays in the registry for the lifetime of the resource. Querying
+        // `test_build_info` in Prometheus will always return value 1 with these label values.
+        val setInfo = info.info(("1.2.3", "abc1234567890def", "sandbox"))
+
+        // Simulated work for the Timer + OutcomeRecorder demo. ~80% succeed with a random short
+        // duration, ~20% fail with a simulated error. `outcomeRecorder.surround(timer.time(work))`
+        // records duration on success/failure AND the outcome category on the counter.
+        val simulatedWork: IO[Unit] =
+          random.betweenDouble(0.0, 1.0).flatMap { r =>
+            if (r < 0.80) random.betweenLong(10L, 200L).flatMap(ms => IO.sleep(ms.millis))
+            else IO.raiseError(new RuntimeException("simulated failure"))
+          }
+
+        IO.println("Metrics endpoint live at http://localhost:9400/metrics — Ctrl-C to stop.") >>
+          setInfo >>
+          (
+            for {
+              value <- random.betweenDouble(0.0, 5.0)
+              now   <- IO.realTime
+              // 0..100 sine wave, ~31s period — recognisable on the dashboard.
+              gaugeValue = 50.0 + 50.0 * math.sin(now.toMillis / 5000.0)
+              _         <- counter.incWithExemplar(1.0, "value1")
+              _         <- sampledCounter.incWithSampledExemplar(1.0, "value1")
+              _         <- classic.observeWithExemplar(value)
+              _         <- native.observeWithExemplar(value)
+              _         <- dual.observeWithExemplar(value)
+              _         <- gauge.set(gaugeValue)
+              _         <- summary.observe(value)
+              // .attempt swallows the simulated error so the loop keeps running; the outcome recorder
+              // and timer both already saw it via .surround / .time before the error re-surfaced here.
+              _ <- outcomeRecorder.surround(timer.time(simulatedWork)).attempt.void
+              _ <- IO.sleep(1.second)
+            } yield ()
+          ).foreverM
     }
   }
 
