@@ -35,7 +35,7 @@ value, as well as reset to `0`.
 See the example below on how to obtain a `Gauge` from a [`MetricFactory`]:
 
 ```scala mdoc:silent
-factory.gauge("my_summary").ofLong.help("Metric description")
+factory.gauge("my_gauge").ofLong.help("Metric description")
 ```
 
 ## `Histogram`
