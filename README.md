@@ -19,8 +19,8 @@ To use the latest version, include the following in your `build.sbt`:
 
 ```scala
 libraryDependencies ++= Seq(
-  "com.permutive" %% "prometheus4cats" % "6.0.0",
-  "com.permutive" %% "prometheus4cats-java" % "6.0.0"
+  "com.permutive" %% "prometheus4cats" % "6.0.0-M1",
+  "com.permutive" %% "prometheus4cats-java" % "6.0.0-M1"
 )
 ```
 
@@ -48,9 +48,13 @@ If you want to know more about all the library's features, please head on to [it
 
 ## Contributors for this project
 
-| <a href="https://github.com/janstenpickle"><img alt="janstenpickle" src="https://avatars.githubusercontent.com/u/1926225?v=4&s=120" width="120px" /></a> | <a href="https://github.com/alejandrohdezma"><img alt="alejandrohdezma" src="https://avatars.githubusercontent.com/u/9027541?v=4&s=120" width="120px" /></a> | <a href="https://github.com/TimWSpence"><img alt="TimWSpence" src="https://avatars.githubusercontent.com/u/3360080?v=4&s=120" width="120px" /></a> | <a href="https://github.com/Oliver-Taylor"><img alt="Oliver-Taylor" src="https://avatars.githubusercontent.com/u/26869993?v=4&s=120" width="120px" /></a> | <a href="https://github.com/sideeffffect"><img alt="sideeffffect" src="https://avatars.githubusercontent.com/u/9019485?v=4&s=120" width="120px" /></a> | <a href="https://github.com/bastewart"><img alt="bastewart" src="https://avatars.githubusercontent.com/u/10614835?v=4&s=120" width="120px" /></a> | <a href="https://github.com/desbo"><img alt="desbo" src="https://avatars.githubusercontent.com/u/1064734?v=4&s=120" width="120px" /></a> |
+| <a href="https://github.com/janstenpickle"><img alt="janstenpickle" src="https://avatars.githubusercontent.com/u/1926225?v=4&s=120" width="120px" /></a> | <a href="https://github.com/alejandrohdezma"><img alt="alejandrohdezma" src="https://avatars.githubusercontent.com/u/9027541?v=4&s=120" width="120px" /></a> | <a href="https://github.com/TimWSpence"><img alt="TimWSpence" src="https://avatars.githubusercontent.com/u/3360080?v=4&s=120" width="120px" /></a> | <a href="https://github.com/kidonm"><img alt="kidonm" src="https://avatars.githubusercontent.com/u/5160832?v=4&s=120" width="120px" /></a> | <a href="https://github.com/hgdyeo"><img alt="hgdyeo" src="https://avatars.githubusercontent.com/u/76525536?v=4&s=120" width="120px" /></a> | <a href="https://github.com/gruffyn"><img alt="gruffyn" src="https://avatars.githubusercontent.com/u/1755305?v=4&s=120" width="120px" /></a> | <a href="https://github.com/Oliver-Taylor"><img alt="Oliver-Taylor" src="https://avatars.githubusercontent.com/u/26869993?v=4&s=120" width="120px" /></a> |
 | :--: | :--: | :--: | :--: | :--: | :--: | :--: |
-| <a href="https://github.com/janstenpickle"><sub><b>janstenpickle</b></sub></a> | <a href="https://github.com/alejandrohdezma"><sub><b>alejandrohdezma</b></sub></a> | <a href="https://github.com/TimWSpence"><sub><b>TimWSpence</b></sub></a> | <a href="https://github.com/Oliver-Taylor"><sub><b>Oliver-Taylor</b></sub></a> | <a href="https://github.com/sideeffffect"><sub><b>sideeffffect</b></sub></a> | <a href="https://github.com/bastewart"><sub><b>bastewart</b></sub></a> | <a href="https://github.com/desbo"><sub><b>desbo</b></sub></a> |
+| <a href="https://github.com/janstenpickle"><sub><b>janstenpickle</b></sub></a> | <a href="https://github.com/alejandrohdezma"><sub><b>alejandrohdezma</b></sub></a> | <a href="https://github.com/TimWSpence"><sub><b>TimWSpence</b></sub></a> | <a href="https://github.com/kidonm"><sub><b>kidonm</b></sub></a> | <a href="https://github.com/hgdyeo"><sub><b>hgdyeo</b></sub></a> | <a href="https://github.com/gruffyn"><sub><b>gruffyn</b></sub></a> | <a href="https://github.com/Oliver-Taylor"><sub><b>Oliver-Taylor</b></sub></a> |
+
+| <a href="https://github.com/sideeffffect"><img alt="sideeffffect" src="https://avatars.githubusercontent.com/u/9019485?v=4&s=120" width="120px" /></a> | <a href="https://github.com/bastewart"><img alt="bastewart" src="https://avatars.githubusercontent.com/u/10614835?v=4&s=120" width="120px" /></a> | <a href="https://github.com/desbo"><img alt="desbo" src="https://avatars.githubusercontent.com/u/1064734?v=4&s=120" width="120px" /></a> |
+| :--: | :--: | :--: |
+| <a href="https://github.com/sideeffffect"><sub><b>sideeffffect</b></sub></a> | <a href="https://github.com/bastewart"><sub><b>bastewart</b></sub></a> | <a href="https://github.com/desbo"><sub><b>desbo</b></sub></a> |
 
 [Prometheus]: https://prometheus.io
 [Epimetheus]: https://github.com/davenverse/epimetheus
