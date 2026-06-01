@@ -91,6 +91,42 @@ Exponential buckets may be generated using the method below:
 ```scala mdoc:silent
 histogram.exponentialBuckets[Nat._5](start = 1.0, factor = 1.5)
 ```
+
+## `Native Histogram`
+
+This implements a Prometheus [native histogram] — a histogram whose bucket layout is sized
+dynamically by an exponential schema, so consumers don't pre-declare bucket boundaries. Native
+histograms typically use less storage than a classic histogram for the same observation
+distribution, and offer finer quantile resolution because the bucket density adapts to where
+observations actually fall.
+
+See the example below on how to obtain a native histogram from a [`MetricFactory`]:
+
+```scala mdoc:silent
+val nativeHistogram = factory
+  .nativeHistogram("my_native_histogram")
+  .ofDouble
+  .help("Metric description")
+```
+
+> ℹ️ Native histograms are emitted only over the protobuf scrape protocol — see [Java Registry] for
+> the scrape config required on the Prometheus side.
+
+### Tuning the bucket layout
+
+Pass a `NativeHistogram` configuration when defining the metric. The default matches the upstream
+Prometheus Java client and is appropriate for most workloads.
+
+```scala mdoc:silent
+val tunedNativeHistogram = factory
+  .nativeHistogram("my_tuned_histogram", NativeHistogram.Default.withInitialSchema(3))
+  .ofDouble
+  .help("Metric description")
+```
+
+See the `NativeHistogram` Scaladoc for the full set of tuning knobs (`initialSchema`,
+`maxNumberOfBuckets`, `resetDuration`, zero-bucket threshold).
+
 ## `Summary`
 
 This implements an [OpenMetrics] summary, allowing a number to be recorded against a calculated.
@@ -174,5 +210,7 @@ val info = factory
 [Metrics DSL]: ../interface/dsl.md
 [`MetricFactory`]: ../interface/metric-factory.md
 [exemplars]: ../interface/exemplar.md
+[Java Registry]: ../implementations/java.md
 
 [OpenMetrics]: https://github.com/OpenObservability/OpenMetrics
+[native histogram]: https://prometheus.io/docs/specs/native_histograms/
