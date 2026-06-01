@@ -35,9 +35,9 @@ lazy val `prometheus4cats-java` = module
   .settings(libraryDependencies ++= Dependencies.`prometheus4cats-java`)
   .dependsOn(prometheus4cats, `prometheus4cats-testkit` % "test->compile")
 
-/** Local-only sandbox app for poking at metric shapes against a real Prometheus + Grafana stack.
-  * Not published. The docker-compose + Prometheus/Grafana config live under
-  * `modules/sandbox/src/main/resources/`. Run with `sbt sandbox/run`.
+/** Local-only sandbox app for poking at metric shapes against a real Prometheus + Grafana stack. Not published. The
+  * docker-compose + Prometheus/Grafana config live under `modules/sandbox/src/main/resources/`. Run with `sbt
+  * sandbox/run`.
   */
 lazy val sandbox = module
   .settings(libraryDependencies ++= Dependencies.sandbox)
