@@ -1,0 +1,164 @@
+{
+  "title": "prometheus4cats sandbox",
+  "uid": "p4c-sandbox",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": { "from": "now-15m", "to": "now" },
+  "panels": [
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "Info — build_info labels, value is always 1",
+      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value_and_name",
+        "colorMode": "none"
+      },
+      "targets": [
+        { "refId": "A", "expr": "sandbox_build_info", "legendFormat": "version={{version}} · commit={{commit}} · env={{environment}}" }
+      ]
+    },
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Counter — every inc emits an exemplar (.incWithExemplar)",
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "rate(sandbox_counter_total[1m])", "legendFormat": "{{label}}", "exemplar": true }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Sampled counter — ~1-in-10 exemplars (.incWithSampledExemplar)",
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "rate(sandbox_sampled_counter_total[1m])", "legendFormat": "{{label}}", "exemplar": true }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Classic histogram — p50 / p90 / p99",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 10 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.50, sum by (le) (rate(sandbox_classic_histogram_seconds_bucket[1m])))", "legendFormat": "p50", "exemplar": true },
+        { "refId": "B", "expr": "histogram_quantile(0.90, sum by (le) (rate(sandbox_classic_histogram_seconds_bucket[1m])))", "legendFormat": "p90", "exemplar": true },
+        { "refId": "C", "expr": "histogram_quantile(0.99, sum by (le) (rate(sandbox_classic_histogram_seconds_bucket[1m])))", "legendFormat": "p99", "exemplar": true }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Native histogram — p50 / p90 / p99",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 10 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.50, rate(sandbox_native_histogram_seconds[1m]))", "legendFormat": "p50", "exemplar": true },
+        { "refId": "B", "expr": "histogram_quantile(0.90, rate(sandbox_native_histogram_seconds[1m]))", "legendFormat": "p90", "exemplar": true },
+        { "refId": "C", "expr": "histogram_quantile(0.99, rate(sandbox_native_histogram_seconds[1m]))", "legendFormat": "p99", "exemplar": true }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Dual histogram — classic vs native p99 (same observations, two representations)",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 18 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.99, sum by (le) (rate(sandbox_dual_histogram_seconds_bucket[1m])))", "legendFormat": "classic p99", "exemplar": true },
+        { "refId": "B", "expr": "histogram_quantile(0.99, rate(sandbox_dual_histogram_seconds[1m]))",                                          "legendFormat": "native p99", "exemplar": true }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "heatmap",
+      "title": "Classic histogram — heatmap",
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 26 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": { "calculate": false, "cellGap": 1, "yAxis": { "unit": "s" } },
+      "targets": [
+        { "refId": "A", "expr": "sum by (le) (rate(sandbox_classic_histogram_seconds_bucket[1m]))", "format": "heatmap", "legendFormat": "{{le}}", "exemplar": true }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "heatmap",
+      "title": "Native histogram — heatmap (note the finer banding vs classic)",
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 26 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": { "calculate": false, "cellGap": 1, "yAxis": { "unit": "s" } },
+      "targets": [
+        { "refId": "A", "expr": "rate(sandbox_native_histogram_seconds[1m])", "format": "heatmap", "exemplar": true }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Gauge — sine wave 0..100 via .set()",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 36 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "sandbox_gauge_value", "legendFormat": "gauge" }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Summary — quantiles emitted by the library, no histogram_quantile() needed",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 36 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sandbox_summary_seconds", "legendFormat": "p{{quantile}}" }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Timer (.asTimer) — duration of simulated work",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 44 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.50, sum by (le) (rate(sandbox_operation_duration_seconds_bucket[1m])))", "legendFormat": "p50" },
+        { "refId": "B", "expr": "histogram_quantile(0.90, sum by (le) (rate(sandbox_operation_duration_seconds_bucket[1m])))", "legendFormat": "p90" },
+        { "refId": "C", "expr": "histogram_quantile(0.99, sum by (le) (rate(sandbox_operation_duration_seconds_bucket[1m])))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "OutcomeRecorder (.asOutcomeRecorder) — succeeded / errored / canceled rates",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 44 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "rate(sandbox_operation_total[1m])", "legendFormat": "{{outcome_status}}" }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "stat",
+      "title": "Process uptime — gauge callback (.callback(IO[Double]))",
+      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 52 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "none"
+      },
+      "targets": [
+        { "refId": "A", "expr": "sandbox_process_uptime_seconds" }
+      ]
+    }
+  ]
+}

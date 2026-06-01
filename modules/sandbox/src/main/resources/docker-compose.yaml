@@ -1,0 +1,24 @@
+services:
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    ports: ["9090:9090"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      # Both still required in Prometheus 3.x. The PromQL surface for native histograms went stable
+      # in 3.0, but storage/ingest of native histograms and exemplars is still feature-gated.
+      - "--enable-feature=native-histograms"
+      - "--enable-feature=exemplar-storage"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    ports: ["3123:3000"]
+    depends_on: [prometheus]
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
