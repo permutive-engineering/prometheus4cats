@@ -35,13 +35,12 @@ val counterResource =
     registry <- JavaMetricRegistry.Builder[IO]().build
     factory = MetricFactory.builder.build(registry)
     counter <- factory.counter("my_counter_total")
-                 .ofLong
                  .help("My Counter")
                  .label[String]("some_label")
                  .build
   } yield counter
 
-counterResource.use { counter => counter.inc("Some label value") }
+counterResource.use { counter => counter.inc(1.0, "Some label value") }
 ```
 
 If you want to know more about all the library's features, please head on to [its website](https://permutive-engineering.github.io/prometheus4cats/) where you will find much more information.

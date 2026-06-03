@@ -58,10 +58,8 @@ factory.info("info_info")
 
 ## Specifying the Underlying Number Format
 
-```scala mdoc:silent
-factory.counter("counter_total").ofDouble
-factory.counter("counter_total").ofLong
-```
+All metric values are `Double` by default — the underlying Prometheus wire format stores everything as `double`, so a
+separate `Long` path was duplication. `Long`-valued sources should `.contramap[Long](_.toDouble)` on the resulting DSL.
 
 ## Defining the Help String
 
@@ -148,9 +146,8 @@ unsafeLabelledCounter.build.evalMap(_.inc(3.0, labels))
 ```scala mdoc:silent
 val intCounter: Resource[IO, Counter[IO, Int, Unit]] = factory
   .counter("counter_total")
-  .ofLong
   .help("Describe what this metric does")
-  .contramap[Int](_.toLong)
+  .contramap[Int](_.toDouble)
   .build
 ```
 
@@ -164,11 +161,10 @@ val shortCounter: Resource[IO, Counter[IO, Short, Unit]] =
 ```scala mdoc:silent
 val intLabelledCounter: Resource[IO, Counter[IO, Int, (String, Int)]] = factory
   .counter("counter_total")
-  .ofLong
   .help("Describe what this metric does")
   .label[String]("string_label")
   .label[Int]("int_label")
-  .contramap[Int](_.toLong)
+  .contramap[Int](_.toDouble)
   .build
 ```
 
@@ -185,9 +181,8 @@ This can work as a nice alternative to
 ```scala mdoc:silent
 case class LabelsClass(string: String, int: Int)
 
-val updatedLabelsCounter: Resource[IO, Counter[IO, Long, LabelsClass]] = factory
+val updatedLabelsCounter: Resource[IO, Counter[IO, Double, LabelsClass]] = factory
   .counter("counter_total")
-  .ofLong
   .help("Describe what this metric does")
   .label[String]("string_label")
   .label[Int]("int_label")
