@@ -729,6 +729,7 @@ object TypeStep {
     * `Double`-valued DSL. Replaces the old `factory.counter(name).ofDouble.help(...)` two-step. `Long`-valued metrics
     * are no longer the default; callers wanting `Long` semantics should `.ofDouble.contramap[Long](_.toDouble)`.
     */
+  @SuppressWarnings(Array("scalafix:DisableSyntax.implicitConversion"))
   implicit def typeStepIsDouble[D[_]](step: TypeStep[D]): D[Double] = step.double
 
 }
