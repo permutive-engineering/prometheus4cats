@@ -18,7 +18,6 @@ package test
 
 import scala.concurrent.duration.FiniteDuration
 
-import cats.data.NonEmptyList
 import cats.data.NonEmptySeq
 import cats.effect.IO
 import cats.effect.kernel.Resource
@@ -26,7 +25,7 @@ import cats.effect.kernel.Resource
 import prometheus4cats._
 
 // Functions as a compile-time test to ensure methods are implementable outside of `prometheus4cats` package scope
-class ExternalPackageMetricRegistry extends MetricRegistry[IO] with CallbackRegistry[IO] {
+class ExternalPackageMetricRegistry extends MetricRegistry[IO] {
 
   type Underlying = Unit
 
@@ -148,85 +147,5 @@ class ExternalPackageMetricRegistry extends MetricRegistry[IO] with CallbackRegi
       help: Metric.Help,
       labelNames: IndexedSeq[Label.Name]
   )(f: A => IndexedSeq[String]): Resource[IO, Info[IO, A]] = ???
-
-  override def registerDoubleCounterCallback[A](
-      prefix: Option[Metric.Prefix],
-      name: Counter.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels,
-      labelNames: IndexedSeq[Label.Name],
-      callback: IO[NonEmptyList[(Double, A)]]
-  )(f: A => IndexedSeq[String]): Resource[IO, Unit] = ???
-
-  override def registerLongCounterCallback[A](
-      prefix: Option[Metric.Prefix],
-      name: Counter.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels,
-      labelNames: IndexedSeq[Label.Name],
-      callback: IO[NonEmptyList[(Long, A)]]
-  )(f: A => IndexedSeq[String]): Resource[IO, Unit] = ???
-
-  override def registerDoubleGaugeCallback[A](
-      prefix: Option[Metric.Prefix],
-      name: Gauge.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels,
-      labelNames: IndexedSeq[Label.Name],
-      callback: IO[NonEmptyList[(Double, A)]]
-  )(f: A => IndexedSeq[String]): Resource[IO, Unit] = ???
-
-  override def registerLongGaugeCallback[A](
-      prefix: Option[Metric.Prefix],
-      name: Gauge.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels,
-      labelNames: IndexedSeq[Label.Name],
-      callback: IO[NonEmptyList[(Long, A)]]
-  )(f: A => IndexedSeq[String]): Resource[IO, Unit] = ???
-
-  override def registerDoubleHistogramCallback[A](
-      prefix: Option[Metric.Prefix],
-      name: Histogram.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels,
-      labelNames: IndexedSeq[Label.Name],
-      buckets: NonEmptySeq[Double],
-      callback: IO[NonEmptyList[(Histogram.Value[Double], A)]]
-  )(f: A => IndexedSeq[String]): Resource[IO, Unit] = ???
-
-  override def registerLongHistogramCallback[A](
-      prefix: Option[Metric.Prefix],
-      name: Histogram.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels,
-      labelNames: IndexedSeq[Label.Name],
-      buckets: NonEmptySeq[Long],
-      callback: IO[NonEmptyList[(Histogram.Value[Long], A)]]
-  )(f: A => IndexedSeq[String]): Resource[IO, Unit] = ???
-
-  override def registerDoubleSummaryCallback[A](
-      prefix: Option[Metric.Prefix],
-      name: Summary.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels,
-      labelNames: IndexedSeq[Label.Name],
-      callback: IO[NonEmptyList[(Summary.Value[Double], A)]]
-  )(f: A => IndexedSeq[String]): Resource[IO, Unit] = ???
-
-  override def registerLongSummaryCallback[A](
-      prefix: Option[Metric.Prefix],
-      name: Summary.Name,
-      help: Metric.Help,
-      commonLabels: Metric.CommonLabels,
-      labelNames: IndexedSeq[Label.Name],
-      callback: IO[NonEmptyList[(Summary.Value[Long], A)]]
-  )(f: A => IndexedSeq[String]): Resource[IO, Unit] = ???
-
-  override def registerMetricCollectionCallback(
-      prefix: Option[Metric.Prefix],
-      commonLabels: Metric.CommonLabels,
-      callback: IO[MetricCollection]
-  ): Resource[IO, Unit] = ???
 
 }

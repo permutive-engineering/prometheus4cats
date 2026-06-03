@@ -35,8 +35,8 @@ import prometheus4cats.testkit.DslSuite
 /** v6-backend wiring for the cross-backend [[DslSuite]].
   *
   * No tests are declared here — every DSL test (counter / gauge / histogram (classic + native + dual) / summary / info
-  * / callbacks / metric-collection / release / 5 name-collision contracts) lives in [[DslSuite]]. This class implements
-  * the two abstract hooks and provides the v6-snapshot → `FamilyState` translation.
+  * / release / name-collision contracts) lives in [[DslSuite]]. This class implements the two abstract hooks and
+  * provides the v6-snapshot → `FamilyState` translation.
   *
   * `getRegistryState` is parameterless on the testkit side, so the currently-active `PrometheusRegistry` is threaded
   * through a `Ref` set inside the `resource` acquire and cleared on release. MUnit runs tests within a suite
@@ -51,7 +51,7 @@ class JavaMetricRegistrySuite extends CatsEffectSuite with DslSuite {
   private val promRegistryRef: Ref[IO, Option[PrometheusRegistry]] =
     Ref.unsafe[IO, Option[PrometheusRegistry]](None)
 
-  override def resource: Resource[IO, MetricFactory.WithCallbacks[IO]] =
+  override def resource: Resource[IO, MetricFactory[IO]] =
     for {
       promRegistry <- Resource.eval(IO.delay(new PrometheusRegistry()))
       _            <- Resource.make(promRegistryRef.set(Some(promRegistry)))(_ => promRegistryRef.set(None))

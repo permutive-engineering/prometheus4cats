@@ -20,9 +20,7 @@ import scala.concurrent.duration.FiniteDuration
 
 import cats.Contravariant
 import cats.FlatMap
-import cats.Functor
 import cats.Show
-import cats.data.NonEmptyList
 import cats.effect.kernel.Clock
 import cats.effect.kernel.MonadCancelThrow
 import cats.effect.kernel.Resource
@@ -183,48 +181,12 @@ object BuildStep {
 
 }
 
-trait CallbackStep[F[_], A] { self =>
-
-  protected def buildCallback: F[A] => Resource[F, Unit]
-
-  def callback(callback: F[A]): BuildStep[F, Unit] = new BuildStep[F, Unit] {
-
-    override def build: Resource[F, Unit] = buildCallback(callback)
-
-  }
-
-  def contramapCallback[B](f: B => A)(implicit F: Functor[F]): CallbackStep[F, B] = new CallbackStep[F, B] {
-
-    override protected def buildCallback: F[B] => Resource[F, Unit] = fb => self.buildCallback(fb.map(f))
-
-  }
-
-}
-
-class CallbackBuildStep[F[_], A, B] private[internal] (
-    fa: Resource[F, A],
-    override val buildCallback: F[B] => Resource[F, Unit]
-) extends BuildStep[F, A]
-    with CallbackStep[F, B] {
-
-  override def build: Resource[F, A] = fa
-
-}
-
 /** Mixin adding `.withNative` for promoting a classic-only histogram declaration into a dual-mode (classic + native
   * exponential) one. The classic bucket boundaries supplied via `.buckets(...)` are preserved as-is; native exponential
   * is added with the supplied [[NativeHistogram]] config (defaults if omitted).
   *
-  * The promoted result is a plain `MetricDsl[F, A, Histogram]` (without callback support, since the callback snapshot
-  * type `Histogram.Value` is classic-only — dual-mode callbacks are not meaningful). Calling `.withNative` again on a
-  * promoted DSL is not supported (dual-mode IS the maximum). Order in the chain: `.buckets(...)` → optional
-  * `.withNative` → `.label(...)` → `.build`.
-  *
-  * Mixed into `HistogramMetricDsl.Plain` (for the base `MetricFactory.histogram` path) and
-  * `HistogramMetricDsl.WithCallbacksImpl` (for the `MetricFactory.WithCallbacks.histogram` path) alongside the
-  * appropriate `MetricDsl` flavour. The compound type alias `HistogramMetricDsl` (in the `internal` package object)
-  * exposes both surfaces simultaneously, so callers can do `.label(...)` / `.build` (from `MetricDsl`) AND
-  * `.withNative` from a single value.
+  * Calling `.withNative` again on a promoted DSL is not supported (dual-mode IS the maximum). Order in the chain:
+  * `.buckets(...)` → optional `.withNative` → `.label(...)` → `.build`.
   */
 trait HistogramWithNativeOps[F[_], A] {
 
@@ -246,18 +208,6 @@ object HistogramMetricDsl {
       classicMakeMetric: LabelledMetricPartiallyApplied[F, A, Histogram],
       protected val makeWithNativeMetric: NativeHistogram => LabelledMetricPartiallyApplied[F, A, Histogram]
   ) extends MetricDsl[F, A, Histogram](classicMakeMetric)
-      with HistogramWithNativeOps[F, A]
-
-  /** Concrete histogram DSL for the [[MetricFactory.WithCallbacks]] path: a callback-aware `MetricDsl.WithCallbacks`
-    * plus `.withNative`. Promotion via `.withNative` returns a plain `MetricDsl[F, A, Histogram]` (without callback
-    * support), since the callback snapshot type `Histogram.Value` is classic-only and dual-mode callbacks have no
-    * meaningful representation.
-    */
-  final class WithCallbacksImpl[F[_]: cats.Functor, A] private[prometheus4cats] (
-      classicMakeMetric: LabelledMetricPartiallyApplied[F, A, Histogram],
-      classicMakeCallback: LabelledCallbackPartiallyApplied[F, Histogram.Value[A]],
-      protected val makeWithNativeMetric: NativeHistogram => LabelledMetricPartiallyApplied[F, A, Histogram]
-  ) extends MetricDsl.WithCallbacks[F, A, Histogram.Value[A], Histogram](classicMakeMetric, classicMakeCallback)
       with HistogramWithNativeOps[F, A]
 
 }
@@ -330,60 +280,6 @@ class MetricDsl[F[_], A, L[_[_], _, _]] private[prometheus4cats] (
 }
 
 object MetricDsl {
-
-  class WithCallbacks[F[_]: Functor, A, A0, L[_[_], _, _]](
-      makeMetric: LabelledMetricPartiallyApplied[F, A, L],
-      makeCallback: LabelledCallbackPartiallyApplied[F, A0]
-  ) extends MetricDsl[F, A, L](makeMetric)
-      with CallbackStep[F, A0] {
-
-    override protected def buildCallback: F[A0] => Resource[F, Unit] = f =>
-      makeCallback.apply(IndexedSeq.empty, f.map(a => NonEmptyList.of((a, ())))) { (_: Unit) =>
-        IndexedSeq.empty
-      }
-
-    override def unsafeLabels(
-        labelNames: IndexedSeq[Label.Name]
-    ): CallbackBuildStep[F, L[F, A, Map[Label.Name, String]], NonEmptyList[(A0, Map[Label.Name, String])]] =
-      new CallbackBuildStep[F, L[F, A, Map[Label.Name, String]], NonEmptyList[(A0, Map[Label.Name, String])]](
-        makeMetric(labelNames)(labels => labelNames.collect(labels)),
-        cb => makeCallback(labelNames, cb)(labels => labelNames.collect(labels))
-      )
-
-    override def unsafeLabels(
-        labelNames: Label.Name*
-    ): CallbackBuildStep[F, L[F, A, Map[Label.Name, String]], NonEmptyList[(A0, Map[Label.Name, String])]] =
-      unsafeLabels(
-        labelNames.toIndexedSeq
-      )
-
-    override def labels[B](labels: (Label.Name, B => Label.Value)*): LabelledMetricDsl.WithCallbacks[F, A, A0, B, L] = {
-      val labelNames  = labels.toIndexedSeq.map(_._1)
-      val labelValues = labels.toIndexedSeq.map(_._2)
-
-      new LabelledMetricDsl.WithCallbacks(makeMetric, makeCallback, labelNames, b => labelValues.map(_(b).value))
-    }
-
-    override def labelsFrom[B](implicit encoder: Label.Encoder[B]): LabelledMetricDsl.WithCallbacks[F, A, A0, B, L] =
-      labels(encoder.toLabels: _*)
-
-    override def label[B]: FirstLabelApply.WithCallbacks[F, A, A0, B, L] =
-      new FirstLabelApply.WithCallbacks[F, A, A0, B, L] {
-
-        override def apply(
-            name: Label.Name,
-            toString: B => String
-        ): LabelledMetricDsl.WithCallbacks[F, A, A0, B, L] =
-          new LabelledMetricDsl.WithCallbacks[F, A, A0, B, L](
-            makeMetric,
-            makeCallback,
-            IndexedSeq(name),
-            a => IndexedSeq(toString(a))
-          )
-
-      }
-
-  }
 
   implicit class CounterSyntax[F[_], A](dsl: MetricDsl[F, A, Counter]) {
 
@@ -504,30 +400,6 @@ class LabelsBuildStep[F[_], A, T, L[_[_], _, _]] private[internal] (
 
 }
 
-object LabelsBuildStep {
-
-  final class WithCallbacks[F[_], A, A0, T, L[_[_], _, _]] private[internal] (
-      makeMetric: LabelledMetricPartiallyApplied[F, A, L],
-      makeCallback: LabelledCallbackPartiallyApplied[F, A0],
-      labelNames: IndexedSeq[Label.Name],
-      f: T => IndexedSeq[String]
-  ) extends LabelsBuildStep[F, A, T, L](
-        makeMetric,
-        labelNames,
-        f
-      )
-      with CallbackStep[F, NonEmptyList[(A0, T)]] {
-
-    override protected def buildCallback: F[NonEmptyList[(A0, T)]] => Resource[F, Unit] = cb =>
-      makeCallback(labelNames, cb)(f(_))
-
-    override def contramapLabels[B](f0: B => T): LabelsBuildStep.WithCallbacks[F, A, A0, B, L] =
-      new WithCallbacks(makeMetric, makeCallback, labelNames, b => f(f0(b)))
-
-  }
-
-}
-
 class LabelledMetricDsl[F[_], A, T, L[_[_], _, _]] private[internal] (
     protected[internal] val makeMetric: LabelledMetricPartiallyApplied[F, A, L],
     protected[internal] val labelNames: IndexedSeq[Label.Name],
@@ -603,97 +475,12 @@ class LabelledMetricDsl[F[_], A, T, L[_[_], _, _]] private[internal] (
 
 }
 
-object LabelledMetricDsl {
-
-  final class WithCallbacks[F[_], A, A0, T, L[_[_], _, _]] private[internal] (
-      makeMetric: LabelledMetricPartiallyApplied[F, A, L],
-      makeCallback: LabelledCallbackPartiallyApplied[F, A0],
-      labelNames: IndexedSeq[Label.Name],
-      f: T => IndexedSeq[String]
-  ) extends LabelledMetricDsl[F, A, T, L](makeMetric, labelNames, f)
-      with CallbackStep[F, NonEmptyList[(A0, T)]] {
-
-    override protected def buildCallback: F[NonEmptyList[(A0, T)]] => Resource[F, Unit] = cb =>
-      makeCallback.apply(labelNames, cb)(f(_))
-
-    /** @inheritdoc */
-    override def label[B]: LabelApply.WithCallbacks[F, A, A0, T, B, L] =
-      new LabelApply.WithCallbacks[F, A, A0, T, B, L] {
-
-        override def apply[C](
-            name: Label.Name,
-            toString: B => String
-        )(implicit initLast: InitLast.Aux[T, B, C]): WithCallbacks[F, A, A0, C, L] = new WithCallbacks(
-          makeMetric,
-          makeCallback,
-          labelNames :+ name,
-          c => f(initLast.init(c)) :+ toString(initLast.last(c))
-        )
-
-      }
-
-    /** @inheritdoc */
-    override def labels[B]: LabelsApply.WithCallbacks[F, A, A0, T, B, L] =
-      new LabelsApply.WithCallbacks[F, A, A0, T, B, L] {
-
-        override def apply[C](labels: (Label.Name, B => Label.Value)*)(implicit
-            initLast: InitLast.Aux[T, B, C]
-        ): WithCallbacks[F, A, A0, C, L] = new WithCallbacks(
-          makeMetric,
-          makeCallback,
-          labelNames ++ labels.map(_._1),
-          c => f(initLast.init(c)) ++ labels.map(_._2(initLast.last(c)).value)
-        )
-
-      }
-
-    override def labelsFrom[B]: LabelsFromApply.WithCallbacks[F, A, A0, T, B, L] =
-      new LabelsFromApply.WithCallbacks[F, A, A0, T, B, L] {
-
-        override def apply[C](implicit
-            encoder: Label.Encoder[B],
-            initLast: Aux[T, B, C]
-        ): LabelledMetricDsl.WithCallbacks[F, A, A0, C, L] = {
-          val labels = encoder.toLabels
-
-          new LabelledMetricDsl.WithCallbacks(
-            makeMetric,
-            makeCallback,
-            labelNames ++ labels.map(_._1),
-            c => f(initLast.init(c)) ++ labels.map(_._2(initLast.last(c)).value)
-          )
-        }
-
-      }
-
-    override def contramapLabels[B](f0: B => T): WithCallbacks[F, A, A0, B, L] =
-      new WithCallbacks(makeMetric, makeCallback, labelNames, b => f(f0(b)))
-
-  }
-
-}
-
 abstract private[internal] class FirstLabelApply[F[_], A, B, L[_[_], _, _]] {
 
   def apply(name: Label.Name)(implicit show: Show[B]): LabelledMetricDsl[F, A, B, L] =
     apply(name, _.show)
 
   def apply(name: Label.Name, toString: B => String): LabelledMetricDsl[F, A, B, L]
-
-}
-
-object FirstLabelApply {
-
-  abstract private[internal] class WithCallbacks[F[_], A, A0, B, L[_[_], _, _]] extends FirstLabelApply[F, A, B, L] {
-
-    override def apply(name: Label.Name)(implicit
-        show: Show[B]
-    ): LabelledMetricDsl.WithCallbacks[F, A, A0, B, L] =
-      apply(name, _.show)
-
-    override def apply(name: Label.Name, toString: B => String): LabelledMetricDsl.WithCallbacks[F, A, A0, B, L]
-
-  }
 
 }
 
@@ -748,41 +535,11 @@ abstract class LabelApply[F[_], A, T, B, L[_[_], _, _]] {
 
 }
 
-object LabelApply {
-
-  abstract class WithCallbacks[F[_], A, A0, T, B, L[_[_], _, _]] extends LabelApply[F, A, T, B, L] {
-
-    override def apply[C](name: Label.Name)(implicit
-        show: Show[B],
-        initLast: InitLast.Aux[T, B, C]
-    ): LabelledMetricDsl.WithCallbacks[F, A, A0, C, L] = apply(name, _.show)
-
-    override def apply[C](
-        name: Label.Name,
-        toString: B => String
-    )(implicit initLast: InitLast.Aux[T, B, C]): LabelledMetricDsl.WithCallbacks[F, A, A0, C, L]
-
-  }
-
-}
-
 abstract class LabelsApply[F[_], A, T, B, L[_[_], _, _]] {
 
   def apply[C](labels: (Label.Name, B => Label.Value)*)(implicit
       initLast: InitLast.Aux[T, B, C]
   ): LabelledMetricDsl[F, A, C, L]
-
-}
-
-object LabelsApply {
-
-  abstract class WithCallbacks[F[_], A, A0, T, B, L[_[_], _, _]] extends LabelsApply[F, A, T, B, L] {
-
-    def apply[C](labels: (Label.Name, B => Label.Value)*)(implicit
-        initLast: InitLast.Aux[T, B, C]
-    ): LabelledMetricDsl.WithCallbacks[F, A, A0, C, L]
-
-  }
 
 }
 
@@ -792,29 +549,8 @@ abstract class LabelsFromApply[F[_], A, T, B, L[_[_], _, _]] {
 
 }
 
-object LabelsFromApply {
-
-  abstract class WithCallbacks[F[_], A, A0, T, B, L[_[_], _, _]] extends LabelsFromApply[F, A, T, B, L] {
-
-    override def apply[C](implicit
-        encoder: Label.Encoder[B],
-        initLast: InitLast.Aux[T, B, C]
-    ): LabelledMetricDsl.WithCallbacks[F, A, A0, C, L]
-
-  }
-
-}
-
 trait LabelledMetricPartiallyApplied[F[_], A, L[_[_], _, _]] {
 
   def apply[B](labels: IndexedSeq[Label.Name])(f: B => IndexedSeq[String]): Resource[F, L[F, A, B]]
-
-}
-
-trait LabelledCallbackPartiallyApplied[F[_], A] {
-
-  def apply[B](labels: IndexedSeq[Label.Name], callback: F[NonEmptyList[(A, B)]])(
-      f: B => IndexedSeq[String]
-  ): Resource[F, Unit]
 
 }

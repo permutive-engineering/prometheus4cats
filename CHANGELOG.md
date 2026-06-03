@@ -48,12 +48,13 @@ the [migration guide](./website/docs/migrating-from-v5.md) for the upgrade path.
   `prometheus4cats_combined_callback_metric_total`, and related internal counters). Removal is
   permanent — register a custom `Collector` against your `PrometheusRegistry` if you depended on
   them.
-
-### Known limitations
-
-- Metric callbacks construct snapshots without exemplars regardless of any `Exemplar` instance in
-  scope. For exemplar-bearing metrics use the active path (`.incWithExemplar` /
-  `.observeWithExemplar`).
-- Native histogram callbacks are unimplemented and throw `NotImplementedError` at call time.
+- **BREAKING**: callback support is dropped entirely. `CallbackRegistry`,
+  `MetricFactory.WithCallbacks` (as a distinct subtype), the `.callback(...)` DSL step on
+  counter/gauge/histogram/summary, `factory.metricCollectionCallback(...)`, and
+  `JavaMetricRegistry.Builder.withCallbackTimeout` / `withCallbackCollectionTimeout` are gone.
+  `MetricFactory.WithCallbacks[F]` is kept as a type alias for `MetricFactory[F]` so existing
+  references continue to type-check; the alias will be removed in a future release. For pull-mode
+  metrics, register a custom `io.prometheus.metrics.model.registry.Collector` directly on the
+  `PrometheusRegistry` your `JavaMetricRegistry` is built on.
 
 [Unreleased]: https://github.com/permutive-engineering/prometheus4cats/compare/v5.0.1...HEAD

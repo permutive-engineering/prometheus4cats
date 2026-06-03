@@ -158,8 +158,8 @@ object Histogram {
   /** A value that is produced by a histogram
     *
     * @note
-    *   the size `bucketValues` '''MUST MATCH''' that of the number of buckets defined when creating the histogram in
-    *   [[MetricFactory.WithCallbacks]]. If they do not match, the histogram may not render correctly or at all.
+    *   the size of `bucketValues` '''MUST MATCH''' that of the number of buckets defined when creating the histogram.
+    *   If they do not match, the histogram may not render correctly or at all.
     *
     * @param sum
     *   the histogram sum

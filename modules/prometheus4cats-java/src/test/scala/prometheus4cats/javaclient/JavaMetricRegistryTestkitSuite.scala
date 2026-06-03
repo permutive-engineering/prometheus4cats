@@ -16,7 +16,6 @@
 
 package prometheus4cats.javaclient
 
-import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 
 import cats.Show
@@ -34,22 +33,17 @@ import io.prometheus.metrics.model.snapshots.SummarySnapshot
 import munit.CatsEffectSuite
 import prometheus4cats.Metric.CommonLabels
 import prometheus4cats._
-import prometheus4cats.testkit.CallbackRegistrySuite
 import prometheus4cats.testkit.MetricRegistrySuite
 import prometheus4cats.util.NameUtils
 
-/** Wires the comprehensive testkit's `MetricRegistrySuite` + `CallbackRegistrySuite` (~47 property-based tests covering
-  * register/observe/de-register lifecycles, exemplars, callbacks, duplicate-name detection, nested resource usage,
-  * concurrent resource usage) onto the new javaclient backend.
+/** Wires the testkit's `MetricRegistrySuite` (property-based tests covering register/observe/de-register lifecycles,
+  * exemplars, duplicate-name detection, nested resource usage, concurrent resource usage) onto the javaclient backend.
   *
   * Translates the legacy adapter's `state.metricFamilySamples().asScala` snapshot extraction to the 1.x equivalent —
   * `state.scrape().asScala` returning typed snapshots — while the testkit's expected-shape contracts remain the same.
   */
 @SuppressWarnings(Array("all"))
-class JavaMetricRegistryTestkitSuite
-    extends CatsEffectSuite
-    with MetricRegistrySuite[PrometheusRegistry]
-    with CallbackRegistrySuite[PrometheusRegistry] {
+class JavaMetricRegistryTestkitSuite extends CatsEffectSuite with MetricRegistrySuite[PrometheusRegistry] {
 
   implicit override val exemplar: Exemplar[IO] = new Exemplar[IO] {
 
@@ -63,9 +57,6 @@ class JavaMetricRegistryTestkitSuite
 
   override def metricRegistryResource(state: PrometheusRegistry): Resource[IO, MetricRegistry[IO]] =
     JavaMetricRegistry.Builder[IO]().withRegistry(state).build
-
-  override def callbackRegistryResource(state: PrometheusRegistry): Resource[IO, CallbackRegistry[IO]] =
-    JavaMetricRegistry.Builder[IO]().withRegistry(state).withCallbackTimeout(100.millis).build
 
   // ─── snapshot lookup helpers ──────────────────────────────────────────────────────────────────────
   //

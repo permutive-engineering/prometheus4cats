@@ -16,7 +16,6 @@
 
 package prometheus4cats.sandbox
 
-import java.lang.management.ManagementFactory
 import java.time.Instant
 
 import scala.concurrent.duration._
@@ -127,16 +126,6 @@ object Sandbox extends IOApp.Simple {
           .counter("operation_total")
           .help("Counter-backed OutcomeRecorder (.asOutcomeRecorder) — counts succeeded/errored/canceled outcomes")
           .asOutcomeRecorder
-          .build
-
-      // Pull-mode example: a gauge whose value is computed at scrape time. No state to maintain —
-      // the JVM is the source of truth, we just surface it. Build yields `Unit` (callbacks don't
-      // expose a metric handle), so we discard with `_ <-`.
-      _ <-
-        factory
-          .gauge("process_uptime_seconds")
-          .help("Process uptime in seconds (pull-mode gauge callback example)")
-          .callback(IO.delay(ManagementFactory.getRuntimeMXBean.getUptime / 1000.0))
           .build
     } yield (counter, sampledCounter, classic, native, dual, gauge, summary, info, timer, outcomeRecorder, random)
 

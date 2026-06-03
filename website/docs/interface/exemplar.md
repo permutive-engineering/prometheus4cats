@@ -104,10 +104,6 @@ A few caveats worth knowing before you wire exemplars into production code:
 - **Retention period (upstream)**. The `prometheus-metrics-core` library enforces a minimum
   interval (~7 seconds) between consecutive exemplars landing in the *same* classic-histogram
   bucket. Rapid-fire observations keep the first exemplar; later ones are dropped silently.
-- **Not propagated on callbacks**. The pull-mode `.callback(...)` path constructs snapshots with no
-  exemplar attached, regardless of any `Exemplar` instance in scope. For exemplar-bearing
-  pull-mode metrics, switch the relevant metric to the active path and use one of the
-  `*WithExemplar` / `*WithSampledExemplar` / `*ProvidedExemplar` variants above.
 - **Wire format**. Exemplars travel only on the OpenMetrics text format or the protobuf scrape
   protocol. The classic Prometheus text format drops them silently. Modern Prometheus deployments
   negotiate a compatible format automatically — see [Java Registry] for the scrape config required

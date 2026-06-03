@@ -18,7 +18,6 @@ package prometheus4cats.testkit
 
 import scala.concurrent.duration._
 
-import cats.data.NonEmptyList
 import cats.data.NonEmptySeq
 import cats.effect.IO
 import cats.effect.kernel.Resource
@@ -29,10 +28,10 @@ import prometheus4cats._
 
 /** Cross-backend test suite for the user-facing `MetricFactory` DSL.
   *
-  * Backends provide a fresh `MetricFactory.WithCallbacks[IO]` `Resource` plus a way to snapshot the registry's whole
-  * observable state into the uniform `List[FamilyState]` representation defined here. The tests then exercise the DSL
-  * surface (counter / gauge / histogram / native histogram / dual-mode / summary / info / callbacks / metric-collection
-  * / collision contract) and assert against the snapshot as a literal — no narrow per-type getters.
+  * Backends provide a fresh `MetricFactory[IO]` `Resource` plus a way to snapshot the registry's whole observable state
+  * into the uniform `List[FamilyState]` representation defined here. The tests then exercise the DSL surface (counter /
+  * gauge / histogram / native histogram / dual-mode / summary / info / collision contract) and assert against the
+  * snapshot as a literal — no narrow per-type getters.
   *
   * Unlike [[MetricRegistrySuite]] which pins the `MetricRegistry[F]` *trait* contract by calling low-level
   * `createAndRegisterDouble*` methods directly, this suite pins the *DSL → trait* handshake: every test goes through
@@ -82,7 +81,7 @@ trait DslSuite { self: CatsEffectSuite =>
 
   // abstract backend hooks
 
-  def resource: Resource[IO, MetricFactory.WithCallbacks[IO]]
+  def resource: Resource[IO, MetricFactory[IO]]
 
   def getRegistryState: IO[List[FamilyState]]
 
@@ -102,8 +101,8 @@ trait DslSuite { self: CatsEffectSuite =>
   /** Concrete value the implicit `exemplar` returns — handy for asserting against in expected literals. */
   protected val exemplarLabels: Map[String, String] = Map("trace_id" -> "abc123")
 
-  /** Error message a backend raises when a `factory.<kind>(name).callback(...)` is registered against a name already
-    * owned by an active (push) metric. Backends that route through the prometheus4cats core get this for free.
+  /** Error message a backend raises when a metric is re-registered against a name already owned by a metric with
+    * different labels or a different type. Backends that route through the prometheus4cats core get this for free.
     */
   protected def metricCollisionMessage(renderedName: String): String =
     s"A metric with the same name as '$renderedName' is already registered with different labels and/or type"
@@ -258,42 +257,6 @@ trait DslSuite { self: CatsEffectSuite =>
     }
   }
 
-  test("counter callback — scrape invokes the user callback and propagates the value to the snapshot") {
-    resource.use { factory =>
-      val iterator = Iterator((42.0, "alpha"), (45.0, "alpha"))
-      val callback = IO.delay(NonEmptyList.of(iterator.next()))
-      factory
-        .counter("test_callback_counter_total")
-        .help("test counter callback")
-        .label[String]("variant")
-        .callback(callback)
-        .build
-        .use { _ =>
-          def expected(value: Double, label: String) = List(
-            FamilyState(
-              name = "test_callback_counter",
-              `type` = "COUNTER",
-              help = "test counter callback",
-              dataPoints = List(
-                CounterDP(Map("variant" -> label), value, None)
-              )
-            )
-          )
-          for {
-            snap1 <- getRegistryState
-            snap2 <- getRegistryState
-          } yield {
-            assertEquals(snap1, expected(42.0, "alpha"))
-            assertEquals(snap2, expected(45.0, "alpha"))
-          }
-        }
-        .flatMap(_ => getRegistryState)
-        .map(snap => assertEquals(snap, Nil))
-    }
-  }
-
-  // gauge
-
   test("gauge — inc, dec, and set are each reflected in the scrape") {
     resource.use { factory =>
       factory
@@ -326,46 +289,6 @@ trait DslSuite { self: CatsEffectSuite =>
         .map(snap => assertEquals(snap, Nil))
     }
   }
-
-  test("gauge callback — every scrape re-invokes the callback and propagates the current value") {
-    resource.use { factory =>
-      val iterator = Iterator(
-        NonEmptyList.of((50.0, "n0"), (100.0, "n1")),
-        NonEmptyList.of((75.0, "n0"), (150.0, "n1"))
-      )
-      val callback = IO.delay(iterator.next())
-      factory
-        .gauge("test_callback_gauge")
-        .help("test gauge callback")
-        .label[String]("node")
-        .callback(callback)
-        .build
-        .use { _ =>
-          def expected(v0: Double, v1: Double) = List(
-            FamilyState(
-              name = "test_callback_gauge",
-              `type` = "GAUGE",
-              help = "test gauge callback",
-              dataPoints = List(
-                GaugeDP(Map("node" -> "n0"), v0),
-                GaugeDP(Map("node" -> "n1"), v1)
-              )
-            )
-          )
-          for {
-            snap1 <- getRegistryState
-            snap2 <- getRegistryState
-          } yield {
-            assertEquals(snap1, expected(50.0, 100.0))
-            assertEquals(snap2, expected(75.0, 150.0))
-          }
-        }
-        .flatMap(_ => getRegistryState)
-        .map(snap => assertEquals(snap, Nil))
-    }
-  }
-
-  // histogram
 
   test("classic histogram — scrape produces classic buckets, no native data") {
     resource.use { factory =>
@@ -672,64 +595,6 @@ trait DslSuite { self: CatsEffectSuite =>
     }
   }
 
-  test("histogram callback — every scrape re-invokes the callback and propagates the current value") {
-    resource.use { factory =>
-      // bucketValues are CUMULATIVE counts indexed by (declared-buckets ++ +Inf) — so for buckets
-      // 0.1, 1.0, 5.0 the cumulative counts [1, 2, 3, 3] mean (≤0.1, ≤1.0, ≤5.0, ≤+Inf) which the
-      // exposition writer flattens to per-bucket counts [1, 1, 1, 0] for the snapshot.
-      val iterator = Iterator(
-        NonEmptyList.of((Histogram.Value[Double](2.55, NonEmptySeq.of(1.0, 2.0, 3.0, 3.0)), "alpha")),
-        NonEmptyList.of((Histogram.Value[Double](4.10, NonEmptySeq.of(2.0, 3.0, 4.0, 4.0)), "alpha"))
-      )
-      val callback = IO.delay(iterator.next())
-      factory
-        .histogram("test_callback_histogram")
-        .help("test histogram callback")
-        .buckets(NonEmptySeq.of(0.1, 1.0, 5.0))
-        .label[String]("variant")
-        .callback(callback)
-        .build
-        .use { _ =>
-          def expected(count: Long, sum: Double, b1: Long, b2: Long, b3: Long, bInf: Long) = List(
-            FamilyState(
-              name = "test_callback_histogram",
-              `type` = "HISTOGRAM",
-              help = "test histogram callback",
-              dataPoints = List(
-                HistogramDP(
-                  labels = Map("variant" -> "alpha"),
-                  count = count,
-                  sum = sum,
-                  classic = Some(
-                    List(
-                      ClassicBucket(0.1, b1, None),
-                      ClassicBucket(1.0, b2, None),
-                      ClassicBucket(5.0, b3, None),
-                      ClassicBucket(Double.PositiveInfinity, bInf, None)
-                    )
-                  ),
-                  native = None
-                )
-              )
-            )
-          )
-          for {
-            snap1 <- getRegistryState
-            snap2 <- getRegistryState
-          } yield {
-            // Cumulative [1, 2, 3, 3] → per-bucket [1, 1, 1, 0], count = 3, sum = 2.55
-            assertEquals(snap1, expected(count = 3L, sum = 2.55, b1 = 1L, b2 = 1L, b3 = 1L, bInf = 0L))
-            // Cumulative [2, 3, 4, 4] → per-bucket [2, 1, 1, 0], count = 4, sum = 4.10
-            assertEquals(snap2, expected(count = 4L, sum = 4.10, b1 = 2L, b2 = 1L, b3 = 1L, bInf = 0L))
-          }
-        }
-        .flatMap(_ => getRegistryState)
-        .map(snap => assertEquals(snap, Nil))
-    }
-  }
-
-  // summary
-
   test("summary — quantiles propagate and observations are aggregated") {
     resource.use { factory =>
       factory
@@ -761,51 +626,6 @@ trait DslSuite { self: CatsEffectSuite =>
     }
   }
 
-  test("summary callback — every scrape re-invokes the callback and propagates the current value") {
-    resource.use { factory =>
-      val iterator = Iterator(
-        NonEmptyList.of(
-          (Summary.Value[Double](count = 10L, sum = 42.5, quantiles = Map(0.5 -> 1.2, 0.99 -> 9.5)), "alpha")
-        ),
-        NonEmptyList.of(
-          (Summary.Value[Double](count = 20L, sum = 100.0, quantiles = Map(0.5 -> 2.4, 0.99 -> 18.0)), "alpha")
-        )
-      )
-      val callback = IO.delay(iterator.next())
-      factory
-        .summary("test_callback_summary")
-        .help("test summary callback")
-        .label[String]("variant")
-        .callback(callback)
-        .build
-        .use { _ =>
-          def expected(count: Long, sum: Double, quantiles: Map[Double, Double]) = List(
-            FamilyState(
-              name = "test_callback_summary",
-              `type` = "SUMMARY",
-              help = "test summary callback",
-              dataPoints = List(SummaryDP(Map("variant" -> "alpha"), count, sum, quantiles))
-            )
-          )
-          for {
-            snap1 <- getRegistryState
-            snap2 <- getRegistryState
-          } yield {
-            assertEquals(snap1, expected(10L, 42.5, Map(0.5 -> 1.2, 0.99 -> 9.5)))
-            assertEquals(snap2, expected(20L, 100.0, Map(0.5 -> 2.4, 0.99 -> 18.0)))
-          }
-        }
-        .flatMap(_ => getRegistryState)
-        .map(snap => assertEquals(snap, Nil))
-    }
-  }
-
-  // info
-  //
-  // Upstream stores Info under its base name (without the `_info` suffix). The wire format still emits
-  // `test_build_info{...} 1` — the suffix is added by the exposition writer, so the snapshot metadata
-  // name is `test_build`.
-
   test("info — declared labels propagate to scrape output via setLabelValues") {
     resource.use { factory =>
       factory
@@ -836,63 +656,6 @@ trait DslSuite { self: CatsEffectSuite =>
   }
 
   // metric collection
-
-  test("metric-collection callback — every scrape re-invokes the callback and propagates the current collection") {
-    resource.use { factory =>
-      def collection(counterValue: Double, gaugeValue: Double): MetricCollection =
-        MetricCollection.empty
-          .appendDoubleCounter(
-            Counter.Name.unsafeFrom("collection_counter_total"),
-            Metric.Help("test counter"),
-            Map.empty[Label.Name, String],
-            counterValue
-          )
-          .appendDoubleGauge(
-            Gauge.Name.unsafeFrom("collection_gauge"),
-            Metric.Help("test gauge"),
-            Map.empty[Label.Name, String],
-            gaugeValue
-          )
-
-      val iterator = Iterator(collection(42.0, 7.0), collection(100.0, 200.0))
-      val callback = IO.delay(iterator.next())
-
-      factory
-        .metricCollectionCallback(callback)
-        .build
-        .use { _ =>
-          def expected(counterValue: Double, gaugeValue: Double) = List(
-            FamilyState(
-              name = "collection_counter",
-              `type` = "COUNTER",
-              help = "test counter",
-              dataPoints = List(CounterDP(Map.empty, counterValue, None))
-            ),
-            FamilyState(
-              name = "collection_gauge",
-              `type` = "GAUGE",
-              help = "test gauge",
-              dataPoints = List(GaugeDP(Map.empty, gaugeValue))
-            )
-          )
-          for {
-            snap1 <- getRegistryState
-            snap2 <- getRegistryState
-          } yield {
-            assertEquals(snap1, expected(42.0, 7.0))
-            assertEquals(snap2, expected(100.0, 200.0))
-          }
-        }
-        .flatMap(_ => getRegistryState)
-        .map(snap => assertEquals(snap, Nil))
-    }
-  }
-
-  // timer
-  //
-  // `Timer` is a derived metric built on top of a Histogram via `.asTimer`. `recordTime` observes the
-  // duration converted to seconds; `recordTimeWithExemplar` does the same and additionally attaches the
-  // implicit `Exemplar[F]` to the bucket the duration lands in.
 
   test("histogram-backed Timer — recordTime observes the duration as seconds into the matching bucket") {
     resource.use { factory =>
@@ -1083,10 +846,8 @@ trait DslSuite { self: CatsEffectSuite =>
 
   // name collisions
   //
-  // Reformulated through the DSL: `factory.counter(...)`/`.gauge(...)` for active registration,
-  // `.callback(io)` for pull registration. The error messages assert through `metricCollisionMessage`
-  // / `callbackCollisionMessage` so a backend whose error strings diverge can override them centrally
-  // rather than override every test.
+  // The error message is asserted through `metricCollisionMessage` so a backend whose error strings
+  // diverge can override it centrally rather than override every test.
 
   private val collisionHelp: Metric.Help = Metric.Help.from("collision contract test").toOption.get
 
@@ -1121,52 +882,6 @@ trait DslSuite { self: CatsEffectSuite =>
     }
   }
 
-  test("name-collision: fails to build a metric when a callback of the same name exists") {
-    resource.use { factory =>
-      val callback = factory
-        .counter("collision_metric_after_callback_total")
-        .help(collisionHelp)
-        .label[String]("region")
-        .callback(IO.pure(NonEmptyList.one((0.0, "x"))))
-        .build
-      val metric = factory
-        .counter("collision_metric_after_callback_total")
-        .help(collisionHelp)
-        .label[String]("region")
-        .build
-
-      (callback >> metric).use_.attempt.map { res =>
-        assertEquals(
-          res.leftMap(_.getMessage),
-          Left(s"A callback with the same name as 'collision_metric_after_callback_total' is already registered with different labels and/or type")
-        )
-      }
-    }
-  }
-
-  test("name-collision: fails to build a callback when a metric of the same name exists") {
-    resource.use { factory =>
-      val metric = factory
-        .counter("collision_callback_after_metric_total")
-        .help(collisionHelp)
-        .label[String]("region")
-        .build
-      val callback = factory
-        .counter("collision_callback_after_metric_total")
-        .help(collisionHelp)
-        .label[String]("region")
-        .callback(IO.pure(NonEmptyList.one((0.0, "x"))))
-        .build
-
-      (metric >> callback).use_.attempt.map { res =>
-        assertEquals(
-          res.leftMap(_.getMessage),
-          Left(metricCollisionMessage("collision_callback_after_metric_total"))
-        )
-      }
-    }
-  }
-
   test("name-collision: fails when a metric with the same name and different labels") {
     resource.use { factory =>
       val m1 = factory
@@ -1186,31 +901,6 @@ trait DslSuite { self: CatsEffectSuite =>
           Left(metricCollisionMessage("collision_different_labels_total"))
         )
       }
-    }
-  }
-
-  test("name-collision: counter callback emitting duplicate label values within one NonEmptyList") {
-    resource.use { factory =>
-      // Two tuples with the SAME label value `x` but different metric values. The registry sees two
-      // CounterDataPointSnapshots with identical label sets in a single scrape — a duplicate-series
-      // condition the wire format normally rejects.
-      val callback = IO.pure(NonEmptyList.of((1.0, "x"), (2.0, "x")))
-      factory
-        .counter("collision_dup_label_total")
-        .help(collisionHelp)
-        .label[String]("name")
-        .callback(callback)
-        .build
-        .use { _ =>
-          getRegistryState.attempt.map { res =>
-            // Behaviour to pin once we observe it on a test run. Likely one of:
-            //   - registry raises at scrape time (`res` is Left with an upstream-validation message)
-            //   - registry silently keeps the LAST entry (Right with one CounterDP value=2.0)
-            //   - registry emits both as duplicate samples (Right with two CounterDPs sharing labels)
-            // Asserting `isLeft` for now — adjust to the exact shape after first run.
-            assert(res.isLeft, s"expected duplicate-label callback emission to fail, got: $res")
-          }
-        }
     }
   }
 
