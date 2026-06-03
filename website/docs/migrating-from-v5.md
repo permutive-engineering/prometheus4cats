@@ -49,7 +49,7 @@ import prometheus4cats.MetricFactory
 def withNativeHistogram(factory: MetricFactory[IO]) =
   factory
     .nativeHistogram("request_latency_seconds")
-    .ofDouble
+    
     .help("Request latency, native bucket distribution")
     .build
 ```
@@ -70,7 +70,7 @@ import cats.data.NonEmptySeq
 def withDualHistogram(factory: MetricFactory[IO]) =
   factory
     .histogram("request_latency_seconds")
-    .ofDouble
+    
     .help("Request latency, both classic and native representations")
     .buckets(NonEmptySeq.of(0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0))
     .withNative

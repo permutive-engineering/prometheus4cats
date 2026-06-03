@@ -35,7 +35,7 @@ operations.
 ```scala mdoc:silent
 val simpleTimerHistogram: Resource[IO, Timer.Aux[IO, Unit, Histogram]] = factory
   .histogram("time")
-  .ofDouble
+  
   .help("Records how long an operation took")
   .buckets(1.0, 2.0)
   .asTimer
@@ -45,7 +45,7 @@ val simpleTimerHistogram: Resource[IO, Timer.Aux[IO, Unit, Histogram]] = factory
 ```scala mdoc:silent
 val labelledTimerHistogram: Resource[IO, Timer.Aux[IO, String, Histogram]] = factory
   .histogram("time")
-  .ofDouble
+  
   .help("Records how long an operation took")
   .buckets(1.0, 2.0)
   .label[String]("some_label")
@@ -58,7 +58,7 @@ val labelledTimerHistogram: Resource[IO, Timer.Aux[IO, String, Histogram]] = fac
 ```scala mdoc:silent
 val simpleTimerSummary: Resource[IO, Timer.Aux[IO, Unit, Summary]] = factory
   .summary("time")
-  .ofDouble
+  
   .help("Records how long an operation took")
   .asTimer
   .build
@@ -67,7 +67,7 @@ val simpleTimerSummary: Resource[IO, Timer.Aux[IO, Unit, Summary]] = factory
 ```scala mdoc:silent
 val labelledTimerSummary: Resource[IO, Timer.Aux[IO, String, Summary]] = factory
   .summary("time")
-  .ofDouble
+  
   .help("Records how long an operation took")
   .label[String]("some_label")
   .asTimer
@@ -79,7 +79,7 @@ val labelledTimerSummary: Resource[IO, Timer.Aux[IO, String, Summary]] = factory
 ```scala mdoc:silent
 val simpleTimerGauge: Resource[IO, Timer.Aux[IO, Unit, Gauge]] = factory
   .gauge("time")
-  .ofDouble
+  
   .help("Records how long an operation took")
   .asTimer
   .build
@@ -88,7 +88,7 @@ val simpleTimerGauge: Resource[IO, Timer.Aux[IO, Unit, Gauge]] = factory
 ```scala mdoc:silent
 val labelledTimerGauge: Resource[IO, Timer.Aux[IO, String, Gauge]] = factory
   .gauge("time")
-  .ofDouble
+  
   .help("Records how long an operation took")
   .label[String]("some_label")
   .asTimer
@@ -105,7 +105,7 @@ system time.
 ```scala mdoc:silent
 val simpleCurrentTimeRecorderGauge: Resource[IO, CurrentTimeRecorder[IO, Unit]] = factory
   .gauge("current_time")
-  .ofDouble
+  
   .help("Records how long an operation took")
   .asCurrentTimeRecorder
   .build
@@ -116,7 +116,7 @@ val labelledCurrentTimeRecorderGauge:
   Resource[IO, CurrentTimeRecorder[IO, String]] =
     factory
       .gauge("current_time")
-      .ofDouble
+      
       .help("Records how long an operation took")
       .label[String]("some_label")
       .asCurrentTimeRecorder

@@ -128,7 +128,6 @@ trait DslSuite { self: CatsEffectSuite =>
     resource.use { factory =>
       factory
         .counter("test_counter_total")
-        .ofDouble
         .help("test counter")
         .label[String]("variant")
         .build
@@ -165,7 +164,6 @@ trait DslSuite { self: CatsEffectSuite =>
     resource.use { factory =>
       factory
         .counter("test_implicit_exemplar_counter_total")
-        .ofDouble
         .help("test implicit exemplar counter")
         .build
         .use { c =>
@@ -197,7 +195,6 @@ trait DslSuite { self: CatsEffectSuite =>
         .get
       factory
         .counter("test_provided_exemplar_counter_total")
-        .ofDouble
         .help("test provided exemplar counter")
         .build
         .use { c =>
@@ -238,7 +235,6 @@ trait DslSuite { self: CatsEffectSuite =>
       }
       factory
         .counter("test_sampled_exemplar_counter_total")
-        .ofDouble
         .help("test sampled exemplar counter")
         .build
         .use { c =>
@@ -268,7 +264,6 @@ trait DslSuite { self: CatsEffectSuite =>
       val callback = IO.delay(NonEmptyList.of(iterator.next()))
       factory
         .counter("test_callback_counter_total")
-        .ofDouble
         .help("test counter callback")
         .label[String]("variant")
         .callback(callback)
@@ -303,7 +298,6 @@ trait DslSuite { self: CatsEffectSuite =>
     resource.use { factory =>
       factory
         .gauge("test_gauge")
-        .ofDouble
         .help("test gauge")
         .build
         .use { g =>
@@ -342,7 +336,6 @@ trait DslSuite { self: CatsEffectSuite =>
       val callback = IO.delay(iterator.next())
       factory
         .gauge("test_callback_gauge")
-        .ofDouble
         .help("test gauge callback")
         .label[String]("node")
         .callback(callback)
@@ -378,7 +371,6 @@ trait DslSuite { self: CatsEffectSuite =>
     resource.use { factory =>
       factory
         .histogram("test_classic_histogram")
-        .ofDouble
         .help("test classic histogram")
         .buckets(NonEmptySeq.of(0.1, 0.5, 1.0, 5.0))
         .build
@@ -427,7 +419,6 @@ trait DslSuite { self: CatsEffectSuite =>
     resource.use { factory =>
       factory
         .histogram("test_implicit_exemplar_histogram")
-        .ofDouble
         .help("test implicit exemplar histogram")
         .buckets(NonEmptySeq.of(0.1, 0.5, 1.0, 5.0))
         .build
@@ -476,7 +467,6 @@ trait DslSuite { self: CatsEffectSuite =>
         .get
       factory
         .histogram("test_provided_exemplar_histogram")
-        .ofDouble
         .help("test provided exemplar histogram")
         .buckets(NonEmptySeq.of(0.1, 0.5, 1.0, 5.0))
         .build
@@ -533,7 +523,6 @@ trait DslSuite { self: CatsEffectSuite =>
       }
       factory
         .histogram("test_sampled_exemplar_histogram")
-        .ofDouble
         .help("test sampled exemplar histogram")
         .buckets(NonEmptySeq.of(0.1, 0.5, 1.0, 5.0))
         .build
@@ -578,7 +567,6 @@ trait DslSuite { self: CatsEffectSuite =>
     resource.use { factory =>
       factory
         .nativeHistogram("test_native_histogram")
-        .ofDouble
         .help("test native histogram")
         .build
         .use { h =>
@@ -611,7 +599,6 @@ trait DslSuite { self: CatsEffectSuite =>
     resource.use { factory =>
       factory
         .histogram("test_dual_histogram")
-        .ofDouble
         .help("test dual-mode (NHCB-friendly) histogram")
         .buckets(NonEmptySeq.of(0.1, 0.5, 1.0, 5.0))
         .withNative
@@ -657,7 +644,6 @@ trait DslSuite { self: CatsEffectSuite =>
     resource.use { factory =>
       factory
         .nativeHistogram("test_native_tuned", NativeHistogram.Default.withInitialSchema(3))
-        .ofDouble
         .help("native with custom schema")
         .build
         .use { h =>
@@ -698,7 +684,6 @@ trait DslSuite { self: CatsEffectSuite =>
       val callback = IO.delay(iterator.next())
       factory
         .histogram("test_callback_histogram")
-        .ofDouble
         .help("test histogram callback")
         .buckets(NonEmptySeq.of(0.1, 1.0, 5.0))
         .label[String]("variant")
@@ -749,7 +734,6 @@ trait DslSuite { self: CatsEffectSuite =>
     resource.use { factory =>
       factory
         .summary("test_summary")
-        .ofDouble
         .help("test summary")
         .quantile(Summary.Quantile.from(0.5).toOption.get, Summary.AllowedError.from(0.05).toOption.get)
         .quantile(Summary.Quantile.from(0.99).toOption.get, Summary.AllowedError.from(0.01).toOption.get)
@@ -790,7 +774,6 @@ trait DslSuite { self: CatsEffectSuite =>
       val callback = IO.delay(iterator.next())
       factory
         .summary("test_callback_summary")
-        .ofDouble
         .help("test summary callback")
         .label[String]("variant")
         .callback(callback)
@@ -915,7 +898,6 @@ trait DslSuite { self: CatsEffectSuite =>
     resource.use { factory =>
       factory
         .histogram("test_timer_seconds")
-        .ofDouble
         .help("test timer")
         .buckets(NonEmptySeq.of(0.1, 0.5, 1.0))
         .asTimer
@@ -960,7 +942,6 @@ trait DslSuite { self: CatsEffectSuite =>
     resource.use { factory =>
       factory
         .nativeHistogram("test_native_timer_seconds")
-        .ofDouble
         .help("test native timer")
         .asTimer
         .build
@@ -994,7 +975,6 @@ trait DslSuite { self: CatsEffectSuite =>
     resource.use { factory =>
       factory
         .histogram("test_timer_exemplar_seconds")
-        .ofDouble
         .help("test timer exemplar")
         .buckets(NonEmptySeq.of(0.1, 0.5, 1.0))
         .asTimer
@@ -1047,7 +1027,6 @@ trait DslSuite { self: CatsEffectSuite =>
     resource.use { factory =>
       factory
         .counter("test_outcome_total")
-        .ofDouble
         .help("test outcome")
         .asOutcomeRecorder
         .build
@@ -1078,7 +1057,6 @@ trait DslSuite { self: CatsEffectSuite =>
     resource.use { factory =>
       factory
         .counter("test_outcome_exemplar_total")
-        .ofDouble
         .help("test outcome exemplar")
         .asOutcomeRecorder
         .build
@@ -1114,7 +1092,7 @@ trait DslSuite { self: CatsEffectSuite =>
 
   test("name-collision: returns an existing metric when labels and name are the same") {
     resource.use { factory =>
-      val mk = factory.counter("collision_reuse_total").ofDouble.help(collisionHelp).label[String]("region").build
+      val mk = factory.counter("collision_reuse_total").help(collisionHelp).label[String]("region").build
       def expected(value: Double) = List(
         FamilyState(
           name = "collision_reuse",
@@ -1147,14 +1125,12 @@ trait DslSuite { self: CatsEffectSuite =>
     resource.use { factory =>
       val callback = factory
         .counter("collision_metric_after_callback_total")
-        .ofDouble
         .help(collisionHelp)
         .label[String]("region")
         .callback(IO.pure(NonEmptyList.one((0.0, "x"))))
         .build
       val metric = factory
         .counter("collision_metric_after_callback_total")
-        .ofDouble
         .help(collisionHelp)
         .label[String]("region")
         .build
@@ -1172,13 +1148,11 @@ trait DslSuite { self: CatsEffectSuite =>
     resource.use { factory =>
       val metric = factory
         .counter("collision_callback_after_metric_total")
-        .ofDouble
         .help(collisionHelp)
         .label[String]("region")
         .build
       val callback = factory
         .counter("collision_callback_after_metric_total")
-        .ofDouble
         .help(collisionHelp)
         .label[String]("region")
         .callback(IO.pure(NonEmptyList.one((0.0, "x"))))
@@ -1197,13 +1171,11 @@ trait DslSuite { self: CatsEffectSuite =>
     resource.use { factory =>
       val m1 = factory
         .counter("collision_different_labels_total")
-        .ofDouble
         .help(collisionHelp)
         .label[String]("region")
         .build
       val m2 = factory
         .counter("collision_different_labels_total")
-        .ofDouble
         .help(collisionHelp)
         .label[String]("different")
         .build
@@ -1225,7 +1197,6 @@ trait DslSuite { self: CatsEffectSuite =>
       val callback = IO.pure(NonEmptyList.of((1.0, "x"), (2.0, "x")))
       factory
         .counter("collision_dup_label_total")
-        .ofDouble
         .help(collisionHelp)
         .label[String]("name")
         .callback(callback)
@@ -1247,13 +1218,11 @@ trait DslSuite { self: CatsEffectSuite =>
     resource.use { factory =>
       val counter = factory
         .counter("collision_different_type_total")
-        .ofDouble
         .help(collisionHelp)
         .label[String]("region")
         .build
       val gauge = factory
         .gauge("collision_different_type")
-        .ofDouble
         .help(collisionHelp)
         .label[String]("region")
         .build

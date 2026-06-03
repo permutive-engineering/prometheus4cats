@@ -707,11 +707,29 @@ class HelpStep[+A] private[prometheus4cats] (f: Metric.Help => A) {
 
 }
 
-class TypeStep[+D[_]] private[prometheus4cats] (long: D[Long], double: D[Double]) {
+class TypeStep[+D[_]] private[prometheus4cats] (long: D[Long], private[prometheus4cats] val double: D[Double]) {
 
+  @deprecated(
+    "use .ofDouble.contramap[Long](_.toDouble) — Double is now the default; an implicit conversion exposes the Double DSL directly on the factory method's return value",
+    "6.0.0"
+  )
   def ofLong: D[Long] = long
 
+  @deprecated(
+    "Double is now the default — call .help directly (an implicit conversion exposes the Double DSL on the factory method's return value)",
+    "6.0.0"
+  )
   def ofDouble: D[Double] = double
+
+}
+
+object TypeStep {
+
+  /** Source-compat shim: makes `factory.counter(name).help(...)` (and similar) compile by transparently selecting the
+    * `Double`-valued DSL. Replaces the old `factory.counter(name).ofDouble.help(...)` two-step. `Long`-valued metrics
+    * are no longer the default; callers wanting `Long` semantics should `.ofDouble.contramap[Long](_.toDouble)`.
+    */
+  implicit def typeStepIsDouble[D[_]](step: TypeStep[D]): D[Double] = step.double
 
 }
 

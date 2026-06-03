@@ -66,7 +66,7 @@ factory.counter("counter_total").ofLong
 ## Defining the Help String
 
 ```scala mdoc:silent
-factory.counter("counter_total").ofDouble.help("Describe what this metric does")
+factory.counter("counter_total").help("Describe what this metric does")
 ```
 
 ## Building a Simple Metric
@@ -77,7 +77,7 @@ This will return a `cats.effect.Resource` of your desired metric, which will de-
 ```scala mdoc:silent
 val simpleCounter = factory
   .counter("counter_total")
-  .ofDouble
+  
   .help("Describe what this metric does")
 
 simpleCounter.build
@@ -99,7 +99,7 @@ case class MyClass(value: String)
 
 val tupleLabelledCounter = factory
   .counter("counter_total")
-  .ofDouble
+  
   .help("Describe what this metric does")
   .label[String]("this_uses_show")
   .label[MyClass]("this_doesnt_use_show", _.value)
@@ -114,7 +114,7 @@ case class MyMultiClass(value1: String, value2: Int)
 
 val classLabelledCounter = factory
   .counter("counter_total")
-  .ofDouble
+  
   .help("Describe what this metric does")
   .labels[MyMultiClass](
     Label.Name("label1") -> (_.value1),
@@ -129,7 +129,7 @@ classLabelledCounter.build.evalMap(_.inc(2.0, MyMultiClass("label_value", 42)))
 ```scala mdoc:silent
 val unsafeLabelledCounter = factory
   .counter("counter_total")
-  .ofDouble
+  
   .help("Describe what this metric does")
   .unsafeLabels(Label.Name("label1"), Label.Name("label2"))
 
@@ -217,13 +217,13 @@ All [primitive] metric types, with exception to `Info` can be implemented as cal
 ```scala mdoc:silent
 factory
   .counter("counter_total")
-  .ofDouble
+  
   .help("Describe what this metric does")
   .callback(IO(1.0))
 
 factory
   .gauge("gauge")
-  .ofDouble
+  
   .help("Describe what this metric does")
   .callback(IO(1.0))
 ```
@@ -236,7 +236,7 @@ import cats.data.NonEmptySeq
 
 factory
   .histogram("histogram")
-  .ofDouble
+  
   .help("Describe what this metric does")
   .buckets(0.1, 0.5)
   .callback(
@@ -251,7 +251,7 @@ factory
 ```scala mdoc:silent
 factory
   .summary("summary")
-  .ofDouble
+  
   .help("Describe what this metric does")
   .callback(
     IO(Summary.Value(count = 1L, sum = 1.0, quantiles = Map(0.5 -> 1.0)))

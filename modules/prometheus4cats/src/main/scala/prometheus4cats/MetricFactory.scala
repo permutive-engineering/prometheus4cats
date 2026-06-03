@@ -38,9 +38,8 @@ import prometheus4cats.internal.summary.SummaryDsl
   *   {{{
   * val factory: MetricFactory[IO] = ???
   *
-  * val counter: Resource[IO, Counter[IO, Long, Unit]] =
+  * val counter: Resource[IO, Counter[IO, Double, Unit]] =
   *   factory.counter("my_counter")
-  *     .ofLong
   *     .help("Total number of requests")
   *     .build
   *   }}}
@@ -75,7 +74,7 @@ sealed abstract class MetricFactory[F[_]](
   /** Starts creating a "gauge" metric.
     *
     * @example
-    *   {{{ metrics.gauge("my_gauge").ofDouble.help("my gauge help").label[Int]("first_label")
+    *   {{{ metrics.gauge("my_gauge").help("my gauge help").label[Int]("first_label")
     *   .label[String]("second_label").label[Boolean]("third_label") .build }}}
     * @param name
     *   [[Gauge.Name]] value
@@ -115,7 +114,7 @@ sealed abstract class MetricFactory[F[_]](
   /** Starts creating a "counter" metric.
     *
     * @example
-    *   {{{ metrics.counter("my_counter").ofLong.help("my counter help") .label[Int]("first_label")
+    *   {{{ metrics.counter("my_counter").help("my counter help") .label[Int]("first_label")
     *   .label[String]("second_label") .label[Boolean]("third_label") .build }}}
     * @param name
     *   [[Counter.Name]] value
@@ -168,16 +167,16 @@ sealed abstract class MetricFactory[F[_]](
     * @example
     *   {{{
     * // Classic-only (existing behaviour):
-    * metrics.histogram("http_dur").ofDouble.help("...").buckets(0.005, 0.01, 0.025, 0.05, 0.1, 0.5, 1, 5, 10).build
+    * metrics.histogram("http_dur").help("...").buckets(0.005, 0.01, 0.025, 0.05, 0.1, 0.5, 1, 5, 10).build
     *
     * // Dual-mode (NHCB-friendly): same buckets, plus native exponential.
-    * metrics.histogram("http_dur").ofDouble.help("...")
+    * metrics.histogram("http_dur").help("...")
     *   .buckets(0.005, 0.01, 0.025, 0.05, 0.1, 0.5, 1, 5, 10)
     *   .withNative
     *   .build
     *
     * // Dual-mode with custom native tuning.
-    * metrics.histogram("http_dur").ofDouble.help("...")
+    * metrics.histogram("http_dur").help("...")
     *   .buckets(0.005, 0.01, ...)
     *   .withNative(NativeHistogram.Default.withInitialSchema(6))
     *   .build
@@ -321,7 +320,6 @@ sealed abstract class MetricFactory[F[_]](
     * @example
     *   {{{
     * metrics.summary("my_summary")
-    *   .ofDouble
     *   .help("Request latency distribution")
     *   .quantile(0.5, 0.05)
     *   .quantile(0.9, 0.01)
@@ -434,7 +432,6 @@ object MetricFactory {
     * // Register a callback-based gauge
     * val gauge: Resource[IO, Unit] =
     *   factory.gauge("active_connections")
-    *     .ofLong
     *     .help("Number of active connections")
     *     .callback(connectionPool.activeCount)
     *     .build

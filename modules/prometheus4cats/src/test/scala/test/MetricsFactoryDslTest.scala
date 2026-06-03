@@ -29,6 +29,7 @@ import cats.effect.kernel.MonadCancelThrow
 import prometheus4cats._
 
 @nowarn("msg=unused value")
+@nowarn("cat=deprecation")
 @SuppressWarnings(Array("all"))
 class MetricsFactoryDslTest[F[_]: MonadCancelThrow: Clock] {
 
