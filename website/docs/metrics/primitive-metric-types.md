@@ -23,7 +23,7 @@ This implements an [OpenMetrics] counter, allowing a number to be incremented by
 See the example below on how to obtain a `Counter` from a [`MetricFactory`]:
 
 ```scala mdoc:silent
-factory.counter("my_counter_total").ofLong.help("Metric description")
+factory.counter("my_counter_total").help("Metric description")
 ```
 
 
@@ -35,7 +35,7 @@ value, as well as reset to `0`.
 See the example below on how to obtain a `Gauge` from a [`MetricFactory`]:
 
 ```scala mdoc:silent
-factory.gauge("my_gauge").ofLong.help("Metric description")
+factory.gauge("my_gauge").help("Metric description")
 ```
 
 ## `Histogram`

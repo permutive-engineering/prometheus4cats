@@ -143,9 +143,8 @@ To help disambiguate the difference in behaviour the `OutcomeRecorder` type will
 ### Obtaining from a `Counter`
 
 ```scala mdoc:silent
-val simpleOutcomeCounter: Resource[IO, OutcomeRecorder.Aux[IO, Long, Unit, Counter]] = factory
+val simpleOutcomeCounter: Resource[IO, OutcomeRecorder.Aux[IO, Double, Unit, Counter]] = factory
   .counter("outcome_total")
-  .ofLong
   .help("Records the outcome of some operation")
   .asOutcomeRecorder
   .build
@@ -153,9 +152,8 @@ val simpleOutcomeCounter: Resource[IO, OutcomeRecorder.Aux[IO, Long, Unit, Count
 
 ```scala mdoc:silent
 val labelledOutcomeCounter:
-  Resource[IO, OutcomeRecorder.Aux[IO, Long, String, Counter]] = factory
+  Resource[IO, OutcomeRecorder.Aux[IO, Double, String, Counter]] = factory
     .counter("outcome_total")
-    .ofLong
     .help("Records the outcome of some operation")
     .label[String]("some_label")
     .asOutcomeRecorder
@@ -165,9 +163,8 @@ val labelledOutcomeCounter:
 ### Obtaining from a `Gauge`
 
 ```scala mdoc:silent
-val simpleOutcomeGauge: Resource[IO, OutcomeRecorder.Aux[IO, Long, Unit, Gauge]] = factory
+val simpleOutcomeGauge: Resource[IO, OutcomeRecorder.Aux[IO, Double, Unit, Gauge]] = factory
   .gauge("outcome")
-  .ofLong
   .help("Records the outcome of some operation")
   .asOutcomeRecorder
   .build
@@ -175,9 +172,8 @@ val simpleOutcomeGauge: Resource[IO, OutcomeRecorder.Aux[IO, Long, Unit, Gauge]]
 
 ```scala mdoc:silent
 val labelledOutcomeGauge:
-  Resource[IO, OutcomeRecorder.Aux[IO, Long, String, Gauge]] = factory
+  Resource[IO, OutcomeRecorder.Aux[IO, Double, String, Gauge]] = factory
     .gauge("outcome")
-    .ofLong
     .help("Records the outcome of some operation")
     .label[String]("some_label")
     .asOutcomeRecorder
