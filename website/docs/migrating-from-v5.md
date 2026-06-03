@@ -115,30 +115,40 @@ fail to ingest — the metric is emitted by your app but Prometheus drops the na
 
 v5 exposed `prometheus4cats_registered_metrics`, `prometheus4cats_combined_callback_metric_total`,
 and a few related counters for inspecting registry state and callback outcomes. **v6 does not emit
-these.** The decision is permanent — they were low-value and hard to keep accurate across v6's
-dispatcher-based callback machinery. Dashboards and alerts that depended on them need to be
-rewritten, or the metrics need to be re-implemented in user code via a custom `Collector` registered
-against the same `PrometheusRegistry` your `JavaMetricRegistry` is built on.
+these.** The decision is permanent — they were low-value and hard to keep accurate. Dashboards and
+alerts that depended on them need to be rewritten, or the metrics need to be re-implemented in user
+code via a custom `Collector` registered against the same `PrometheusRegistry` your
+`JavaMetricRegistry` is built on.
 
-## Known limitations in v6
+### Callback support removed
 
-These are gaps acknowledged in the v6 codebase. Calling them out so you can plan around them rather
-than discover them at the wrong moment.
+v5 shipped `CallbackRegistry`, `MetricFactory.WithCallbacks`, the `.callback(...)` DSL step, and
+`metricCollectionCallback`. **v6 removes all of these.** Pull-mode collection is now done by
+implementing a `io.prometheus.metrics.model.registry.Collector` (or `MultiCollector`) directly and
+registering it on the underlying `PrometheusRegistry` — the same `PrometheusRegistry` instance you
+pass to `JavaMetricRegistry.Builder[F]().withRegistry(...)`.
 
-### Callback-emitted metrics don't carry exemplars
+For source-compatibility, `MetricFactory.WithCallbacks[F]` is kept as a type alias for
+`MetricFactory[F]`, so existing references like `def factory: MetricFactory.WithCallbacks[IO]`
+continue to type-check. The alias will be removed in a future release.
 
-`*WithExemplar` and `*WithSampledExemplar` are wired only for the active (push) side. The
-`.callback(...)` API path constructs snapshots with `Exemplars.EMPTY` regardless of any `Exemplar`
-instance in scope. If you need exemplars on a pull-mode metric, switch that metric to the active
-path and call `.incWithExemplar` / `.observeWithExemplar` directly.
+What this means in practice:
 
-### Native histogram callbacks are unimplemented
+- `factory.counter(...).callback(io)` no longer compiles.
+- `factory.gauge(...).callback(io)` no longer compiles.
+- `factory.histogram(...).buckets(...).callback(io)` no longer compiles.
+- `factory.summary(...).callback(io)` no longer compiles.
+- `factory.metricCollectionCallback(io)` no longer compiles.
+- `JavaMetricRegistry.Builder` loses `withCallbackTimeout` / `withCallbackCollectionTimeout`.
 
-`factory.nativeHistogram(...).callback(...)` is declared in the trait but the v6 backend throws
-`NotImplementedError` at call time. The data-shape design for "a callback that emits a native
-bucket distribution" is open — the obvious shapes (count + sum only; full exponential bucket map;
-something in between) each have ergonomic trade-offs. Until that decision lands, restrict native
-histograms to the active path.
+Migration paths:
+
+- For metric values derived from a runtime source on each scrape, write a tiny
+  `io.prometheus.metrics.model.registry.Collector` that returns the appropriate `MetricSnapshot`
+  and register it on the underlying `PrometheusRegistry`.
+- For values that don't actually change per-scrape (your callback returned the same value most of
+  the time), switch to the active path — `.set` a gauge or `.inc` a counter from your application
+  code where the underlying value changes.
 
 ## Migration recipe
 
@@ -177,7 +187,7 @@ each individual change above into one ordered list.
 
 The repo's `modules/sandbox/` project is a runnable end-to-end demo of every v6 surface (counter,
 gauge, classic + native + dual histogram, summary, info, exemplars, sampled exemplars, timer,
-outcome recorder, gauge callback) wired up against a local Prometheus + Grafana stack via
+outcome recorder) wired up against a local Prometheus + Grafana stack via
 docker-compose. See `modules/sandbox/README.md` for the quickstart.
 
 [Prometheus Java client]: https://github.com/prometheus/client_java

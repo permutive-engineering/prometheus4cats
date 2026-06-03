@@ -28,9 +28,7 @@ package object prometheus4cats extends ShapelessPolyfill {
   type InfoL[F[_], A, B] = Info[F, B]
 
   /** Compound type exposing both `MetricDsl[F, A, Histogram]` (for `.label`, `.build`, etc.) and
-    * `HistogramWithNativeOps[F, A]` (for `.withNative`) on a single value. Both `HistogramMetricDsl.Plain` and
-    * `HistogramMetricDsl.WithCallbacksImpl` satisfy this — the former via `MetricDsl`, the latter via
-    * `MetricDsl.WithCallbacks` (which extends `MetricDsl`).
+    * `HistogramWithNativeOps[F, A]` (for `.withNative`) on a single value.
     */
   type HistogramMetricDsl[F[_], A] =
     internal.MetricDsl[F, A, Histogram] with internal.HistogramWithNativeOps[F, A]

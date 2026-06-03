@@ -11,21 +11,19 @@ The examples in this section assume you have imported the following and have cre
 import cats.effect._
 import prometheus4cats._
 
-val factory: MetricFactory.WithCallbacks[IO] = MetricFactory.builder.noop[IO]
+val factory: MetricFactory[IO] = MetricFactory.builder.noop[IO]
 ```
 
 ## Expected Behaviour
 
-Every metric or callback created/registered using this DSL returns a Cats-Effect `Resource` which indicates
-the lifecycle of that metric. When the `Resource` is allocated the metric/callback is registered and when it is
-finalized it is de-registered.
+Every metric created using this DSL returns a Cats-Effect `Resource` which indicates the lifecycle of that metric. When
+the `Resource` is allocated the metric is registered and when it is finalized it is de-registered.
 
-**It should be possible** to request/register the same metric or callback multiple times without error, where you will
-be returned the currently registered instance rather than a new instance. This does depend on the implementation of
-[`MetricRegistry`] and [`CallbackRegistry`] however, the provided
-[Java wrapper implementation](../implementations/java.md#implementation-notes) implements this via reference counting
-and implementers of [`MetricRegistry`] and [`CallbackRegistry`] are advised to do the same in order to preserve this
-expected behaviour at runtime.
+**It should be possible** to request/register the same metric multiple times without error, where you will be returned
+the currently registered instance rather than a new instance. This does depend on the implementation of
+[`MetricRegistry`] however, the provided [Java wrapper implementation](../implementations/java.md#implementation-notes)
+implements this via reference counting and implementers of [`MetricRegistry`] are advised to do the same in order to
+preserve this expected behaviour at runtime.
 
 ## Refined Types
 
@@ -56,12 +54,8 @@ factory.summary("summary")
 factory.info("info_info")
 ```
 
-## Specifying the Underlying Number Format
-
-```scala mdoc:silent
-factory.counter("counter_total").ofDouble
-factory.counter("counter_total").ofLong
-```
+All metric values are `Double` by default — the underlying Prometheus wire format stores everything as `double`, so a
+separate `Long` path was duplication. `Long`-valued sources should `.contramap[Long](_.toDouble)` on the resulting DSL.
 
 ## Defining the Help String
 
@@ -72,12 +66,11 @@ factory.counter("counter_total").help("Describe what this metric does")
 ## Building a Simple Metric
 Once you have specified all the parameters with which you want to create your metric you can call the `build` method.
 This will return a `cats.effect.Resource` of your desired metric, which will de-register the metric from the underlying
-[`MetricRegistry`] or [`CallbackRegistry`] upon finalization.
+[`MetricRegistry`] upon finalization.
 
 ```scala mdoc:silent
 val simpleCounter = factory
   .counter("counter_total")
-  
   .help("Describe what this metric does")
 
 simpleCounter.build
@@ -99,7 +92,6 @@ case class MyClass(value: String)
 
 val tupleLabelledCounter = factory
   .counter("counter_total")
-  
   .help("Describe what this metric does")
   .label[String]("this_uses_show")
   .label[MyClass]("this_doesnt_use_show", _.value)
@@ -114,7 +106,6 @@ case class MyMultiClass(value1: String, value2: Int)
 
 val classLabelledCounter = factory
   .counter("counter_total")
-  
   .help("Describe what this metric does")
   .labels[MyMultiClass](
     Label.Name("label1") -> (_.value1),
@@ -129,7 +120,6 @@ classLabelledCounter.build.evalMap(_.inc(2.0, MyMultiClass("label_value", 42)))
 ```scala mdoc:silent
 val unsafeLabelledCounter = factory
   .counter("counter_total")
-  
   .help("Describe what this metric does")
   .unsafeLabels(Label.Name("label1"), Label.Name("label2"))
 
@@ -148,9 +138,8 @@ unsafeLabelledCounter.build.evalMap(_.inc(3.0, labels))
 ```scala mdoc:silent
 val intCounter: Resource[IO, Counter[IO, Int, Unit]] = factory
   .counter("counter_total")
-  .ofLong
   .help("Describe what this metric does")
-  .contramap[Int](_.toLong)
+  .contramap[Int](_.toDouble)
   .build
 ```
 
@@ -164,11 +153,10 @@ val shortCounter: Resource[IO, Counter[IO, Short, Unit]] =
 ```scala mdoc:silent
 val intLabelledCounter: Resource[IO, Counter[IO, Int, (String, Int)]] = factory
   .counter("counter_total")
-  .ofLong
   .help("Describe what this metric does")
   .label[String]("string_label")
   .label[Int]("int_label")
-  .contramap[Int](_.toLong)
+  .contramap[Int](_.toDouble)
   .build
 ```
 
@@ -185,9 +173,8 @@ This can work as a nice alternative to
 ```scala mdoc:silent
 case class LabelsClass(string: String, int: Int)
 
-val updatedLabelsCounter: Resource[IO, Counter[IO, Long, LabelsClass]] = factory
+val updatedLabelsCounter: Resource[IO, Counter[IO, Double, LabelsClass]] = factory
   .counter("counter_total")
-  .ofLong
   .help("Describe what this metric does")
   .label[String]("string_label")
   .label[Int]("int_label")
@@ -195,88 +182,7 @@ val updatedLabelsCounter: Resource[IO, Counter[IO, Long, LabelsClass]] = factory
   .build
 ```
 
-## Metric Callbacks
-
-The callback DSL is only available with the `MetricFactory.WithCallbacks` implementation of [`MetricFactory`].
-
-Callbacks are useful when you have some runtime source of a metric value, like a JMX MBean, which will be loaded when
-the current values for each metric is inspected for export to Prometheus.
-
-**Callbacks are both extremely powerful and dangerous, so should be used with care**. Callbacks are assumed to be
-side-effecting in that each execution of the callback may yield a different underlying value, this also means that
-the operation could take a long time to complete if there is I/O involved (this is strongly discouraged). Therefore,
-implementations of [`CallbackRegistry`] may include a timeout.
-
-> ℹ️ Some general guidance on callbacks:
-> - **Do not perform any complex calculations as part of the callback, such as an I/O operation**
-> - **Make callback calculations CPU bound, such as accessing a concurrent value**
-
-All [primitive] metric types, with exception to `Info` can be implemented as callbacks, like so for `Counter` and
-`Gauge`:
-
-```scala mdoc:silent
-factory
-  .counter("counter_total")
-  
-  .help("Describe what this metric does")
-  .callback(IO(1.0))
-
-factory
-  .gauge("gauge")
-  
-  .help("Describe what this metric does")
-  .callback(IO(1.0))
-```
-
-`Histogram` and `Summary` metrics are slightly different as they need a special value to contain the calculated
-components of each metric type:
-
-```scala mdoc:silent
-import cats.data.NonEmptySeq
-
-factory
-  .histogram("histogram")
-  
-  .help("Describe what this metric does")
-  .buckets(0.1, 0.5)
-  .callback(
-    IO(Histogram.Value(sum = 2.0, bucketValues = NonEmptySeq.of(0.0, 1.0, 1.0)))
-  )
-```
-
-> ⚠️️ Note that with a histogram value there must always be one more bucket value than defined when creating the metric,
-> this is to provide a value for `+Inf`.
-
-
-```scala mdoc:silent
-factory
-  .summary("summary")
-  
-  .help("Describe what this metric does")
-  .callback(
-    IO(Summary.Value(count = 1L, sum = 1.0, quantiles = Map(0.5 -> 1.0)))
-  )
-```
-
-> ⚠️️ Note that is you specify quantiles, max age or age buckets for the summary, you cannot register a callback. This is
-> because these parameters are used when configuring a summary metric type which would be returned you, whereas the
-> summary implementation may be configured differently.
-
-### Metric Collection
-
-It is possible to submit multiple metrics in a single callback, this may be useful where the metrics available in some
-collection may not be known at compile time. As with callbacks in general, this should be used carefully to ensure that
-collisions at runtime aren't encountered, it is suggested that you use a custom prefix for all metrics in a given
-collection to avoid this.
-
-```scala mdoc:silent
-val metricCollection: IO[MetricCollection] = IO(MetricCollection.empty)
-
-factory.metricCollectionCallback(metricCollection)
-```
-
 [primitive]: ../metrics/primitive-metric-types.md
 [derived]: ../metrics/derived-metric-types.md
 [`MetricFactory`]: metric-factory.md
 [`MetricRegistry`]: metric-registry.md
-[`CallbackRegistry`]: callback-registry.md
