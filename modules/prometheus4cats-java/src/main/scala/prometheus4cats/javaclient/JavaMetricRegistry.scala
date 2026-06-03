@@ -567,7 +567,7 @@ object JavaMetricRegistry {
         val acquire = for {
           ref <- Ref.of[F, State[F]](Map.empty)
           sem <- Semaphore[F](1L)
-          reg = new JavaMetricRegistry[F](promRegistry, ref, sem, logger)
+          reg  = new JavaMetricRegistry[F](promRegistry, ref, sem, logger)
         } yield reg
 
         Resource.make(acquire) { reg =>

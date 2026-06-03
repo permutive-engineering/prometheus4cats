@@ -419,8 +419,8 @@ object MetricFactory {
 
   /** Source-compat alias for v5 callers. Callback support was dropped in v6; this is now indistinguishable from
     * [[MetricFactory]]. Existing references like `MetricFactory.WithCallbacks[IO]` continue to type-check but no longer
-    * unlock a callback DSL — `.callback(...)` is gone. Migrate to [[MetricFactory]] at your convenience; this alias will
-    * be removed in a future release.
+    * unlock a callback DSL — `.callback(...)` is gone. Migrate to [[MetricFactory]] at your convenience; this alias
+    * will be removed in a future release.
     */
   type WithCallbacks[F[_]] = MetricFactory[F]
 
