@@ -39,13 +39,12 @@ val counterResource =
     registry <- JavaMetricRegistry.Builder[IO]().build
     factory = MetricFactory.builder.build(registry)
     counter <- factory.counter("my_counter_total")
-                 .ofLong
                  .help("My Counter")
                  .label[String]("some_label")
                  .build
   } yield counter
 
-counterResource.use { counter => counter.inc("Some label value") }
+counterResource.use { counter => counter.inc(1.0, "Some label value") }
 ```
 
 [Prometheus]: https://prometheus.io

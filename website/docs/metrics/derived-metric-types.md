@@ -35,7 +35,7 @@ operations.
 ```scala mdoc:silent
 val simpleTimerHistogram: Resource[IO, Timer.Aux[IO, Unit, Histogram]] = factory
   .histogram("time")
-  .ofDouble
+  
   .help("Records how long an operation took")
   .buckets(1.0, 2.0)
   .asTimer
@@ -45,7 +45,7 @@ val simpleTimerHistogram: Resource[IO, Timer.Aux[IO, Unit, Histogram]] = factory
 ```scala mdoc:silent
 val labelledTimerHistogram: Resource[IO, Timer.Aux[IO, String, Histogram]] = factory
   .histogram("time")
-  .ofDouble
+  
   .help("Records how long an operation took")
   .buckets(1.0, 2.0)
   .label[String]("some_label")
@@ -58,7 +58,7 @@ val labelledTimerHistogram: Resource[IO, Timer.Aux[IO, String, Histogram]] = fac
 ```scala mdoc:silent
 val simpleTimerSummary: Resource[IO, Timer.Aux[IO, Unit, Summary]] = factory
   .summary("time")
-  .ofDouble
+  
   .help("Records how long an operation took")
   .asTimer
   .build
@@ -67,7 +67,7 @@ val simpleTimerSummary: Resource[IO, Timer.Aux[IO, Unit, Summary]] = factory
 ```scala mdoc:silent
 val labelledTimerSummary: Resource[IO, Timer.Aux[IO, String, Summary]] = factory
   .summary("time")
-  .ofDouble
+  
   .help("Records how long an operation took")
   .label[String]("some_label")
   .asTimer
@@ -79,7 +79,7 @@ val labelledTimerSummary: Resource[IO, Timer.Aux[IO, String, Summary]] = factory
 ```scala mdoc:silent
 val simpleTimerGauge: Resource[IO, Timer.Aux[IO, Unit, Gauge]] = factory
   .gauge("time")
-  .ofDouble
+  
   .help("Records how long an operation took")
   .asTimer
   .build
@@ -88,7 +88,7 @@ val simpleTimerGauge: Resource[IO, Timer.Aux[IO, Unit, Gauge]] = factory
 ```scala mdoc:silent
 val labelledTimerGauge: Resource[IO, Timer.Aux[IO, String, Gauge]] = factory
   .gauge("time")
-  .ofDouble
+  
   .help("Records how long an operation took")
   .label[String]("some_label")
   .asTimer
@@ -105,7 +105,7 @@ system time.
 ```scala mdoc:silent
 val simpleCurrentTimeRecorderGauge: Resource[IO, CurrentTimeRecorder[IO, Unit]] = factory
   .gauge("current_time")
-  .ofDouble
+  
   .help("Records how long an operation took")
   .asCurrentTimeRecorder
   .build
@@ -116,7 +116,7 @@ val labelledCurrentTimeRecorderGauge:
   Resource[IO, CurrentTimeRecorder[IO, String]] =
     factory
       .gauge("current_time")
-      .ofDouble
+      
       .help("Records how long an operation took")
       .label[String]("some_label")
       .asCurrentTimeRecorder
@@ -143,9 +143,8 @@ To help disambiguate the difference in behaviour the `OutcomeRecorder` type will
 ### Obtaining from a `Counter`
 
 ```scala mdoc:silent
-val simpleOutcomeCounter: Resource[IO, OutcomeRecorder.Aux[IO, Long, Unit, Counter]] = factory
+val simpleOutcomeCounter: Resource[IO, OutcomeRecorder.Aux[IO, Double, Unit, Counter]] = factory
   .counter("outcome_total")
-  .ofLong
   .help("Records the outcome of some operation")
   .asOutcomeRecorder
   .build
@@ -153,9 +152,8 @@ val simpleOutcomeCounter: Resource[IO, OutcomeRecorder.Aux[IO, Long, Unit, Count
 
 ```scala mdoc:silent
 val labelledOutcomeCounter:
-  Resource[IO, OutcomeRecorder.Aux[IO, Long, String, Counter]] = factory
+  Resource[IO, OutcomeRecorder.Aux[IO, Double, String, Counter]] = factory
     .counter("outcome_total")
-    .ofLong
     .help("Records the outcome of some operation")
     .label[String]("some_label")
     .asOutcomeRecorder
@@ -165,9 +163,8 @@ val labelledOutcomeCounter:
 ### Obtaining from a `Gauge`
 
 ```scala mdoc:silent
-val simpleOutcomeGauge: Resource[IO, OutcomeRecorder.Aux[IO, Long, Unit, Gauge]] = factory
+val simpleOutcomeGauge: Resource[IO, OutcomeRecorder.Aux[IO, Double, Unit, Gauge]] = factory
   .gauge("outcome")
-  .ofLong
   .help("Records the outcome of some operation")
   .asOutcomeRecorder
   .build
@@ -175,9 +172,8 @@ val simpleOutcomeGauge: Resource[IO, OutcomeRecorder.Aux[IO, Long, Unit, Gauge]]
 
 ```scala mdoc:silent
 val labelledOutcomeGauge:
-  Resource[IO, OutcomeRecorder.Aux[IO, Long, String, Gauge]] = factory
+  Resource[IO, OutcomeRecorder.Aux[IO, Double, String, Gauge]] = factory
     .gauge("outcome")
-    .ofLong
     .help("Records the outcome of some operation")
     .label[String]("some_label")
     .asOutcomeRecorder

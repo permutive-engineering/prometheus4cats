@@ -58,15 +58,13 @@ factory.info("info_info")
 
 ## Specifying the Underlying Number Format
 
-```scala mdoc:silent
-factory.counter("counter_total").ofDouble
-factory.counter("counter_total").ofLong
-```
+All metric values are `Double` by default — the underlying Prometheus wire format stores everything as `double`, so a
+separate `Long` path was duplication. `Long`-valued sources should `.contramap[Long](_.toDouble)` on the resulting DSL.
 
 ## Defining the Help String
 
 ```scala mdoc:silent
-factory.counter("counter_total").ofDouble.help("Describe what this metric does")
+factory.counter("counter_total").help("Describe what this metric does")
 ```
 
 ## Building a Simple Metric
@@ -77,7 +75,7 @@ This will return a `cats.effect.Resource` of your desired metric, which will de-
 ```scala mdoc:silent
 val simpleCounter = factory
   .counter("counter_total")
-  .ofDouble
+  
   .help("Describe what this metric does")
 
 simpleCounter.build
@@ -99,7 +97,7 @@ case class MyClass(value: String)
 
 val tupleLabelledCounter = factory
   .counter("counter_total")
-  .ofDouble
+  
   .help("Describe what this metric does")
   .label[String]("this_uses_show")
   .label[MyClass]("this_doesnt_use_show", _.value)
@@ -114,7 +112,7 @@ case class MyMultiClass(value1: String, value2: Int)
 
 val classLabelledCounter = factory
   .counter("counter_total")
-  .ofDouble
+  
   .help("Describe what this metric does")
   .labels[MyMultiClass](
     Label.Name("label1") -> (_.value1),
@@ -129,7 +127,7 @@ classLabelledCounter.build.evalMap(_.inc(2.0, MyMultiClass("label_value", 42)))
 ```scala mdoc:silent
 val unsafeLabelledCounter = factory
   .counter("counter_total")
-  .ofDouble
+  
   .help("Describe what this metric does")
   .unsafeLabels(Label.Name("label1"), Label.Name("label2"))
 
@@ -148,9 +146,8 @@ unsafeLabelledCounter.build.evalMap(_.inc(3.0, labels))
 ```scala mdoc:silent
 val intCounter: Resource[IO, Counter[IO, Int, Unit]] = factory
   .counter("counter_total")
-  .ofLong
   .help("Describe what this metric does")
-  .contramap[Int](_.toLong)
+  .contramap[Int](_.toDouble)
   .build
 ```
 
@@ -164,11 +161,10 @@ val shortCounter: Resource[IO, Counter[IO, Short, Unit]] =
 ```scala mdoc:silent
 val intLabelledCounter: Resource[IO, Counter[IO, Int, (String, Int)]] = factory
   .counter("counter_total")
-  .ofLong
   .help("Describe what this metric does")
   .label[String]("string_label")
   .label[Int]("int_label")
-  .contramap[Int](_.toLong)
+  .contramap[Int](_.toDouble)
   .build
 ```
 
@@ -185,9 +181,8 @@ This can work as a nice alternative to
 ```scala mdoc:silent
 case class LabelsClass(string: String, int: Int)
 
-val updatedLabelsCounter: Resource[IO, Counter[IO, Long, LabelsClass]] = factory
+val updatedLabelsCounter: Resource[IO, Counter[IO, Double, LabelsClass]] = factory
   .counter("counter_total")
-  .ofLong
   .help("Describe what this metric does")
   .label[String]("string_label")
   .label[Int]("int_label")
@@ -217,13 +212,13 @@ All [primitive] metric types, with exception to `Info` can be implemented as cal
 ```scala mdoc:silent
 factory
   .counter("counter_total")
-  .ofDouble
+  
   .help("Describe what this metric does")
   .callback(IO(1.0))
 
 factory
   .gauge("gauge")
-  .ofDouble
+  
   .help("Describe what this metric does")
   .callback(IO(1.0))
 ```
@@ -236,7 +231,7 @@ import cats.data.NonEmptySeq
 
 factory
   .histogram("histogram")
-  .ofDouble
+  
   .help("Describe what this metric does")
   .buckets(0.1, 0.5)
   .callback(
@@ -251,7 +246,7 @@ factory
 ```scala mdoc:silent
 factory
   .summary("summary")
-  .ofDouble
+  
   .help("Describe what this metric does")
   .callback(
     IO(Summary.Value(count = 1L, sum = 1.0, quantiles = Map(0.5 -> 1.0)))

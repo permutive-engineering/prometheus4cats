@@ -62,41 +62,36 @@ object Sandbox extends IOApp.Simple {
 
       random <- Resource.eval(Random.scalaUtilRandom[IO])
 
-      counter <- factory.counter("counter_total").ofDouble.help("Test counter").label[String]("label").build
+      counter <- factory.counter("counter_total").help("Test counter").label[String]("label").build
 
       sampledCounter <- factory
                           .counter("sampled_counter_total")
-                          .ofDouble
                           .help("Counter with downsampled exemplars (~1 in 10)")
                           .label[String]("label")
                           .build
 
       classic <- factory
                    .histogram("classic_histogram_seconds")
-                   .ofDouble
                    .help("Classic histogram with curated buckets")
                    .buckets(LatencyBuckets)
                    .build
 
       native <- factory
                   .nativeHistogram("native_histogram_seconds")
-                  .ofDouble
                   .help("Native (sparse / exponential) histogram, no declared buckets")
                   .build
 
       dual <- factory
                 .histogram("dual_histogram_seconds")
-                .ofDouble
                 .help("Dual-mode histogram: classic + native from one declaration")
                 .buckets(LatencyBuckets)
                 .withNative
                 .build
 
-      gauge <- factory.gauge("gauge_value").ofDouble.help("Test gauge — sine wave 0..100").build
+      gauge <- factory.gauge("gauge_value").help("Test gauge — sine wave 0..100").build
 
       summary <- factory
                    .summary("summary_seconds")
-                   .ofDouble
                    .help("Test summary with p50 / p90 / p99 quantiles")
                    .quantile(
                      Summary.Quantile.from(0.5).toOption.get,
@@ -122,7 +117,6 @@ object Sandbox extends IOApp.Simple {
 
       timer <- factory
                  .histogram("operation_duration_seconds")
-                 .ofDouble
                  .help("Histogram-backed Timer (.asTimer) — observes durations of timed operations")
                  .buckets(LatencyBuckets)
                  .asTimer
@@ -131,7 +125,6 @@ object Sandbox extends IOApp.Simple {
       outcomeRecorder <-
         factory
           .counter("operation_total")
-          .ofDouble
           .help("Counter-backed OutcomeRecorder (.asOutcomeRecorder) — counts succeeded/errored/canceled outcomes")
           .asOutcomeRecorder
           .build
@@ -142,7 +135,6 @@ object Sandbox extends IOApp.Simple {
       _ <-
         factory
           .gauge("process_uptime_seconds")
-          .ofDouble
           .help("Process uptime in seconds (pull-mode gauge callback example)")
           .callback(IO.delay(ManagementFactory.getRuntimeMXBean.getUptime / 1000.0))
           .build

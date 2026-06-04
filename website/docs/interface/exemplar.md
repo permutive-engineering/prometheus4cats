@@ -33,7 +33,7 @@ val factory: MetricFactory[IO] = MetricFactory.noop[IO]
 
 val counterResource = factory
   .counter("requests_total")
-  .ofDouble
+  
   .help("Counter that attaches an exemplar to every inc")
   .build
 ```

@@ -35,6 +35,13 @@ the [migration guide](./website/docs/migrating-from-v5.md) for the upgrade path.
 - Exemplar retention period enforced by upstream `prometheus-metrics-core` — approximately 7 seconds
   minimum between consecutive exemplars landing in the same classic-histogram bucket
 
+### Deprecated
+
+- `.ofLong` / `.ofDouble` on the factory type-step. `Double` is now the default — call `.help`
+  directly off `factory.counter(name)` / `.gauge(name)` / `.histogram(name)` / `.summary(name)`.
+  Callers wanting `Long` semantics should use `.contramap[Long](_.toDouble)` on the resulting DSL.
+  The deprecated methods still work for one release.
+
 ### Removed
 
 - **BREAKING**: self-observability metrics (`prometheus4cats_registered_metrics`,

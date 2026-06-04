@@ -23,7 +23,7 @@ This implements an [OpenMetrics] counter, allowing a number to be incremented by
 See the example below on how to obtain a `Counter` from a [`MetricFactory`]:
 
 ```scala mdoc:silent
-factory.counter("my_counter_total").ofLong.help("Metric description")
+factory.counter("my_counter_total").help("Metric description")
 ```
 
 
@@ -35,7 +35,7 @@ value, as well as reset to `0`.
 See the example below on how to obtain a `Gauge` from a [`MetricFactory`]:
 
 ```scala mdoc:silent
-factory.gauge("my_gauge").ofLong.help("Metric description")
+factory.gauge("my_gauge").help("Metric description")
 ```
 
 ## `Histogram`
@@ -47,7 +47,7 @@ See the example below on how to obtain a `Histogram` from a [`MetricFactory`]:
 ```scala mdoc:silent
 val histogram = factory
   .histogram("my_histogram")
-  .ofDouble
+  
   .help("Metric description")
 ```
 
@@ -105,7 +105,7 @@ See the example below on how to obtain a native histogram from a [`MetricFactory
 ```scala mdoc:silent
 val nativeHistogram = factory
   .nativeHistogram("my_native_histogram")
-  .ofDouble
+  
   .help("Metric description")
 ```
 
@@ -120,7 +120,7 @@ Prometheus Java client and is appropriate for most workloads.
 ```scala mdoc:silent
 val tunedNativeHistogram = factory
   .nativeHistogram("my_tuned_histogram", NativeHistogram.Default.withInitialSchema(3))
-  .ofDouble
+  
   .help("Metric description")
 ```
 
@@ -136,7 +136,7 @@ See the example below on how to obtain a `Summary` from a [`MetricFactory`]:
 ```scala mdoc:silent
 val summary = factory
   .summary("my_summary")
-  .ofDouble
+  
   .help("Metric description")
 ```
 
@@ -151,7 +151,7 @@ In addition to count and sum, you can configure a `Summary` to provide quantiles
 ```scala mdoc:silent
 val quantileSummary = factory
   .summary("my_summary")
-  .ofDouble
+  
   .help("Metric description")
   .quantile(0.5, 0.01)    // 0.5 quantile (median) with 0.01 allowed error
   .quantile(0.95, 0.005)  // 0.95 quantile with 0.005 allowed error
@@ -187,7 +187,7 @@ import scala.concurrent.duration._
 
 val ageSummary = factory
   .summary("my_summary")
-  .ofDouble
+  
   .help("Metric description")
   .maxAge(10.seconds)
   .ageBuckets(5)
