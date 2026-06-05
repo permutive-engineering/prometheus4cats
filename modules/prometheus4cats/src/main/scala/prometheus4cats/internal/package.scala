@@ -27,10 +27,10 @@ import cats.effect.kernel.Resource
 import cats.syntax.all._
 
 import prometheus4cats.OutcomeRecorder.Status
-import prometheus4cats.internal.histogram.BucketDsl
-import prometheus4cats.internal.summary.SummaryDsl
 import prometheus4cats._
 import prometheus4cats.internal.InitLast.Aux
+import prometheus4cats.internal.histogram.BucketDsl
+import prometheus4cats.internal.summary.SummaryDsl
 
 trait BuildStep[F[_], A] { self =>
 
