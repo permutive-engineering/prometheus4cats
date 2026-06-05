@@ -18,8 +18,6 @@ package prometheus4cats.internal.summary
 
 import scala.concurrent.duration._
 
-import cats.Functor
-
 import prometheus4cats.Summary.QuantileDefinition
 import prometheus4cats._
 import prometheus4cats.internal._
@@ -77,35 +75,6 @@ object SummaryDsl {
   private val defaultQuantiles: Seq[Summary.QuantileDefinition] = Seq.empty
 
   private val defaultMaxAge: FiniteDuration = 10.minutes
-
-  final class WithCallbacks[F[_]: Functor, A, A0](
-      quantiles: Seq[QuantileDefinition] = SummaryDsl.defaultQuantiles,
-      maxAgeValue: FiniteDuration = SummaryDsl.defaultMaxAge,
-      ageBucketsValue: Summary.AgeBuckets = Summary.AgeBuckets.Default,
-      makeSummary: (
-          Seq[QuantileDefinition],
-          FiniteDuration,
-          Summary.AgeBuckets
-      ) => LabelledMetricPartiallyApplied[F, A, Summary],
-      makeSummaryCallback: LabelledCallbackPartiallyApplied[F, A0]
-  ) extends MetricDsl.WithCallbacks[F, A, A0, Summary](
-        makeSummary(quantiles, maxAgeValue, ageBucketsValue),
-        makeSummaryCallback
-      )
-      with Base[F, A] {
-
-    override def quantile(quantile: Summary.Quantile, error: Summary.AllowedError): SummaryDsl[F, A] =
-      new SummaryDsl[F, A](
-        quantiles :+ QuantileDefinition(quantile, error),
-        maxAgeValue,
-        ageBucketsValue,
-        makeSummary
-      )
-
-    override def maxAge(age: FiniteDuration): AgeBucketsStep[F, A] =
-      new AgeBucketsStep[F, A](quantiles, age, ageBucketsValue, makeSummary)
-
-  }
 
 }
 
