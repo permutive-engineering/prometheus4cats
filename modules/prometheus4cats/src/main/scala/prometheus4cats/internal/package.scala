@@ -498,9 +498,9 @@ class HelpStep[+A] private[prometheus4cats] (f: Metric.Help => A) {
 
 /** Per-metric-kind replacement for the v6 `TypeStep[D[_]]` shim. Each factory method (`counter`, `gauge`, `histogram`,
   * `summary`) returns a concrete subclass of [[HelpStep]] specialised to the `Double`-valued DSL, so `.help(...)`
-  * chains directly without an `.ofDouble` step. The deprecated `.ofLong` / `.ofDouble` accessors are preserved on
-  * the concrete factory steps below for one release as plain methods — no higher-kinded implicit conversion is
-  * needed, so consumer call sites compile without `-language:higherKinds`.
+  * chains directly without an `.ofDouble` step. The deprecated `.ofLong` / `.ofDouble` accessors are preserved on the
+  * concrete factory steps below for one release as plain methods — no higher-kinded implicit conversion is needed, so
+  * consumer call sites compile without `-language:higherKinds`.
   */
 class CounterFactoryStep[F[_]] private[prometheus4cats] (
     longDsl: HelpStep[MetricDsl[F, Long, Counter]],
@@ -541,11 +541,10 @@ class HistogramFactoryStep[F[_]] private[prometheus4cats] (
 
 }
 
-/** Native histograms are `Double`-only in spirit — buckets are real-valued regardless of input
-  * type — but the deprecated `.ofLong` / `.ofDouble` accessors are preserved here for one release
-  * to keep source-compat with v5-style call sites. Callers should drop the `.ofDouble` step (the
-  * default `.help` path resolves to the same `Double` DSL) and replace `.ofLong` with
-  * `.help(...).contramap[Long](_.toDouble)`.
+/** Native histograms are `Double`-only in spirit — buckets are real-valued regardless of input type — but the
+  * deprecated `.ofLong` / `.ofDouble` accessors are preserved here for one release to keep source-compat with v5-style
+  * call sites. Callers should drop the `.ofDouble` step (the default `.help` path resolves to the same `Double` DSL)
+  * and replace `.ofLong` with `.help(...).contramap[Long](_.toDouble)`.
   */
 class NativeHistogramFactoryStep[F[_]] private[prometheus4cats] (
     longDsl: HelpStep[MetricDsl[F, Long, Histogram]],
