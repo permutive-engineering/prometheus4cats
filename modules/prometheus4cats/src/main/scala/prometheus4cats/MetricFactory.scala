@@ -67,8 +67,6 @@ sealed abstract class MetricFactory[F[_]](
       commonLabels
     ) {}
 
-  type GaugeDsl[MDsl[_[_], _, _[_[_], _, _]], A] = HelpStep[MDsl[F, A, Gauge]]
-
   /** Starts creating a "gauge" metric.
     *
     * @example
@@ -79,8 +77,8 @@ sealed abstract class MetricFactory[F[_]](
     * @return
     *   Gauge builder
     */
-  def gauge(name: Gauge.Name): TypeStep[GaugeDsl[MetricDsl, *]] =
-    new TypeStep[GaugeDsl[MetricDsl, *]](
+  def gauge(name: Gauge.Name): GaugeFactoryStep[F] =
+    new GaugeFactoryStep[F](
       new HelpStep(help =>
         new MetricDsl(
           new LabelledMetricPartiallyApplied[F, Long, Gauge] {
@@ -107,8 +105,6 @@ sealed abstract class MetricFactory[F[_]](
       )
     )
 
-  type CounterDsl[MDsl[_[_], _, _[_[_], _, _]], A] = HelpStep[MDsl[F, A, Counter]]
-
   /** Starts creating a "counter" metric.
     *
     * @example
@@ -119,8 +115,8 @@ sealed abstract class MetricFactory[F[_]](
     * @return
     *   Counter builder
     */
-  def counter(name: Counter.Name): TypeStep[CounterDsl[MetricDsl, *]] =
-    new TypeStep[CounterDsl[MetricDsl, *]](
+  def counter(name: Counter.Name): CounterFactoryStep[F] =
+    new CounterFactoryStep[F](
       new HelpStep(help =>
         new MetricDsl(
           new LabelledMetricPartiallyApplied[F, Long, Counter] {
@@ -146,14 +142,6 @@ sealed abstract class MetricFactory[F[_]](
         )
       )
     )
-
-  type HistogramDsl[MDsl[_[_], _, _[_[_], _, _]], A] = HelpStep[BucketDsl[MDsl[F, A, Histogram], A]]
-
-  /** Type alias for the histogram DSL chain returned by [[histogram]]. After `.buckets(...)` the chain produces a value
-    * extending both `MetricDsl[F, A, Histogram]` and the `HistogramMetricDsl` mixin (which adds `.withNative` for
-    * dual-mode promotion).
-    */
-  type HistogramWithNativeDsl[A] = HelpStep[BucketDsl[HistogramMetricDsl[F, A], A]]
 
   /** Starts creating a "histogram" metric.
     *
@@ -183,8 +171,8 @@ sealed abstract class MetricFactory[F[_]](
     * @return
     *   Histogram builder
     */
-  def histogram(name: Histogram.Name): TypeStep[HistogramWithNativeDsl] =
-    new TypeStep[HistogramWithNativeDsl](
+  def histogram(name: Histogram.Name): HistogramFactoryStep[F] =
+    new HistogramFactoryStep[F](
       new HelpStep(help =>
         new BucketDsl[HistogramMetricDsl[F, Long], Long](buckets =>
           new HistogramMetricDsl.Plain[F, Long](
@@ -240,8 +228,6 @@ sealed abstract class MetricFactory[F[_]](
       )
     )
 
-  type NativeHistogramWithNativeDsl[A] = HelpStep[MetricDsl[F, A, Histogram]]
-
   /** Starts creating a "native histogram" metric.
     *
     * Native histograms (sometimes called sparse or exponential histograms) automatically allocate buckets sized by an
@@ -279,38 +265,37 @@ sealed abstract class MetricFactory[F[_]](
   def nativeHistogram(
       name: Histogram.Name,
       config: NativeHistogram = NativeHistogram.Default
-  ) = new TypeStep[NativeHistogramWithNativeDsl](
-    new HelpStep(help =>
-      new MetricDsl(
-        new LabelledMetricPartiallyApplied[F, Long, Histogram] {
+  ): NativeHistogramFactoryStep[F] =
+    new NativeHistogramFactoryStep[F](
+      new HelpStep(help =>
+        new MetricDsl(
+          new LabelledMetricPartiallyApplied[F, Long, Histogram] {
 
-          override def apply[B](
-              labels: IndexedSeq[Label.Name]
-          )(f: B => IndexedSeq[String]): Resource[F, Histogram[F, Long, B]] =
-            metricRegistry.createAndRegisterLongNativeHistogram(
-              prefix, name, help, commonLabels, labels, config
-            )(f)
+            override def apply[B](
+                labels: IndexedSeq[Label.Name]
+            )(f: B => IndexedSeq[String]): Resource[F, Histogram[F, Long, B]] =
+              metricRegistry.createAndRegisterLongNativeHistogram(
+                prefix, name, help, commonLabels, labels, config
+              )(f)
 
-        }
-      )
-    ),
-    new HelpStep(help =>
-      new MetricDsl(
-        new LabelledMetricPartiallyApplied[F, Double, Histogram] {
+          }
+        )
+      ),
+      new HelpStep(help =>
+        new MetricDsl(
+          new LabelledMetricPartiallyApplied[F, Double, Histogram] {
 
-          override def apply[B](
-              labels: IndexedSeq[Label.Name]
-          )(f: B => IndexedSeq[String]): Resource[F, Histogram[F, Double, B]] =
-            metricRegistry.createAndRegisterDoubleNativeHistogram(
-              prefix, name, help, commonLabels, labels, config
-            )(f)
+            override def apply[B](
+                labels: IndexedSeq[Label.Name]
+            )(f: B => IndexedSeq[String]): Resource[F, Histogram[F, Double, B]] =
+              metricRegistry.createAndRegisterDoubleNativeHistogram(
+                prefix, name, help, commonLabels, labels, config
+              )(f)
 
-        }
+          }
+        )
       )
     )
-  )
-
-  type SummaryDslLambda[A] = HelpStep[SummaryDsl.Base[F, A]]
 
   /** Starts creating a "summary" metric.
     *
@@ -328,8 +313,8 @@ sealed abstract class MetricFactory[F[_]](
     * @return
     *   Summary builder
     */
-  def summary(name: Summary.Name): TypeStep[SummaryDslLambda] =
-    new TypeStep[SummaryDslLambda](
+  def summary(name: Summary.Name): SummaryFactoryStep[F] =
+    new SummaryFactoryStep[F](
       new HelpStep(help =>
         new SummaryDsl[F, Long](
           makeSummary = (quantiles, maxAge, ageBuckets) =>

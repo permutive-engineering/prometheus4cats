@@ -29,6 +29,8 @@ import cats.syntax.all._
 import prometheus4cats.OutcomeRecorder.Status
 import prometheus4cats._
 import prometheus4cats.internal.InitLast.Aux
+import prometheus4cats.internal.histogram.BucketDsl
+import prometheus4cats.internal.summary.SummaryDsl
 
 trait BuildStep[F[_], A] { self =>
 
@@ -494,30 +496,79 @@ class HelpStep[+A] private[prometheus4cats] (f: Metric.Help => A) {
 
 }
 
-class TypeStep[+D[_]] private[prometheus4cats] (long: D[Long], private[prometheus4cats] val double: D[Double]) {
+/** Per-metric-kind replacement for the v6 `TypeStep[D[_]]` shim. Each factory method (`counter`, `gauge`, `histogram`,
+  * `summary`) returns a concrete subclass of [[HelpStep]] specialised to the `Double`-valued DSL, so `.help(...)`
+  * chains directly without an `.ofDouble` step. The deprecated `.ofLong` / `.ofDouble` accessors are preserved on the
+  * concrete factory steps below for one release as plain methods — no higher-kinded implicit conversion is needed, so
+  * consumer call sites compile without `-language:higherKinds`.
+  */
+class CounterFactoryStep[F[_]] private[prometheus4cats] (
+    longDsl: HelpStep[MetricDsl[F, Long, Counter]],
+    doubleDsl: HelpStep[MetricDsl[F, Double, Counter]]
+) extends HelpStep[MetricDsl[F, Double, Counter]](h => doubleDsl.help(h)) {
 
-  @deprecated(
-    "use .ofDouble.contramap[Long](_.toDouble) — Double is now the default; an implicit conversion exposes the Double DSL directly on the factory method's return value",
-    "6.0.0"
-  )
-  def ofLong: D[Long] = long
+  @deprecated("Double is now the default — call .help directly", "6.0.0")
+  def ofDouble: HelpStep[MetricDsl[F, Double, Counter]] = doubleDsl
 
-  @deprecated(
-    "Double is now the default — call .help directly (an implicit conversion exposes the Double DSL on the factory method's return value)",
-    "6.0.0"
-  )
-  def ofDouble: D[Double] = double
+  @deprecated("Use .help(...).contramap[Long](_.toDouble) on the resulting DSL", "6.0.0")
+  def ofLong: HelpStep[MetricDsl[F, Long, Counter]] = longDsl
 
 }
 
-object TypeStep {
+class GaugeFactoryStep[F[_]] private[prometheus4cats] (
+    longDsl: HelpStep[MetricDsl[F, Long, Gauge]],
+    doubleDsl: HelpStep[MetricDsl[F, Double, Gauge]]
+) extends HelpStep[MetricDsl[F, Double, Gauge]](h => doubleDsl.help(h)) {
 
-  /** Source-compat shim: makes `factory.counter(name).help(...)` (and similar) compile by transparently selecting the
-    * `Double`-valued DSL. Replaces the old `factory.counter(name).ofDouble.help(...)` two-step. `Long`-valued metrics
-    * are no longer the default; callers wanting `Long` semantics should `.ofDouble.contramap[Long](_.toDouble)`.
-    */
-  @SuppressWarnings(Array("scalafix:DisableSyntax.implicitConversion"))
-  implicit def typeStepIsDouble[D[_]](step: TypeStep[D]): D[Double] = step.double
+  @deprecated("Double is now the default — call .help directly", "6.0.0")
+  def ofDouble: HelpStep[MetricDsl[F, Double, Gauge]] = doubleDsl
+
+  @deprecated("Use .help(...).contramap[Long](_.toDouble) on the resulting DSL", "6.0.0")
+  def ofLong: HelpStep[MetricDsl[F, Long, Gauge]] = longDsl
+
+}
+
+class HistogramFactoryStep[F[_]] private[prometheus4cats] (
+    longDsl: HelpStep[BucketDsl[HistogramMetricDsl[F, Long], Long]],
+    doubleDsl: HelpStep[BucketDsl[HistogramMetricDsl[F, Double], Double]]
+) extends HelpStep[BucketDsl[HistogramMetricDsl[F, Double], Double]](h => doubleDsl.help(h)) {
+
+  @deprecated("Double is now the default — call .help directly", "6.0.0")
+  def ofDouble: HelpStep[BucketDsl[HistogramMetricDsl[F, Double], Double]] = doubleDsl
+
+  @deprecated("Use .help(...).buckets(...).contramap[Long](_.toDouble) on the resulting DSL", "6.0.0")
+  def ofLong: HelpStep[BucketDsl[HistogramMetricDsl[F, Long], Long]] = longDsl
+
+}
+
+/** Native histograms are `Double`-only in spirit — buckets are real-valued regardless of input type — but the
+  * deprecated `.ofLong` / `.ofDouble` accessors are preserved here for one release to keep source-compat with v5-style
+  * call sites. Callers should drop the `.ofDouble` step (the default `.help` path resolves to the same `Double` DSL)
+  * and replace `.ofLong` with `.help(...).contramap[Long](_.toDouble)`.
+  */
+class NativeHistogramFactoryStep[F[_]] private[prometheus4cats] (
+    longDsl: HelpStep[MetricDsl[F, Long, Histogram]],
+    doubleDsl: HelpStep[MetricDsl[F, Double, Histogram]]
+) extends HelpStep[MetricDsl[F, Double, Histogram]](h => doubleDsl.help(h)) {
+
+  @deprecated("Double is now the default — call .help directly", "6.0.0")
+  def ofDouble: HelpStep[MetricDsl[F, Double, Histogram]] = doubleDsl
+
+  @deprecated("Use .help(...).contramap[Long](_.toDouble) on the resulting DSL", "6.0.0")
+  def ofLong: HelpStep[MetricDsl[F, Long, Histogram]] = longDsl
+
+}
+
+class SummaryFactoryStep[F[_]] private[prometheus4cats] (
+    longDsl: HelpStep[SummaryDsl.Base[F, Long]],
+    doubleDsl: HelpStep[SummaryDsl.Base[F, Double]]
+) extends HelpStep[SummaryDsl.Base[F, Double]](h => doubleDsl.help(h)) {
+
+  @deprecated("Double is now the default — call .help directly", "6.0.0")
+  def ofDouble: HelpStep[SummaryDsl.Base[F, Double]] = doubleDsl
+
+  @deprecated("Use .help(...).contramap[Long](_.toDouble) on the resulting DSL", "6.0.0")
+  def ofLong: HelpStep[SummaryDsl.Base[F, Long]] = longDsl
 
 }
 
