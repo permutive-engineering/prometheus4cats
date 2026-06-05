@@ -55,4 +55,10 @@ lazy val `prometheus4cats-java` = module
 lazy val sandbox = module
   .settings(libraryDependencies ++= Dependencies.sandbox)
   .settings(publish / skip := true)
+  // Regression guard for the v6 DSL: factory methods (`counter`, `gauge`, `histogram`, `summary`)
+  // must compile without the `higherKinds` language feature enabled at the consumer. Removing
+  // this flag here exercises the same scalac setup downstream services have (tpolecat defaults
+  // don't include `-language:higherKinds`). If a future change re-introduces a higher-kinded
+  // implicit on the factory return types, the sandbox compile will catch it.
+  .settings(Compile / scalacOptions -= "-language:higherKinds")
   .dependsOn(prometheus4cats, `prometheus4cats-java`)
