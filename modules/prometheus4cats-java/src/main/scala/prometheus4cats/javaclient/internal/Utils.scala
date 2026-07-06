@@ -59,11 +59,16 @@ final private[javaclient] class DataPointResolver[A, D](
   /** Renders the full label-value array for `labels`. Only needed on resolution misses and error paths. */
   def labelArray(labels: A): Array[String] = Utils.buildLabelArray(f(labels), commonLabelValues)
 
-  // computeIfAbsent fast-paths present keys without locking on modern JDKs, so the hot path
-  // (label value already resolved) is a single lock-free map read.
-  def apply(labels: A): D =
-    if (cache.size < maxCachedLabelSets || cache.containsKey(labels)) cache.computeIfAbsent(labels, compute)
-    else compute(labels)
+  // Plain get-then-compute rather than bare computeIfAbsent: computeIfAbsent only skips
+  // locking when the key is the first node of its hash bin, so under collision chains it
+  // synchronizes on every call. A get hit is always a lock-free read; the racy get/compute
+  // window is benign because computeIfAbsent deduplicates the insert.
+  def apply(labels: A): D = {
+    val cached = cache.get(labels)
+    if (cached != null) cached // scalafix:ok
+    else if (cache.size >= maxCachedLabelSets) compute(labels)
+    else cache.computeIfAbsent(labels, compute)
+  }
 
 }
 
