@@ -38,6 +38,7 @@ import io.prometheus.metrics.instrumentation.jvm.JvmMetrics
 import io.prometheus.metrics.model.registry.PrometheusRegistry
 import io.prometheus.metrics.model.snapshots.Labels
 import prometheus4cats._
+import prometheus4cats.javaclient.internal.DataPointResolver
 import prometheus4cats.javaclient.internal.Utils
 import prometheus4cats.javaclient.models.MetricType
 import prometheus4cats.util.DoubleMetricRegistry
@@ -172,6 +173,11 @@ class JavaMetricRegistry[F[_]: Async] private (
       renderedName = fullName,
       labels = allLabelNames
     ).map { case (counter, exemplarRef) =>
+      val resolver = new DataPointResolver[A, CounterDataPoint](
+        f,
+        commonLabelValuesArray,
+        (lbls: Array[String]) => counter.labelValues(lbls: _*)
+      )
       Counter.make(
         Counter.ExemplarState.fromRef(exemplarRef),
         1.0,
@@ -180,12 +186,11 @@ class JavaMetricRegistry[F[_]: Async] private (
             labels: A,
             exemplar: Option[Exemplar.Labels]
         ) =>
-          Utils.modifyMetric[F, Counter.Name, CounterDataPoint](
+          Utils.modifyMetric[F, A, Counter.Name, CounterDataPoint](
             metricName = name,
             allLabelNames = allLabelNames,
-            dynamicLabels = f(labels),
-            commonLabelValues = commonLabelValuesArray,
-            getDataPoint = (lbls: Array[String]) => counter.labelValues(lbls: _*),
+            labels = labels,
+            resolver = resolver,
             modify = (dp: CounterDataPoint) =>
               exemplar.fold(dp.inc(d))(e => dp.incWithExemplar(d, transformExemplarLabels(e))),
             logger = logger
@@ -220,15 +225,15 @@ class JavaMetricRegistry[F[_]: Async] private (
       renderedName = fullName,
       labels = allLabelNames
     ).map { case (gauge, _) =>
+      val resolver = new DataPointResolver[A, GaugeDataPoint](
+        f,
+        commonLabelValuesArray,
+        (lbls: Array[String]) => gauge.labelValues(lbls: _*)
+      )
       @inline
       def modify(g: GaugeDataPoint => Unit, labels: A): F[Unit] =
-        Utils.modifyMetric[F, Gauge.Name, GaugeDataPoint](
-          metricName = name,
-          allLabelNames = allLabelNames,
-          dynamicLabels = f(labels),
-          commonLabelValues = commonLabelValuesArray,
-          getDataPoint = (lbls: Array[String]) => gauge.labelValues(lbls: _*),
-          modify = g,
+        Utils.modifyMetric[F, A, Gauge.Name, GaugeDataPoint](
+          metricName = name, allLabelNames = allLabelNames, labels = labels, resolver = resolver, modify = g,
           logger = logger
         )
 
@@ -276,15 +281,19 @@ class JavaMetricRegistry[F[_]: Async] private (
       renderedName = fullName,
       labels = allLabelNames
     ).map { case (histogram, exemplarRef) =>
+      val resolver = new DataPointResolver[A, DistributionDataPoint](
+        f,
+        commonLabelValuesArray,
+        (lbls: Array[String]) => histogram.labelValues(lbls: _*)
+      )
       Histogram.make[F, Double, A](
         exemplarState(exemplarRef),
         _observe = { (d: Double, labels: A, exemplar: Option[Exemplar.Labels]) =>
-          Utils.modifyMetric[F, Histogram.Name, DistributionDataPoint](
+          Utils.modifyMetric[F, A, Histogram.Name, DistributionDataPoint](
             metricName = name,
             allLabelNames = allLabelNames,
-            dynamicLabels = f(labels),
-            commonLabelValues = commonLabelValuesArray,
-            getDataPoint = (lbls: Array[String]) => histogram.labelValues(lbls: _*),
+            labels = labels,
+            resolver = resolver,
             modify = (dp: DistributionDataPoint) =>
               exemplar.fold(dp.observe(d))(e => dp.observeWithExemplar(d, transformExemplarLabels(e))),
             logger = logger
@@ -419,13 +428,17 @@ class JavaMetricRegistry[F[_]: Async] private (
       renderedName = fullName,
       labels = allLabelNames
     ).map { case (summary, _) =>
+      val resolver = new DataPointResolver[A, DistributionDataPoint](
+        f,
+        commonLabelValuesArray,
+        (lbls: Array[String]) => summary.labelValues(lbls: _*)
+      )
       Summary.make[F, Double, A] { case (d, labels) =>
-        Utils.modifyMetric[F, Summary.Name, DistributionDataPoint](
+        Utils.modifyMetric[F, A, Summary.Name, DistributionDataPoint](
           metricName = name,
           allLabelNames = allLabelNames,
-          dynamicLabels = f(labels),
-          commonLabelValues = commonLabelValuesArray,
-          getDataPoint = (lbls: Array[String]) => summary.labelValues(lbls: _*),
+          labels = labels,
+          resolver = resolver,
           modify = (dp: DistributionDataPoint) => dp.observe(d),
           logger = logger
         )
