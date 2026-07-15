@@ -11,6 +11,6 @@ addSbtPlugin("com.thoughtworks.sbt-api-mappings" % "sbt-api-mappings"      % "3.
 addSbtPlugin("com.github.sbt"                    % "sbt-ci-release"        % "1.12.0")
 addSbtPlugin("com.github.sbt"                    % "sbt-header"            % "5.11.0")
 addSbtPlugin("ch.epfl.scala"                     % "sbt-version-policy"    % "3.3.0")
-addSbtPlugin("org.typelevel"                     % "sbt-tpolecat"          % "0.5.2")
+addSbtPlugin("org.typelevel"                     % "sbt-tpolecat"          % "0.5.7")
 addSbtPlugin("org.scalameta"                     % "sbt-mdoc"              % "2.9.0")
 addSbtPlugin("org.scalameta"                     % "sbt-scalafmt"          % "2.6.1")
