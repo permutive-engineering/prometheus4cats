@@ -35,7 +35,7 @@ object Dependencies {
   )
 
   lazy val sandbox = Seq(
-    "io.prometheus"  % "prometheus-metrics-exporter-httpserver" % "1.6.1",
+    "io.prometheus"  % "prometheus-metrics-exporter-httpserver" % "1.8.0",
     "org.typelevel" %% "cats-effect"                            % "3.6.3"
   )
 
