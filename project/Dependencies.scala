@@ -12,7 +12,7 @@ object Dependencies {
     "org.typelevel" %% "munit-cats-effect"   % "2.2.0"  % Test,
     "org.typelevel" %% "discipline-munit"    % "2.0.0"  % Test,
     "org.scalameta" %% "munit-scalacheck"    % "1.3.0"  % Test,
-    "org.typelevel" %% "scalacheck-effect"   % "1.0.4"  % Test
+    "org.typelevel" %% "scalacheck-effect"   % "2.1.0"  % Test
   )
 
   lazy val `kind-projector` = compilerPlugin(("org.typelevel" % "kind-projector" % "0.13.4").cross(CrossVersion.full))
@@ -24,7 +24,7 @@ object Dependencies {
     "org.scalameta" %% "munit"               % "1.2.4",
     "org.typelevel" %% "munit-cats-effect"   % "2.2.0",
     "org.scalameta" %% "munit-scalacheck"    % "1.3.0",
-    "org.typelevel" %% "scalacheck-effect"   % "1.0.4"
+    "org.typelevel" %% "scalacheck-effect"   % "2.1.0"
   )
 
   lazy val `prometheus4cats-java` = Seq(
