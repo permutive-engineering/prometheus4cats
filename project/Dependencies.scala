@@ -31,7 +31,7 @@ object Dependencies {
     "org.typelevel" %% "alleycats-core"                         % "2.13.0",
     "org.typelevel" %% "cats-effect-std"                        % "3.6.3",
     "io.prometheus"  % "prometheus-metrics-core"                % "1.8.0",
-    "io.prometheus"  % "prometheus-metrics-instrumentation-jvm" % "1.6.1"
+    "io.prometheus"  % "prometheus-metrics-instrumentation-jvm" % "1.8.0"
   )
 
   lazy val sandbox = Seq(
