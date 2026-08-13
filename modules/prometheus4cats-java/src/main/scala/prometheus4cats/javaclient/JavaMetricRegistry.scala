@@ -29,6 +29,7 @@ import cats.syntax.all._
 import io.prometheus.metrics.core.datapoints.CounterDataPoint
 import io.prometheus.metrics.core.datapoints.DistributionDataPoint
 import io.prometheus.metrics.core.datapoints.GaugeDataPoint
+import io.prometheus.metrics.core.metrics.StatefulMetric
 import io.prometheus.metrics.core.metrics.{Counter => PCounter}
 import io.prometheus.metrics.core.metrics.{Gauge => PGauge}
 import io.prometheus.metrics.core.metrics.{Histogram => PHistogram}
@@ -38,6 +39,7 @@ import io.prometheus.metrics.instrumentation.jvm.JvmMetrics
 import io.prometheus.metrics.model.registry.PrometheusRegistry
 import io.prometheus.metrics.model.snapshots.Labels
 import prometheus4cats._
+import prometheus4cats.javaclient.internal.StaleSeriesEvictor
 import prometheus4cats.javaclient.internal.Utils
 import prometheus4cats.javaclient.models.MetricType
 import prometheus4cats.util.DoubleMetricRegistry
@@ -55,8 +57,22 @@ class JavaMetricRegistry[F[_]: Async] private (
     private val registry: PrometheusRegistry,
     private val ref: Ref[F, State[F]],
     private val sem: Semaphore[F],
-    private val logger: Throwable => String => F[Unit]
+    private val logger: Throwable => String => F[Unit],
+    private val evictor: Option[StaleSeriesEvictor]
 ) extends DoubleMetricRegistry[F] {
+
+  private def touched[D](
+      labelNames: IndexedSeq[Label.Name],
+      metric: StatefulMetric[_, _]
+  )(getDataPoint: Array[String] => D): Array[String] => D =
+    evictor match {
+      case Some(e) if labelNames.nonEmpty =>
+        lbls => {
+          e.touch(metric, lbls)
+          getDataPoint(lbls)
+        }
+      case _ => getDataPoint
+    }
 
   type Underlying = PrometheusRegistry
 
@@ -185,7 +201,7 @@ class JavaMetricRegistry[F[_]: Async] private (
             allLabelNames = allLabelNames,
             dynamicLabels = f(labels),
             commonLabelValues = commonLabelValuesArray,
-            getDataPoint = (lbls: Array[String]) => counter.labelValues(lbls: _*),
+            getDataPoint = touched(labelNames, counter)((lbls: Array[String]) => counter.labelValues(lbls: _*)),
             modify = (dp: CounterDataPoint) =>
               exemplar.fold(dp.inc(d))(e => dp.incWithExemplar(d, transformExemplarLabels(e))),
             logger = logger
@@ -227,7 +243,7 @@ class JavaMetricRegistry[F[_]: Async] private (
           allLabelNames = allLabelNames,
           dynamicLabels = f(labels),
           commonLabelValues = commonLabelValuesArray,
-          getDataPoint = (lbls: Array[String]) => gauge.labelValues(lbls: _*),
+          getDataPoint = touched(labelNames, gauge)((lbls: Array[String]) => gauge.labelValues(lbls: _*)),
           modify = g,
           logger = logger
         )
@@ -284,7 +300,7 @@ class JavaMetricRegistry[F[_]: Async] private (
             allLabelNames = allLabelNames,
             dynamicLabels = f(labels),
             commonLabelValues = commonLabelValuesArray,
-            getDataPoint = (lbls: Array[String]) => histogram.labelValues(lbls: _*),
+            getDataPoint = touched(labelNames, histogram)((lbls: Array[String]) => histogram.labelValues(lbls: _*)),
             modify = (dp: DistributionDataPoint) =>
               exemplar.fold(dp.observe(d))(e => dp.observeWithExemplar(d, transformExemplarLabels(e))),
             logger = logger
@@ -425,7 +441,7 @@ class JavaMetricRegistry[F[_]: Async] private (
           allLabelNames = allLabelNames,
           dynamicLabels = f(labels),
           commonLabelValues = commonLabelValuesArray,
-          getDataPoint = (lbls: Array[String]) => summary.labelValues(lbls: _*),
+          getDataPoint = touched(labelNames, summary)((lbls: Array[String]) => summary.labelValues(lbls: _*)),
           modify = (dp: DistributionDataPoint) => dp.observe(d),
           logger = logger
         )
@@ -539,15 +555,17 @@ object JavaMetricRegistry {
   sealed abstract class Builder[F[_]: Async](
       val promRegistry: PrometheusRegistry,
       val logger: Throwable => String => F[Unit],
-      val registerJvmMetrics: Boolean
+      val registerJvmMetrics: Boolean,
+      val staleSeriesTtl: Option[FiniteDuration]
   ) {
 
     private def copy(
         promRegistry: PrometheusRegistry = promRegistry,
         logger: Throwable => String => F[Unit] = logger,
-        registerJvmMetrics: Boolean = registerJvmMetrics
+        registerJvmMetrics: Boolean = registerJvmMetrics,
+        staleSeriesTtl: Option[FiniteDuration] = staleSeriesTtl
     ): Builder[F] =
-      new Builder(promRegistry, logger, registerJvmMetrics) {}
+      new Builder(promRegistry, logger, registerJvmMetrics, staleSeriesTtl) {}
 
     def withRegistry(promRegistry: PrometheusRegistry): Builder[F] = copy(promRegistry = promRegistry)
 
@@ -559,26 +577,45 @@ object JavaMetricRegistry {
       */
     def withJvmMetrics: Builder[F] = copy(registerJvmMetrics = true)
 
+    /** Evict label sets that have not been written to for `ttl`. A background sweep (every quarter of the TTL) removes
+      * idle series from the underlying collectors, so they stop being exposed; a later write recreates the series,
+      * which then starts again from zero. Intended for metrics labelled by unbounded or churning values, where the
+      * registry would otherwise accumulate dead series for the lifetime of the process. Only metrics with at least one
+      * label are affected; callback-backed metrics never are.
+      */
+    def withStaleSeriesEviction(ttl: FiniteDuration): Builder[F] = copy(staleSeriesTtl = Some(ttl))
+
     def build: Resource[F, JavaMetricRegistry[F]] =
       Resource.eval {
         if (registerJvmMetrics) Sync[F].delay(JvmMetrics.builder().register(promRegistry))
         else Applicative[F].unit
       }.flatMap { _ =>
+        val evictor = staleSeriesTtl.map(new StaleSeriesEvictor(_))
+
         val acquire = for {
           ref <- Ref.of[F, State[F]](Map.empty)
           sem <- Semaphore[F](1L)
-          reg  = new JavaMetricRegistry[F](promRegistry, ref, sem, logger)
+          reg  = new JavaMetricRegistry[F](promRegistry, ref, sem, logger, evictor)
         } yield reg
 
-        Resource.make(acquire) { reg =>
-          reg.ref.get.flatMap { metrics =>
-            if (metrics.nonEmpty)
-              metrics.values.toList.traverse_ { case (_, (collector, _, _)) =>
-                Utils.unregister(collector, promRegistry, logger)
-              }
-            else Applicative[F].unit
+        Resource
+          .make(acquire) { reg =>
+            reg.ref.get.flatMap { metrics =>
+              if (metrics.nonEmpty)
+                metrics.values.toList.traverse_ { case (_, (collector, _, _)) =>
+                  Utils.unregister(collector, promRegistry, logger)
+                }
+              else Applicative[F].unit
+            }
           }
-        }
+          .flatTap { _ =>
+            evictor.fold(Resource.unit[F]) { e =>
+              val sweep = Sync[F]
+                .delay(e.sweep())
+                .handleErrorWith(logger(_)("Failed to evict stale Prometheus series"))
+              Async[F].background((Temporal[F].sleep(e.sweepInterval) >> sweep).foreverM[Unit]).void
+            }
+          }
       }
 
   }
@@ -589,7 +626,8 @@ object JavaMetricRegistry {
       new Builder[F](
         promRegistry = PrometheusRegistry.defaultRegistry,
         logger = _ => _ => Async[F].unit,
-        registerJvmMetrics = false
+        registerJvmMetrics = false,
+        staleSeriesTtl = None
       ) {}
 
   }

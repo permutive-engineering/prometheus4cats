@@ -16,6 +16,7 @@
 
 package prometheus4cats.javaclient
 
+import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 
 import cats.effect.IO
@@ -155,5 +156,46 @@ class JavaMetricRegistrySuite extends CatsEffectSuite with DslSuite {
           )
       }
       .sortBy(_.name)
+
+  // ─── suite-local tests ────────────────────────────────────────────────────────────────────────────
+
+  test("withStaleSeriesEviction removes idle label sets and recreates them on the next write") {
+    val promRegistry = new PrometheusRegistry()
+
+    def series(labelValue: String): Option[Double] =
+      promRegistry
+        .scrape()
+        .asScala
+        .toList
+        .collectFirst { case s: CounterSnapshot =>
+          s.getDataPoints.asScala.collectFirst {
+            case dp if promLabelsToMap(dp.getLabels).get("status").contains(labelValue) => dp.getValue
+          }
+        }
+        .flatten
+
+    JavaMetricRegistry
+      .Builder[IO]()
+      .withRegistry(promRegistry)
+      .withStaleSeriesEviction(500.millis)
+      .build
+      .map(MetricFactory.builder.build[IO](_))
+      .flatMap(_.counter("eviction_test_total").help("eviction test").label[String]("status").build)
+      .use { counter =>
+        for {
+          _      <- counter.inc("idle") >> counter.inc("active")
+          before <- IO.delay((series("idle"), series("active")))
+          _      <- (IO.sleep(100.millis) >> counter.inc("active")).replicateA_(10)
+          after  <- IO.delay((series("idle"), series("active")))
+          _      <- counter.inc("idle")
+          revived = series("idle")
+        } yield {
+          assertEquals(before, (Some(1.0), Some(1.0)))
+          assertEquals(after._1, None)
+          assert(after._2.exists(_ >= 10.0))
+          assertEquals(revived, Some(1.0))
+        }
+      }
+  }
 
 }
