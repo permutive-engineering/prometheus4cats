@@ -19,10 +19,12 @@ package prometheus4cats.javaclient
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 
+import cats.data.NonEmptySeq
 import cats.effect.IO
 import cats.effect.Ref
 import cats.effect.kernel.Resource
 
+import io.prometheus.metrics.core.metrics.{Counter => PCounter}
 import io.prometheus.metrics.model.registry.PrometheusRegistry
 import io.prometheus.metrics.model.snapshots.CounterSnapshot
 import io.prometheus.metrics.model.snapshots.GaugeSnapshot
@@ -31,6 +33,7 @@ import io.prometheus.metrics.model.snapshots.InfoSnapshot
 import io.prometheus.metrics.model.snapshots.SummarySnapshot
 import munit.CatsEffectSuite
 import prometheus4cats._
+import prometheus4cats.javaclient.internal.EvictingCollector
 import prometheus4cats.testkit.DslSuite
 
 /** v6-backend wiring for the cross-backend [[DslSuite]].
@@ -159,42 +162,138 @@ class JavaMetricRegistrySuite extends CatsEffectSuite with DslSuite {
 
   // ─── suite-local tests ────────────────────────────────────────────────────────────────────────────
 
-  test("withStaleSeriesEviction removes idle label sets and recreates them on the next write") {
-    val promRegistry = new PrometheusRegistry()
-
-    def series(labelValue: String): Option[Double] =
-      promRegistry
-        .scrape()
-        .asScala
-        .toList
-        .collectFirst { case s: CounterSnapshot =>
-          s.getDataPoints.asScala.collectFirst {
-            case dp if promLabelsToMap(dp.getLabels).get("status").contains(labelValue) => dp.getValue
-          }
-        }
-        .flatten
-
+  private def buildEvicting(promRegistry: PrometheusRegistry, ttl: FiniteDuration): Resource[IO, MetricFactory[IO]] =
     JavaMetricRegistry
       .Builder[IO]()
       .withRegistry(promRegistry)
-      .withStaleSeriesEviction(500.millis)
+      .withStaleSeriesEviction(ttl)
       .build
       .map(MetricFactory.builder.build[IO](_))
-      .flatMap(_.counter("eviction_test_total").help("eviction test").label[String]("status").build)
-      .use { counter =>
-        for {
-          _      <- counter.inc("idle") >> counter.inc("active")
-          before <- IO.delay((series("idle"), series("active")))
-          _      <- (IO.sleep(100.millis) >> counter.inc("active")).replicateA_(10)
-          after  <- IO.delay((series("idle"), series("active")))
-          _      <- counter.inc("idle")
-          revived = series("idle")
-        } yield {
-          assertEquals(before, (Some(1.0), Some(1.0)))
-          assertEquals(after._1, None)
-          assert(after._2.exists(_ >= 10.0))
-          assertEquals(revived, Some(1.0))
-        }
+
+  private def evictingScrape(evicting: EvictingCollector): Map[String, Double] =
+    evicting.collect() match {
+      case s: CounterSnapshot =>
+        s.getDataPoints.asScala.map(dp => promLabelsToMap(dp.getLabels)("status") -> dp.getValue).toMap
+      case other => fail(s"expected CounterSnapshot, got $other")
+    }
+
+  test("EvictingCollector evicts stale label sets at scrape time, exposing them one final time") {
+    var now      = 0L
+    val counter  = PCounter.builder().name("evict_unit_total").help("eviction").labelNames("status").build()
+    val evicting = new EvictingCollector(counter, 100.nanos, () => now)
+
+    def write(status: String): Unit = {
+      evicting.touch(Array(status))
+      counter.labelValues(status).inc()
+    }
+
+    write("idle")
+    write("active")
+    now = 80
+    assertEquals(evictingScrape(evicting), Map("idle" -> 1.0, "active" -> 1.0))
+
+    now = 90
+    write("active")
+    now = 150
+    assertEquals(evictingScrape(evicting), Map("idle" -> 1.0, "active" -> 2.0))
+    assertEquals(evictingScrape(evicting), Map("active" -> 2.0))
+
+    write("idle")
+    assertEquals(evictingScrape(evicting), Map("idle" -> 1.0, "active" -> 2.0))
+  }
+
+  test("EvictingCollector never evicts label sets that have not been written to") {
+    var now      = 0L
+    val counter  = PCounter.builder().name("evict_untouched_total").help("eviction").labelNames("status").build()
+    val evicting = new EvictingCollector(counter, 100.nanos, () => now)
+
+    counter.labelValues("preinitialised").inc()
+    now = 1000
+    assertEquals(evictingScrape(evicting), Map("preinitialised" -> 1.0))
+    assertEquals(evictingScrape(evicting), Map("preinitialised" -> 1.0))
+  }
+
+  test("withStaleSeriesEviction evicts idle series for every stateful metric type and recreates them on write") {
+    val promRegistry = new PrometheusRegistry()
+    val ttl          = 50.millis
+    val names        = List("evict_counter", "evict_gauge", "evict_histogram", "evict_summary")
+
+    def dataPoints: IO[List[List[DataPointState]]] =
+      IO.delay {
+        val states = scrapeToFamilyStates(promRegistry)
+        names.map(n => states.find(_.name == n).map(_.dataPoints).getOrElse(Nil))
+      }
+
+    val metrics = for {
+      factory <- buildEvicting(promRegistry, ttl)
+      counter <- factory.counter("evict_counter_total").help("eviction").label[String]("status").build
+      gauge   <- factory.gauge("evict_gauge").help("eviction").label[String]("status").build
+      histogram <-
+        factory.histogram("evict_histogram").help("eviction").buckets(NonEmptySeq.one(1.0)).label[String]("status").build
+      summary <- factory.summary("evict_summary").help("eviction").label[String]("status").build
+    } yield (counter, gauge, histogram, summary)
+
+    metrics.use { case (counter, gauge, histogram, summary) =>
+      val writeAll =
+        counter.inc("a") >> gauge.set(1.0, "a") >> histogram.observe(1.0, "a") >> summary.observe(1.0, "a")
+
+      for {
+        _       <- writeAll
+        before  <- dataPoints
+        _       <- IO.sleep(ttl * 3)
+        _       <- dataPoints
+        evicted <- dataPoints
+        _       <- writeAll
+        revived <- dataPoints
+      } yield {
+        assert(before.forall(_.nonEmpty), s"expected data points for all metrics before eviction, got $before")
+        assert(evicted.forall(_.isEmpty), s"expected all series evicted after two scrapes past the TTL, got $evicted")
+        assert(revived.forall(_.nonEmpty), s"expected all series recreated by the next write, got $revived")
+      }
+    }
+  }
+
+  test("withStaleSeriesEviction leaves metrics without dynamic labels untouched") {
+    val promRegistry = new PrometheusRegistry()
+    val ttl          = 50.millis
+    val names        = List("evict_plain", "evict_common")
+
+    def dataPoints: IO[List[List[DataPointState]]] =
+      IO.delay {
+        val states = scrapeToFamilyStates(promRegistry)
+        names.map(n => states.find(_.name == n).map(_.dataPoints).getOrElse(Nil))
+      }
+
+    val metrics = for {
+      factory      <- buildEvicting(promRegistry, ttl)
+      commonFactory = factory.withCommonLabels(Metric.CommonLabels(Label.Name("app") -> "test"))
+      plain        <- factory.counter("evict_plain_total").help("eviction").build
+      common       <- commonFactory.counter("evict_common_total").help("eviction").build
+    } yield (plain, common)
+
+    metrics.use { case (plain, common) =>
+      for {
+        _     <- plain.inc >> common.inc
+        _     <- IO.sleep(ttl * 3)
+        _     <- dataPoints
+        after <- dataPoints
+      } yield assert(
+        after.forall(_.exists { case CounterDP(_, 1.0, _) => true; case _ => false }),
+        s"expected both counters to survive scrapes past the TTL, got $after"
+      )
+    }
+  }
+
+  test("EvictingCollector preserves the registry's duplicate-name detection") {
+    val promRegistry = new PrometheusRegistry()
+
+    buildEvicting(promRegistry, 50.millis)
+      .flatMap(_.counter("evict_dup_total").help("eviction").label[String]("status").build)
+      .use { _ =>
+        IO.delay(
+          PCounter.builder().name("evict_dup_total").help("eviction").labelNames("status").register(promRegistry)
+        ).attempt
+          .map(res => assert(res.isLeft, "expected duplicate registration through the wrapper to be rejected"))
       }
   }
 

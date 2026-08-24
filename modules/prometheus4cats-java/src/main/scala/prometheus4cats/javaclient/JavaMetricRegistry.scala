@@ -36,10 +36,11 @@ import io.prometheus.metrics.core.metrics.{Histogram => PHistogram}
 import io.prometheus.metrics.core.metrics.{Info => PInfo}
 import io.prometheus.metrics.core.metrics.{Summary => PSummary}
 import io.prometheus.metrics.instrumentation.jvm.JvmMetrics
+import io.prometheus.metrics.model.registry.Collector
 import io.prometheus.metrics.model.registry.PrometheusRegistry
 import io.prometheus.metrics.model.snapshots.Labels
 import prometheus4cats._
-import prometheus4cats.javaclient.internal.StaleSeriesEvictor
+import prometheus4cats.javaclient.internal.EvictingCollector
 import prometheus4cats.javaclient.internal.Utils
 import prometheus4cats.javaclient.models.MetricType
 import prometheus4cats.util.DoubleMetricRegistry
@@ -58,20 +59,15 @@ class JavaMetricRegistry[F[_]: Async] private (
     private val ref: Ref[F, State[F]],
     private val sem: Semaphore[F],
     private val logger: Throwable => String => F[Unit],
-    private val evictor: Option[StaleSeriesEvictor]
+    private val staleSeriesTtl: Option[FiniteDuration]
 ) extends DoubleMetricRegistry[F] {
 
-  private def touched[D](
-      labelNames: IndexedSeq[Label.Name],
-      metric: StatefulMetric[_, _]
+  private def withTouch[D](
+      evicting: Option[EvictingCollector]
   )(getDataPoint: Array[String] => D): Array[String] => D =
-    evictor match {
-      case Some(e) if labelNames.nonEmpty =>
-        lbls => {
-          e.touch(metric, lbls)
-          getDataPoint(lbls)
-        }
-      case _ => getDataPoint
+    evicting.fold(getDataPoint) { e => lbls =>
+      e.touch(lbls)
+      getDataPoint(lbls)
     }
 
   type Underlying = PrometheusRegistry
@@ -88,21 +84,23 @@ class JavaMetricRegistry[F[_]: Async] private (
 
   /** Common pre-registration plumbing: under the semaphore, look up an existing metric by name+labels+type. If present
     * with the same metric ID, increment its claim count and reuse. If present with a different metric ID, raise. If
-    * absent, run the user-provided `register` thunk to construct & register a fresh collector and store it. On release,
-    * decrement the claim count and unregister when the last claim is dropped.
+    * absent, run the user-provided `build` thunk to construct a fresh metric, register it (wrapped in an
+    * [[internal.EvictingCollector]] when stale-series eviction is enabled and the metric has dynamic labels) and store
+    * the registered collector. On release, decrement the claim count and unregister when the last claim is dropped.
     *
     * Mirrors the behaviour of the legacy `javasimpleclient` adapter — supports overlapping `Resource`-scoped
     * registrations of the same metric name without registering it twice with the underlying registry.
     */
   @SuppressWarnings(Array("scalafix:DisableSyntax.=="))
-  protected def configureBuilderOrRetrieve[M <: io.prometheus.metrics.core.metrics.StatefulMetric[_, _]](
-      register: () => M,
+  protected def configureBuilderOrRetrieve[M <: StatefulMetric[_, _]](
+      build: () => M,
       metricType: MetricType,
       metricPrefix: Option[Metric.Prefix],
       stringName: String,
       renderedName: String,
-      labels: IndexedSeq[Label.Name]
-  ): Resource[F, (M, Ref[F, Option[Exemplar.Data]])] = {
+      labels: IndexedSeq[Label.Name],
+      dynamicLabels: IndexedSeq[Label.Name]
+  ): Resource[F, (M, Option[EvictingCollector], Ref[F, Option[Exemplar.Data]])] = {
     lazy val metricId: MetricID = (labels, metricType)
     lazy val fullName: StateKey = (metricPrefix, stringName)
     // `renderedName` is the wire-level metric name (e.g. `foo_total` for Counter); used in error
@@ -112,17 +110,21 @@ class JavaMetricRegistry[F[_]: Async] private (
 
     val acquire = sem.permit.surround(
       ref.get
-        .flatMap[(State[F], (M, Ref[F, Option[Exemplar.Data]]))] { (metrics: State[F]) =>
+        .flatMap[(State[F], (M, Option[EvictingCollector], Ref[F, Option[Exemplar.Data]]))] { (metrics: State[F]) =>
           metrics.get(fullName) match {
             case Some((expected, (collector, exemplarRef, references))) =>
-              if (metricId == expected)
+              if (metricId == expected) {
+                val (metric, evicting) = collector match {
+                  case e: EvictingCollector => (e.underlying.asInstanceOf[M], Some(e))
+                  case m                    => (m.asInstanceOf[M], None)
+                }
                 Applicative[F].pure(
                   (
                     metrics.updated(fullName, (expected, (collector, exemplarRef, references + 1))),
-                    (collector.asInstanceOf[M], exemplarRef)
+                    (metric, evicting, exemplarRef)
                   )
                 )
-              else
+              } else
                 ApplicativeThrow[F].raiseError(
                   new RuntimeException(
                     s"A metric with the same name as '$renderedFullName' is already registered with different labels and/or type"
@@ -131,19 +133,31 @@ class JavaMetricRegistry[F[_]: Async] private (
             case None =>
               for {
                 exemplarRef <- Ref.of[F, Option[Exemplar.Data]](None)
-                collector   <- Sync[F].delay(register())
-              } yield (metrics.updated(fullName, (metricId, (collector, exemplarRef, 1))), (collector, exemplarRef))
+                registered <- Sync[F].delay {
+                                val metric = build()
+                                val evicting = staleSeriesTtl
+                                  .filter(_ => dynamicLabels.nonEmpty)
+                                  .map(new EvictingCollector(metric, _))
+                                val collector: Collector = evicting.getOrElse(metric)
+                                registry.register(collector)
+                                (metric, evicting, collector)
+                              }
+                (metric, evicting, collector) = registered
+              } yield (
+                metrics.updated(fullName, (metricId, (collector, exemplarRef, 1))),
+                (metric, evicting, exemplarRef)
+              )
           }
         }
         .flatMap { case (state, pair) => ref.set(state).as(pair) }
     )
 
-    Resource.make(acquire) { case (collector, _) =>
+    Resource.make(acquire) { _ =>
       sem.permit.surround {
         ref.get.flatMap { metrics =>
           metrics.get(fullName) match {
-            case Some((`metricId`, (_, _, 1))) =>
-              ref.set(metrics - fullName) >> Utils.unregister(collector, registry, logger)
+            case Some((`metricId`, (registered, _, 1))) =>
+              ref.set(metrics - fullName) >> Utils.unregister(registered, registry, logger)
             case Some((`metricId`, (collector, exemplarRef, references))) =>
               ref.set(metrics.updated(fullName, (metricId, (collector, exemplarRef, references - 1))))
             case _ =>
@@ -171,7 +185,7 @@ class JavaMetricRegistry[F[_]: Async] private (
     val fullName               = NameUtils.makeName(prefix, name)
 
     configureBuilderOrRetrieve[PCounter](
-      register = () =>
+      build = () =>
         // No `.withExemplars()` — that method is inherited from the package-private
         // StatefulMetric$Builder, and exposing its return type from outside its package
         // triggers IllegalAccessError at JVM access-check time. Exemplar handling is enabled
@@ -181,13 +195,16 @@ class JavaMetricRegistry[F[_]: Async] private (
           .name(fullName)
           .help(help.value)
           .labelNames(allLabelNames.map(_.value): _*)
-          .register(registry),
+          .build(),
       metricType = MetricType.Counter,
       metricPrefix = prefix,
       stringName = n,
       renderedName = fullName,
-      labels = allLabelNames
-    ).map { case (counter, exemplarRef) =>
+      labels = allLabelNames,
+      dynamicLabels = labelNames
+    ).map { case (counter, evicting, exemplarRef) =>
+      val getDataPoint = withTouch(evicting)((lbls: Array[String]) => counter.labelValues(lbls: _*))
+
       Counter.make(
         Counter.ExemplarState.fromRef(exemplarRef),
         1.0,
@@ -201,7 +218,7 @@ class JavaMetricRegistry[F[_]: Async] private (
             allLabelNames = allLabelNames,
             dynamicLabels = f(labels),
             commonLabelValues = commonLabelValuesArray,
-            getDataPoint = touched(labelNames, counter)((lbls: Array[String]) => counter.labelValues(lbls: _*)),
+            getDataPoint = getDataPoint,
             modify = (dp: CounterDataPoint) =>
               exemplar.fold(dp.inc(d))(e => dp.incWithExemplar(d, transformExemplarLabels(e))),
             logger = logger
@@ -223,29 +240,27 @@ class JavaMetricRegistry[F[_]: Async] private (
     val fullName               = NameUtils.makeName(prefix, name)
 
     configureBuilderOrRetrieve[PGauge](
-      register = () =>
+      build = () =>
         PGauge
           .builder()
           .name(fullName)
           .help(help.value)
           .labelNames(allLabelNames.map(_.value): _*)
-          .register(registry),
+          .build(),
       metricType = MetricType.Gauge,
       metricPrefix = prefix,
       stringName = name.value,
       renderedName = fullName,
-      labels = allLabelNames
-    ).map { case (gauge, _) =>
+      labels = allLabelNames,
+      dynamicLabels = labelNames
+    ).map { case (gauge, evicting, _) =>
+      val getDataPoint = withTouch(evicting)((lbls: Array[String]) => gauge.labelValues(lbls: _*))
+
       @inline
       def modify(g: GaugeDataPoint => Unit, labels: A): F[Unit] =
         Utils.modifyMetric[F, Gauge.Name, GaugeDataPoint](
-          metricName = name,
-          allLabelNames = allLabelNames,
-          dynamicLabels = f(labels),
-          commonLabelValues = commonLabelValuesArray,
-          getDataPoint = touched(labelNames, gauge)((lbls: Array[String]) => gauge.labelValues(lbls: _*)),
-          modify = g,
-          logger = logger
+          metricName = name, allLabelNames = allLabelNames, dynamicLabels = f(labels),
+          commonLabelValues = commonLabelValuesArray, getDataPoint = getDataPoint, modify = g, logger = logger
         )
 
       def inc(n: Double, labels: A): F[Unit] = modify(_.inc(n), labels)
@@ -278,20 +293,23 @@ class JavaMetricRegistry[F[_]: Async] private (
     val fullName               = NameUtils.makeName(prefix, name)
 
     configureBuilderOrRetrieve[PHistogram](
-      register = () =>
+      build = () =>
         configureBuilder(
           PHistogram
             .builder()
             .name(fullName)
             .help(help.value)
             .labelNames(allLabelNames.map(_.value): _*)
-        ).register(registry),
+        ).build(),
       metricType = metricType,
       metricPrefix = prefix,
       stringName = name.value,
       renderedName = fullName,
-      labels = allLabelNames
-    ).map { case (histogram, exemplarRef) =>
+      labels = allLabelNames,
+      dynamicLabels = labelNames
+    ).map { case (histogram, evicting, exemplarRef) =>
+      val getDataPoint = withTouch(evicting)((lbls: Array[String]) => histogram.labelValues(lbls: _*))
+
       Histogram.make[F, Double, A](
         exemplarState(exemplarRef),
         _observe = { (d: Double, labels: A, exemplar: Option[Exemplar.Labels]) =>
@@ -300,7 +318,7 @@ class JavaMetricRegistry[F[_]: Async] private (
             allLabelNames = allLabelNames,
             dynamicLabels = f(labels),
             commonLabelValues = commonLabelValuesArray,
-            getDataPoint = touched(labelNames, histogram)((lbls: Array[String]) => histogram.labelValues(lbls: _*)),
+            getDataPoint = getDataPoint,
             modify = (dp: DistributionDataPoint) =>
               exemplar.fold(dp.observe(d))(e => dp.observeWithExemplar(d, transformExemplarLabels(e))),
             logger = logger
@@ -418,7 +436,7 @@ class JavaMetricRegistry[F[_]: Async] private (
     val fullName               = NameUtils.makeName(prefix, name)
 
     configureBuilderOrRetrieve[PSummary](
-      register = () => {
+      build = () => {
         val builder = PSummary
           .builder()
           .name(fullName)
@@ -427,21 +445,24 @@ class JavaMetricRegistry[F[_]: Async] private (
           .maxAgeSeconds(maxAge.toSeconds)
           .numberOfAgeBuckets(ageBuckets.value)
         quantiles.foreach(q => builder.quantile(q.value.value, q.error.value))
-        builder.register(registry)
+        builder.build()
       },
       metricType = MetricType.Summary,
       metricPrefix = prefix,
       stringName = name.value,
       renderedName = fullName,
-      labels = allLabelNames
-    ).map { case (summary, _) =>
+      labels = allLabelNames,
+      dynamicLabels = labelNames
+    ).map { case (summary, evicting, _) =>
+      val getDataPoint = withTouch(evicting)((lbls: Array[String]) => summary.labelValues(lbls: _*))
+
       Summary.make[F, Double, A] { case (d, labels) =>
         Utils.modifyMetric[F, Summary.Name, DistributionDataPoint](
           metricName = name,
           allLabelNames = allLabelNames,
           dynamicLabels = f(labels),
           commonLabelValues = commonLabelValuesArray,
-          getDataPoint = touched(labelNames, summary)((lbls: Array[String]) => summary.labelValues(lbls: _*)),
+          getDataPoint = getDataPoint,
           modify = (dp: DistributionDataPoint) => dp.observe(d),
           logger = logger
         )
@@ -577,45 +598,38 @@ object JavaMetricRegistry {
       */
     def withJvmMetrics: Builder[F] = copy(registerJvmMetrics = true)
 
-    /** Evict label sets that have not been written to for `ttl`. A background sweep (every quarter of the TTL) removes
-      * idle series from the underlying collectors, so they stop being exposed; a later write recreates the series,
-      * which then starts again from zero. Intended for metrics labelled by unbounded or churning values, where the
-      * registry would otherwise accumulate dead series for the lifetime of the process. Only metrics with at least one
-      * label are affected; callback-backed metrics never are.
+    /** Evict label sets that have not been written to for `ttl`. Eviction is driven by the scrape: each scrape exposes
+      * a stale series one final time and removes it from the underlying collector, so it is absent from subsequent
+      * scrapes; a later write recreates the series, which then starts again from zero. Intended for metrics labelled by
+      * unbounded or churning values, where the registry would otherwise accumulate dead series for the lifetime of the
+      * process. Only metrics with at least one label are affected; callback-backed metrics never are. Because eviction
+      * only happens at scrape time, a registry that is never scraped never evicts.
       */
-    def withStaleSeriesEviction(ttl: FiniteDuration): Builder[F] = copy(staleSeriesTtl = Some(ttl))
+    def withStaleSeriesEviction(ttl: FiniteDuration): Builder[F] = {
+      require(ttl > Duration.Zero, s"stale series TTL must be positive, got $ttl")
+      copy(staleSeriesTtl = Some(ttl))
+    }
 
     def build: Resource[F, JavaMetricRegistry[F]] =
       Resource.eval {
         if (registerJvmMetrics) Sync[F].delay(JvmMetrics.builder().register(promRegistry))
         else Applicative[F].unit
       }.flatMap { _ =>
-        val evictor = staleSeriesTtl.map(new StaleSeriesEvictor(_))
-
         val acquire = for {
           ref <- Ref.of[F, State[F]](Map.empty)
           sem <- Semaphore[F](1L)
-          reg  = new JavaMetricRegistry[F](promRegistry, ref, sem, logger, evictor)
+          reg  = new JavaMetricRegistry[F](promRegistry, ref, sem, logger, staleSeriesTtl)
         } yield reg
 
-        Resource
-          .make(acquire) { reg =>
-            reg.ref.get.flatMap { metrics =>
-              if (metrics.nonEmpty)
-                metrics.values.toList.traverse_ { case (_, (collector, _, _)) =>
-                  Utils.unregister(collector, promRegistry, logger)
-                }
-              else Applicative[F].unit
-            }
+        Resource.make(acquire) { reg =>
+          reg.ref.get.flatMap { metrics =>
+            if (metrics.nonEmpty)
+              metrics.values.toList.traverse_ { case (_, (collector, _, _)) =>
+                Utils.unregister(collector, promRegistry, logger)
+              }
+            else Applicative[F].unit
           }
-          .flatTap { _ =>
-            evictor.fold(Resource.unit[F]) { e =>
-              val sweep = Sync[F]
-                .delay(e.sweep())
-                .handleErrorWith(logger(_)("Failed to evict stale Prometheus series"))
-              Async[F].background((Temporal[F].sleep(e.sweepInterval) >> sweep).foreverM[Unit]).void
-            }
-          }
+        }
       }
 
   }

@@ -19,7 +19,7 @@ package prometheus4cats.javaclient.internal
 import cats.effect.kernel.Sync
 import cats.syntax.all._
 
-import io.prometheus.metrics.core.metrics.MetricWithFixedMetadata
+import io.prometheus.metrics.model.registry.Collector
 import io.prometheus.metrics.model.registry.PrometheusRegistry
 import prometheus4cats.Label
 import prometheus4cats.javaclient.models.Exceptions._
@@ -27,7 +27,7 @@ import prometheus4cats.javaclient.models.Exceptions._
 private[javaclient] object Utils {
 
   private[javaclient] def unregister[F[_]: Sync](
-      collector: MetricWithFixedMetadata,
+      collector: Collector,
       registry: PrometheusRegistry,
       logger: Throwable => String => F[Unit]
   ): F[Unit] =
