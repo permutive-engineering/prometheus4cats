@@ -85,8 +85,8 @@ class JavaMetricRegistry[F[_]: Async] private (
   /** Common pre-registration plumbing: under the semaphore, look up an existing metric by name+labels+type. If present
     * with the same metric ID, increment its claim count and reuse. If present with a different metric ID, raise. If
     * absent, run the user-provided `build` thunk to construct a fresh metric, register it (wrapped in an
-    * [[internal.EvictingCollector]] when stale-series eviction is enabled and the metric has dynamic labels) and store
-    * the registered collector. On release, decrement the claim count and unregister when the last claim is dropped.
+    * `EvictingCollector` when stale-series eviction is enabled and the metric has dynamic labels) and store the
+    * registered collector. On release, decrement the claim count and unregister when the last claim is dropped.
     *
     * Mirrors the behaviour of the legacy `javasimpleclient` adapter — supports overlapping `Resource`-scoped
     * registrations of the same metric name without registering it twice with the underlying registry.
