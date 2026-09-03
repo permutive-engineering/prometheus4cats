@@ -31,6 +31,25 @@ val factory: Resource[IO, MetricFactory[IO]] =
   custom.map(MetricFactory.builder.build(_))
 ```
 
+## Stale Series Eviction
+
+Metrics labelled by unbounded or churning values accumulate dead series for the lifetime of the process, growing the
+exposition (and scrape cost) without bound. `Builder#withStaleSeriesEviction(ttl)` opts in to evicting them: a label
+set that has not been written to within `ttl` is exposed one final time and then removed at scrape time, so it is
+absent from subsequent scrapes. A later write recreates the series, which restarts from zero — consumers should be
+comfortable with counters resetting.
+
+Operational caveats:
+
+- Only metrics with at least one dynamic label participate; unlabelled, common-labels-only, `Info` and callback-backed
+  metrics are untouched.
+- Every labelled stateful metric participates, **gauges included**. A labelled gauge that is set once (a `build_info`
+  style constant) or only on change is evicted `ttl` after its last `set` and stays absent until the next one, so
+  `absent(...)` or `== 1` alerts over it can misfire. Keep such gauges unlabelled, or do not enable eviction on the
+  registry that holds them.
+- Eviction is driven by the scrape, so a registry that is never scraped never evicts.
+- The registry retains a small tracking entry (label values plus a timestamp) per live label set.
+
 ## Implementation Notes
 
 As per the [`MetricRegistry`] interface, this implementation returns Cats-Effect `Resource`s to indicate a metric

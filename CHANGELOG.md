@@ -23,6 +23,13 @@ the [migration guide](./website/docs/migrating-from-v5.md) for the upgrade path.
   `*ProvidedExemplar` variants on counter and histogram observation methods
 - Sandbox project (`modules/sandbox/`) with a runnable Prometheus + Grafana stack for local
   exploration of every metric kind
+- Opt-in stale-series eviction via `JavaMetricRegistry.Builder#withStaleSeriesEviction(ttl)`:
+  label sets that have not been written to within `ttl` are exposed one final time and then
+  removed at scrape time, so idle series stop being exposed; a later write recreates the series
+  from zero. Only stateful metrics with at least one dynamic label participate — gauges included,
+  so a labelled gauge set once or only on change will disappear until its next `set` — eviction
+  only happens when the registry is scraped, and the registry retains a timestamp per live label
+  set
 
 ### Changed
 

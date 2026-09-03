@@ -19,7 +19,7 @@ package prometheus4cats
 import cats.Show
 import cats.effect.kernel.Ref
 
-import io.prometheus.metrics.core.metrics.MetricWithFixedMetadata
+import io.prometheus.metrics.model.registry.Collector
 import prometheus4cats.javaclient.models.MetricType
 import prometheus4cats.util.NameUtils
 
@@ -29,12 +29,11 @@ package object javaclient {
 
   private[javaclient] type MetricID = (IndexedSeq[Label.Name], MetricType)
 
-  /** State entry bound by the most specific common parent of every upstream metric type we register —
-    * `MetricWithFixedMetadata`. Counter, Gauge, Histogram, Summary all extend `StatefulMetric` which extends this; Info
-    * extends this directly without going through `StatefulMetric`.
+  /** State entry holding the object that was registered with the `PrometheusRegistry` — the metric itself, or the
+    * `EvictingCollector` wrapping it when stale-series eviction is enabled — so release can unregister the same object.
     */
   private[javaclient] type StateValue[F[_]] =
-    (MetricID, (MetricWithFixedMetadata, Ref[F, Option[Exemplar.Data]], Int))
+    (MetricID, (Collector, Ref[F, Option[Exemplar.Data]], Int))
 
   private[javaclient] type State[F[_]] = Map[StateKey, StateValue[F]]
 
