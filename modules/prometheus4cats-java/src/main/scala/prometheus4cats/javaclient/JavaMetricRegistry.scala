@@ -512,7 +512,7 @@ class JavaMetricRegistry[F[_]: Async] private (
             case None =>
               for {
                 exemplarRef <- Ref.of[F, Option[Exemplar.Data]](None)
-                collector <- Sync[F].delay(
+                collector   <- Sync[F].delay(
                                PInfo
                                  .builder()
                                  .name(renderedFullName)

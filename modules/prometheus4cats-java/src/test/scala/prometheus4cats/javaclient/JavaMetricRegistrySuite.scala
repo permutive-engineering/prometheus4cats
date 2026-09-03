@@ -65,7 +65,7 @@ class JavaMetricRegistrySuite extends CatsEffectSuite with DslSuite {
   override def getRegistryState: IO[List[FamilyState]] =
     promRegistryRef.get.flatMap {
       case Some(pr) => IO.delay(scrapeToFamilyStates(pr))
-      case None =>
+      case None     =>
         IO.raiseError(
           new IllegalStateException("getRegistryState called outside of an active `resource.use { … }` scope")
         )
@@ -96,9 +96,8 @@ class JavaMetricRegistrySuite extends CatsEffectSuite with DslSuite {
             "COUNTER",
             s.getMetadata.getHelp,
             sortDataPoints(
-              s.getDataPoints.asScala.toList.map(dp =>
-                CounterDP(promLabelsToMap(dp.getLabels), dp.getValue, promExemplarToMap(dp.getExemplar))
-              )
+              s.getDataPoints.asScala.toList
+                .map(dp => CounterDP(promLabelsToMap(dp.getLabels), dp.getValue, promExemplarToMap(dp.getExemplar)))
             )
           )
         case s: GaugeSnapshot =>
