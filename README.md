@@ -19,8 +19,8 @@ To use the latest version, include the following in your `build.sbt`:
 
 ```scala
 libraryDependencies ++= Seq(
-  "com.permutive" %% "prometheus4cats" % "6.0.0-RC3",
-  "com.permutive" %% "prometheus4cats-java" % "6.0.0-RC3"
+  "com.permutive" %% "prometheus4cats" % "6.0.0-RC4",
+  "com.permutive" %% "prometheus4cats-java" % "6.0.0-RC4"
 )
 ```
 
