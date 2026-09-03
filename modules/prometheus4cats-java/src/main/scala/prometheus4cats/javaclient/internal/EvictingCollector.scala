@@ -35,6 +35,11 @@ import io.prometheus.metrics.model.snapshots.MetricSnapshot
   *
   * Label sets never seen by [[touch]] (e.g. pre-initialised but never written) are never evicted.
   *
+  * Eviction scans the [[touch]] map rather than the underlying metric's data points: the map is the same size as the
+  * live series set, so the common case (nothing stale) costs one `long` comparison per series instead of a hash and a
+  * lookup, and a tracking entry whose write was rejected before its data point was created is reclaimed rather than
+  * retained for the lifetime of the process.
+  *
   * The metadata accessors must all delegate to `underlying`: `PrometheusRegistry.register` uses them for duplicate-name
   * and type-conflict detection and skips those checks when they return `null`, so missing one would silently disable
   * that validation for the wrapped metric.
@@ -44,8 +49,10 @@ import io.prometheus.metrics.model.snapshots.MetricSnapshot
   * pure `Array[String] => D` so a metric write stays a single `Sync[F].delay`. `touch` costs one `List` wrapper and one
   * boxed `Long` allocation per write.
   *
-  * Staleness is decided from the [[touch]] map, but the removal itself is not atomic with that decision: a write
-  * landing between the two may be lost, and the series will then not be re-exposed until its following write.
+  * Staleness is decided from the [[touch]] map, but the removal itself is not atomic with that decision. The removal is
+  * gated on the tracking entry still holding the timestamp the decision was made from, so a write that lands in that
+  * window keeps both its entry and its data point; what it can lose is the eviction of a series that went stale in the
+  * same instant, which the following scrape re-evaluates.
   */
 final private[javaclient] class EvictingCollector(
     val underlying: StatefulMetric[_, _],
@@ -60,15 +67,15 @@ final private[javaclient] class EvictingCollector(
   def touch(labelValues: Array[String]): Unit =
     lastWrite.put(java.util.Arrays.asList(labelValues: _*), java.lang.Long.valueOf(now())): Unit
 
-  @SuppressWarnings(Array("scalafix:DisableSyntax.null"))
+  private[javaclient] def trackedSeries: Int = lastWrite.size()
+
   override def collect(): MetricSnapshot = {
     val snapshot = underlying.collect()
-    val cutoff   = now() - ttlNanos
-    underlying.removeIf { labels =>
-      val t     = lastWrite.get(labels)
-      val stale = (t ne null) && t.longValue() < cutoff
-      if (stale) lastWrite.remove(labels, t): Unit
-      stale
+    // Compared by difference: `System.nanoTime()`'s origin is arbitrary and only differences are meaningful.
+    val cutoff = now() - ttlNanos
+    lastWrite.forEach { (labels, written) =>
+      if (written.longValue() - cutoff < 0 && lastWrite.remove(labels, written))
+        underlying.remove(labels.toArray(new Array[String](labels.size())): _*)
     }
     snapshot
   }

@@ -62,12 +62,18 @@ class JavaMetricRegistry[F[_]: Async] private (
     private val staleSeriesTtl: Option[FiniteDuration]
 ) extends DoubleMetricRegistry[F] {
 
+  /** Wraps a data-point lookup so that every write refreshes the label set's eviction timestamp. The lookup runs first:
+    * upstream rejects some label values (a `null` among them) from inside `labelValues`, and touching before that would
+    * record a label set the metric holds no data point for — which eviction, driven off the tracking map, would then
+    * have to reclaim after the fact.
+    */
   private def withTouch[D](
       evicting: Option[EvictingCollector]
   )(getDataPoint: Array[String] => D): Array[String] => D =
     evicting.fold(getDataPoint) { e => lbls =>
+      val dataPoint = getDataPoint(lbls)
       e.touch(lbls)
-      getDataPoint(lbls)
+      dataPoint
     }
 
   type Underlying = PrometheusRegistry
@@ -602,18 +608,31 @@ object JavaMetricRegistry {
       * a stale series one final time and removes it from the underlying collector, so it is absent from subsequent
       * scrapes; a later write recreates the series, which then starts again from zero. Intended for metrics labelled by
       * unbounded or churning values, where the registry would otherwise accumulate dead series for the lifetime of the
-      * process. Only metrics with at least one label are affected; callback-backed metrics never are. Because eviction
-      * only happens at scrape time, a registry that is never scraped never evicts.
+      * process. Only metrics with at least one *dynamic* label are affected; unlabelled, common-labels-only, `Info` and
+      * callback-backed metrics never are. Because eviction only happens at scrape time, a registry that is never
+      * scraped never evicts.
+      *
+      * This applies to every labelled stateful metric, gauges included. A labelled gauge that is set once (a
+      * `build_info`-style constant) or only on change will therefore be evicted `ttl` after its last `set` and stay
+      * absent until the next one, so `absent(...)` or `== 1` alerts over it can misfire. Keep such gauges unlabelled,
+      * or do not enable eviction on the registry that holds them.
+      *
+      * `ttl` must be positive; a non-positive value fails [[build]].
       */
-    def withStaleSeriesEviction(ttl: FiniteDuration): Builder[F] = {
-      require(ttl > Duration.Zero, s"stale series TTL must be positive, got $ttl")
-      copy(staleSeriesTtl = Some(ttl))
-    }
+    def withStaleSeriesEviction(ttl: FiniteDuration): Builder[F] = copy(staleSeriesTtl = Some(ttl))
 
     def build: Resource[F, JavaMetricRegistry[F]] =
       Resource.eval {
-        if (registerJvmMetrics) Sync[F].delay(JvmMetrics.builder().register(promRegistry))
-        else Applicative[F].unit
+        staleSeriesTtl.traverse_ { ttl =>
+          Sync[F].raiseUnless(ttl > Duration.Zero)(
+            new IllegalArgumentException(s"stale series TTL must be positive, got $ttl")
+          )
+        }
+      }.flatMap { _ =>
+        Resource.eval {
+          if (registerJvmMetrics) Sync[F].delay(JvmMetrics.builder().register(promRegistry))
+          else Applicative[F].unit
+        }
       }.flatMap { _ =>
         val acquire = for {
           ref <- Ref.of[F, State[F]](Map.empty)

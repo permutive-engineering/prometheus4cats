@@ -284,6 +284,35 @@ class JavaMetricRegistrySuite extends CatsEffectSuite with DslSuite {
     }
   }
 
+  test("EvictingCollector reclaims tracking entries whose data point was never created") {
+    var now      = 0L
+    val counter  = PCounter.builder().name("evict_orphan_total").help("eviction").labelNames("status").build()
+    val evicting = new EvictingCollector(counter, 100.nanos, () => now)
+
+    evicting.touch(Array("rejected"))
+    assertEquals(evicting.trackedSeries, 1)
+    assertEquals(evictingScrape(evicting), Map.empty[String, Double])
+    assertEquals(evicting.trackedSeries, 1)
+
+    now = 150
+    assertEquals(evictingScrape(evicting), Map.empty[String, Double])
+    assertEquals(evicting.trackedSeries, 0)
+  }
+
+  test("withStaleSeriesEviction rejects a non-positive TTL when the registry is built") {
+    JavaMetricRegistry
+      .Builder[IO]()
+      .withRegistry(new PrometheusRegistry())
+      .withStaleSeriesEviction(Duration.Zero)
+      .build
+      .use_
+      .attempt
+      .map {
+        case Left(_: IllegalArgumentException) => ()
+        case other                             => fail(s"expected an IllegalArgumentException, got $other")
+      }
+  }
+
   test("EvictingCollector preserves the registry's duplicate-name detection") {
     val promRegistry = new PrometheusRegistry()
 
