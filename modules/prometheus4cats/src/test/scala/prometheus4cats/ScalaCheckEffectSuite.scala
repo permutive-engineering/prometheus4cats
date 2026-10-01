@@ -74,7 +74,7 @@ trait ScalaCheckEffectSuite extends ScalaCheckSuite {
 
   private def parseTestResult(result: ScalaCheckTest.Result)(implicit loc: Location): Unit = {
     if (!result.passed) {
-      val seed = genParameters.initialSeed.get
+      val seed        = genParameters.initialSeed.get
       val seedMessage =
         s"""|Failing seed: ${seed.toBase64}
             |You can reproduce this failure by adding the following override to your suite:

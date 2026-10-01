@@ -65,7 +65,7 @@ class JavaMetricRegistrySuite extends CatsEffectSuite with DslSuite {
   override def getRegistryState: IO[List[FamilyState]] =
     promRegistryRef.get.flatMap {
       case Some(pr) => IO.delay(scrapeToFamilyStates(pr))
-      case None =>
+      case None     =>
         IO.raiseError(
           new IllegalStateException("getRegistryState called outside of an active `resource.use { … }` scope")
         )
@@ -96,9 +96,8 @@ class JavaMetricRegistrySuite extends CatsEffectSuite with DslSuite {
             "COUNTER",
             s.getMetadata.getHelp,
             sortDataPoints(
-              s.getDataPoints.asScala.toList.map(dp =>
-                CounterDP(promLabelsToMap(dp.getLabels), dp.getValue, promExemplarToMap(dp.getExemplar))
-              )
+              s.getDataPoints.asScala.toList
+                .map(dp => CounterDP(promLabelsToMap(dp.getLabels), dp.getValue, promExemplarToMap(dp.getExemplar)))
             )
           )
         case s: GaugeSnapshot =>
@@ -225,9 +224,9 @@ class JavaMetricRegistrySuite extends CatsEffectSuite with DslSuite {
       }
 
     val metrics = for {
-      factory <- buildEvicting(promRegistry, ttl)
-      counter <- factory.counter("evict_counter_total").help("eviction").label[String]("status").build
-      gauge   <- factory.gauge("evict_gauge").help("eviction").label[String]("status").build
+      factory   <- buildEvicting(promRegistry, ttl)
+      counter   <- factory.counter("evict_counter_total").help("eviction").label[String]("status").build
+      gauge     <- factory.gauge("evict_gauge").help("eviction").label[String]("status").build
       histogram <-
         factory.histogram("evict_histogram").help("eviction").buckets(NonEmptySeq.one(1.0)).label[String]("status").build
       summary <- factory.summary("evict_summary").help("eviction").label[String]("status").build
