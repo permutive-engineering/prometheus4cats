@@ -669,7 +669,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
             val get = getInfoValue(state, prefix, name, help, labels)
 
             val labelNamesForInfo = labels.keys.toIndexedSeq
-            val create = reg.createAndRegisterInfo[Map[Label.Name, String]](
+            val create            = reg.createAndRegisterInfo[Map[Label.Name, String]](
               prefix,
               name,
               help,
@@ -848,7 +848,7 @@ trait MetricRegistrySuite[State] extends RegistrySuite[State] { self: CatsEffect
             val get = getInfoValue(state, prefix, name, help, labels)
 
             val labelNamesForInfo = labels.keys.toIndexedSeq
-            val create = reg.createAndRegisterInfo[Map[Label.Name, String]](
+            val create            = reg.createAndRegisterInfo[Map[Label.Name, String]](
               prefix,
               name,
               help,

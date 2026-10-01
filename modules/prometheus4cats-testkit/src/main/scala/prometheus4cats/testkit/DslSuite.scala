@@ -853,7 +853,7 @@ trait DslSuite { self: CatsEffectSuite =>
 
   test("name-collision: returns an existing metric when labels and name are the same") {
     resource.use { factory =>
-      val mk = factory.counter("collision_reuse_total").help(collisionHelp).label[String]("region").build
+      val mk                      = factory.counter("collision_reuse_total").help(collisionHelp).label[String]("region").build
       def expected(value: Double) = List(
         FamilyState(
           name = "collision_reuse",

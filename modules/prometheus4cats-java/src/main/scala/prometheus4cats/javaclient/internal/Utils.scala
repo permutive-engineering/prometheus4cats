@@ -61,7 +61,7 @@ private[javaclient] object Utils {
       modify: D => Unit,
       logger: Throwable => String => F[Unit]
   ): F[Unit] = {
-    val labelArray = buildLabelArray(dynamicLabels, commonLabelValues)
+    val labelArray   = buildLabelArray(dynamicLabels, commonLabelValues)
     val mod: F[Unit] =
       for {
         dp <- handleErrors(Sync[F].delay(getDataPoint(labelArray)), metricName, allLabelNames, labelArray)
