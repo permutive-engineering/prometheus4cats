@@ -20,7 +20,7 @@ import scala.annotation.nowarn
 
 import shapeless.ops.tuple._
 
-private[prometheus4cats] trait PlatformSpecificInitLast extends LowPriorityInitLast {
+trait PlatformSpecificInitLast extends LowPriorityInitLast {
 
   implicit def default[C0 <: Product, A <: Product, B](implicit
       @nowarn prepend: Prepend.Aux[A, Tuple1[B], C0],

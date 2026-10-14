@@ -16,7 +16,7 @@
 
 package prometheus4cats.internal
 
-private[prometheus4cats] trait PlatformSpecificInitLast extends LowPriorityInitLast {
+trait PlatformSpecificInitLast extends LowPriorityInitLast {
   type NonEmptyAppend[X <: Tuple, Y] <: NonEmptyTuple = X match {
     case EmptyTuple => Y *: EmptyTuple
     case x *: xs => x *: NonEmptyAppend[xs, Y]
