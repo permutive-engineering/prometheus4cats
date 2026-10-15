@@ -244,7 +244,7 @@ class JavaMetricRegistryTestkitSuite extends CatsEffectSuite with MetricRegistry
           .zip(cumulativeCounts)
           .zip(lowerBounds)
           .map { case ((b, cumCount), lower) =>
-            val key = if (b.getUpperBound == Double.PositiveInfinity) "+Inf" else doubleToGoString(b.getUpperBound)
+            val key                                        = if (b.getUpperBound == Double.PositiveInfinity) "+Inf" else doubleToGoString(b.getUpperBound)
             val maybeExemplar: Option[Map[String, String]] =
               allExemplars.find(e => e.getValue > lower && e.getValue <= b.getUpperBound).map { e =>
                 e.getLabels.asScala.map(l => l.getName -> l.getValue).toMap
@@ -264,7 +264,7 @@ class JavaMetricRegistryTestkitSuite extends CatsEffectSuite with MetricRegistry
       extraLabels: Map[Label.Name, String]
   ): IO[(Option[Map[String, Double]], Option[Long], Option[Double])] =
     IO {
-      val dpOpt = findSummaryDataPoint(state, prefix, name, allLabelsMap(commonLabels, extraLabels))
+      val dpOpt     = findSummaryDataPoint(state, prefix, name, allLabelsMap(commonLabels, extraLabels))
       val quantiles = dpOpt.map { dp =>
         dp.getQuantiles.asScala.map(q => doubleToGoString(q.getQuantile) -> q.getValue).toMap
       }
