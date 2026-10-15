@@ -188,7 +188,7 @@ class TimerSuite extends CatsEffectSuite with ScalaCheckEffectSuite {
         TestControl
           .execute(for {
             ref <- Ref.of[IO, List[(Double, String)]](List.empty)
-            _ <- NonEmptyList(dur, durs).traverse { case (d, s) =>
+            _   <- NonEmptyList(dur, durs).traverse { case (d, s) =>
                    f(ref, IO.sleep(d) >> IO.raiseError(new RuntimeException(s))).attempt
                  }
             res <- ref.get

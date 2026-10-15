@@ -145,7 +145,7 @@ object Sandbox extends IOApp.Simple {
         }
 
         implicit val s: ExemplarSampler.Counter[IO, Double] = new ExemplarSampler.Counter[IO, Double] {
-          val fraction = 0.1 // ≈ one in ten calls gets an exemplar
+          val fraction                               = 0.1 // ≈ one in ten calls gets an exemplar
           val maybeSample: IO[Option[Exemplar.Data]] =
             random.nextDouble.flatMap { r =>
               if (r >= fraction) IO.pure(None)
