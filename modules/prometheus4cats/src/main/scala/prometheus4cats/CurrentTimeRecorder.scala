@@ -16,7 +16,7 @@
 
 package prometheus4cats
 
-import scala.annotation.nowarn
+import scala.annotation.unused
 import scala.concurrent.duration.FiniteDuration
 
 import cats.FlatMap
@@ -54,9 +54,8 @@ object CurrentTimeRecorder {
 
   }
 
-  @nowarn("msg=unused implicit")
   implicit class LabelledCurrentTimeRecorderSyntax[F[_], A](recorder: CurrentTimeRecorder[F, A])(implicit
-      ev: Unit Neq A
+      @unused ev: Unit Neq A
   ) {
 
     def mark(labels: A): F[Unit] = recorder.markImpl(labels)

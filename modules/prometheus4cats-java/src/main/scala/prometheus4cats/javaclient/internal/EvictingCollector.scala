@@ -22,8 +22,7 @@ import scala.concurrent.duration.FiniteDuration
 
 import io.prometheus.metrics.core.metrics.StatefulMetric
 import io.prometheus.metrics.model.registry.Collector
-import io.prometheus.metrics.model.registry.MetricType
-import io.prometheus.metrics.model.snapshots.MetricMetadata
+import io.prometheus.metrics.model.snapshots.MetricFamilyDescriptor
 import io.prometheus.metrics.model.snapshots.MetricSnapshot
 
 /** A [[io.prometheus.metrics.model.registry.Collector]] decorator that evicts stale series from `underlying` at scrape
@@ -80,12 +79,6 @@ final private[javaclient] class EvictingCollector(
     snapshot
   }
 
-  override def getPrometheusName: String = underlying.getPrometheusName
-
-  override def getMetricType: MetricType = underlying.getMetricType
-
-  override def getMetadata: MetricMetadata = underlying.getMetadata
-
-  override def getLabelNames: java.util.Set[String] = underlying.getLabelNames
+  override def getMetricFamilyDescriptor: MetricFamilyDescriptor = underlying.getMetricFamilyDescriptor
 
 }

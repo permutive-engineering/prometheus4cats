@@ -16,7 +16,7 @@
 
 package prometheus4cats
 
-import scala.annotation.nowarn
+import scala.annotation.unused
 
 import cats.Applicative
 import cats.Contravariant
@@ -136,8 +136,7 @@ object Histogram {
 
   }
 
-  @nowarn("msg=unused implicit")
-  implicit class LabelledCounterSyntax[F[_], A, B](histogram: Histogram[F, A, B])(implicit ev: Unit Neq B) {
+  implicit class LabelledCounterSyntax[F[_], A, B](histogram: Histogram[F, A, B])(implicit @unused ev: Unit Neq B) {
 
     final def observe(n: A, labels: B): F[Unit] = observeProvidedExemplar(n, labels, None)
 

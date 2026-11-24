@@ -16,7 +16,7 @@
 
 package prometheus4cats
 
-import scala.annotation.nowarn
+import scala.annotation.unused
 
 import cats.Applicative
 import cats.Contravariant
@@ -180,9 +180,8 @@ object Counter {
 
   }
 
-  @nowarn("msg=unused implicit")
   implicit class LabelledCounterSyntax[F[_], A, B](counter: Counter[F, A, B])(implicit
-      ev: Unit Neq B
+      @unused ev: Unit Neq B
   ) {
 
     final def inc(labels: B): F[Unit] = incProvidedExemplar(labels, None)
