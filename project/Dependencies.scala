@@ -39,10 +39,6 @@ object Dependencies {
     "org.typelevel" %% "cats-effect"                            % "3.6.4"
   )
 
-  lazy val website = Seq(
-    "org.typelevel" %% "cats-effect" % "3.6.4"
-  )
-
   lazy val documentation = Seq(
     "org.typelevel" %% "cats-effect" % "3.6.4"
   )

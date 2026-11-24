@@ -1,7 +1,3 @@
----
-sidebar_position: 1
----
-
 # Primitive Metric Types
 
 **For more detailed information on building metrics see the [Metrics DSL] section.**
