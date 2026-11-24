@@ -10,6 +10,8 @@ For releases before 6.0.0 see the
 
 ## [Unreleased]
 
+## [6.0.0] - 2026-11-24
+
 Major release rebuilt on the `prometheus-metrics-core` 1.x family — the v6 generation of the
 official Prometheus Java client and successor to the `simpleclient` family that v5 wrapped. See
 the [migration guide](./documentation/docs/migrating-from-v5.md) for the upgrade path.
@@ -41,6 +43,7 @@ the [migration guide](./documentation/docs/migrating-from-v5.md) for the upgrade
   histograms to ingest)
 - Exemplar retention period enforced by upstream `prometheus-metrics-core` — approximately 7 seconds
   minimum between consecutive exemplars landing in the same classic-histogram bucket
+- Built against `prometheus-metrics-core` 1.10.0
 
 ### Deprecated
 
@@ -64,4 +67,9 @@ the [migration guide](./documentation/docs/migrating-from-v5.md) for the upgrade
   metrics, register a custom `io.prometheus.metrics.model.registry.Collector` directly on the
   `PrometheusRegistry` your `JavaMetricRegistry` is built on.
 
-[Unreleased]: https://github.com/permutive-engineering/prometheus4cats/compare/v5.0.1...HEAD
+### Fixed
+
+- `InitLast` is now public, so chained labels compile on Scala 3.10
+
+[Unreleased]: https://github.com/permutive-engineering/prometheus4cats/compare/v6.0.0...HEAD
+[6.0.0]: https://github.com/permutive-engineering/prometheus4cats/compare/v5.0.1...v6.0.0
