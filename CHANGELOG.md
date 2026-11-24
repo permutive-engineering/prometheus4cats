@@ -12,7 +12,7 @@ For releases before 6.0.0 see the
 
 Major release rebuilt on the `prometheus-metrics-core` 1.x family — the v6 generation of the
 official Prometheus Java client and successor to the `simpleclient` family that v5 wrapped. See
-the [migration guide](./website/docs/migrating-from-v5.md) for the upgrade path.
+the [migration guide](./documentation/docs/migrating-from-v5.md) for the upgrade path.
 
 ### Added
 

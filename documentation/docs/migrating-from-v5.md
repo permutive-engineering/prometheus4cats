@@ -1,7 +1,3 @@
----
-sidebar_position: 2
----
-
 # Migrating from v5
 
 v6 is built on the [Prometheus Java client] 1.x family (`prometheus-metrics-core`), the successor to
