@@ -16,7 +16,7 @@
 
 package prometheus4cats.internal.histogram
 
-import scala.annotation.nowarn
+import scala.annotation.unused
 
 import cats.data.NonEmptySeq
 
@@ -35,7 +35,7 @@ final class BucketDsl[+A, N] private[prometheus4cats] (
     NonEmptySeq.of(head, rest: _*)
   )
 
-  def linearBuckets[Count <: Nat: ToInt](start: N, width: N)(implicit @nowarn gt: GT[Count, Nat._0]): A = {
+  def linearBuckets[Count <: Nat: ToInt](start: N, width: N)(implicit @unused gt: GT[Count, Nat._0]): A = {
     val count = Nat.toInt[Count] - 1
 
     def f(i: Int) = N.plus(start, N.times(N.fromInt(i), width))
@@ -61,7 +61,7 @@ object BucketDsl {
     )
 
     def exponentialBuckets[Count <: Nat: ToInt](start: Double, factor: Double)(implicit
-        @nowarn gt: GT[Count, Nat._0]
+        @unused gt: GT[Count, Nat._0]
     ): A = {
       val count = Nat.toInt[Count] - 1
 
