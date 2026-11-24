@@ -1,19 +1,19 @@
 # @DESCRIPTION@
 
 This library is designed to provide a tasteful Scala API for exposing [Prometheus] metrics using [Cats-Effect]. It is a
-mix between Permutive's internal library and [Epimetheus]. See the [design page](https://permutive-engineering.github.io/prometheus4cats/docs/design) for more information.
+mix between Permutive's internal library and [Epimetheus]. See the [design page](https://permutive-engineering.github.io/prometheus4cats/design.html) for more information.
 
 ## Features
 
-- [A fluent metric builder DSL](https://permutive-engineering.github.io/prometheus4cats/docs/interface/dsl)
-- [Metric name prefix and common labels](https://permutive-engineering.github.io/prometheus4cats/docs/interface/metric-factory)
-- [Decoupled backend for registering metrics](https://permutive-engineering.github.io/prometheus4cats/docs/interface/metric-registry)
+- [A fluent metric builder DSL](https://permutive-engineering.github.io/prometheus4cats/interface/dsl.html)
+- [Metric name prefix and common labels](https://permutive-engineering.github.io/prometheus4cats/interface/metric-factory.html)
+- [Decoupled backend for registering metrics](https://permutive-engineering.github.io/prometheus4cats/interface/metric-registry.html)
 
 ## Quickstart Usage
 
 This library is currently available for Scala binary versions 2.12 and 2.13 and 3.2.
 
-**For detailed code examples see the [metrics DSL](https://permutive-engineering.github.io/prometheus4cats/docs/interface/dsl) documentation.**
+**For detailed code examples see the [metrics DSL](https://permutive-engineering.github.io/prometheus4cats/interface/dsl.html) documentation.**
 
 To use the latest version, include the following in your `build.sbt`:
 

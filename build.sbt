@@ -4,21 +4,16 @@ ThisBuild / organization           := "com.permutive"
 ThisBuild / versionPolicyIntention := Compatibility.BinaryAndSourceCompatible
 
 addCommandAlias("ci-test", "fix --check; versionPolicyCheck; mdoc; publishLocal; +test")
-addCommandAlias("ci-docs", "github; mdoc; headerCreateAll; docusaurusPublishGhpages")
+addCommandAlias("ci-docs", "github; mdoc; headerCreateAll; documentation/laikaSite")
 addCommandAlias("ci-publish", "versionCheck; github; ci-release")
 
 lazy val documentation = project
   .settings(libraryDependencies ++= Dependencies.documentation)
   .dependsOn(prometheus4cats, `prometheus4cats-java`)
-  .enablePlugins(MdocPlugin)
-
-lazy val website = project
-  .settings(libraryDependencies ++= Dependencies.website)
-  .dependsOn(prometheus4cats, `prometheus4cats-java`)
-  .enablePlugins(MdocPlugin, DocusaurusPlugin)
-  .settings(mdocIn := baseDirectory.value / "docs")
-  .settings(mdocOut := (Compile / target).value / "mdoc")
-  .settings(watchTriggers += mdocIn.value.toGlob / "*.md")
+  .enablePlugins(MdocPlugin, LaikaDocumentationPlugin)
+  .settings(documentationTitle := "Prometheus4cats")
+  .settings(documentationPrimaryColor := "#f192be")
+  .settings(documentationPrimaryColorDark := "#f7d0e2")
   // `@SUPPORTED_SCALA@` in markdown gets replaced with e.g. "2.13 and 3.3" — sourced from
   // `crossScalaVersions` so the docs always reflect the actual cross-build matrix. Updating
   // crossScalaVersions in this file is the single point of change.
